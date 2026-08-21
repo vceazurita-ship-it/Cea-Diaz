@@ -14,7 +14,7 @@ export function ProgressRing({
   ratio,
   size = 96,
   stroke = 9,
-  color = '#818cf8',
+  color = 'var(--accent)',
   children,
 }: ProgressRingProps) {
   const clamped = Math.max(0, Math.min(1, ratio));

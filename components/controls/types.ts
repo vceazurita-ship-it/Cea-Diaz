@@ -9,7 +9,5 @@ export interface ControlProps<M extends Metric = Metric> {
   /** `undefined` borra el registro de esa métrica. */
   onChange: (value: MetricValue | undefined) => void;
   variant: ControlVariant;
-  /** Color de acento del perfil (hex). */
-  accent: string;
   disabled?: boolean;
 }

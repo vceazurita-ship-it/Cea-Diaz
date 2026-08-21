@@ -7,6 +7,12 @@
  *  Toda la interfaz se pinta con tokens, nunca con colores literales, de
  *  modo que cambiar de piel (oscura ↔ clara) no obliga a tocar componentes.
  *  El atributo `data-skin` lo fija `app/page.tsx` según el perfil activo.
+ *
+ *  El acento del perfil viaja por el mismo camino: `--accent` se fija en
+ *  línea sobre <main> y las utilidades `.bg-accent`, `.t-accent`… lo leen.
+ *  Así los controles pueden tener estados :hover y :focus teñidos con el
+ *  acento, algo imposible cuando el color se escribía en un atributo
+ *  `style` elemento a elemento.
  * ========================================================================= */
 
 :root {
@@ -15,6 +21,10 @@
      selector nocturno también rotula a los peques con ella. */
   --font-pitch: 'Arial Black', 'Arial Bold', Gadget, ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-sans);
+
+  /* Acento por defecto; cada perfil lo sobrescribe en línea. */
+  --accent: #818cf8;
+  --on-accent: #10141c;
 
   /* night — selector de perfiles y módulos compartidos */
   --bg: #161a23;
@@ -27,11 +37,11 @@
   --track: rgba(255, 255, 255, 0.1);
   --text: #eceef2;
   --text-2: #b0b9c9;
-  --text-3: #8593aa;
-  --on-accent: #10141c;
+  --text-3: #8a97ad;
   --danger: #fda4af;
   --danger-bg: rgba(244, 63, 94, 0.14);
-  --shadow-card: none;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
   --ring: rgba(255, 255, 255, 0.55);
 }
 
@@ -47,12 +57,13 @@
   --border-strong: rgba(255, 255, 255, 0.3);
   --track: rgba(255, 255, 255, 0.13);
   --text: #f1fbf4;
-  --text-2: #b4d7c2;
-  --text-3: #85ae97;
+  --text-2: #b8dbc6;
+  --text-3: #8db69f;
   --on-accent: #05160d;
   --danger: #fda4af;
   --danger-bg: rgba(244, 63, 94, 0.16);
-  --shadow-card: none;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.9);
   --ring: rgba(255, 255, 255, 0.6);
 }
 
@@ -69,11 +80,12 @@
   --track: rgba(24, 27, 33, 0.09);
   --text: #1a1e25;
   --text-2: #4b5260;
-  --text-3: #6b7483;
+  --text-3: #656e7d;
   --on-accent: #ffffff;
   --danger: #b3123c;
   --danger-bg: rgba(190, 18, 60, 0.08);
   --shadow-card: 0 1px 2px rgba(24, 27, 33, 0.05), 0 12px 28px -18px rgba(24, 27, 33, 0.35);
+  --shadow-pop: 0 30px 60px -24px rgba(24, 27, 33, 0.45);
   --ring: rgba(24, 27, 33, 0.5);
 }
 
@@ -88,6 +100,29 @@ body {
   transition: background-color 260ms ease;
   @apply antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* Respeta el notch y la barra de gestos al instalar como app. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Un solo anillo de foco para toda la app: cualquier elemento que reciba el
+   teclado queda señalado, incluidas las tarjetas, los emojis tocables y las
+   fichas del contador, que antes no tenían ninguna marca. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Nadie debería marearse registrando hábitos. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -116,6 +151,12 @@ body {
   .t-danger {
     color: var(--danger);
   }
+  .t-accent {
+    color: var(--accent);
+  }
+  .t-on-accent {
+    color: var(--on-accent);
+  }
 
   /* Superficies */
   .surf-1 {
@@ -130,8 +171,29 @@ body {
   .surf-page {
     background-color: var(--bg);
   }
+  .surf-raised {
+    background-color: var(--bg-2);
+  }
   .hover-soft:hover {
     background-color: var(--surface-2);
+  }
+
+  /* Acento del perfil activo */
+  .bg-accent {
+    background-color: var(--accent);
+  }
+  /* Velos de acento: legibles sobre papel y sobre fondo oscuro. */
+  .bg-accent-soft {
+    background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .bg-accent-faint {
+    background-color: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  .border-accent {
+    border-color: var(--accent);
+  }
+  .shadow-accent {
+    box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 55%, transparent);
   }
 
   /* Bordes */
@@ -140,6 +202,11 @@ body {
   }
   .hairline-strong {
     border-color: var(--border-strong);
+  }
+
+  /* Carril de una barra de progreso */
+  .track {
+    background-color: var(--track);
   }
 
   /* Césped: franjas de siega + líneas de cal, sólo decorativas */
@@ -154,6 +221,17 @@ body {
   }
   .chalk {
     border-color: rgba(255, 255, 255, 0.32);
+  }
+
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--surface) 0%,
+      var(--surface-2) 50%,
+      var(--surface) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
   }
 }
 
@@ -172,8 +250,10 @@ body {
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
-           transition-colors focus:outline-none focus-visible:ring-2;
-    --tw-ring-color: var(--ring);
+           transition-colors;
+  }
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-40;
   }
   .btn-ghost {
     @apply btn border;
@@ -181,8 +261,26 @@ body {
     background-color: var(--surface);
     color: var(--text);
   }
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     background-color: var(--surface-2);
+  }
+  /* Botón principal teñido con el acento del perfil. */
+  .btn-primary {
+    @apply btn font-semibold;
+    background-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .btn-danger {
+    @apply btn border font-semibold;
+    border-color: var(--danger);
+    background-color: var(--danger-bg);
+    color: var(--danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(1.1);
   }
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
@@ -192,6 +290,11 @@ body {
     background-color: var(--surface-2);
     color: var(--text-2);
   }
+  .chip-accent {
+    @apply chip;
+    background-color: var(--accent);
+    color: var(--on-accent);
+  }
   .field {
     @apply rounded-xl border px-3 py-2 text-sm outline-none transition-colors;
     border-color: var(--border);
@@ -199,7 +302,7 @@ body {
     color: var(--text);
   }
   .field:focus {
-    border-color: var(--border-strong);
+    border-color: var(--accent);
   }
   .field::placeholder {
     color: var(--text-3);
@@ -217,18 +320,25 @@ body {
   }
 }
 
-/* Rango (sliders) con estilo consistente en navegadores */
+/* Rango (sliders) con estilo consistente en navegadores. El pulgar hereda el
+   acento del perfil y mide 24 px: agarrable con el dedo. */
 input[type='range'] {
   @apply h-2 w-full cursor-pointer appearance-none rounded-full;
   background: var(--track);
 }
 input[type='range']::-webkit-slider-thumb {
-  @apply h-5 w-5 appearance-none rounded-full border-2 shadow;
+  @apply h-6 w-6 appearance-none rounded-full border-2 shadow;
   border-color: var(--bg-2);
-  background: var(--text);
+  background: var(--accent);
 }
 input[type='range']::-moz-range-thumb {
-  @apply h-5 w-5 rounded-full border-2 shadow;
+  @apply h-6 w-6 rounded-full border-2 shadow;
   border-color: var(--bg-2);
-  background: var(--text);
+  background: var(--accent);
+}
+input[type='range']:disabled::-webkit-slider-thumb {
+  background: var(--text-3);
+}
+input[type='range']:disabled::-moz-range-thumb {
+  background: var(--text-3);
 }

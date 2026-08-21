@@ -15,35 +15,21 @@ interface SummaryViewProps {
   profile: Profile;
   date: DateKey;
   entries: Record<string, DayEntry>;
-  /** Acento ya resuelto para la piel activa. */
-  accent: string;
   skin: ProfileSkin;
   onSelectDay: (date: DateKey) => void;
 }
 
-function StatTile({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent: string;
-}) {
+function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="card p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide t-3">{label}</p>
-      <p className="mt-0.5 text-2xl font-black tabular-nums" style={{ color: accent }}>
-        {value}
-      </p>
+      <p className="mt-0.5 text-2xl font-black tabular-nums t-accent">{value}</p>
       {hint && <p className="text-[11px] t-3">{hint}</p>}
     </div>
   );
 }
 
-export function SummaryView({ profile, date, entries, accent, skin, onSelectDay }: SummaryViewProps) {
+export function SummaryView({ profile, date, entries, skin, onSelectDay }: SummaryViewProps) {
   const [range, setRange] = useState<SummaryRange>('week');
   const kid = profile.kind === 'kid';
   // En la piel de fútbol los rótulos van con la tipografía de marcador.
@@ -74,31 +60,36 @@ export function SummaryView({ profile, date, entries, accent, skin, onSelectDay 
       ? `${formatShort(summary.from)} – ${formatShort(summary.to)}`
       : capitalize(formatMonth(date));
 
+  const empty = summary.trackedDays === 0;
+
   return (
     <div className="space-y-4">
       {/* Conmutador de periodo */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold t-2">{periodLabel}</p>
-        <div className="flex rounded-xl border hairline surf-1 p-0.5">
-          {(['week', 'month'] as SummaryRange[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setRange(option)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors
-                ${range === option ? '' : 't-2 hover:t-1'}`}
-              style={range === option ? { backgroundColor: accent, color: 'var(--on-accent)' } : undefined}
-            >
-              {option === 'week' ? 'Semana' : 'Mes'}
-            </button>
-          ))}
+        <div className="flex rounded-xl border hairline surf-1 p-0.5" role="group" aria-label="Periodo">
+          {(['week', 'month'] as SummaryRange[]).map((option) => {
+            const active = range === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setRange(option)}
+                aria-pressed={active}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors
+                  ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
+              >
+                {option === 'week' ? 'Semana' : 'Mes'}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Cabecera de cumplimiento */}
       <div className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5`}>
-        <ProgressRing ratio={summary.average} color={accent} size={kid ? 116 : 96}>
-          <span className="text-2xl font-black tabular-nums">
+        <ProgressRing ratio={summary.average} size={kid ? 116 : 96}>
+          <span className="text-2xl font-black tabular-nums t-1">
             {Math.round(summary.average * 100)}
             <span className="text-sm">%</span>
           </span>
@@ -106,58 +97,32 @@ export function SummaryView({ profile, date, entries, accent, skin, onSelectDay 
         </ProgressRing>
 
         <div className="min-w-[180px] flex-1 space-y-2">
-          {kid && (
-            <div className="flex items-center gap-2">
-              <Stars value={Math.round(summary.average * 5)} size="lg" animate />
-            </div>
-          )}
+          {kid && <Stars value={Math.round(summary.average * 5)} size="lg" animate />}
           <p className="text-sm t-2">
-            {summary.trackedDays === 0
+            {empty
               ? 'Todavía no hay registros en este periodo.'
               : `${summary.trackedDays} ${
                   summary.trackedDays === 1 ? 'día registrado' : 'días registrados'
                 } de ${summary.days.length}.`}
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="chip-soft">
-              🔥 Racha actual: {summary.streak}
-            </span>
-            <span className="chip-soft">
-              🏅 Mejor racha: {summary.bestStreak}
-            </span>
-            <span className="chip-soft">
-              ⭐ {summary.totalStars} estrellas
-            </span>
+            <span className="chip-soft">🔥 Racha actual: {summary.streak}</span>
+            <span className="chip-soft">🏅 Mejor racha: {summary.bestStreak}</span>
+            <span className="chip-soft">⭐ {summary.totalStars} estrellas</span>
           </div>
         </div>
       </div>
 
       {/* Estadísticas rápidas */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile
-          label="Media"
-          value={percent(summary.average)}
-          hint="días con registro"
-          accent={accent}
-        />
+        <StatTile label="Media" value={percent(summary.average)} hint="días con registro" />
         <StatTile
           label="Constancia"
           value={`${summary.trackedDays}/${summary.days.length}`}
           hint="días registrados"
-          accent={accent}
         />
-        <StatTile
-          label="Racha"
-          value={`${summary.streak}`}
-          hint="días seguidos"
-          accent={accent}
-        />
-        <StatTile
-          label="Estrellas"
-          value={`${summary.totalStars}`}
-          hint="en el periodo"
-          accent={accent}
-        />
+        <StatTile label="Racha" value={`${summary.streak}`} hint="días seguidos" />
+        <StatTile label="Estrellas" value={`${summary.totalStars}`} hint="en el periodo" />
       </div>
 
       {/* Evolución */}
@@ -166,41 +131,52 @@ export function SummaryView({ profile, date, entries, accent, skin, onSelectDay 
           {range === 'week' ? 'Evolución de la semana' : 'Mapa del mes'}
         </h3>
         {range === 'week' ? (
-          <WeekChart days={summary.days} accent={accent} onSelectDay={onSelectDay} />
+          <WeekChart days={summary.days} onSelectDay={onSelectDay} />
         ) : (
-          <MonthHeatmap days={summary.days} accent={accent} onSelectDay={onSelectDay} />
+          <MonthHeatmap days={summary.days} onSelectDay={onSelectDay} />
         )}
+        <p className="mt-2 text-center text-[11px] t-3">
+          Toca cualquier día para abrir su registro.
+        </p>
       </div>
 
       {/* Desglose por categoría */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>
-          Cumplimiento por categoría
-        </h3>
-        <div className="space-y-3">
-          {summary.perCategory.map((category) => (
-            <div key={category.categoryId} className="flex items-center gap-3">
-              <span className="w-7 shrink-0 text-center text-lg">{category.icon}</span>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm t-2">{category.label}</span>
-                  <span className="shrink-0 text-xs font-bold tabular-nums t-1">
-                    {percent(category.ratio)}
-                  </span>
+        <h3 className={headingClass}>Cumplimiento por categoría</h3>
+        {empty ? (
+          <p className="py-6 text-center text-sm t-3">
+            Registra algún día para ver el desglose por categoría.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {summary.perCategory.map((category) => (
+              <div key={category.categoryId} className="flex items-center gap-3">
+                <span className="w-7 shrink-0 text-center text-lg" aria-hidden>
+                  {category.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <span className="truncate text-sm t-2">{category.label}</span>
+                    <span className="shrink-0 text-xs font-bold tabular-nums t-1">
+                      {percent(category.ratio)}
+                    </span>
+                  </div>
+                  <ProgressBar
+                    ratio={category.ratio}
+                    chunky={kid}
+                    ariaLabel={`${category.label}: ${percent(category.ratio)}`}
+                  />
                 </div>
-                <ProgressBar ratio={category.ratio} color={accent} chunky={kid} />
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Logros */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>
-          Logros del mes
-        </h3>
-        <AchievementsPanel achievements={achievements} accent={accent} playful={kid} />
+        <h3 className={headingClass}>Logros del mes</h3>
+        <AchievementsPanel achievements={achievements} playful={kid} />
       </div>
     </div>
   );

@@ -35,6 +35,7 @@ No hay variables de entorno ni base de datos que configurar.
 app/
   layout.tsx           Layout raíz, metadatos y fondo ambiental
   page.tsx             Orquestador: selector ↔ dashboard ↔ PIN ↔ ajustes
+  manifest.ts          Manifiesto PWA (instalable en el móvil)
   globals.css          Tailwind + utilidades propias (.card, .card-kid, .btn…)
 components/
   Ambient.tsx          Decoración de fondo, distinta por piel
@@ -47,14 +48,15 @@ components/
   CategoryCard.tsx     Categoría plegable con su cumplimiento
   SportsPanel.tsx      Layout especial del desglose deportivo
   PinLock.tsx          Bloqueo del módulo privado de pareja
-  SettingsPanel.tsx    Datos de ejemplo, exportación, PIN y borrado
+  SettingsPanel.tsx    Datos de ejemplo, importación/exportación, PIN y borrado
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
-  ui/                  Avatar, ProgressBar, ProgressRing, Stars
+  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
+  icon.svg             Icono de la app instalada
 lib/
   profiles.ts          Los 6 perfiles: datos, fotos, acentos y piel visual
   habits.ts            Catálogo de categorías y métricas por perfil
@@ -116,6 +118,13 @@ El acento de cada perfil tiene dos valores: `accent` para fondos oscuros y
 `accentDeep` para la piel clara, donde un rosa pastel no tendría contraste
 suficiente; `accentFor(profile, skin)` resuelve cuál toca.
 
+El acento viaja por el mismo camino que las pieles: `app/page.tsx` lo publica
+como variable CSS `--accent` sobre `<main>` (`accentStyle()`), y los componentes
+lo consumen con `bg-accent`, `t-accent`, `border-accent`, `bg-accent-soft` o
+`bg-accent-faint`. Escribirlo en un `style` elemento a elemento, como se hacía
+antes, impedía teñir los estados `:hover` y `:focus`; ahora el anillo de foco
+de toda la app es el color del perfil activo.
+
 ## Fotos
 
 Las imágenes de `public/photos` son recortes ya optimizados de las fotos
@@ -136,12 +145,54 @@ sustituir el archivo manteniendo el nombre.
 ## Interfaz
 
 - **Niños**: tarjetas grandes, emojis tocables, barras gruesas, estrellas y mensajes de ánimo.
-- **Adultos y grupos**: filas compactas, interruptores, deslizadores y anillos de progreso.
+- **Adultos y grupos**: filas compactas, segmentados Sí/No, deslizadores y anillos de progreso.
 - **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros.
+
+## Usabilidad
+
+El registro diario es la operación que más se repite, así que todo lo demás
+se ordena a su alrededor:
+
+| Gesto                       | Qué hace                                                            |
+| --------------------------- | ------------------------------------------------------------------- |
+| `←` `→`                     | Día anterior / siguiente (nunca más allá de hoy)                     |
+| `H`                         | Volver a hoy                                                         |
+| `Esc`                       | Salir al selector de perfiles (o cerrar el diálogo abierto)          |
+| **Copiar del día anterior** | Trae los registros de ayer sin pisar lo que ya hubiera en hoy        |
+| **Sólo pendientes**         | Oculta las categorías ya completas para ver de un vistazo qué falta  |
+
+Ninguna acción destructiva es definitiva de un solo toque: borrar el día,
+importar, cargar datos de ejemplo y vaciarlo todo actúan de inmediato y
+ofrecen **Deshacer** en un aviso, en lugar de interrumpir con una confirmación
+previa. El estado del guardado (`⏳ Guardando…` / `✓ Guardado`) se acusa junto a
+la nota del día; la escritura en `localStorage` va diferida 350 ms para no
+serializar la base entera en cada tecla, y se vuelca si la pestaña se oculta.
+
+Los ajustes permiten **exportar e importar** el JSON: una copia de seguridad que
+no se puede restaurar no es una copia. Al importar se elige entre fusionar con
+lo actual o reemplazarlo.
+
+### Accesibilidad
+
+- Anillo de foco visible en **todo** elemento que reciba el teclado, teñido con
+  el acento del perfil.
+- Diálogos con `Escape`, foco atrapado dentro del panel, fondo bloqueado y
+  devolución del foco al cerrarse.
+- `aria-pressed`, `aria-expanded`, `aria-current` y `role="group"` en los
+  controles; los cambios de cumplimiento se anuncian con `aria-live`.
+- Se respeta `prefers-reduced-motion`: las animaciones se anulan.
+- Enlace «Saltar al contenido» y áreas tocables holgadas en el móvil.
+
+## Instalación en el móvil
+
+La app declara manifiesto e icono, así que se puede **añadir a la pantalla de
+inicio** y abrirse sin barra del navegador. El color de la barra de estado
+acompaña a la piel del perfil activo, y los márgenes respetan el *notch*.
 
 ## Privacidad
 
-El módulo de pareja se protege con un PIN (por defecto `2468`, modificable en Ajustes).
+El módulo de pareja se protege con un PIN (por defecto `2468`, modificable en Ajustes;
+la pantalla de bloqueo sólo muestra esa pista mientras nadie lo haya cambiado).
 Es una barrera doméstica, no seguridad real: los datos viven sin cifrar en el `localStorage`
 del navegador. Si en el futuro se quiere sincronizar entre dispositivos, basta con sustituir
 `loadDatabase` / `saveDatabase` en `lib/storage.ts` por llamadas a una API.

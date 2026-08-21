@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DEFAULT_PIN, loadPin } from '@/lib/storage';
+import { accentStyle } from '@/lib/profiles';
 import type { Profile } from '@/types';
 
 interface PinLockProps {
@@ -21,6 +22,10 @@ interface PinLockProps {
 export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  // La pista del PIN por defecto sólo tiene sentido si nadie lo ha cambiado.
+  const [isDefaultPin, setIsDefaultPin] = useState(false);
+
+  useEffect(() => setIsDefaultPin(loadPin() === DEFAULT_PIN), []);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,7 +38,10 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
   };
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col items-center justify-center px-4">
+    <div
+      style={accentStyle(profile.accent)}
+      className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col items-center justify-center px-4"
+    >
       <div className="relative mb-5 h-24 w-24 overflow-hidden rounded-3xl shadow-xl">
         {profile.photo ? (
           <>
@@ -49,7 +57,9 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
         ) : (
           <div className={`h-full w-full bg-gradient-to-br ${profile.gradient}`} />
         )}
-        <span className="absolute inset-0 flex items-center justify-center text-4xl">🔒</span>
+        <span className="absolute inset-0 flex items-center justify-center text-4xl" aria-hidden>
+          🔒
+        </span>
       </div>
 
       <h2 className="text-2xl font-bold t-1">{profile.name}</h2>
@@ -62,6 +72,8 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
           type="password"
           inputMode="numeric"
           autoComplete="off"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- es el único campo de la pantalla
+          autoFocus
           maxLength={8}
           value={pin}
           onChange={(e) => {
@@ -70,18 +82,17 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
           }}
           placeholder="••••"
           aria-label="PIN"
+          aria-invalid={error}
+          aria-describedby="pin-error"
           className="field w-full px-4 py-3 text-center text-2xl tracking-[0.5em]"
           style={error ? { borderColor: 'var(--danger)' } : undefined}
         />
 
-        {error && <p className="t-danger text-center text-sm font-semibold">PIN incorrecto</p>}
+        <p id="pin-error" role="alert" className="min-h-[1.25rem] text-center text-sm font-semibold t-danger">
+          {error ? 'PIN incorrecto' : ''}
+        </p>
 
-        <button
-          type="submit"
-          disabled={pin.length < 4}
-          className="btn w-full py-3 text-base font-bold disabled:opacity-40"
-          style={{ backgroundColor: profile.accent, color: 'var(--on-accent)' }}
-        >
+        <button type="submit" disabled={pin.length < 4} className="btn-primary w-full py-3 text-base">
           Entrar
         </button>
 
@@ -90,10 +101,12 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-[11px] t-3">
-        PIN por defecto: <span className="font-mono font-bold">{DEFAULT_PIN}</span>. Se puede cambiar
-        en Ajustes.
-      </p>
+      {isDefaultPin && (
+        <p className="mt-6 text-center text-[11px] t-3">
+          PIN por defecto: <span className="font-mono font-bold">{DEFAULT_PIN}</span>. Cámbialo en
+          Ajustes.
+        </p>
+      )}
     </div>
   );
 }

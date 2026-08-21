@@ -3,19 +3,23 @@
 interface ProgressBarProps {
   /** Cumplimiento 0..1. */
   ratio: number;
-  /** Color sólido de la barra (hex). */
+  /** Color sólido de la barra. Por defecto, el acento del perfil activo. */
   color?: string;
   /** Barra más gruesa y redondeada para los perfiles infantiles. */
   chunky?: boolean;
+  /** Rótulo visible sobre la barra. */
   label?: string;
+  /** Nombre accesible cuando no se quiere rótulo visible. */
+  ariaLabel?: string;
   showValue?: boolean;
 }
 
 export function ProgressBar({
   ratio,
-  color = '#818cf8',
+  color = 'var(--accent)',
   chunky = false,
   label,
+  ariaLabel,
   showValue = false,
 }: ProgressBarProps) {
   const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
@@ -29,19 +33,19 @@ export function ProgressBar({
         </div>
       )}
       <div
-        className={`w-full overflow-hidden rounded-full surf-2 ${chunky ? 'h-4' : 'h-2'}`}
+        className={`w-full overflow-hidden rounded-full track ${chunky ? 'h-4' : 'h-2'}`}
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={label ?? 'Progreso'}
+        aria-label={ariaLabel ?? label ?? 'Progreso'}
       >
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{
             width: `${pct}%`,
             backgroundColor: color,
-            boxShadow: chunky ? `0 0 12px ${color}66` : undefined,
+            boxShadow: chunky ? `0 0 12px color-mix(in srgb, ${color} 40%, transparent)` : undefined,
           }}
         />
       </div>

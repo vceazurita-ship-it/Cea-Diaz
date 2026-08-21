@@ -14,12 +14,13 @@ export function DurationControl({
   value,
   onChange,
   variant,
-  accent,
   disabled,
 }: ControlProps<DurationMetric>) {
   const registered = typeof value === 'number';
   const current = registered ? (value as number) : metric.min;
   const ratio = metric.target > 0 ? Math.min(1, current / metric.target) : 0;
+  // Partir de la meta al primer toque ahorra arrastrar el deslizador cada día.
+  const startValue = Math.min(metric.max, Math.max(metric.min, metric.target));
 
   const set = (next: number) => {
     const clamped = Math.max(metric.min, Math.min(metric.max, snap(next, metric.step)));
@@ -30,15 +31,17 @@ export function DurationControl({
     return (
       <div className="rounded-2xl border-2 hairline surf-1 p-3">
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-2xl">{metric.icon}</span>
+          <span className="text-2xl" aria-hidden>
+            {metric.icon}
+          </span>
           <span className="flex-1 text-base font-bold leading-tight">{metric.label}</span>
         </div>
 
         <div className="mb-3 flex items-center justify-center gap-4">
           <button
             type="button"
-            disabled={disabled || current <= metric.min}
-            onClick={() => set(current - metric.step)}
+            disabled={disabled || (registered && current <= metric.min)}
+            onClick={() => set(registered ? current - metric.step : startValue)}
             className="h-12 w-12 rounded-2xl border-2 hairline-strong surf-1 text-2xl
                        font-black transition-colors hover-soft disabled:opacity-30"
             aria-label="Restar"
@@ -46,7 +49,7 @@ export function DurationControl({
             −
           </button>
           <div className="min-w-[110px] text-center">
-            <div className="text-3xl font-black tabular-nums" style={{ color: accent }}>
+            <div className={`text-3xl font-black tabular-nums ${registered ? 't-accent' : 't-3'}`}>
               {registered ? current : '—'}
             </div>
             <div className="text-xs font-semibold uppercase tracking-wide t-2">
@@ -56,7 +59,7 @@ export function DurationControl({
           <button
             type="button"
             disabled={disabled || current >= metric.max}
-            onClick={() => set(current + metric.step)}
+            onClick={() => set(registered ? current + metric.step : startValue)}
             className="h-12 w-12 rounded-2xl border-2 hairline-strong surf-1 text-2xl
                        font-black transition-colors hover-soft disabled:opacity-30"
             aria-label="Sumar"
@@ -65,10 +68,12 @@ export function DurationControl({
           </button>
         </div>
 
-        <ProgressBar ratio={ratio} color={accent} chunky />
+        <ProgressBar ratio={registered ? ratio : 0} chunky />
       </div>
     );
   }
+
+  const pct = ((current - metric.min) / (metric.max - metric.min)) * 100;
 
   return (
     <div className="py-2">
@@ -78,9 +83,7 @@ export function DurationControl({
         </span>
         <p className="min-w-0 flex-1 truncate text-sm font-medium t-1">{metric.label}</p>
         <span className="shrink-0 text-sm font-semibold tabular-nums">
-          <span style={{ color: registered ? accent : undefined }}>
-            {registered ? current : '—'}
-          </span>
+          <span className={registered ? 't-accent' : 't-3'}>{registered ? current : '—'}</span>
           <span className="t-3">
             {' '}
             / {metric.target} {metric.unit}
@@ -89,6 +92,8 @@ export function DurationControl({
       </div>
 
       <div className="mt-2 flex items-center gap-3">
+        {/* Sin registrar el deslizador se atenúa y no pinta relleno, para que
+            el pulgar en el mínimo no se confunda con un valor elegido. */}
         <input
           type="range"
           min={metric.min}
@@ -97,21 +102,23 @@ export function DurationControl({
           value={current}
           disabled={disabled}
           onChange={(e) => set(Number(e.target.value))}
-          aria-label={metric.label}
-          style={{
-            background: `linear-gradient(to right, ${accent} 0%, ${accent} ${
-              ((current - metric.min) / (metric.max - metric.min)) * 100
-            }%, var(--track) ${
-              ((current - metric.min) / (metric.max - metric.min)) * 100
-            }%, var(--track) 100%)`,
-          }}
+          aria-label={`${metric.label} en ${metric.unit}`}
+          aria-valuetext={registered ? `${current} ${metric.unit}` : 'sin registrar'}
+          className={registered ? '' : 'opacity-45'}
+          style={
+            registered
+              ? {
+                  background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--track) ${pct}%, var(--track) 100%)`,
+                }
+              : undefined
+          }
         />
         <button
           type="button"
           disabled={disabled || !registered}
           onClick={() => onChange(undefined)}
-          className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold t-3
-                     transition-colors hover-soft hover:t-2 disabled:opacity-30"
+          className="shrink-0 rounded-lg px-2.5 py-2 text-[11px] font-semibold t-3
+                     transition-colors hover-soft hover:t-2 disabled:invisible"
           title="Borrar registro"
         >
           Limpiar

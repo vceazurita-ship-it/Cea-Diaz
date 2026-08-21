@@ -8,7 +8,6 @@ export function ScaleControl({
   value,
   onChange,
   variant,
-  accent,
   disabled,
 }: ControlProps<ScaleMetric>) {
   const current = typeof value === 'number' ? value : undefined;
@@ -25,19 +24,17 @@ export function ScaleControl({
         <span className={kid ? 'text-2xl' : 'text-lg'} aria-hidden>
           {metric.icon}
         </span>
-        <span
-          className={`flex-1 ${kid ? 'text-base font-bold' : 'text-sm font-medium t-1'}`}
-        >
+        <span className={`flex-1 ${kid ? 'text-base font-bold' : 'text-sm font-medium t-1'}`}>
           {metric.label}
         </span>
-        {current !== undefined && (
-          <span className="text-xs font-semibold" style={{ color: accent }}>
-            {metric.levels[current - metric.min]}
-          </span>
-        )}
+        {/* La etiqueta del nivel elegido se reserva el sitio siempre, para que
+            marcar un valor no desplace la fila entera. */}
+        <span className="min-h-[1rem] text-xs font-semibold t-accent">
+          {current !== undefined ? metric.levels[current - metric.min] : ''}
+        </span>
       </div>
 
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5" role="group" aria-label={metric.label}>
         {levels.map((level, i) => {
           const selected = current === level;
           const emoji = metric.emojis?.[i];
@@ -49,15 +46,18 @@ export function ScaleControl({
               onClick={() => onChange(selected ? undefined : level)}
               aria-pressed={selected}
               aria-label={metric.levels[i] ?? String(level)}
-              title={metric.levels[i]}
+              title={
+                selected
+                  ? `${metric.levels[i]} — pulsa otra vez para borrarlo`
+                  : metric.levels[i]
+              }
               className={`flex-1 rounded-xl border transition-all disabled:opacity-40
-                ${kid ? 'py-2 text-2xl' : 'py-1.5 text-lg'}
+                ${kid ? 'py-2.5 text-2xl' : 'py-2 text-lg'}
                 ${
                   selected
-                    ? 'border-transparent scale-105'
-                    : 'hairline surf-1 opacity-80 grayscale-[0.55] hover:opacity-100 hover:grayscale-0'
+                    ? 'bg-accent-soft border-accent scale-[1.06]'
+                    : 'hairline surf-1 opacity-90 hover:bg-accent-faint hover:opacity-100'
                 }`}
-              style={selected ? { backgroundColor: `${accent}33`, borderColor: accent } : undefined}
             >
               {emoji ?? level}
             </button>

@@ -11,7 +11,6 @@ import type { DateKey, DayScore, Profile, ProfileSkin } from '@/types';
 export interface ProfileHeaderProps {
   profile: Profile;
   skin: ProfileSkin;
-  accent: string;
   date: DateKey;
   dayScore: DayScore;
   /** Racha actual en días, para el marcador y la ficha editorial. */
@@ -36,7 +35,7 @@ function chant(ratio: number, empty: boolean): string {
  * Cabecera de Leo y Hugo: foto de acción a sangre, franjas de siega,
  * dorsal enorme y un marcador de estadio con el cumplimiento del día.
  */
-function PitchHeader({ profile, accent, date, dayScore, streak, filled }: ProfileHeaderProps) {
+function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
   const pct = Math.round(dayScore.ratio * 100);
 
   return (
@@ -77,14 +76,15 @@ function PitchHeader({ profile, accent, date, dayScore, streak, filled }: Profil
               {profile.name}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span
-                className="chip font-display px-2.5 text-[11px] tracking-widest"
-                style={{ backgroundColor: accent, color: 'var(--on-accent)' }}
-              >
+              <span className="chip-accent font-display px-2.5 text-[11px] tracking-widest">
                 {profile.position} · {profile.squad}
               </span>
               <span className="chip-soft">{profile.age} años</span>
-              {streak > 0 && <span className="chip-soft">🔥 {streak}</span>}
+              {streak > 0 && (
+                <span className="chip-soft" title="Días seguidos por encima del 60 %">
+                  🔥 {streak}
+                </span>
+              )}
             </div>
           </div>
 
@@ -95,8 +95,8 @@ function PitchHeader({ profile, accent, date, dayScore, streak, filled }: Profil
                 Marcador de hoy
               </p>
               <p
-                className="font-display text-5xl leading-none tabular-nums sm:text-6xl"
-                style={{ color: accent }}
+                className="font-display text-5xl leading-none tabular-nums t-accent sm:text-6xl"
+                aria-live="polite"
               >
                 {pct}
                 <span className="text-2xl sm:text-3xl">%</span>
@@ -111,7 +111,7 @@ function PitchHeader({ profile, accent, date, dayScore, streak, filled }: Profil
             </div>
           </div>
 
-          <p className="relative text-sm font-bold" style={{ color: accent }}>
+          <p className="relative text-sm font-bold t-accent">
             {chant(dayScore.ratio, dayScore.empty)}
           </p>
         </div>
@@ -140,7 +140,7 @@ function PitchHeader({ profile, accent, date, dayScore, streak, filled }: Profil
  * Nombre en serif, filete fino, retrato a la derecha y una fila de datos
  * separada por hairlines en lugar de tarjetas.
  */
-function EditorialHeader({ profile, accent, date, dayScore, streak, filled }: ProfileHeaderProps) {
+function EditorialHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
   const stats = [
     { label: 'Cumplimiento', value: dayScore.empty ? '—' : percent(dayScore.ratio) },
     { label: 'Registros', value: `${filled}` },
@@ -159,7 +159,7 @@ function EditorialHeader({ profile, accent, date, dayScore, streak, filled }: Pr
             {profile.name}
           </h1>
 
-          <span className="mt-4 block h-[3px] w-14 rounded-full" style={{ backgroundColor: accent }} />
+          <span className="mt-4 block h-[3px] w-14 rounded-full bg-accent" />
 
           <p className="mt-4 text-sm font-medium t-2">{profile.role}</p>
           <p className="mt-1 text-sm t-3">{profile.tagline}</p>
@@ -169,8 +169,7 @@ function EditorialHeader({ profile, accent, date, dayScore, streak, filled }: Pr
         <div className="relative shrink-0 self-start">
           <span
             aria-hidden
-            className="absolute -bottom-3 -right-3 h-full w-full rounded-2xl border-2"
-            style={{ borderColor: accent }}
+            className="absolute -bottom-3 -right-3 h-full w-full rounded-2xl border-2 border-accent"
           />
           <div className="relative h-32 w-32 overflow-hidden rounded-2xl sm:h-40 sm:w-40">
             {profile.hero ? (
@@ -191,8 +190,8 @@ function EditorialHeader({ profile, accent, date, dayScore, streak, filled }: Pr
 
       {/* Fila de datos */}
       <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-5 border-t pt-5 hairline">
-        <ProgressRing ratio={dayScore.ratio} color={accent} size={72} stroke={5}>
-          <span className="text-lg font-semibold tabular-nums t-1">
+        <ProgressRing ratio={dayScore.ratio} size={72} stroke={5}>
+          <span className="text-lg font-semibold tabular-nums t-1" aria-live="polite">
             {Math.round(dayScore.ratio * 100)}
             <span className="text-[10px]">%</span>
           </span>
@@ -217,7 +216,7 @@ function EditorialHeader({ profile, accent, date, dayScore, streak, filled }: Pr
  * de familia y de pareja son verticales y una banda ancha las ampliaría
  * hasta dejar las caras fuera de cuadro.
  */
-function GroupHeader({ profile, accent, date, dayScore, streak, filled }: ProfileHeaderProps) {
+function GroupHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
   return (
     <header className="card relative mb-4 overflow-hidden">
       <div className="flex min-h-[172px] sm:min-h-[200px]">
@@ -251,7 +250,11 @@ function GroupHeader({ profile, accent, date, dayScore, streak, filled }: Profil
                   🔒 Privado
                 </span>
               )}
-              {streak > 0 && <span className="chip-soft">🔥 {streak}</span>}
+              {streak > 0 && (
+                <span className="chip-soft" title="Días seguidos por encima del 60 %">
+                  🔥 {streak}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm t-2">{profile.role}</p>
             <p className="mt-0.5 text-xs t-3">
@@ -260,8 +263,8 @@ function GroupHeader({ profile, accent, date, dayScore, streak, filled }: Profil
             </p>
           </div>
 
-          <ProgressRing ratio={dayScore.ratio} color={accent} size={84} stroke={8}>
-            <span className="text-xl font-black tabular-nums t-1">
+          <ProgressRing ratio={dayScore.ratio} size={84} stroke={8}>
+            <span className="text-xl font-black tabular-nums t-1" aria-live="polite">
               {Math.round(dayScore.ratio * 100)}
               <span className="text-xs">%</span>
             </span>

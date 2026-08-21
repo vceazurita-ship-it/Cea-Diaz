@@ -7,11 +7,19 @@ import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { TopBar } from '@/components/TopBar';
+import { ToastProvider } from '@/components/ui/Toast';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { todayKey, weekKeys } from '@/lib/dates';
-import { PROFILES, getProfile, skinOf } from '@/lib/profiles';
+import { PROFILES, accentFor, accentStyle, getProfile, skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import type { DateKey, ProfileId } from '@/types';
+
+/** Color de la barra del navegador por piel, para que la app se integre al instalarla. */
+const THEME_COLOR: Record<string, string> = {
+  night: '#161a23',
+  pitch: '#05180e',
+  editorial: '#f6f4f1',
+};
 
 export default function HomePage() {
   const store = useHabitStore();
@@ -60,49 +68,81 @@ export default function HomePage() {
   // El selector y la pantalla de PIN se pintan siempre con la piel nocturna;
   // sólo el panel de un perfil desbloqueado adopta la suya.
   const skin = profile && !needsPin ? skinOf(profile) : 'night';
+  const accent = profile && !needsPin ? accentFor(profile, skin) : '#818cf8';
 
   // Se propaga a <html> para que el fondo del documento, la barra del
   // navegador y el scrollbar acompañen al cambio de piel.
   useEffect(() => {
     document.documentElement.dataset.skin = skin;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', THEME_COLOR[skin] ?? THEME_COLOR.night);
   }, [skin]);
 
+  // Volver al selector con Escape: la salida siempre está a una tecla.
+  useEffect(() => {
+    if (!profile) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !settingsOpen) goHome();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [profile, settingsOpen, goHome]);
+
   return (
-    <main data-skin={skin} className="min-h-screen surf-page">
-      <Ambient skin={skin} />
+    <ToastProvider>
+      <main data-skin={skin} style={accentStyle(accent)} className="min-h-screen surf-page">
+        <Ambient skin={skin} />
 
-      {profile && (
-        <TopBar
-          activeId={profile.id}
-          onSelect={select}
-          onHome={goHome}
-          lockedIds={lockedIds}
-        />
-      )}
+        <a
+          href="#contenido"
+          className="btn-primary sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+        >
+          Saltar al contenido
+        </a>
 
-      {!profile ? (
-        <ProfileSelector onSelect={select} glances={glances} hydrated={store.hydrated} />
-      ) : needsPin ? (
-        <PinLock
-          profile={profile}
-          onUnlock={() => setUnlocked((prev) => [...prev, profile.id])}
-          onCancel={goHome}
-        />
-      ) : (
-        <Dashboard profile={profile} date={date} onDateChange={setDate} store={store} />
-      )}
+        {profile && (
+          <TopBar
+            activeId={profile.id}
+            onSelect={select}
+            onHome={goHome}
+            lockedIds={lockedIds}
+          />
+        )}
 
-      {/* Pie con acceso a ajustes */}
-      <footer className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 pb-8 pt-2">
-        <p className="text-[11px] t-3">
-          Los datos se guardan en este navegador (localStorage).
-        </p>
-        <button type="button" onClick={() => setSettingsOpen(true)} className="btn-ghost px-2.5 py-1.5 text-xs">
-          ⚙️ Ajustes
-        </button>
-      </footer>
+        <div id="contenido">
+          {!profile ? (
+            <ProfileSelector onSelect={select} glances={glances} hydrated={store.hydrated} />
+          ) : needsPin ? (
+            <PinLock
+              profile={profile}
+              onUnlock={() => setUnlocked((prev) => [...prev, profile.id])}
+              onCancel={goHome}
+            />
+          ) : (
+            <Dashboard profile={profile} date={date} onDateChange={setDate} store={store} />
+          )}
+        </div>
 
-      {settingsOpen && <SettingsPanel store={store} onClose={() => setSettingsOpen(false)} />}
-    </main>
+        {/* Pie con acceso a ajustes */}
+        <footer
+          className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 pb-8 pt-2"
+          style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+        >
+          <p className="text-[11px] t-3">
+            Los datos se guardan en este navegador (localStorage).
+          </p>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="btn-ghost px-2.5 py-1.5 text-xs"
+          >
+            ⚙️ Ajustes
+          </button>
+        </footer>
+
+        {settingsOpen && <SettingsPanel store={store} onClose={() => setSettingsOpen(false)} />}
+      </main>
+    </ToastProvider>
   );
 }

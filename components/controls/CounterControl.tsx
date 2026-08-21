@@ -9,12 +9,12 @@ export function CounterControl({
   value,
   onChange,
   variant,
-  accent,
   disabled,
 }: ControlProps<CounterMetric>) {
   const current = typeof value === 'number' ? value : 0;
   const registered = value !== undefined;
   const ratio = metric.target > 0 ? Math.min(1, current / metric.target) : 0;
+  const reached = registered && current >= metric.target;
 
   const set = (next: number) => {
     const clamped = Math.max(0, Math.min(metric.max, next));
@@ -25,32 +25,37 @@ export function CounterControl({
     return (
       <div className="rounded-2xl border-2 hairline surf-1 p-3">
         <div className="mb-2 flex items-center gap-2">
-          <span className="text-2xl">{metric.icon}</span>
+          <span className="text-2xl" aria-hidden>
+            {metric.icon}
+          </span>
           <span className="flex-1 text-base font-bold leading-tight">{metric.label}</span>
-          <span className="text-sm font-black tabular-nums" style={{ color: accent }}>
+          <span className="text-sm font-black tabular-nums t-accent">
             {current}/{metric.target}
+            {reached && <span className="ml-1">🎉</span>}
           </span>
         </div>
 
         {/* Fichas tocables: representación visual directa del objetivo. */}
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label={metric.label}>
           {Array.from({ length: metric.max }, (_, i) => {
             const filled = i < current;
+            const extra = i + 1 > metric.target;
             return (
               <button
                 key={i}
                 type="button"
                 disabled={disabled}
                 onClick={() => set(i + 1 === current ? i : i + 1)}
-                aria-label={`Marcar ${i + 1} ${metric.unit}`}
-                className={`h-9 w-9 rounded-xl text-lg transition-all disabled:opacity-50
+                aria-pressed={filled}
+                aria-label={`${i + 1} ${metric.unit}`}
+                className={`h-11 w-11 rounded-xl text-xl transition-all disabled:opacity-50
                   ${
                     filled
-                      ? 'scale-100 animate-pop border-2 border-transparent'
-                      : 'border-2 border-dashed hairline-strong opacity-40 grayscale hover:opacity-70'
+                      ? 'bg-accent-soft animate-pop border-2 border-accent'
+                      : 'border-2 border-dashed hairline-strong opacity-45 grayscale hover:opacity-80'
                   }
-                  ${i + 1 > metric.target ? 'ring-1 ring-amber-300/40' : ''}`}
-                style={filled ? { backgroundColor: `${accent}33` } : undefined}
+                  ${extra ? 'ring-1 ring-amber-300/50' : ''}`}
+                title={extra ? `Por encima de la meta (${metric.target})` : undefined}
               >
                 {metric.pip ?? metric.icon}
               </button>
@@ -58,7 +63,7 @@ export function CounterControl({
           })}
         </div>
 
-        <ProgressBar ratio={ratio} color={accent} chunky />
+        <ProgressBar ratio={ratio} chunky />
         {metric.help && <p className="mt-2 text-xs t-2">{metric.help}</p>}
       </div>
     );
@@ -72,30 +77,41 @@ export function CounterControl({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium t-1">{metric.label}</p>
         <div className="mt-1 max-w-[220px]">
-          <ProgressBar ratio={ratio} color={accent} />
+          <ProgressBar ratio={ratio} />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          disabled={disabled || !registered}
+          onClick={() => onChange(undefined)}
+          className="mr-1 rounded-lg px-2 py-2 text-[11px] font-semibold t-3
+                     transition-colors hover-soft hover:t-2 disabled:invisible"
+          aria-label={`Borrar el registro de ${metric.label}`}
+          title="Borrar registro"
+        >
+          ✕
+        </button>
         <button
           type="button"
           disabled={disabled || current <= 0}
           onClick={() => set(current - metric.step)}
-          className="h-7 w-7 rounded-lg border hairline surf-1 text-base leading-none
+          className="h-9 w-9 rounded-lg border hairline surf-1 text-base leading-none
                      t-1 transition-colors hover-soft disabled:opacity-30"
           aria-label={`Restar ${metric.unit}`}
         >
           −
         </button>
         <span className="w-16 text-center text-sm font-semibold tabular-nums">
-          <span style={{ color: registered ? accent : undefined }}>{registered ? current : '—'}</span>
+          <span className={registered ? 't-accent' : 't-3'}>{registered ? current : '—'}</span>
           <span className="t-3">/{metric.target}</span>
         </span>
         <button
           type="button"
           disabled={disabled || current >= metric.max}
           onClick={() => set(current + metric.step)}
-          className="h-7 w-7 rounded-lg border hairline surf-1 text-base leading-none
+          className="h-9 w-9 rounded-lg border hairline surf-1 text-base leading-none
                      t-1 transition-colors hover-soft disabled:opacity-30"
           aria-label={`Sumar ${metric.unit}`}
         >

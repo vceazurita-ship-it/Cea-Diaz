@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { GROUP_PROFILES, INDIVIDUAL_PROFILES } from '@/lib/profiles';
+import { GROUP_PROFILES, INDIVIDUAL_PROFILES, PROFILES, accentStyle } from '@/lib/profiles';
 import { percent } from '@/lib/scoring';
 import type { Profile, ProfileId } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
@@ -35,14 +35,24 @@ function ProfileCard({
   priority?: boolean;
 }) {
   const kid = profile.kind === 'kid';
+  const pct = Math.round((glance?.today ?? 0) * 100);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(profile.id)}
+      // El acento viaja como variable para que el anillo de foco, la barra y
+      // el distintivo de la tarjeta se tiñan solos con el color del perfil.
+      style={accentStyle(profile.accent)}
+      aria-label={`Abrir el perfil de ${profile.name}${
+        hydrated && glance
+          ? glance.tracked
+            ? `, ${pct} % registrado hoy`
+            : ', sin registrar hoy'
+          : ''
+      }`}
       className={`group relative flex w-full flex-col overflow-hidden text-left transition-transform
-        duration-200 hover:-translate-y-1 focus:outline-none focus-visible:ring-2
-        focus-visible:ring-[var(--ring)] ${kid ? 'card-kid' : 'card'}`}
+        duration-200 hover:-translate-y-1 ${kid ? 'card-kid' : 'card'}`}
     >
       {/* Foto de cabecera de la tarjeta */}
       <div className="relative h-32 w-full overflow-hidden sm:h-36">
@@ -61,10 +71,18 @@ function ProfileCard({
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/25 to-transparent" />
         {/* Los peques llevan franjas de siega sobre la foto: la banda es su campo. */}
         {kid && <div className="turf absolute inset-0 opacity-80" />}
-        <span
-          className="absolute inset-x-0 bottom-0 h-0.5 opacity-70"
-          style={{ backgroundColor: profile.accent }}
-        />
+
+        {/* Distintivo de estado: se lee antes que cualquier número. */}
+        {hydrated && glance && (
+          <span
+            className={`absolute right-3 top-3 chip text-[10px] backdrop-blur-sm
+              ${glance.tracked ? 'bg-accent t-on-accent' : 'bg-black/45 text-white/85'}`}
+          >
+            {glance.tracked ? `${pct} % hoy` : 'Sin registrar'}
+          </span>
+        )}
+
+        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent opacity-70" />
       </div>
 
       <div className="relative -mt-9 flex items-end gap-3 px-5">
@@ -79,10 +97,7 @@ function ProfileCard({
               {profile.name.replace('Hábitos en ', '')}
             </h3>
             {profile.squad && (
-              <span
-                className="chip font-display px-2 text-[10px] tracking-widest"
-                style={{ backgroundColor: profile.accent, color: 'var(--on-accent)' }}
-              >
+              <span className="chip-accent font-display px-2 text-[10px] tracking-widest">
                 {profile.position} · {profile.squad}
               </span>
             )}
@@ -93,6 +108,7 @@ function ProfileCard({
               <span
                 className="chip"
                 style={{ backgroundColor: 'var(--danger-bg)', color: 'var(--danger)' }}
+                title="Protegido con PIN"
               >
                 🔒
               </span>
@@ -105,19 +121,19 @@ function ProfileCard({
         <p className="truncate text-sm t-2">{profile.role}</p>
         <p className="mt-0.5 truncate text-xs t-3">{profile.tagline}</p>
 
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="mt-4 flex min-h-[24px] items-center justify-between gap-3">
           {hydrated && glance ? (
             <>
               <div className="flex items-center gap-2">
                 {kid ? (
                   <Stars value={glance.stars} size="sm" />
                 ) : (
-                  <span className="text-sm font-semibold" style={{ color: profile.accent }}>
+                  <span className="text-sm font-semibold t-accent">
                     {glance.tracked ? percent(glance.today) : 'Sin registrar'}
                   </span>
                 )}
                 {glance.streak > 0 && (
-                  <span className="chip-soft">
+                  <span className="chip-soft" title="Días seguidos por encima del 60 %">
                     🔥 {glance.streak} {glance.streak === 1 ? 'día' : 'días'}
                   </span>
                 )}
@@ -127,24 +143,26 @@ function ProfileCard({
               </span>
             </>
           ) : (
-            <div className="h-5 w-32 animate-pulse rounded-full surf-2" />
+            <div className="skeleton h-5 w-32 rounded-full" />
           )}
         </div>
 
-        {hydrated && glance && (
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full track">
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full track">
+          {hydrated && glance && (
             <div
-              className="h-full rounded-full transition-[width] duration-700"
-              style={{ width: `${Math.round(glance.today * 100)}%`, backgroundColor: profile.accent }}
+              className="h-full rounded-full bg-accent transition-[width] duration-700"
+              style={{ width: `${pct}%` }}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </button>
   );
 }
 
 export function ProfileSelector({ onSelect, glances, hydrated }: ProfileSelectorProps) {
+  const tracked = PROFILES.filter((p) => glances[p.id]?.tracked).length;
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
       {/* Portada */}
@@ -175,6 +193,17 @@ export function ProfileSelector({ onSelect, glances, hydrated }: ProfileSelector
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm t-2">
             Elige tu perfil para registrar el día, o entra en los módulos compartidos.
+          </p>
+
+          {/* Estado del día de un vistazo, antes de entrar en ningún perfil. */}
+          <p className="mt-4 text-xs t-3" aria-live="polite">
+            {!hydrated
+              ? ' '
+              : tracked === 0
+                ? 'Hoy no ha registrado nadie todavía.'
+                : tracked === PROFILES.length
+                  ? '¡Todos los perfiles tienen registro hoy! 🎉'
+                  : `Hoy han registrado ${tracked} de ${PROFILES.length} perfiles.`}
           </p>
         </div>
       </header>

@@ -9,7 +9,6 @@ interface SportsPanelProps {
   values: Record<string, MetricValue>;
   onChange: (metricId: string, value: MetricValue | undefined) => void;
   variant: ControlVariant;
-  accent: string;
   skin?: ProfileSkin;
 }
 
@@ -26,7 +25,6 @@ export function SportsPanel({
   values,
   onChange,
   variant,
-  accent,
   skin = 'night',
 }: SportsPanelProps) {
   const groups = category.groups ?? [];
@@ -47,7 +45,7 @@ export function SportsPanel({
             key={sport.id}
             className={`overflow-hidden rounded-2xl border transition-colors
               ${featured ? 'sm:col-span-2' : ''}
-              ${attended ? 'hairline-strong surf-2' : 'hairline surf-1'}`}
+              ${attended ? 'border-accent bg-accent-faint' : 'hairline surf-1'}`}
           >
             <button
               type="button"
@@ -60,6 +58,7 @@ export function SportsPanel({
                   bg-gradient-to-br ${sport.gradient} transition-all
                   ${featured ? 'h-14 w-14 text-3xl' : 'h-12 w-12 text-2xl'}
                   ${attended ? 'shadow-lg' : 'opacity-45 grayscale'}`}
+                aria-hidden
               >
                 {sport.icon}
               </span>
@@ -84,9 +83,9 @@ export function SportsPanel({
               </span>
 
               <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm
-                  font-black ${attended ? '' : 'surf-2 t-3'}`}
-                style={attended ? { backgroundColor: accent, color: 'var(--on-accent)' } : undefined}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm
+                  font-black ${attended ? 'bg-accent t-on-accent' : 'surf-2 t-3'}`}
+                aria-hidden
               >
                 {attended ? '✓' : '+'}
               </span>
@@ -101,7 +100,6 @@ export function SportsPanel({
                     value={values[metric.id]}
                     onChange={(value) => onChange(metric.id, value)}
                     variant={variant}
-                    accent={accent}
                   />
                 ))}
               </div>

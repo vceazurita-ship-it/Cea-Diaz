@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
 import { DateNavigator } from '@/components/DateNavigator';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
+import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
-import { weekKeys } from '@/lib/dates';
+import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
 import { getCategories } from '@/lib/habits';
-import { accentFor, skinOf } from '@/lib/profiles';
+import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import type { DashboardTab, DateKey, Profile } from '@/types';
 
@@ -21,9 +22,11 @@ interface DashboardProps {
 
 export function Dashboard({ profile, date, onDateChange, store }: DashboardProps) {
   const [tab, setTab] = useState<DashboardTab>('today');
+  const [onlyPending, setOnlyPending] = useState(false);
+  const notify = useToast();
+
   const kid = profile.kind === 'kid';
   const skin = skinOf(profile);
-  const accent = accentFor(profile, skin);
 
   const categories = getCategories(profile.id);
   const entry = store.getEntry(profile.id, date);
@@ -50,9 +53,73 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
   );
 
   const filled = dayScore.categories.reduce((sum, category) => sum + category.filled, 0);
+  const total = dayScore.categories.reduce((sum, category) => sum + category.total, 0);
+  const pending = total - filled;
+
+  /** Cumplimiento por categoría, para saber cuáles quedan a medias. */
+  const scoreById = useMemo(
+    () => new Map(dayScore.categories.map((category) => [category.categoryId, category])),
+    [dayScore],
+  );
+
+  const visibleCategories = onlyPending
+    ? categories.filter((category) => {
+        const score = scoreById.get(category.id);
+        return !score || score.filled < score.total;
+      })
+    : categories;
 
   const handleChange = (metricId: string, value: Parameters<HabitStore['setValue']>[3]) => {
     store.setValue(profile.id, date, metricId, value);
+  };
+
+  /* ------------------------------------------------ atajos de teclado */
+
+  // Flechas para cambiar de día y «H» para volver a hoy. Se ignoran mientras
+  // se escribe, para no secuestrar el cursor dentro de la nota.
+  useEffect(() => {
+    if (tab !== 'today') return;
+
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches('input, textarea, select') || event.metaKey || event.ctrlKey) return;
+
+      if (event.key === 'ArrowLeft') onDateChange(addDays(date, -1));
+      else if (event.key === 'ArrowRight' && date < todayKey()) onDateChange(addDays(date, 1));
+      else if (event.key.toLowerCase() === 'h') onDateChange(todayKey());
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tab, date, onDateChange]);
+
+  /* ------------------------------------------------------- acciones */
+
+  const copyYesterday = () => {
+    const from = addDays(date, -1);
+    const before = store.snapshot();
+    const copied = store.copyDay(profile.id, from, date);
+
+    notify(
+      copied > 0
+        ? {
+            message: `${copied} ${copied === 1 ? 'registro copiado' : 'registros copiados'} del día anterior.`,
+            icon: '📋',
+            action: { label: 'Deshacer', onClick: () => store.restore(before) },
+          }
+        : { message: 'El día anterior no tiene registros que copiar.', icon: '🤷' },
+    );
+  };
+
+  const deleteDay = () => {
+    const before = store.snapshot();
+    store.clearDay(profile.id, date);
+    notify({
+      message: `Se ha borrado ${friendlyDateLabel(date).toLowerCase()}.`,
+      icon: '🗑️',
+      tone: 'danger',
+      action: { label: 'Deshacer', onClick: () => store.restore(before) },
+    });
   };
 
   const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
@@ -71,7 +138,6 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
       <ProfileHeader
         profile={profile}
         skin={skin}
-        accent={accent}
         date={date}
         dayScore={dayScore}
         streak={week.streak}
@@ -79,21 +145,22 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
       />
 
       {/* Pestañas */}
-      <div className="mb-4 flex rounded-2xl border p-1 hairline surf-1">
+      <div className="mb-4 flex rounded-2xl border p-1 hairline surf-1" role="tablist">
         {tabs.map((option) => {
           const active = tab === option.id;
           return (
             <button
               key={option.id}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(option.id)}
-              aria-current={active ? 'page' : undefined}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5
-                text-sm font-bold transition-colors ${active ? '' : 't-2 hover:t-1'}
+                text-sm font-bold transition-colors
+                ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}
                 ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}`}
-              style={active ? { backgroundColor: accent, color: 'var(--on-accent)' } : undefined}
             >
-              <span>{option.icon}</span>
+              <span aria-hidden>{option.icon}</span>
               {option.label}
             </button>
           );
@@ -105,22 +172,68 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
           <DateNavigator
             date={date}
             onChange={onDateChange}
-            accent={accent}
             weekRatios={weekRatios}
           />
 
-          {categories.map((category, index) => (
-            <CategoryCard
-              key={category.id}
-              category={category}
-              values={values}
-              onChange={handleChange}
-              variant={kid ? 'kid' : 'adult'}
-              accent={accent}
-              skin={skin}
-              defaultOpen={kid ? index === 0 : true}
-            />
-          ))}
+          {/* Barra de acciones del día */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={copyYesterday}
+              className="btn-ghost px-3 py-1.5 text-xs"
+              title={`Traer lo registrado el ${friendlyDateLabel(addDays(date, -1)).toLowerCase()}`}
+            >
+              📋 Copiar del día anterior
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setOnlyPending((v) => !v)}
+              aria-pressed={onlyPending}
+              className={`btn px-3 py-1.5 text-xs font-semibold border
+                ${onlyPending ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
+            >
+              {onlyPending ? '👁️ Viendo pendientes' : '🔎 Sólo pendientes'}
+            </button>
+
+            <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
+              {pending > 0
+                ? `${filled}/${total} · quedan ${pending}`
+                : `${total}/${total} · día completo 🎉`}
+            </span>
+          </div>
+
+          {visibleCategories.length === 0 ? (
+            <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
+              <p className="text-4xl" aria-hidden>
+                🎉
+              </p>
+              <p className="mt-2 font-bold t-1">No queda nada por registrar</p>
+              <p className="mt-1 text-sm t-3">
+                Has completado las {total} métricas de{' '}
+                {friendlyDateLabel(date).toLowerCase()}.
+              </p>
+              <button
+                type="button"
+                onClick={() => setOnlyPending(false)}
+                className="btn-ghost mt-4 px-3 py-1.5 text-xs"
+              >
+                Ver todas las categorías
+              </button>
+            </div>
+          ) : (
+            visibleCategories.map((category, index) => (
+              <CategoryCard
+                key={category.id}
+                category={category}
+                values={values}
+                onChange={handleChange}
+                variant={kid ? 'kid' : 'adult'}
+                skin={skin}
+                defaultOpen={kid ? index === 0 : true}
+              />
+            ))
+          )}
 
           {/* Nota del día */}
           <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
@@ -138,33 +251,41 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
               placeholder={
                 kid ? '¿Qué ha sido lo mejor de hoy?' : 'Observaciones, incidencias, ideas...'
               }
-              className="field w-full resize-none p-3"
+              className="field w-full resize-y p-3"
             />
 
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-xs t-3">
-                {entry
-                  ? `Guardado automáticamente · ${filled} registros`
-                  : 'Aún no hay registros para este día.'}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs t-3" aria-live="polite">
+                {!entry
+                  ? 'Aún no hay registros para este día.'
+                  : store.status === 'saving'
+                    ? '⏳ Guardando…'
+                    : `✓ Guardado · ${filled} ${filled === 1 ? 'registro' : 'registros'}`}
               </p>
               {entry && (
                 <button
                   type="button"
-                  onClick={() => store.clearDay(profile.id, date)}
+                  onClick={deleteDay}
                   className="btn-ghost t-danger px-2.5 py-1.5 text-xs"
                 >
-                  Borrar el día
+                  🗑️ Borrar el día
                 </button>
               )}
             </div>
           </div>
+
+          <p className="pt-1 text-center text-[11px] t-3">
+            Atajos: <kbd className="font-mono font-bold">←</kbd>{' '}
+            <kbd className="font-mono font-bold">→</kbd> cambian de día ·{' '}
+            <kbd className="font-mono font-bold">H</kbd> vuelve a hoy
+            {!isToday(date) && ' · Esc vuelve a los perfiles'}
+          </p>
         </div>
       ) : (
         <SummaryView
           profile={profile}
           date={date}
           entries={store.entries}
-          accent={accent}
           skin={skin}
           onSelectDay={(selected) => {
             onDateChange(selected);

@@ -8,7 +8,6 @@ export function ChoiceControl({
   value,
   onChange,
   variant,
-  accent,
   disabled,
 }: ControlProps<ChoiceMetric>) {
   const kid = variant === 'kid';
@@ -19,14 +18,12 @@ export function ChoiceControl({
         <span className={kid ? 'text-2xl' : 'text-lg'} aria-hidden>
           {metric.icon}
         </span>
-        <span
-          className={`flex-1 ${kid ? 'text-base font-bold' : 'text-sm font-medium t-1'}`}
-        >
+        <span className={`flex-1 ${kid ? 'text-base font-bold' : 'text-sm font-medium t-1'}`}>
           {metric.label}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={metric.label}>
         {metric.options.map((option) => {
           const selected = value === option.value;
           return (
@@ -36,17 +33,19 @@ export function ChoiceControl({
               disabled={disabled}
               onClick={() => onChange(selected ? undefined : option.value)}
               aria-pressed={selected}
-              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition-all
+              title={selected ? 'Pulsa otra vez para borrarlo' : undefined}
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 transition-all
                 disabled:opacity-40
                 ${kid ? 'text-sm font-bold' : 'text-xs font-medium'}
                 ${
                   selected
-                    ? 'border-transparent'
-                    : 'hairline surf-1 t-2 opacity-70 hover:opacity-100'
+                    ? 'bg-accent-soft border-accent t-1'
+                    : 'hairline surf-1 t-2 hover:bg-accent-faint hover:t-1'
                 }`}
-              style={selected ? { backgroundColor: `${accent}33`, borderColor: accent } : undefined}
             >
-              <span className={kid ? 'text-xl' : 'text-base'}>{option.icon}</span>
+              <span className={kid ? 'text-xl' : 'text-base'} aria-hidden>
+                {option.icon}
+              </span>
               <span>{option.label}</span>
             </button>
           );

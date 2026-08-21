@@ -132,3 +132,12 @@ export function accentFor(profile: Profile, skin: ProfileSkin = skinOf(profile))
 
 export const INDIVIDUAL_PROFILES = PROFILES.filter((p) => p.kind !== 'group');
 export const GROUP_PROFILES = PROFILES.filter((p) => p.kind === 'group');
+
+/**
+ * Publica el acento como variable CSS para que las utilidades `.bg-accent`,
+ * `.t-accent`… lo hereden. Se prefiere a escribir el color en cada `style`
+ * porque así los controles pueden teñir también sus estados :hover y :focus.
+ */
+export function accentStyle(color: string): React.CSSProperties {
+  return { '--accent': color } as React.CSSProperties;
+}

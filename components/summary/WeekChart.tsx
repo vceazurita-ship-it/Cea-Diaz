@@ -1,16 +1,15 @@
 'use client';
 
 import { percent } from '@/lib/scoring';
-import { WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
+import { formatShort, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
 import type { DayScore } from '@/types';
 
 interface WeekChartProps {
   days: DayScore[];
-  accent: string;
   onSelectDay?: (date: string) => void;
 }
 
-export function WeekChart({ days, accent, onSelectDay }: WeekChartProps) {
+export function WeekChart({ days, onSelectDay }: WeekChartProps) {
   return (
     <div className="flex h-44 items-end gap-2">
       {days.map((day) => {
@@ -20,18 +19,23 @@ export function WeekChart({ days, accent, onSelectDay }: WeekChartProps) {
             key={day.date}
             type="button"
             onClick={() => onSelectDay?.(day.date)}
-            title={`${day.date} · ${percent(day.ratio)}`}
+            title={`${formatShort(day.date)} · ${day.empty ? 'sin registro' : percent(day.ratio)}`}
+            aria-label={`${formatShort(day.date)}, ${
+              day.empty ? 'sin registro' : percent(day.ratio)
+            }`}
             className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
           >
-            <span className="text-[10px] font-semibold tabular-nums t-3 opacity-0 transition-opacity group-hover:opacity-100">
-              {percent(day.ratio)}
+            {/* El valor aparece al posarse encima, pero el sitio está siempre
+                reservado para que las barras no salten al recorrerlas. */}
+            <span className="h-3 text-[10px] font-semibold tabular-nums t-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              {day.empty ? '—' : percent(day.ratio)}
             </span>
             <div className="flex w-full flex-1 items-end">
               <div
-                className="w-full rounded-t-lg transition-all duration-500 group-hover:brightness-125"
+                className={`w-full rounded-t-lg transition-all duration-500 group-hover:brightness-125
+                  ${day.empty ? 'surf-2' : 'bg-accent'}`}
                 style={{
                   height: `${height}%`,
-                  backgroundColor: day.empty ? 'var(--surface-2)' : accent,
                   opacity: day.empty ? 1 : Math.max(0.45, day.ratio),
                 }}
               />
