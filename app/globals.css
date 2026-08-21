@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+ *  Pieles
+ *  Toda la interfaz se pinta con tokens, nunca con colores literales, de
+ *  modo que cambiar de piel (oscura ↔ clara) no obliga a tocar componentes.
+ *  El atributo `data-skin` lo fija `app/page.tsx` según el perfil activo.
+ * ========================================================================= */
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Tipografía de dorsal: disponible en todas las pieles porque el
+     selector nocturno también rotula a los peques con ella. */
+  --font-pitch: 'Arial Black', 'Arial Bold', Gadget, ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans);
+
+  /* night — selector de perfiles y módulos compartidos */
+  --bg: #161a23;
+  --bg-2: #1b202b;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --track: rgba(255, 255, 255, 0.1);
+  --text: #eceef2;
+  --text-2: #b0b9c9;
+  --text-3: #8593aa;
+  --on-accent: #10141c;
+  --danger: #fda4af;
+  --danger-bg: rgba(244, 63, 94, 0.14);
+  --shadow-card: none;
+  --ring: rgba(255, 255, 255, 0.55);
+}
+
+/* pitch — Leo y Hugo: césped, cal y marcador de estadio */
+[data-skin='pitch'] {
+  --font-display: var(--font-pitch);
+  --bg: #05180e;
+  --bg-2: #0a2416;
+  --surface: rgba(255, 255, 255, 0.055);
+  --surface-2: rgba(255, 255, 255, 0.11);
+  --surface-3: rgba(255, 255, 255, 0.18);
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.3);
+  --track: rgba(255, 255, 255, 0.13);
+  --text: #f1fbf4;
+  --text-2: #b4d7c2;
+  --text-3: #85ae97;
+  --on-accent: #05160d;
+  --danger: #fda4af;
+  --danger-bg: rgba(244, 63, 94, 0.16);
+  --shadow-card: none;
+  --ring: rgba(255, 255, 255, 0.6);
+}
+
+/* editorial — María y Víctor: papel claro, serif y aire */
+[data-skin='editorial'] {
+  --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --bg: #f6f4f1;
+  --bg-2: #fffefc;
+  --surface: #ffffff;
+  --surface-2: #f0ece6;
+  --surface-3: #e3ddd4;
+  --border: rgba(24, 27, 33, 0.11);
+  --border-strong: rgba(24, 27, 33, 0.24);
+  --track: rgba(24, 27, 33, 0.09);
+  --text: #1a1e25;
+  --text-2: #4b5260;
+  --text-3: #6b7483;
+  --on-accent: #ffffff;
+  --danger: #b3123c;
+  --danger-bg: rgba(190, 18, 60, 0.08);
+  --shadow-card: 0 1px 2px rgba(24, 27, 33, 0.05), 0 12px 28px -18px rgba(24, 27, 33, 0.35);
+  --ring: rgba(24, 27, 33, 0.5);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 260ms ease;
+  @apply antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--surface-3);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+@layer utilities {
+  /* Texto por jerarquía */
+  .t-1 {
+    color: var(--text);
+  }
+  .t-2 {
+    color: var(--text-2);
+  }
+  .t-3 {
+    color: var(--text-3);
+  }
+  .t-danger {
+    color: var(--danger);
+  }
+
+  /* Superficies */
+  .surf-1 {
+    background-color: var(--surface);
+  }
+  .surf-2 {
+    background-color: var(--surface-2);
+  }
+  .surf-3 {
+    background-color: var(--surface-3);
+  }
+  .surf-page {
+    background-color: var(--bg);
+  }
+  .hover-soft:hover {
+    background-color: var(--surface-2);
+  }
+
+  /* Bordes */
+  .hairline {
+    border-color: var(--border);
+  }
+  .hairline-strong {
+    border-color: var(--border-strong);
+  }
+
+  /* Césped: franjas de siega + líneas de cal, sólo decorativas */
+  .turf {
+    background-image: repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.035) 0px,
+      rgba(255, 255, 255, 0.035) 46px,
+      transparent 46px,
+      transparent 92px
+    );
+  }
+  .chalk {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border;
+    border-color: var(--border);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+  .card-kid {
+    @apply rounded-3xl border-2;
+    border-color: var(--border);
+    background-color: var(--surface-2);
+    box-shadow: var(--shadow-card);
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
+           transition-colors focus:outline-none focus-visible:ring-2;
+    --tw-ring-color: var(--ring);
+  }
+  .btn-ghost {
+    @apply btn border;
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+  }
+  .btn-ghost:hover {
+    background-color: var(--surface-2);
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .chip-soft {
+    @apply chip;
+    background-color: var(--surface-2);
+    color: var(--text-2);
+  }
+  .field {
+    @apply rounded-xl border px-3 py-2 text-sm outline-none transition-colors;
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+  }
+  .field:focus {
+    border-color: var(--border-strong);
+  }
+  .field::placeholder {
+    color: var(--text-3);
+  }
+  /* Título de sección con filete a los lados */
+  .rule {
+    @apply flex items-center gap-3 text-xs font-bold uppercase tracking-[0.18em];
+    color: var(--text-3);
+  }
+  .rule::before,
+  .rule::after {
+    content: '';
+    @apply h-px flex-1;
+    background-color: var(--border);
+  }
+}
+
+/* Rango (sliders) con estilo consistente en navegadores */
+input[type='range'] {
+  @apply h-2 w-full cursor-pointer appearance-none rounded-full;
+  background: var(--track);
+}
+input[type='range']::-webkit-slider-thumb {
+  @apply h-5 w-5 appearance-none rounded-full border-2 shadow;
+  border-color: var(--bg-2);
+  background: var(--text);
+}
+input[type='range']::-moz-range-thumb {
+  @apply h-5 w-5 rounded-full border-2 shadow;
+  border-color: var(--bg-2);
+  background: var(--text);
+}
