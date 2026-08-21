@@ -44,6 +44,9 @@ components/
   Dashboard.tsx        Cabecera del perfil + pestañas Registro / Resúmenes
   profile/
     ProfileHeader.tsx  Las tres cabeceras de perfil (fútbol, editorial, grupo)
+  challenges/
+    ChallengesPanel.tsx  Retos de la semana, medallero y puntos
+    RewardsAlbum.tsx     Álbum de cromos y colección de frases
   DateNavigator.tsx    Navegación por días con tira semanal
   CategoryCard.tsx     Categoría plegable con su cumplimiento
   SportsPanel.tsx      Layout especial del desglose deportivo
@@ -61,6 +64,8 @@ lib/
   profiles.ts          Los 6 perfiles: datos, fotos, acentos y piel visual
   habits.ts            Catálogo de categorías y métricas por perfil
   scoring.ts           Cumplimiento, estrellas, rachas, logros
+  challenges.ts        Generador de retos semanales a partir del historial
+  rewards.ts           Mazos de cromos y frases, y su reparto por reto superado
   dates.ts             Utilidades de fecha en es-ES
   storage.ts           Lectura/escritura en localStorage
   seed.ts              Generador determinista de datos de ejemplo
@@ -82,7 +87,9 @@ concreta, sólo su *tipo*. Añadir un hábito nuevo es añadir un objeto a `lib/
 | `choice`   | Sensaciones, ambiente                  | puntuación de la opción    |
 
 Cada métrica admite `weight` (peso en el cálculo; `0` la excluye, como el interruptor
-«Época de exámenes») y `group` (agrupador, usado por las cinco actividades deportivas).
+«Época de exámenes»), `group` (agrupador, usado por las cinco actividades deportivas)
+y `focus` (`aprendizaje` o `esfuerzo`: marca las métricas en las que *cuanto más,
+mejor*, y que por tanto admiten reto de récord — sólo la lee el generador de retos).
 
 Los registros se guardan como `DayEntry` bajo la clave `${profileId}:${YYYY-MM-DD}`,
 de modo que cada perfil tiene su propio historial independiente.
@@ -96,6 +103,72 @@ de modo que cada perfil tiene su propio historial independiente.
 | **Víctor** (42)         | Salud y Bienestar · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
+
+## Retos
+
+La pestaña **🎯 Retos** propone cada semana tres objetivos calculados a partir de los
+**últimos 28 días de ese mismo perfil**. Nadie compite contra una tabla general: el
+listón sale siempre de la marca propia, así que «máximo esfuerzo» significa una cosa
+para Leo y otra para María.
+
+| Nivel             | Qué persigue                                   | Ejemplos generados                                                    |
+| ----------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| **Cimiento**      | Asegurar el suelo                              | «Anota 7 días», «Estrena la pausa consciente», «Sueño al completo»     |
+| **Reto**          | Atacar el punto flojo y acumular aprendizaje   | «Sin pantallas antes de dormir · 4 días», «Semana de lectura: 185 min» |
+| **Máximo esfuerzo** | Batir la marca propia o darlo todo           | «Bate tu récord de lectura: 40 min», «Máximo esfuerzo · Natación»      |
+
+Cómo se decide cada uno (`lib/challenges.ts`):
+
+- **Punto flojo** — la métrica con peor cumplimiento medio. Lo que sólo ocurre los
+  días de actividad (cada deporte) se pide según su frecuencia real, no cuatro veces
+  por semana; y las métricas subjetivas (escalas, sensaciones) ceden ante las que
+  dependen de una decisión.
+- **Récord personal** — sólo donde *más es mejor* (`focus`): dormir once horas o beber
+  catorce vasos no es mejorar, así que ahí el récord se detiene en el objetivo.
+  El listón sube un 12 % sobre la mejor marca, redondeado al paso de la métrica.
+- **Aprendizaje** — volumen acumulado de la semana (lectura, escritura, análisis
+  táctico, preparación de clases), un 10 % por encima de su mejor semana.
+- **Categoría al completo** — un peldaño por encima de su nivel real, no un 80 %
+  abstracto. El desglose deportivo queda fuera: nadie hace sus cinco actividades el
+  mismo día.
+- **Comodines** — constancia, racha y registro, para que siempre haya un reto de cada
+  nivel aunque el perfil esté recién estrenado.
+
+### Premios
+
+Cada reto superado entrega un regalo, y el nivel del reto decide la rareza:
+
+| Perfil          | Colección                | Cimiento         | Reto                                        | Máximo esfuerzo                          |
+| --------------- | ------------------------ | ---------------- | ------------------------------------------- | ---------------------------------------- |
+| **Leo · Hugo**  | Álbum de cromos          | LaLiga           | Estrellas + secundarios de *Oliver y Benji* | Leyendas del fútbol + Oliver, Benji, Mark Lenders y Roberto Sedinho |
+| **María**       | Frases                   | Frase del día    | Frase de fuerza                             | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) |
+| **Víctor**      | Aforismos de paternidad y oficio | Aforismo | Aforismo de fuerza                          | Aforismo de oro (Séneca, Marco Aurelio, Will Durant…) |
+| **Familia**     | Aforismos de la casa     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Tolstói, Pitágoras…)    |
+| **Pareja**      | Aforismos de los dos     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Saint-Exupéry…)         |
+
+Cada cromo lleva su equipo, su demarcación, aquello por lo que se le recuerda y un
+**lema** que traduce esa historia a esfuerzo («Estar siempre disponible también es un
+talento», del cromo de Iñaki Williams). Las frases y los aforismos van marcados por
+tema: 🏡 familia · 🌿 para ti · 💻 aula · 👨‍👦 paternidad · ⚽ oficio · 💞 pareja.
+
+El premio se **anuncia antes** («🎁 En juego: Cromo de leyenda») y se entrega al
+superar el reto, con el cromo o la frase visibles en la propia tarjeta y guardados
+en la colección de abajo. Cada perfil baraja su mazo con su semilla, así que Leo y
+Hugo no reciben los cromos en el mismo orden, y no se repite ninguno mientras queden
+cartas sin salir.
+
+Los mazos de `lib/rewards.ts` son catálogo editable, igual que `lib/habits.ts`:
+añadir un cromo o un aforismo es añadir un objeto a la lista de su nivel. Cada mazo
+declara además cómo se llama a sí mismo (`labels` para las rarezas, `album` para el
+título y el plural), que es lo que distingue «Cromo de leyenda» de «Aforismo de oro»
+sin duplicar componentes.
+
+Ni los retos ni los premios **se guardan**: son una función pura de los registros, de
+modo que se recalculan solos y tanto el medallero como el álbum se reconstruyen con
+sólo tener el historial (una exportación de los datos se lleva la colección consigo).
+Los retos se generan con los datos anteriores al lunes, así que el listón no se mueve
+mientras la semana corre, y la rotación entre candidatos usa una semilla estable por
+perfil y semana: durante siete días son siempre los mismos tres.
 
 ## Pieles visuales
 
@@ -146,6 +219,7 @@ sustituir el archivo manteniendo el nombre.
 
 - **Niños**: tarjetas grandes, emojis tocables, barras gruesas, estrellas y mensajes de ánimo.
 - **Adultos y grupos**: filas compactas, segmentados Sí/No, deslizadores y anillos de progreso.
+- **Retos**: tres objetivos de la semana con su porqué, puntos y medallero de las anteriores.
 - **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros.
 
 ## Usabilidad

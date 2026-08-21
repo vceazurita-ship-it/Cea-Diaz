@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
+import { ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
+import { buildChallengeWeek } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
 import { getCategories } from '@/lib/habits';
 import { skinOf } from '@/lib/profiles';
@@ -50,6 +52,12 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
         return acc;
       }, {}),
     [week],
+  );
+
+  // Retos de la semana visible: alimenta el acceso rápido de la barra de acciones.
+  const challengeWeek = useMemo(
+    () => buildChallengeWeek(profile, date, store.entries),
+    [profile, date, store.entries],
   );
 
   const filled = dayScore.categories.reduce((sum, category) => sum + category.filled, 0);
@@ -125,11 +133,13 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
   const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
     skin === 'pitch'
       ? [
-          { id: 'today', label: 'Partido de hoy', icon: '⚽' },
+          { id: 'today', label: 'Partido', icon: '⚽' },
+          { id: 'challenges', label: 'Retos', icon: '🎯' },
           { id: 'summary', label: 'Estadísticas', icon: '📊' },
         ]
       : [
-          { id: 'today', label: 'Registro del día', icon: '📝' },
+          { id: 'today', label: 'Registro', icon: '📝' },
+          { id: 'challenges', label: 'Retos', icon: '🎯' },
           { id: 'summary', label: 'Resúmenes', icon: '📊' },
         ];
 
@@ -155,8 +165,8 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
               role="tab"
               aria-selected={active}
               onClick={() => setTab(option.id)}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5
-                text-sm font-bold transition-colors
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2.5
+                text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
                 ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}
                 ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}`}
             >
@@ -194,6 +204,15 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
                 ${onlyPending ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
             >
               {onlyPending ? '👁️ Viendo pendientes' : '🔎 Sólo pendientes'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('challenges')}
+              className="btn-ghost px-3 py-1.5 text-xs"
+              title="Ver los retos de esta semana"
+            >
+              🎯 Retos {challengeWeek.done}/{challengeWeek.challenges.length}
             </button>
 
             <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
@@ -281,6 +300,8 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             {!isToday(date) && ' · Esc vuelve a los perfiles'}
           </p>
         </div>
+      ) : tab === 'challenges' ? (
+        <ChallengesPanel profile={profile} date={date} entries={store.entries} skin={skin} />
       ) : (
         <SummaryView
           profile={profile}

@@ -64,6 +64,17 @@ export interface Profile {
 
 export type MetricType = 'toggle' | 'counter' | 'duration' | 'scale' | 'choice';
 
+/**
+ * Papel de la métrica en la mejora, usado por el generador de retos. Ambos
+ * valores marcan métricas en las que **cuanto más, mejor**, y por tanto
+ * admiten reto de récord por encima de su objetivo:
+ *  - `aprendizaje` volumen que se acumula (lectura, escritura, análisis…).
+ *  - `esfuerzo`    cuánto se da de sí (escalas de esfuerzo, minutos de
+ *                  entreno o de tiempo dedicado).
+ * No afecta al cumplimiento: sólo al tipo de reto que puede inspirar.
+ */
+export type MetricFocus = 'aprendizaje' | 'esfuerzo';
+
 interface MetricBase {
   id: string;
   label: string;
@@ -73,6 +84,8 @@ interface MetricBase {
   weight?: number;
   /** Agrupador opcional (p. ej. la actividad deportiva a la que pertenece). */
   group?: string;
+  /** Papel en la mejora; lo lee `lib/challenges.ts`. */
+  focus?: MetricFocus;
 }
 
 /** Sí / No. Cumplido = true. */
@@ -231,7 +244,128 @@ export interface Achievement {
   progress: number;
 }
 
+/* --------------------------------- Retos -------------------------------- */
+
+/**
+ * Nivel de exigencia del reto:
+ *  - `base`    asegurar el suelo (registrar, estrenar, completar).
+ *  - `reto`    atacar el punto flojo o acumular aprendizaje.
+ *  - `maximo`  batir la marca propia o dar el máximo esfuerzo.
+ */
+export type ChallengeTier = 'base' | 'reto' | 'maximo';
+
+/**
+ * Condición de superación, declarativa para poder recalcularla en cualquier
+ * momento a partir de los registros: un reto no guarda estado propio.
+ */
+export type ChallengeRule =
+  /** Mejor valor del periodo ≥ objetivo (récord personal). */
+  | { type: 'metricBest'; metricId: string; target: number }
+  /** Suma del periodo ≥ objetivo (volumen semanal). */
+  | { type: 'metricTotal'; metricId: string; target: number }
+  /** Al menos `days` días con la métrica en `threshold` o más. */
+  | { type: 'metricDays'; metricId: string; threshold: number; days: number }
+  /** Al menos `days` días con cumplimiento diario ≥ `threshold`. */
+  | { type: 'dayRatioDays'; threshold: number; days: number }
+  /** `days` días consecutivos con cumplimiento ≥ `threshold`. */
+  | { type: 'dayRatioStreak'; threshold: number; days: number }
+  /** Al menos `days` días con la categoría por encima de `threshold`. */
+  | { type: 'categoryDays'; categoryId: string; threshold: number; days: number };
+
+export interface Challenge {
+  id: string;
+  /** Titular del reto. */
+  title: string;
+  /** Qué hay que hacer exactamente. */
+  detail: string;
+  /** Por qué se propone justo éste. */
+  why: string;
+  icon: string;
+  tier: ChallengeTier;
+  /** Puntos que aporta al superarlo. */
+  xp: number;
+  rule: ChallengeRule;
+}
+
+export interface ChallengeProgress {
+  current: number;
+  target: number;
+  /** Avance 0..1. */
+  ratio: number;
+  done: boolean;
+  /** Marcador legible («3 / 5 días», «35 min / 40 min»). */
+  label: string;
+}
+
+export interface ScoredChallenge extends Challenge {
+  progress: ChallengeProgress;
+}
+
+export interface ChallengeWeek {
+  from: DateKey;
+  to: DateKey;
+  challenges: ScoredChallenge[];
+  /** Retos superados. */
+  done: number;
+  /** Puntos conseguidos y puntos en juego. */
+  xp: number;
+  xpMax: number;
+}
+
+/* ----------------------------- Recompensas ------------------------------ */
+
+/**
+ * Cada reto superado entrega un regalo, distinto según a quién le toque:
+ * los peques coleccionan cromos, María colecciona frases.
+ */
+export type RewardKind = 'cromo' | 'frase';
+
+/** Rareza del cromo, ligada al nivel del reto que lo entrega. */
+export type CromoRarity = 'liga' | 'estrella' | 'leyenda';
+
+/** Rareza de la frase, ligada al nivel del reto que la entrega. */
+export type FraseRarity = 'chispa' | 'fuerza' | 'oro';
+
+export interface CromoReward {
+  kind: 'cromo';
+  id: string;
+  name: string;
+  /** Club, selección o equipo del anime. */
+  team: string;
+  position: string;
+  /** Emoji del cromo. */
+  emblem: string;
+  /** Por qué se le recuerda. */
+  dato: string;
+  /** La lección que el cromo deja para el que lo gana. */
+  lema: string;
+  rarity: CromoRarity;
+}
+
+/** De qué habla la frase; se muestra como etiqueta en la tarjeta. */
+export type FraseTheme = 'familia' | 'ella' | 'aula' | 'paternidad' | 'oficio' | 'pareja';
+
+export interface FraseReward {
+  kind: 'frase';
+  id: string;
+  text: string;
+  /** Ausente en las escritas para la casa. */
+  author?: string;
+  theme: FraseTheme;
+  rarity: FraseRarity;
+}
+
+export type Reward = CromoReward | FraseReward;
+
+export interface UnlockedReward {
+  reward: Reward;
+  /** Lunes de la semana en que se ganó. */
+  week: DateKey;
+  challengeId: string;
+  challengeTitle: string;
+}
+
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';
-export type DashboardTab = 'today' | 'summary';
+export type DashboardTab = 'today' | 'challenges' | 'summary';
