@@ -1,6 +1,7 @@
 'use client';
 
-import Image from 'next/image';
+import { Photo } from '@/components/ui/Photo';
+import { useAppearance } from '@/hooks/useAppearance';
 import { GROUP_PROFILES, INDIVIDUAL_PROFILES, PROFILES, accentStyle } from '@/lib/profiles';
 import { percent } from '@/lib/scoring';
 import type { Profile, ProfileId } from '@/types';
@@ -22,7 +23,7 @@ interface ProfileSelectorProps {
 }
 
 function ProfileCard({
-  profile,
+  profile: base,
   glance,
   hydrated,
   onSelect,
@@ -34,6 +35,8 @@ function ProfileCard({
   onSelect: (id: ProfileId) => void;
   priority?: boolean;
 }) {
+  const { dress } = useAppearance();
+  const profile = dress(base);
   const kid = profile.kind === 'kid';
   const pct = Math.round((glance?.today ?? 0) * 100);
 
@@ -57,7 +60,7 @@ function ProfileCard({
       {/* Foto de cabecera de la tarjeta */}
       <div className="relative h-32 w-full overflow-hidden sm:h-36">
         {profile.cover ? (
-          <Image
+          <Photo
             src={profile.cover}
             alt=""
             fill
@@ -170,7 +173,7 @@ export function ProfileSelector({ onSelect, glances, hydrated }: ProfileSelector
         {/* La foto no lleva texto encima: el titular va debajo, de modo que
             ningún velo tape las caras sea cual sea el tamaño de pantalla. */}
         <div className="relative h-52 w-full sm:h-72">
-          <Image
+          <Photo
             src="/photos/portada.jpg"
             alt="Leo, Hugo, María y Víctor"
             fill

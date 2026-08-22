@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { Photo } from '@/components/ui/Photo';
 import type { Profile } from '@/types';
 
 interface AvatarProps {
@@ -50,7 +50,7 @@ export function Avatar({
       className={`relative block shrink-0 overflow-hidden ${radius} ${className}`}
       style={{ width: size, height: size, ...ringStyle }}
     >
-      <Image
+      <Photo
         src={profile.photo}
         alt={`Foto de ${profile.name}`}
         fill

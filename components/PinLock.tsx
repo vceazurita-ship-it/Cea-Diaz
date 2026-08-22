@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { Photo } from '@/components/ui/Photo';
 import { useEffect, useState } from 'react';
 import { DEFAULT_PIN, loadPin } from '@/lib/storage';
 import { accentStyle } from '@/lib/profiles';
@@ -45,7 +45,7 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
       <div className="relative mb-5 h-24 w-24 overflow-hidden rounded-3xl shadow-xl">
         {profile.photo ? (
           <>
-            <Image
+            <Photo
               src={profile.photo}
               alt=""
               fill

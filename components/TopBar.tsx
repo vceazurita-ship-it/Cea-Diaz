@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
+import { useAppearance } from '@/hooks/useAppearance';
 import { PROFILES, accentStyle } from '@/lib/profiles';
 import type { ProfileId } from '@/types';
 
@@ -11,9 +12,18 @@ interface TopBarProps {
   onHome: () => void;
   /** Perfiles bloqueados (privados sin desbloquear) se marcan con candado. */
   lockedIds?: ProfileId[];
+  /** Abre el editor de fotos y sintonía del perfil activo. */
+  onCustomize?: () => void;
 }
 
-export function TopBar({ activeId, onSelect, onHome, lockedIds = [] }: TopBarProps) {
+export function TopBar({
+  activeId,
+  onSelect,
+  onHome,
+  lockedIds = [],
+  onCustomize,
+}: TopBarProps) {
+  const { dress } = useAppearance();
   const activeRef = useRef<HTMLButtonElement>(null);
 
   // Con seis perfiles la tira se desborda en el móvil: al cambiar de perfil
@@ -53,7 +63,8 @@ export function TopBar({ activeId, onSelect, onHome, lockedIds = [] }: TopBarPro
             scrollbarWidth: 'none',
           }}
         >
-          {PROFILES.map((profile) => {
+          {PROFILES.map((base) => {
+            const profile = dress(base);
             const active = profile.id === activeId;
             const locked = lockedIds.includes(profile.id) && !active;
             const label =
@@ -90,6 +101,20 @@ export function TopBar({ activeId, onSelect, onHome, lockedIds = [] }: TopBarPro
             );
           })}
         </div>
+
+        {onCustomize && (
+          <button
+            type="button"
+            onClick={onCustomize}
+            className="btn-ghost h-11 shrink-0 px-2.5"
+            aria-label="Personalizar fotos y sintonía de este perfil"
+            title="Personalizar fotos y sintonía"
+          >
+            <span className="text-base" aria-hidden>
+              🎨
+            </span>
+          </button>
+        )}
       </div>
     </nav>
   );

@@ -43,12 +43,18 @@ export function loadDatabase(): HabitDatabase {
   }
 }
 
-export function saveDatabase(db: HabitDatabase): void {
-  if (typeof window === 'undefined') return;
+/**
+ * Escribe la base en el navegador. Devuelve `false` si no ha podido: cuota
+ * llena, modo privado o almacenamiento bloqueado. Quien llama debe contarlo,
+ * porque un guardado que falla en silencio es peor que uno que falla alto.
+ */
+export function saveDatabase(db: HabitDatabase): boolean {
+  if (typeof window === 'undefined') return false;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    return true;
   } catch {
-    // Cuota superada o modo privado: se ignora silenciosamente.
+    return false;
   }
 }
 

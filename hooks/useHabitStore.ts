@@ -36,7 +36,7 @@ import type {
 } from '@/types';
 
 /** Estado del guardado, para poder acusarlo en la interfaz. */
-export type SaveStatus = 'idle' | 'saving' | 'saved';
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export type EntryMap = Record<string, DayEntry>;
 export type MealMap = Record<string, MealAnalysis>;
@@ -378,10 +378,14 @@ export function useHabitStore(): HabitStore {
   // se cierra o se oculta antes de que venza el temporizador.
   const pending = useRef<HabitDatabase | null>(null);
 
+  // Guardar puede fallar de verdad (cuota llena, modo privado). Se refleja en
+  // `status` para que la interfaz pueda decirlo en vez de fingir que fue bien.
   const flush = useCallback(() => {
-    if (!pending.current) return;
-    saveDatabase(pending.current);
+    if (!pending.current) return true;
+    const saved = saveDatabase(pending.current);
     pending.current = null;
+    setStatus(saved ? 'saved' : 'error');
+    return saved;
   }, []);
 
   // Escritura diferida: cada cambio se persiste poco después del último.
@@ -392,10 +396,8 @@ export function useHabitStore(): HabitStore {
     setStatus('saving');
 
     const timer = window.setTimeout(() => {
-      flush();
-      setStatus('saved');
       // Guardado en el móvil; la nube va detrás y nunca bloquea la escritura.
-      void pushLocalChanges();
+      if (flush()) void pushLocalChanges();
     }, SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);

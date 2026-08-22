@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { Photo } from '@/components/ui/Photo';
 import { Avatar } from '@/components/ui/Avatar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { Stars } from '@/components/ui/Stars';
@@ -44,7 +44,7 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
         {/* Foto de acción */}
         <div className="relative min-h-[196px] sm:min-h-[248px]">
           {profile.hero && (
-            <Image
+            <Photo
               src={profile.hero}
               alt={`${profile.name} jugando al fútbol`}
               fill
@@ -120,7 +120,7 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
       {/* Cromo pegado como una pegatina sobre la esquina de la foto */}
       {profile.card && (
         <div className="pointer-events-none absolute bottom-2 left-2 hidden w-[74px] rotate-[-8deg] overflow-hidden rounded-lg shadow-2xl ring-1 ring-black/40 sm:block sm:w-[92px]">
-          <Image
+          <Photo
             src={profile.card}
             alt={`Cromo de ${profile.name}`}
             width={92}
@@ -173,7 +173,7 @@ function EditorialHeader({ profile, date, dayScore, streak, filled }: ProfileHea
           />
           <div className="relative h-32 w-32 overflow-hidden rounded-2xl sm:h-40 sm:w-40">
             {profile.hero ? (
-              <Image
+              <Photo
                 src={profile.hero}
                 alt={`Retrato de ${profile.name}`}
                 fill
@@ -222,7 +222,7 @@ function GroupHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
       <div className="flex min-h-[172px] sm:min-h-[200px]">
         {profile.hero && (
           <div className="relative w-[38%] max-w-[260px] shrink-0 self-stretch">
-            <Image
+            <Photo
               src={profile.hero}
               alt={profile.name}
               fill

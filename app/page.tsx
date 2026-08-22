@@ -9,6 +9,8 @@ import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelecto
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { TopBar } from '@/components/TopBar';
 import { ToastProvider } from '@/components/ui/Toast';
+import { AppearanceEditor } from '@/components/appearance/AppearanceEditor';
+import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { todayKey, weekKeys } from '@/lib/dates';
 import { prunePhotos } from '@/lib/photos';
@@ -25,12 +27,23 @@ const THEME_COLOR: Record<string, string> = {
 };
 
 export default function HomePage() {
+  return (
+    <AppearanceProvider>
+      <Home />
+    </AppearanceProvider>
+  );
+}
+
+function Home() {
   const store = useHabitStore();
+  const { dress } = useAppearance();
 
   const [activeProfile, setActiveProfile] = useState<ProfileId | null>(null);
   const [date, setDate] = useState<DateKey>(todayKey);
   const [unlocked, setUnlocked] = useState<ProfileId[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Perfil cuyo aspecto se está editando. */
+  const [editing, setEditing] = useState<Profile | null>(null);
   /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
   const [nowPlaying, setNowPlaying] = useState<Profile | null>(null);
 
@@ -60,17 +73,21 @@ export default function HomePage() {
     [unlocked],
   );
 
-  const select = useCallback((id: ProfileId) => {
-    setActiveProfile(id);
-    setDate(todayKey());
+  const select = useCallback(
+    (id: ProfileId) => {
+      setActiveProfile(id);
+      setDate(todayKey());
 
-    // La sintonía se lanza aquí, dentro del gesto de tocar el perfil: es la
-    // única forma de que el navegador deje sonar algo.
-    const chosen = getProfile(id);
-    if (chosen.anthem && playAnthem(id, chosen.anthem, () => setNowPlaying(null))) {
-      setNowPlaying(chosen);
-    }
-  }, []);
+      // La sintonía se lanza aquí, dentro del gesto de tocar el perfil: es la
+      // única forma de que el navegador deje sonar algo. Se toma del perfil ya
+      // vestido, para que suene la canción que haya puesto la casa.
+      const chosen = dress(getProfile(id));
+      if (chosen.anthem && playAnthem(id, chosen.anthem, () => setNowPlaying(null))) {
+        setNowPlaying(chosen);
+      }
+    },
+    [dress],
+  );
 
   const silence = useCallback(() => {
     stopAnthem();
@@ -82,7 +99,7 @@ export default function HomePage() {
     setActiveProfile(null);
   }, [silence]);
 
-  const profile = activeProfile ? getProfile(activeProfile) : null;
+  const profile = activeProfile ? dress(getProfile(activeProfile)) : null;
   const needsPin = Boolean(profile?.isPrivate) && !unlocked.includes(profile!.id);
 
   // El selector y la pantalla de PIN se pintan siempre con la piel nocturna;
@@ -155,6 +172,8 @@ export default function HomePage() {
             onSelect={select}
             onHome={goHome}
             lockedIds={lockedIds}
+            // Un perfil bloqueado no enseña sus fotos, así que tampoco se editan.
+            onCustomize={needsPin ? undefined : () => setEditing(profile)}
           />
         )}
 
@@ -171,6 +190,22 @@ export default function HomePage() {
             <Dashboard profile={profile} date={date} onDateChange={setDate} store={store} />
           )}
         </div>
+
+{/* Un guardado que falla no puede pasar desapercibido: es la única
+            señal de que lo registrado no está en ninguna parte. */}
+        {store.status === 'error' && (
+          <div
+            role="alert"
+            className="mx-auto mt-4 flex max-w-5xl items-start gap-3 rounded-2xl border px-4 py-3"
+            style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-bg)' }}
+          >
+            <span aria-hidden>⚠️</span>
+            <p className="text-sm t-danger">
+              <strong>No se ha podido guardar en este navegador.</strong> Suele ser falta de
+              espacio o el modo privado. Exporta una copia desde Ajustes antes de cerrar.
+            </p>
+          </div>
+        )}
 
         {/* Pie con acceso a ajustes */}
         <footer
@@ -204,6 +239,8 @@ export default function HomePage() {
         )}
 
         {settingsOpen && <SettingsPanel store={store} onClose={() => setSettingsOpen(false)} />}
+
+        {editing && <AppearanceEditor profile={editing} onClose={() => setEditing(null)} />}
       </main>
     </ToastProvider>
   );
