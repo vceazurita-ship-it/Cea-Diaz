@@ -18,8 +18,8 @@ export const PROFILES: Profile[] = [
     card: '/photos/cromo-leo.jpg',
     squad: '5',
     position: 'DEL',
-    anthem: '/audio/himno.mp3',
-    anthemLabel: 'Himno del Real Madrid',
+    anthem: '/audio/oliver.mp3',
+    anthemLabel: 'Oliver y Benji',
   },
   {
     id: 'hugo',
@@ -38,8 +38,8 @@ export const PROFILES: Profile[] = [
     card: '/photos/cromo-hugo.jpg',
     squad: '9',
     position: 'DEL',
-    anthem: '/audio/himno.mp3',
-    anthemLabel: 'Himno del Real Madrid',
+    anthem: '/audio/oliver.mp3',
+    anthemLabel: 'Oliver y Benji',
   },
   {
     id: 'maria',

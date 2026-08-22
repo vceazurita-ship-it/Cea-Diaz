@@ -3,20 +3,23 @@
 Aquí van los archivos de audio que suenan al entrar en un perfil. La app los
 busca por nombre; si no están, se entra en silencio y no pasa nada.
 
-| Archivo     | Perfiles    | Qué pide `lib/profiles.ts`        |
-| ----------- | ----------- | --------------------------------- |
-| `himno.mp3` | Leo y Hugo  | Himno del Real Madrid             |
-| `maria.mp3` | María       | *A Thousand Years*, Christina Perri |
+| Archivo      | Perfiles   | Qué suena                           |
+| ------------ | ---------- | ----------------------------------- |
+| `oliver.mp3` | Leo y Hugo | Sintonía de *Oliver y Benji*        |
+| `maria.mp3`  | María      | *A Thousand Years*, Christina Perri |
 
 Para cambiar cuál suena, se edita el campo `anthem` del perfil en
 `lib/profiles.ts`; para quitarla, se borra ese campo.
 
 ## Recomendaciones
 
-- **MP3 o M4A**, a 128 kbps sobra: sólo suenan veinte segundos.
-- **Recorta el trozo que quieras oír** (la entrada del himno, el estribillo).
-  Un archivo de 25-30 segundos pesa unos 400 KB y carga al instante; el tema
-  entero son varios MB que nadie va a escuchar.
+- **MP3**. Cuidado con los archivos bajados de internet: los dos que hay aquí venían
+  con extensión `.m4a` pero por dentro eran MP3, y algunos navegadores (Safari) se
+  niegan a reproducir un archivo cuya extensión miente.
+- **Se reproducen los primeros veinte segundos**, así que lo que quieras oír tiene
+  que estar al principio. El navegador pide el archivo por rangos, de modo que un
+  tema entero arranca igual de rápido que uno recortado: recortarlo sólo ahorra
+  peso en el repositorio (los dos actuales suman 6,3 MB).
 - Volumen normalizado, para que no pegue un salto respecto al resto.
 
 ## Antes de subirlos al repositorio

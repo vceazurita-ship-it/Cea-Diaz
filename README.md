@@ -142,8 +142,8 @@ el mismo con otros nombres.
 
 ## Sintonía de perfil
 
-Al entrar en un perfil puede sonar su música: Leo y Hugo reciben el himno del Real
-Madrid y María, *A Thousand Years*. Suena **veinte segundos**, entra y sale con un
+Al entrar en un perfil suena su música: Leo y Hugo reciben la sintonía de *Oliver y
+Benji* y María, *A Thousand Years*. Suena **veinte segundos**, entra y sale con un
 desvanecido, y se corta con el botón que aparece abajo a la derecha. Se apaga del todo
 en **⚙️ Ajustes → Sonido**.
 
@@ -157,8 +157,8 @@ Tres detalles de comportamiento, para que sea una alegría y no un incordio:
 Se declara como un campo más del perfil, en `lib/profiles.ts`:
 
 ```ts
-anthem: '/audio/himno.mp3',
-anthemLabel: 'Himno del Real Madrid',
+anthem: '/audio/oliver.mp3',
+anthemLabel: 'Oliver y Benji',
 ```
 
 Sin ese campo, se entra en silencio.
@@ -166,8 +166,9 @@ Sin ese campo, se entra en silencio.
 ### Los archivos los pones tú
 
 Van en `public/audio/` (las instrucciones completas, en `public/audio/LEEME.md`):
-`himno.mp3` para los peques y `maria.mp3` para María. Recorta el trozo que quieras
-oír —con 25-30 segundos basta, unos 400 KB— en vez de subir el tema entero.
+`oliver.mp3` para los peques y `maria.mp3` para María. Como la app sólo reproduce los
+primeros veinte segundos y el navegador pide el archivo por rangos, un tema entero
+suena igual de rápido; recortarlo sólo ahorra peso en el repositorio.
 
 Las dos piezas tienen **derechos de autor**, así que colocarlas ahí y desplegar
 significa servirlas en una URL pública. Para uso doméstico lo sensato es cerrar el
