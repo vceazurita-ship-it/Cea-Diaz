@@ -76,6 +76,20 @@ function daySummary(profileId: ProfileId, values: Record<string, MetricValue>): 
   return lines;
 }
 
+/**
+ * Las notas sueltas del día, ya con nombre legible. Vienen de las tarjetas de
+ * cada categoría y del panel de retos, y son justo lo que ninguna métrica
+ * puede recoger: molestias, contexto, excusas y matices.
+ */
+function loose(profileId: ProfileId, notes: Record<string, string>): string[] {
+  const names = new Map(getCategories(profileId).map((category) => [category.id, category.label]));
+  names.set('retos', 'Retos de la semana');
+
+  return Object.entries(notes)
+    .filter(([, text]) => text.trim())
+    .map(([key, text]) => `${names.get(key) ?? key}: ${text.trim()}`);
+}
+
 /** ¿Ha habido sala o entrenamiento propio hoy? De eso depende que haya reto. */
 export function trainedToday(profileId: ProfileId, values: Record<string, MetricValue>): boolean {
   return getCategories(profileId)
@@ -157,9 +171,11 @@ export function adviceUserPrompt(
   values: Record<string, MetricValue>,
   history: HistoryDay[],
   previous?: NextChallenge,
+  notes: Record<string, string> = {},
 ): string {
   const summary = daySummary(profile.id, values);
   const sessions = gymHistory(profile.id, history);
+  const remarks = loose(profile.id, notes);
 
   return [
     `QUIÉN: ${profile.name}${profile.age ? `, ${profile.age} años` : ''} — ${profile.role}.`,
@@ -167,6 +183,10 @@ export function adviceUserPrompt(
     '',
     'LO QUE CUENTA DE SU DÍA (dictado en voz alta, puede traer erratas):',
     observations.trim() || '(no ha contado nada; usa sólo lo registrado)',
+    '',
+    remarks.length
+      ? `NOTAS SUELTAS DE HOY (también dictadas):\n- ${remarks.join('\n- ')}`
+      : '',
     '',
     summary.length ? `LO REGISTRADO HOY:\n- ${summary.join('\n- ')}` : 'HOY NO HAY NADA REGISTRADO.',
     '',

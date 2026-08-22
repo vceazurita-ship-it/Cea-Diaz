@@ -8,35 +8,41 @@ import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { TopBar } from '@/components/TopBar';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AppearanceEditor } from '@/components/appearance/AppearanceEditor';
 import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
+import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 import { todayKey, weekKeys } from '@/lib/dates';
 import { prunePhotos } from '@/lib/photos';
 import { playAnthem, stopAnthem } from '@/lib/sound';
-import { PROFILES, accentFor, accentStyle, getProfile, skinOf } from '@/lib/profiles';
+import {
+  NEUTRAL_ACCENT,
+  NEUTRAL_TINT,
+  PROFILES,
+  accentFor,
+  getProfile,
+  paletteStyle,
+  skinOf,
+} from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import type { DateKey, Profile, ProfileId } from '@/types';
 
-/** Color de la barra del navegador por piel, para que la app se integre al instalarla. */
-const THEME_COLOR: Record<string, string> = {
-  night: '#161a23',
-  pitch: '#05180e',
-  editorial: '#f6f4f1',
-};
-
 export default function HomePage() {
   return (
-    <AppearanceProvider>
-      <Home />
-    </AppearanceProvider>
+    <ThemeProvider>
+      <AppearanceProvider>
+        <Home />
+      </AppearanceProvider>
+    </ThemeProvider>
   );
 }
 
 function Home() {
   const store = useHabitStore();
   const { dress, sync: syncAppearance } = useAppearance();
+  const { mode } = useTheme();
 
   const [activeProfile, setActiveProfile] = useState<ProfileId | null>(null);
   const [date, setDate] = useState<DateKey>(todayKey);
@@ -102,19 +108,29 @@ function Home() {
   const profile = activeProfile ? dress(getProfile(activeProfile)) : null;
   const needsPin = Boolean(profile?.isPrivate) && !unlocked.includes(profile!.id);
 
-  // El selector y la pantalla de PIN se pintan siempre con la piel nocturna;
-  // sólo el panel de un perfil desbloqueado adopta la suya.
-  const skin = profile && !needsPin ? skinOf(profile) : 'night';
-  const accent = profile && !needsPin ? accentFor(profile, skin) : '#818cf8';
+  // El selector y la pantalla de PIN se pintan en gris neutro; sólo el panel
+  // de un perfil desbloqueado adopta su maquetación y su color.
+  const dressedUp = profile && !needsPin ? profile : null;
+  const skin = dressedUp ? skinOf(dressedUp) : 'night';
+  const tint = dressedUp ? dressedUp.tint : NEUTRAL_TINT;
+  const accent = dressedUp ? accentFor(dressedUp, mode) : NEUTRAL_ACCENT[mode];
 
-  // Se propaga a <html> para que el fondo del documento, la barra del
-  // navegador y el scrollbar acompañen al cambio de piel.
+  // Se propaga a <html> para que el fondo del documento y el scrollbar
+  // acompañen al cambio de perfil o de modo. El color de la barra del
+  // navegador se lee del token ya resuelto: es el mismo `--bg` que se está
+  // pintando, así que nunca se queda desfasado respecto a la página.
   useEffect(() => {
-    document.documentElement.dataset.skin = skin;
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', THEME_COLOR[skin] ?? THEME_COLOR.night);
-  }, [skin]);
+    const root = document.documentElement;
+    root.dataset.skin = skin;
+    root.dataset.mode = mode;
+    root.style.setProperty('--tint', tint);
+    root.style.setProperty('--accent', accent);
+
+    const painted = getComputedStyle(root).getPropertyValue('--bg').trim();
+    if (painted) {
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', painted);
+    }
+  }, [skin, mode, tint, accent]);
 
   // Miniaturas huérfanas: al arrancar no hay nada pendiente de deshacerse,
   // así que lo que ya no pertenece a ninguna comida se puede tirar.
@@ -154,7 +170,12 @@ function Home() {
   if (needsSignIn) {
     return (
       <ToastProvider>
-        <main data-skin="night" className="min-h-screen surf-page">
+        <main
+          data-skin="night"
+          data-mode={mode}
+          style={paletteStyle(NEUTRAL_ACCENT[mode], NEUTRAL_TINT)}
+          className="min-h-screen surf-page"
+        >
           <Ambient skin="night" />
           <SignIn store={store} />
         </main>
@@ -164,7 +185,12 @@ function Home() {
 
   return (
     <ToastProvider>
-      <main data-skin={skin} style={accentStyle(accent)} className="min-h-screen surf-page">
+      <main
+        data-skin={skin}
+        data-mode={mode}
+        style={paletteStyle(accent, tint)}
+        className="min-h-screen surf-page"
+      >
         <Ambient skin={skin} />
 
         <a
@@ -187,7 +213,12 @@ function Home() {
 
         <div id="contenido" tabIndex={-1} className="outline-none">
           {!profile ? (
-            <ProfileSelector onSelect={select} glances={glances} hydrated={store.hydrated} />
+            <ProfileSelector
+              onSelect={select}
+              glances={glances}
+              hydrated={store.hydrated}
+              onEditCover={() => setSettingsOpen(true)}
+            />
           ) : needsPin ? (
             <PinLock
               profile={profile}
@@ -225,13 +256,18 @@ function Home() {
               ? 'Los datos se guardan en este navegador y en la cuenta de casa.'
               : 'Los datos se guardan en este navegador (localStorage).'}
           </p>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="btn-ghost px-2.5 py-1.5 text-xs"
-          >
-            ⚙️ Ajustes
-          </button>
+          <div className="flex items-center gap-2">
+            {/* En el selector no hay barra superior, así que el interruptor
+                de día y noche vive también aquí: nunca está a más de un toque. */}
+            <ThemeToggle className="px-2.5 py-1.5 text-xs" />
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="btn-ghost px-2.5 py-1.5 text-xs"
+            >
+              ⚙️ Ajustes
+            </button>
+          </div>
         </footer>
 
         {/* Cortar la sintonía: siempre a un toque mientras suena */}
@@ -239,7 +275,7 @@ function Home() {
           <button
             type="button"
             onClick={silence}
-            className="chip-accent fixed right-4 z-40 shadow-lg"
+            className="chip-accent fixed right-4 z-40 min-h-[2.5rem] shadow-lg"
             style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
           >
             🔇 {nowPlaying.anthemLabel ?? 'Silenciar'}

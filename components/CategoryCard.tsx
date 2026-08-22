@@ -5,6 +5,7 @@ import { MetricControl } from '@/components/controls/MetricControl';
 import type { ControlVariant } from '@/components/controls/types';
 import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { VoiceField } from '@/components/ui/VoiceField';
 import { computeCategoryScore, percent } from '@/lib/scoring';
 import type { HabitCategory, MetricValue, ProfileSkin } from '@/types';
 
@@ -15,6 +16,10 @@ interface CategoryCardProps {
   variant: ControlVariant;
   skin?: ProfileSkin;
   defaultOpen?: boolean;
+  /** Nota libre de esta categoría en el día que se está viendo. */
+  note?: string;
+  /** Sin este manejador la tarjeta no ofrece nota: es opcional a propósito. */
+  onNoteChange?: (text: string) => void;
 }
 
 export function CategoryCard({
@@ -24,6 +29,8 @@ export function CategoryCard({
   variant,
   skin = 'night',
   defaultOpen = true,
+  note = '',
+  onNoteChange,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const score = computeCategoryScore(category, values);
@@ -71,6 +78,13 @@ export function CategoryCard({
         </span>
 
         <span className="flex shrink-0 items-center gap-3">
+          {/* Plegada, la tarjeta tiene que delatar que ahí dentro hay algo escrito. */}
+          {note.trim() && (
+            <span className="text-sm" title="Tiene una nota" aria-label="Tiene una nota">
+              📝
+            </span>
+          )}
+
           <span className="text-right">
             <span className="block text-sm font-bold tabular-nums t-accent">
               {percent(score.ratio)}
@@ -97,30 +111,46 @@ export function CategoryCard({
       </div>
 
       {open && (
-        <div
-          id={panelId}
-          className={`animate-floatUp p-4 ${
-            kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'
-          }`}
-        >
-          {category.layout === 'sports' ? (
-            <SportsPanel
-              category={category}
-              values={values}
-              onChange={onChange}
-              variant={variant}
-              skin={skin}
-            />
-          ) : (
-            category.metrics.map((metric) => (
-              <MetricControl
-                key={metric.id}
-                metric={metric}
-                value={values[metric.id]}
-                onChange={(value) => onChange(metric.id, value)}
+        <div id={panelId} className="animate-floatUp">
+          <div className={`p-4 ${kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'}`}>
+            {category.layout === 'sports' ? (
+              <SportsPanel
+                category={category}
+                values={values}
+                onChange={onChange}
                 variant={variant}
+                skin={skin}
               />
-            ))
+            ) : (
+              category.metrics.map((metric) => (
+                <MetricControl
+                  key={metric.id}
+                  metric={metric}
+                  value={values[metric.id]}
+                  onChange={(value) => onChange(metric.id, value)}
+                  variant={variant}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Lo que los botones no saben decir: se escribe o se dicta. */}
+          {onNoteChange && (
+            <div className="border-t px-4 pb-4 pt-3 hairline">
+              <VoiceField
+                compact
+                rows={2}
+                label={`📝 Nota de ${category.label.toLowerCase()}`}
+                dictateLabel="🎙️ Dictar"
+                value={note}
+                onChange={onNoteChange}
+                placeholder={
+                  kid
+                    ? '¿Algo que contar de hoy?'
+                    : 'Detalles, incidencias o lo que no encaja en ninguna casilla…'
+                }
+              />
+            </div>
           )}
         </div>
       )}

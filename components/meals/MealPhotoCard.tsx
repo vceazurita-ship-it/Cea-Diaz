@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useToast } from '@/components/ui/Toast';
+import { VoiceField } from '@/components/ui/VoiceField';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { MEAL_MOMENTS } from '@/lib/mealPrompt';
 import { deletePhotoObject, downloadPhoto, uploadPhoto } from '@/lib/cloud';
@@ -150,6 +151,10 @@ function MealRow({
           </div>
 
           <p className="mt-1 text-xs leading-snug t-2">{meal.resumen}</p>
+
+          {meal.contexto && (
+            <p className="mt-1 text-[11px] italic leading-snug t-3">🗣️ {meal.contexto}</p>
+          )}
         </div>
       </div>
 
@@ -197,7 +202,12 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [context, setContext] = useState('');
+  // Dos entradas y no una: la de cámara lleva `capture`, que en el móvil abre
+  // directamente el objetivo, y la de galería no, que es lo que deja elegir
+  // una foto ya hecha. Un mismo `input` no puede hacer las dos cosas.
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const galleryInput = useRef<HTMLInputElement>(null);
   const notify = useToast();
 
   const meals = store.getMeals(profile.id, date);
@@ -209,6 +219,15 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
 
   const analyse = async (file: File | undefined) => {
     if (!file) return;
+
+    // Hay móviles que entregan del gestor de archivos cosas que no son
+    // imágenes; mejor decirlo aquí que fallar luego al descodificar.
+    if (file.type && !file.type.startsWith('image/')) {
+      setError('Eso no es una imagen. Elige una foto del plato.');
+      return;
+    }
+
+    const said = context.trim();
 
     setError(null);
     setBusy(true);
@@ -225,6 +244,7 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
           moment,
           image: photo.analysis,
           mediaType: 'image/jpeg',
+          context: said,
           values: store.getEntry(profile.id, date)?.values ?? {},
         }),
       });
@@ -261,19 +281,24 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
         profileId: profile.id,
         date,
         moment,
+        contexto: said || undefined,
         photoId,
         photoPath,
         createdAt: now,
         updatedAt: now,
       });
 
+      // Lo contado ya está guardado con la comida: el campo se vacía para que
+      // no se cuele en la siguiente foto.
+      setContext('');
       notify({ message: `Plato analizado: ${formatScore(payload.nota)} / 10.`, icon: '📷' });
     } catch {
       setError('No se ha podido preparar la foto en este dispositivo.');
     } finally {
       setBusy(false);
       setPreview(null);
-      if (fileInput.current) fileInput.current.value = '';
+      if (cameraInput.current) cameraInput.current.value = '';
+      if (galleryInput.current) galleryInput.current.value = '';
     }
   };
 
@@ -327,8 +352,23 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
         })}
       </div>
 
+      {/* Lo que no se ve en la foto */}
+      <div className="mb-3">
+        <VoiceField
+          compact
+          label="🗣️ Cuéntalo (opcional)"
+          value={context}
+          onChange={setContext}
+          rows={2}
+          disabled={busy}
+          dictateLabel="🎙️ Dictar"
+          placeholder="Lo que la foto no cuenta: cómo está cocinado, si se lo ha terminado, qué ha bebido…"
+          hint="Se manda junto con la foto para afinar la nota y los consejos."
+        />
+      </div>
+
       <input
-        ref={fileInput}
+        ref={cameraInput}
         type="file"
         accept="image/*"
         capture="environment"
@@ -336,14 +376,33 @@ export function MealPhotoCard({ profile, date, store, kid }: MealPhotoCardProps)
         onChange={(event) => analyse(event.target.files?.[0])}
       />
 
-      <button
-        type="button"
-        onClick={() => fileInput.current?.click()}
-        disabled={busy}
-        className="btn-primary w-full py-2.5 text-sm"
-      >
-        {busy ? '⏳ Analizando el plato…' : '📸 Hacer foto del plato'}
-      </button>
+      <input
+        ref={galleryInput}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => analyse(event.target.files?.[0])}
+      />
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => cameraInput.current?.click()}
+          disabled={busy}
+          className="btn-primary w-full py-2.5 text-sm"
+        >
+          {busy ? '⏳ Analizando el plato…' : '📸 Hacer foto del plato'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => galleryInput.current?.click()}
+          disabled={busy}
+          className="btn px-3 py-2.5 text-sm font-semibold border hairline surf-1 t-2 hover-soft"
+        >
+          🖼️ Elegir una del móvil
+        </button>
+      </div>
 
       {/* Lo que se está analizando */}
       {busy && preview && (

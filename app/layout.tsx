@@ -14,16 +14,39 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // `app/page.tsx` reescribe este color al cambiar de piel.
-  themeColor: '#161a23',
+  // `app/page.tsx` reescribe este color al cambiar de modo o de perfil.
+  themeColor: '#0d1014',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
 };
 
+/**
+ * Pinta el modo elegido antes de que el navegador dibuje nada. Sin esto, la
+ * casa que use el modo día vería un fogonazo oscuro en cada carga: React
+ * llega después del primer pintado y ya sería tarde.
+ *
+ * Va en línea y sin dependencias a propósito; si algo falla, se queda el
+ * modo noche por defecto y la app funciona igual.
+ */
+const MODE_BOOTSTRAP = `
+try {
+  var p = localStorage.getItem('habitos-familia:modo');
+  var m = p === 'light' || p === 'dark'
+    ? p
+    : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.dataset.mode = m;
+} catch (e) {
+  document.documentElement.dataset.mode = 'dark';
+}
+`.trim();
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" data-skin="night">
+    <html lang="es" data-skin="night" data-mode="dark">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MODE_BOOTSTRAP }} />
+      </head>
       <body className="min-h-screen">{children}</body>
     </html>
   );

@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Photo } from '@/components/ui/Photo';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { useAppearance } from '@/hooks/useAppearance';
 import type { AdviceMap, EntryMap, HabitStore, MealMap } from '@/hooks/useHabitStore';
+import { useTheme } from '@/hooks/useTheme';
+import { APP_OWNER } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
 import { loadPin, savePin } from '@/lib/storage';
-import type { DayAdvice, DayEntry, MealAnalysis } from '@/types';
+import type { DayAdvice, DayEntry, MealAnalysis, ThemePreference } from '@/types';
 
 interface SettingsPanelProps {
   store: HabitStore;
@@ -50,6 +54,7 @@ function parseMeals(raw: unknown): MealMap {
       profileId: meal.profileId as MealAnalysis['profileId'],
       date: meal.date,
       moment: meal.moment as MealAnalysis['moment'],
+      contexto: typeof meal.contexto === 'string' ? meal.contexto : undefined,
       photoId: typeof meal.photoId === 'string' ? meal.photoId : undefined,
       createdAt:
         typeof meal.createdAt === 'string' ? meal.createdAt : new Date().toISOString(),
@@ -100,6 +105,21 @@ function parseAdvice(raw: unknown): AdviceMap {
   return advice;
 }
 
+/**
+ * Las notas por categoría de un registro. Se filtran una a una: el archivo
+ * lo puede haber tocado cualquiera y aquí sólo entran pares de texto.
+ */
+function parseNotes(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+
+  const notes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string' && value.trim()) notes[key] = value;
+  }
+
+  return Object.keys(notes).length > 0 ? notes : undefined;
+}
+
 /** Comprueba que lo leído del archivo tiene forma de registro antes de aceptarlo. */
 function parseEntries(raw: unknown): EntryMap | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -118,6 +138,7 @@ function parseEntries(raw: unknown): EntryMap | null {
       profileId: entry.profileId,
       values: entry.values as DayEntry['values'],
       note: typeof entry.note === 'string' ? entry.note : undefined,
+      notes: parseNotes(entry.notes),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
   }
@@ -136,6 +157,47 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const notify = useToast();
 
   useEffect(() => setSound(soundEnabled()), []);
+
+  /* ---------------------------------------------------- aspecto de la app */
+
+  const { preference, mode, setPreference } = useTheme();
+  const { appCover, appCoverCustom, setPhoto, reset: resetSlot } = useAppearance();
+  const coverInput = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+
+  const MODES: Array<{ value: ThemePreference; label: string; icon: string }> = [
+    { value: 'auto', label: 'Automático', icon: '📱' },
+    { value: 'light', label: 'Día', icon: '☀️' },
+    { value: 'dark', label: 'Noche', icon: '🌙' },
+  ];
+
+  const changeCover = async (file: File | undefined) => {
+    if (!file) return;
+    setCoverBusy(true);
+    try {
+      await setPhoto(APP_OWNER, 'cover', file);
+      notify({ message: 'Portada actualizada.', icon: '🖼️' });
+    } catch (error) {
+      notify({
+        message: error instanceof Error ? error.message : 'No se ha podido guardar la portada.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+    } finally {
+      setCoverBusy(false);
+      if (coverInput.current) coverInput.current.value = '';
+    }
+  };
+
+  const restoreCover = async () => {
+    setCoverBusy(true);
+    try {
+      await resetSlot(APP_OWNER, 'cover');
+      notify({ message: 'Portada original restaurada.', icon: '↩️' });
+    } finally {
+      setCoverBusy(false);
+    }
+  };
 
   const entryCount = Object.keys(store.entries).length;
 
@@ -176,7 +238,9 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     const blob = new Blob(
       [
         JSON.stringify(
-          { version: 4, entries: store.entries, meals: store.meals, advice: store.advice },
+          // v5 añadió las notas por categoría y lo que se cuenta del plato.
+          // Los archivos de versiones anteriores se siguen leyendo enteros.
+          { version: 5, entries: store.entries, meals: store.meals, advice: store.advice },
           null,
           2,
         ),
@@ -257,8 +321,80 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   };
 
   return (
-    <Modal title="⚙️ Ajustes" onClose={onClose}>
+    <Modal title="⚙️ Ajustes" onClose={onClose} size="lg">
       <div className="space-y-4 text-sm">
+        {/* ---------------------------------------------- aspecto de la app */}
+        <section className="rounded-2xl border hairline surf-1 p-3">
+          <h3 className="mb-1 font-bold t-1">Aspecto de la app</h3>
+          <p className="mb-3 text-xs t-3">
+            El modo vale para todos los perfiles y se queda en este dispositivo: la tableta de
+            la cocina y el móvil de la mesilla pueden ir cada uno a lo suyo.
+          </p>
+
+          <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Modo de la app">
+            {MODES.map((option) => {
+              const active = preference === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPreference(option.value)}
+                  aria-pressed={active}
+                  className={`btn px-3 py-1.5 text-xs font-semibold border
+                    ${active ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
+                >
+                  <span aria-hidden>{option.icon}</span>
+                  {option.label}
+                  {option.value === 'auto' && active && (
+                    <span className="t-3">· ahora {mode === 'dark' ? 'noche' : 'día'}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <h4 className="mb-1 text-xs font-bold uppercase tracking-wide t-2">Portada</h4>
+          <p className="mb-3 text-xs t-3">
+            La foto grande de la pantalla de inicio. Con la cuenta de casa iniciada llega
+            también al resto de móviles.
+          </p>
+
+          <div className="flex items-center gap-3">
+            <span className="block h-14 w-24 shrink-0 overflow-hidden rounded-xl border hairline surf-2">
+              <Photo src={appCover} alt="" width={192} height={112} className="h-full w-full object-cover" />
+            </span>
+
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <input
+                ref={coverInput}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => void changeCover(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                disabled={coverBusy}
+                onClick={() => coverInput.current?.click()}
+                className="btn-ghost px-3 py-1.5 text-xs"
+              >
+                {coverBusy ? '⏳ Guardando…' : appCoverCustom ? '🖼️ Cambiar' : '🖼️ Elegir foto'}
+              </button>
+
+              {appCoverCustom && (
+                <button
+                  type="button"
+                  disabled={coverBusy}
+                  onClick={() => void restoreCover()}
+                  className="btn-ghost px-3 py-1.5 text-xs"
+                >
+                  ↩️ Original
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* -------------------------------------------------------- nube */}
         {store.cloud.configured && (
           <section className="rounded-2xl border hairline surf-1 p-3">

@@ -76,8 +76,9 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   }, [duration, onDismiss]);
 
   return (
+    // Sin `role="status"`: el contenedor ya es una región viva y anidar otra
+    // hacía que los lectores de pantalla cantaran el aviso dos veces.
     <div
-      role="status"
       className="pointer-events-auto flex w-full max-w-md animate-floatUp items-center gap-3
                  rounded-2xl border px-4 py-3 text-sm hairline surf-raised"
       style={{ boxShadow: 'var(--shadow-pop)' }}
@@ -109,7 +110,8 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         type="button"
         onClick={onDismiss}
         aria-label="Cerrar aviso"
-        className="shrink-0 rounded-lg px-2 py-1.5 text-xs t-3 transition-colors hover:t-1"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs
+                   t-3 transition-colors hover:t-1"
       >
         ✕
       </button>

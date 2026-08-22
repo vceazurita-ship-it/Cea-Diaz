@@ -27,6 +27,9 @@ const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5';
 /** Tope de la imagen en base64 (~1,5 MB de foto). */
 const MAX_IMAGE_CHARS = 2_000_000;
 
+/** Tope de lo que se cuenta del plato: son dos frases, no un tratado. */
+const MAX_CONTEXT = 2_000;
+
 const MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 const VerdictSchema = z.object({
@@ -55,6 +58,8 @@ interface RequestBody {
   moment?: string;
   image?: string;
   mediaType?: string;
+  /** Lo que se ha contado del plato, dictado o escrito en el móvil. */
+  context?: string;
   values?: Record<string, MetricValue>;
 }
 
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
     return bad('La petición no es un JSON válido.', 400);
   }
 
-  const { profileId, moment, image, mediaType, values } = body;
+  const { profileId, moment, image, mediaType, context, values } = body;
 
   if (!profileId || !(profileId in PROFILES_BY_ID)) return bad('Perfil desconocido.', 400);
   if (!isMealMoment(moment)) return bad('Momento del día no válido.', 400);
@@ -92,6 +97,8 @@ export async function POST(request: Request) {
   const media = MEDIA_TYPES.includes(mediaType as (typeof MEDIA_TYPES)[number])
     ? (mediaType as (typeof MEDIA_TYPES)[number])
     : 'image/jpeg';
+
+  const said = typeof context === 'string' ? context.slice(0, MAX_CONTEXT) : '';
 
   const profile = PROFILES_BY_ID[profileId as ProfileId];
   const client = new Anthropic();
@@ -108,7 +115,7 @@ export async function POST(request: Request) {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: media, data: image } },
-            { type: 'text', text: mealUserPrompt(profile.id, moment, values ?? {}) },
+            { type: 'text', text: mealUserPrompt(profile.id, moment, values ?? {}, said) },
           ],
         },
       ],

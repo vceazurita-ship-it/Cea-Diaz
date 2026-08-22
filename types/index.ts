@@ -21,6 +21,14 @@ export type ProfileKind = 'kid' | 'adult' | 'group';
  */
 export type ProfileSkin = 'night' | 'pitch' | 'editorial';
 
+/**
+ * Modo de la app, elegido en Ajustes y válido para todos los perfiles.
+ * `auto` sigue lo que tenga configurado el móvil; los otros dos mandan.
+ */
+export type ThemePreference = 'auto' | 'light' | 'dark';
+/** Modo ya resuelto: es lo que acaba pintándose. */
+export type ThemeMode = 'light' | 'dark';
+
 export interface Profile {
   id: ProfileId;
   name: string;
@@ -36,13 +44,19 @@ export interface Profile {
   gradient: string;
   /** Color de acento sólido (para barras, chips y bordes). */
   accent: string;
+  /**
+   * Color de la sección entera: de él salen el fondo, las superficies, los
+   * bordes y el texto, tanto de día como de noche. Es lo que hace que la
+   * parte de Leo sea verde y la de Hugo roja sin tocar ni un componente.
+   */
+  tint: string;
   /** Miembros incluidos en los módulos compartidos. */
   members?: ProfileId[];
   /** Los módulos privados exigen PIN antes de mostrar datos. */
   isPrivate?: boolean;
   /** Piel visual del panel del perfil. Por defecto `night`. */
   skin?: ProfileSkin;
-  /** Variante oscura del acento, usada sobre los fondos claros de `editorial`. */
+  /** Variante oscura del acento, la que se usa en modo día sobre papel claro. */
   accentDeep?: string;
   /** Retrato cuadrado del perfil (ruta bajo /public). */
   photo?: string;
@@ -186,11 +200,25 @@ export interface HabitCategory {
 /** Fecha en formato ISO local `YYYY-MM-DD`. */
 export type DateKey = string;
 
+/**
+ * Clave de una nota suelta del día. Son los identificadores de categoría
+ * (`nutricion`, `deporte`, `sueno`…) más `retos`, reservada para lo que se
+ * apunta desde el panel de retos. El catálogo de categorías no usa ese
+ * nombre, así que no hay colisión posible.
+ */
+export type NoteKey = string;
+
 export interface DayEntry {
   date: DateKey;
   profileId: ProfileId;
   values: Record<string, MetricValue>;
   note?: string;
+  /**
+   * Notas por categoría y del panel de retos: lo que no cabe en un botón
+   * («me dolía el tobillo», «entrenó sólo media hora»). Se dictan o se
+   * escriben y viajan al consejo del día junto con lo registrado.
+   */
+  notes?: Record<NoteKey, string>;
   /** Marca temporal de la última edición (ISO). */
   updatedAt: string;
 }
@@ -289,6 +317,12 @@ export interface MealAnalysis extends MealVerdict {
   profileId: ProfileId;
   date: DateKey;
   moment: MealMoment;
+  /**
+   * Lo que se contó del plato al hacer la foto («lleva aceite de oliva», «se
+   * ha dejado la mitad»). Se manda al análisis y se conserva para saber sobre
+   * qué se juzgó.
+   */
+  contexto?: string;
   /** Clave de la miniatura en IndexedDB; ausente si no se pudo guardar. */
   photoId?: string;
   /** Ruta del objeto en Supabase Storage, cuando la foto ya está en la nube. */

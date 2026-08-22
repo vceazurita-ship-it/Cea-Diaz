@@ -281,14 +281,6 @@ export function computeAchievements(summary: PeriodSummary): Achievement[] {
   }));
 }
 
-export function ratioTone(ratio: number): string {
-  if (ratio >= 0.8) return 'text-emerald-300';
-  if (ratio >= 0.6) return 'text-lime-300';
-  if (ratio >= 0.4) return 'text-amber-300';
-  if (ratio > 0) return 'text-orange-300';
-  return 'text-ink-400';
-}
-
 export function percent(ratio: number): string {
   return `${Math.round(ratio * 100)} %`;
 }

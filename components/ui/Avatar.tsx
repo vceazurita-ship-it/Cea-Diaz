@@ -28,8 +28,11 @@ export function Avatar({
   priority = false,
 }: AvatarProps) {
   const radius = shape === 'circle' ? 'rounded-full' : 'rounded-[28%]';
+  // El anillo lee el acento ya resuelto para el modo en curso, no el del
+  // perfil a secas: el mismo verde claro que luce de noche se pierde sobre
+  // papel. Quien pinta el avatar publica `--accent` en su contenedor.
   const ringStyle = ring
-    ? { boxShadow: `0 0 0 2px var(--bg), 0 0 0 4px ${profile.accent}` }
+    ? { boxShadow: '0 0 0 2px var(--bg), 0 0 0 4px var(--accent)' }
     : undefined;
 
   if (!profile.photo) {

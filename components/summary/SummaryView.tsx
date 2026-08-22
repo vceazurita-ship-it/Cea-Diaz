@@ -76,7 +76,7 @@ export function SummaryView({ profile, date, entries, skin, onSelectDay }: Summa
                 type="button"
                 onClick={() => setRange(option)}
                 aria-pressed={active}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors
+                className={`min-h-[2.25rem] rounded-lg px-4 text-xs font-bold transition-colors
                   ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
               >
                 {option === 'week' ? 'Semana' : 'Mes'}

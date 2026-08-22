@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
-import { useDictation } from '@/hooks/useDictation';
+import { VoiceField } from '@/components/ui/VoiceField';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { addDays, friendlyDateLabel } from '@/lib/dates';
 import type { DateKey, DayAdvice, DayAdviceVerdict, Profile } from '@/types';
@@ -95,22 +95,13 @@ function AdvicePanel({ advice }: { advice: DayAdvice }) {
 export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // No se pide consejo con el micro abierto: faltaría por llegar el final.
+  const [dictating, setDictating] = useState(false);
   const notify = useToast();
 
   const entry = store.getEntry(profile.id, date);
   const note = entry?.note ?? '';
   const advice = store.getAdvice(profile.id, date);
-
-  // El dictado llega por trozos y varios pueden caer en el mismo render:
-  // la referencia guarda el texto ya compuesto para que ninguno pise al otro.
-  const noteRef = useRef(note);
-  noteRef.current = note;
-
-  const dictation = useDictation((chunk) => {
-    const next = noteRef.current ? `${noteRef.current} ${chunk}` : chunk;
-    noteRef.current = next;
-    store.setNote(profile.id, date, next);
-  });
 
   const askAdvice = async () => {
     setError(null);
@@ -129,6 +120,9 @@ export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardPr
           profileId: profile.id,
           date,
           observaciones: note,
+          // Las notas sueltas de cada categoría cuentan lo que los botones no
+          // pueden: van al consejo igual que las observaciones del día.
+          notas: entry?.notes ?? {},
           values: entry?.values ?? {},
           history,
           retoPrevio: store.pendingChallenge(profile.id, date)?.reto,
@@ -179,60 +173,23 @@ export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardPr
 
   return (
     <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <label htmlFor="nota" className="text-sm font-bold uppercase tracking-wide t-2">
-          📔 Observaciones del día
-        </label>
-
-        {dictation.supported && (
-          <button
-            type="button"
-            onClick={dictation.listening ? dictation.stop : dictation.start}
-            aria-pressed={dictation.listening}
-            className={`btn px-3 py-1.5 text-xs font-semibold border
-              ${
-                dictation.listening
-                  ? 'bg-accent t-on-accent border-accent animate-pulse'
-                  : 'hairline surf-1 t-2 hover-soft'
-              }`}
-          >
-            {dictation.listening ? '⏹️ Parar de dictar' : '🎙️ Contarlo en voz alta'}
-          </button>
-        )}
-      </div>
-
-      <textarea
-        id="nota"
-        rows={3}
+      <VoiceField
+        label="📔 Observaciones del día"
         value={note}
-        onChange={(event) => store.setNote(profile.id, date, event.target.value)}
+        onChange={(text) => store.setNote(profile.id, date, text)}
+        onListeningChange={setDictating}
         placeholder={
           kid
             ? '¿Qué tal el entrenamiento? ¿Qué ha sido lo mejor de hoy?'
             : 'Cómo ha ido cada hábito: entrenamiento, trabajo, sueño, incidencias…'
         }
-        className="field w-full resize-y p-3"
       />
-
-      {dictation.listening && (
-        <p className="mt-1.5 text-xs t-3" aria-live="polite">
-          🎧 Escuchando… {dictation.interim && <span className="italic">{dictation.interim}</span>}
-        </p>
-      )}
-
-      {dictation.error && <p className="mt-1.5 text-xs t-danger">⚠️ {dictation.error}</p>}
-
-      {!dictation.supported && (
-        <p className="mt-1.5 text-[11px] t-3">
-          Este navegador no permite dictar; escríbelo y el consejo funciona igual.
-        </p>
-      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={askAdvice}
-          disabled={busy || dictation.listening}
+          disabled={busy || dictating}
           className="btn-primary px-3 py-1.5 text-xs"
         >
           {busy ? '⏳ Pensando…' : advice ? '🔁 Rehacer el consejo' : '💡 Consejo para mañana'}

@@ -54,16 +54,19 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[var(--bg)]" />
-          <div className="absolute inset-y-0 right-0 w-px bg-white/25" />
+          {/* Línea de cal separando la foto del marcador: clara de noche y
+              oscura sobre papel, como el resto del campo. */}
+          <div className="absolute inset-y-0 right-0 border-r chalk" />
         </div>
 
         {/* Marcador */}
         <div className="turf relative flex flex-col justify-between gap-3 p-4 sm:p-5">
-          {/* Dorsal fantasma */}
+          {/* Dorsal fantasma. El color sale del texto de la piel, no de un
+              blanco fijo: sobre papel, un blanco al 6 % no se vería. */}
           <span
             aria-hidden
             className="font-display pointer-events-none absolute -right-2 -top-6 select-none
-                       text-[8.5rem] leading-none text-white/[0.06] sm:text-[11rem]"
+                       text-[8.5rem] leading-none t-1 opacity-[0.07] sm:text-[11rem]"
           >
             {profile.squad}
           </span>

@@ -17,10 +17,16 @@ create table if not exists public.entries (
   day         date not null,
   metrics     jsonb not null default '{}'::jsonb,
   note        text,
+  notes       jsonb not null default '{}'::jsonb,  -- notas por categoría y de retos
   updated_at  timestamptz not null default now()
 );
 
 create index if not exists entries_owner_day_idx on public.entries (owner, profile_id, day);
+
+-- Columnas añadidas después de la primera versión del esquema: quien ya tenga
+-- la tabla creada las recibe aquí sin tener que borrar nada.
+alter table public.entries
+  add column if not exists notes jsonb not null default '{}'::jsonb;
 
 -- ------------------------------------------------------------- comidas
 create table if not exists public.meals (
@@ -35,12 +41,16 @@ create table if not exists public.meals (
   foods       jsonb not null default '[]'::jsonb,
   wins        jsonb not null default '[]'::jsonb,
   tweaks      jsonb not null default '[]'::jsonb,
+  context     text not null default '',  -- lo que se contó del plato al hacer la foto
   photo_path  text,                      -- objeto dentro del cubo `comidas`
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
 create index if not exists meals_owner_day_idx on public.meals (owner, profile_id, day);
+
+alter table public.meals
+  add column if not exists context text not null default '';
 
 -- ------------------------------------------------------------ consejos
 create table if not exists public.advice (

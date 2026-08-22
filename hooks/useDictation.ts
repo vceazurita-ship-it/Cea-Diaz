@@ -52,6 +52,13 @@ function recognitionConstructor(): RecognitionConstructor | undefined {
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition;
 }
 
+/**
+ * Reconocedor abierto ahora mismo, si lo hay. Vive fuera del hook porque hay
+ * varios campos dictables en la misma pantalla y el navegador sólo tiene un
+ * micrófono: empezar en uno tiene que cerrar el anterior, no pelearse con él.
+ */
+let openMicrophone: Recognition | null = null;
+
 /** Mensajes en cristiano para los errores que sí le importan a quien dicta. */
 const ERROR_TEXT: Record<string, string> = {
   'not-allowed': 'El navegador no tiene permiso para usar el micrófono.',
@@ -95,14 +102,19 @@ export function useDictation(onText: (text: string) => void): Dictation {
   // Al desmontar se corta: nadie quiere el micro abierto al cambiar de perfil.
   useEffect(
     () => () => {
-      recognition.current?.abort();
+      const mine = recognition.current;
+      if (!mine) return;
+      if (openMicrophone === mine) openMicrophone = null;
+      mine.abort();
       recognition.current = null;
     },
     [],
   );
 
   const stop = useCallback(() => {
-    recognition.current?.stop();
+    const mine = recognition.current;
+    if (mine && openMicrophone === mine) openMicrophone = null;
+    mine?.stop();
     setListening(false);
     setInterim('');
   }, []);
@@ -111,6 +123,8 @@ export function useDictation(onText: (text: string) => void): Dictation {
     const Constructor = recognitionConstructor();
     if (!Constructor) return;
 
+    // Se cierra lo que estuviera escuchando, sea de este campo o de otro.
+    openMicrophone?.abort();
     recognition.current?.abort();
     setError(null);
 
@@ -133,17 +147,23 @@ export function useDictation(onText: (text: string) => void): Dictation {
     };
 
     instance.onerror = (event) => {
-      setError(ERROR_TEXT[event.error] ?? 'El dictado se ha interrumpido.');
+      // `aborted` es lo que ocurre al empezar a dictar en otro campo: es una
+      // sustitución querida, no un fallo que haya que contarle a nadie.
+      if (event.error !== 'aborted') {
+        setError(ERROR_TEXT[event.error] ?? 'El dictado se ha interrumpido.');
+      }
       setListening(false);
       setInterim('');
     };
 
     instance.onend = () => {
+      if (openMicrophone === instance) openMicrophone = null;
       setListening(false);
       setInterim('');
     };
 
     recognition.current = instance;
+    openMicrophone = instance;
     instance.start();
     setListening(true);
   }, []);

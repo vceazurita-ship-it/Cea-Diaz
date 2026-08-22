@@ -3,16 +3,30 @@
 @tailwind utilities;
 
 /* =========================================================================
- *  Pieles
- *  Toda la interfaz se pinta con tokens, nunca con colores literales, de
- *  modo que cambiar de piel (oscura ↔ clara) no obliga a tocar componentes.
- *  El atributo `data-skin` lo fija `app/page.tsx` según el perfil activo.
+ *  Modo, tinte y piel
  *
- *  El acento del perfil viaja por el mismo camino: `--accent` se fija en
- *  línea sobre <main> y las utilidades `.bg-accent`, `.t-accent`… lo leen.
- *  Así los controles pueden tener estados :hover y :focus teñidos con el
- *  acento, algo imposible cuando el color se escribía en un atributo
- *  `style` elemento a elemento.
+ *  Toda la interfaz se pinta con tokens, nunca con colores literales. Tres
+ *  cosas independientes deciden esos tokens:
+ *
+ *    · `data-mode`  día o noche. Lo elige la casa y vale para toda la app.
+ *    · `--tint`     el color de quien está dentro: verde para Leo, rojo para
+ *                   Hugo, azul noche para Víctor… Viaja en línea sobre
+ *                   <main>, como el acento, y tiñe fondos, textos y bordes.
+ *    · `data-skin`  la maquetación y la tipografía (estadio, revista,
+ *                   nocturna). Ya no decide colores: sólo cómo se compone.
+ *
+ *  Los tokens se calculan mezclando el tinte con un gris base, así que añadir
+ *  un color nuevo es declarar un `--tint` y nada más. Por eso las mezclas se
+ *  repiten en `:root` y en `[data-mode='dark']`: la primera es el valor por
+ *  defecto del documento y la segunda vuelve a resolverlas dentro de <main>,
+ *  que es donde vive el `--tint` del perfil.
+ *
+ *  Las proporciones no son a ojo. Están elegidas para que los seis perfiles,
+ *  en los dos modos, pasen AA (4,5:1) en todas las combinaciones que la app
+ *  usa de verdad: los tres niveles de texto sobre tarjeta y sobre chip, el
+ *  texto encima del acento, el acento como texto y los velos de acento. Al
+ *  tocar cualquiera de estos números hay que rehacer esa cuenta: subir un
+ *  gris «porque se ve mejor» es justo lo que rompe el caso de otro perfil.
  * ========================================================================= */
 
 :root {
@@ -22,71 +36,80 @@
   --font-pitch: 'Arial Black', 'Arial Bold', Gadget, ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-sans);
 
-  /* Acento por defecto; cada perfil lo sobrescribe en línea. */
+  /* Acento y tinte por defecto; cada perfil los sobrescribe en línea. */
   --accent: #818cf8;
-  --on-accent: #10141c;
-
-  /* night — selector de perfiles y módulos compartidos */
-  --bg: #161a23;
-  --bg-2: #1b202b;
-  --surface: rgba(255, 255, 255, 0.04);
-  --surface-2: rgba(255, 255, 255, 0.08);
-  --surface-3: rgba(255, 255, 255, 0.14);
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.2);
-  --track: rgba(255, 255, 255, 0.1);
-  --text: #eceef2;
-  --text-2: #b0b9c9;
-  --text-3: #8a97ad;
-  --danger: #fda4af;
-  --danger-bg: rgba(244, 63, 94, 0.14);
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
-  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
-  --ring: rgba(255, 255, 255, 0.55);
+  --tint: #64748b;
 }
 
-/* pitch — Leo y Hugo: césped, cal y marcador de estadio */
-[data-skin='pitch'] {
-  --font-display: var(--font-pitch);
-  --bg: #05180e;
-  --bg-2: #0a2416;
+/* --------------------------------------------------------------- noche */
+:root,
+[data-mode='dark'] {
+  /* Le dice al navegador de qué color son las suyas: barras de
+     desplazamiento, menús de los <select>, el calendario nativo y el relleno
+     de las contraseñas guardadas. Sin esto, el portátil pinta un scrollbar
+     blanco contra una app oscura. */
+  color-scheme: dark;
+  --bg: color-mix(in srgb, var(--tint) 15%, #0d1014);
+  --bg-2: color-mix(in srgb, var(--tint) 20%, #13171e);
   --surface: rgba(255, 255, 255, 0.055);
   --surface-2: rgba(255, 255, 255, 0.11);
   --surface-3: rgba(255, 255, 255, 0.18);
-  --border: rgba(255, 255, 255, 0.14);
-  --border-strong: rgba(255, 255, 255, 0.3);
+  --border: rgba(255, 255, 255, 0.13);
+  --border-strong: rgba(255, 255, 255, 0.28);
   --track: rgba(255, 255, 255, 0.13);
-  --text: #f1fbf4;
-  --text-2: #b8dbc6;
-  --text-3: #8db69f;
-  --on-accent: #05160d;
+  --text: color-mix(in srgb, var(--tint) 8%, #f3f6f9);
+  --text-2: color-mix(in srgb, var(--tint) 20%, #c8d0dd);
+  --text-3: color-mix(in srgb, var(--tint) 24%, #b0b9c8);
+  --on-accent: #0b0f14;
   --danger: #fda4af;
   --danger-bg: rgba(244, 63, 94, 0.16);
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
-  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.9);
-  --ring: rgba(255, 255, 255, 0.6);
+  --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+  --ring: rgba(255, 255, 255, 0.58);
+  /* Franjas de siega y líneas de cal: claras sobre fondo oscuro. */
+  --stripe: rgba(255, 255, 255, 0.035);
+  --chalk: rgba(255, 255, 255, 0.32);
 }
 
-/* editorial — María y Víctor: papel claro, serif y aire */
-[data-skin='editorial'] {
-  --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  --bg: #f6f4f1;
-  --bg-2: #fffefc;
-  --surface: #ffffff;
-  --surface-2: #f0ece6;
-  --surface-3: #e3ddd4;
-  --border: rgba(24, 27, 33, 0.11);
-  --border-strong: rgba(24, 27, 33, 0.24);
-  --track: rgba(24, 27, 33, 0.09);
-  --text: #1a1e25;
-  --text-2: #4b5260;
-  --text-3: #656e7d;
+/* ----------------------------------------------------------------- día */
+[data-mode='light'] {
+  color-scheme: light;
+  --bg: color-mix(in srgb, var(--tint) 8%, #f7f6f4);
+  --bg-2: color-mix(in srgb, var(--tint) 3%, #ffffff);
+  --surface: color-mix(in srgb, var(--tint) 2%, #ffffff);
+  --surface-2: color-mix(in srgb, var(--tint) 11%, #f0eee9);
+  --surface-3: color-mix(in srgb, var(--tint) 18%, #e2ded6);
+  /* De día, bordes y carriles son colores opacos y no velos negros: mezclar
+     el tinte con un `rgba` sube también la opacidad y los filetes acabarían
+     el doble de marcados de lo que pide una interfaz sobre papel. */
+  --border: color-mix(in srgb, var(--tint) 20%, #dcd8d1);
+  --border-strong: color-mix(in srgb, var(--tint) 34%, #b7b2a9);
+  --track: color-mix(in srgb, var(--tint) 18%, #ded9d1);
+  --text: color-mix(in srgb, var(--tint) 12%, #171b21);
+  --text-2: color-mix(in srgb, var(--tint) 16%, #3f4653);
+  --text-3: color-mix(in srgb, var(--tint) 20%, #4e5561);
   --on-accent: #ffffff;
   --danger: #b3123c;
   --danger-bg: rgba(190, 18, 60, 0.08);
   --shadow-card: 0 1px 2px rgba(24, 27, 33, 0.05), 0 12px 28px -18px rgba(24, 27, 33, 0.35);
   --shadow-pop: 0 30px 60px -24px rgba(24, 27, 33, 0.45);
   --ring: rgba(24, 27, 33, 0.5);
+  /* Sobre papel, la siega y la cal se dibujan en oscuro: en blanco no se ven. */
+  --stripe: rgba(24, 27, 33, 0.035);
+  --chalk: rgba(24, 27, 33, 0.24);
+}
+
+/* ------------------------------------------------------------- pieles
+   Sólo tipografía: los colores los ponen el modo y el tinte. */
+
+/* pitch — Leo y Hugo: rótulos de dorsal */
+[data-skin='pitch'] {
+  --font-display: var(--font-pitch);
+}
+
+/* editorial — María y Víctor: serif de revista */
+[data-skin='editorial'] {
+  --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
 }
 
 html,
@@ -111,6 +134,25 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+}
+
+/* Acuse de recibo al tocar. La app apaga el destello gris del navegador
+   (`-webkit-tap-highlight-color`) porque queda sucio sobre las tarjetas, así
+   que hay que devolver algo a cambio: sin esto, en el móvil no hay ninguna
+   señal de que el dedo ha acertado. */
+/* Se usa la propiedad `scale` y no `transform`, porque se compone con los
+   `transform` que ya llevan algunos botones —la tarjeta del selector se
+   levanta al pasar por encima, las casillas del mes se agrandan— en lugar de
+   pisarlos. Sin transición: el acuse tiene que ser inmediato, como en
+   cualquier app del móvil. */
+button:active:not(:disabled),
+[role='button']:active:not([aria-disabled='true']) {
+  scale: 0.98;
 }
 
 /* Nadie debería marearse registrando hábitos. */
@@ -209,18 +251,33 @@ body {
     background-color: var(--track);
   }
 
-  /* Césped: franjas de siega + líneas de cal, sólo decorativas */
+  /* Césped: franjas de siega + líneas de cal, sólo decorativas. El color lo
+     pone el modo: claras de noche, oscuras sobre papel. */
   .turf {
     background-image: repeating-linear-gradient(
       100deg,
-      rgba(255, 255, 255, 0.035) 0px,
-      rgba(255, 255, 255, 0.035) 46px,
+      var(--stripe) 0px,
+      var(--stripe) 46px,
       transparent 46px,
       transparent 92px
     );
   }
   .chalk {
-    border-color: rgba(255, 255, 255, 0.32);
+    border-color: var(--chalk);
+  }
+
+  /* Halo del tinte del perfil, para los fondos decorativos. */
+  .bg-tint-halo {
+    background-color: color-mix(in srgb, var(--tint) 45%, transparent);
+  }
+
+  /* Alto máximo de una hoja modal. `dvh` mide la pantalla que de verdad se ve;
+     con `vh`, la barra de direcciones del móvil cuenta como espacio libre y la
+     hoja se sale por abajo. La primera línea es el respaldo para quien no
+     entienda `dvh`, y por eso van las dos en este orden. */
+  .sheet-max {
+    max-height: 90vh;
+    max-height: 90dvh;
   }
 
   .skeleton {
@@ -251,6 +308,11 @@ body {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
            transition-colors;
+    /* Suelo de 40 px para el dedo. Muchos botones de la app son `text-xs` con
+       poco relleno y se quedaban en 28 px: legibles pero incómodos de acertar
+       en un móvil, sobre todo los que van en fila. El ancho lo pone el
+       contenido; lo que faltaba siempre era el alto. */
+    min-height: 2.5rem;
   }
   .btn:disabled {
     @apply cursor-not-allowed opacity-40;
@@ -300,6 +362,14 @@ body {
     border-color: var(--border);
     background-color: var(--surface);
     color: var(--text);
+  }
+  /* Safari en iPhone amplía la página al enfocar un campo de menos de 16 px, y
+     luego no la devuelve: escribir una nota dejaba la app descuadrada. En el
+     móvil los campos van a 16 px; a partir de tableta vuelven a 14. */
+  @media (max-width: 639px) {
+    .field {
+      font-size: 16px;
+    }
   }
   .field:focus {
     border-color: var(--accent);

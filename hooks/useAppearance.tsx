@@ -10,6 +10,8 @@ import {
   saveAnthem,
   savePhotoSlot,
   slotKey,
+  APP_OWNER,
+  type AppearanceOwner,
   type PhotoSlot,
   type Slot,
   type SlotMeta,
@@ -20,7 +22,7 @@ import {
   pullAppearance,
   pushAppearance,
 } from '@/lib/cloud';
-import type { Profile, ProfileId } from '@/types';
+import type { Profile } from '@/types';
 
 /* =========================================================================
  *  Capa de aspecto por encima de los perfiles de fábrica.
@@ -38,17 +40,27 @@ interface SlotState {
 interface AppearanceValue {
   /** `false` hasta que se lee IndexedDB; hasta entonces manda lo de fábrica. */
   ready: boolean;
-  /** Personalizaciones por clave `${profileId}:${slot}`. */
+  /** Personalizaciones por clave `${owner}:${slot}`. */
   slots: Record<string, SlotState>;
   /** Perfil con sus fotos y sintonía sustituidas donde las haya. */
   dress: (profile: Profile) => Profile;
-  setPhoto: (profileId: ProfileId, slot: PhotoSlot, file: File) => Promise<void>;
-  setAnthem: (profileId: ProfileId, file: File) => Promise<void>;
-  reset: (profileId: ProfileId, slot: Slot) => Promise<void>;
+  /**
+   * Portada de la pantalla de inicio: la que haya puesto la casa o, si no
+   * han puesto ninguna, la foto de familia que viene de fábrica.
+   */
+  appCover: string;
+  /** `true` si la portada de arriba es una elegida a mano. */
+  appCoverCustom: boolean;
+  setPhoto: (owner: AppearanceOwner, slot: PhotoSlot, file: File) => Promise<void>;
+  setAnthem: (owner: AppearanceOwner, file: File) => Promise<void>;
+  reset: (owner: AppearanceOwner, slot: Slot) => Promise<void>;
   /** Reconcilia con la nube. No hace nada sin sesión. */
   sync: () => Promise<void>;
   syncing: boolean;
 }
+
+/** La portada que trae la app de fábrica, mientras nadie ponga otra. */
+export const DEFAULT_APP_COVER = '/photos/portada.jpg';
 
 const AppearanceContext = createContext<AppearanceValue | null>(null);
 
@@ -134,12 +146,12 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
    * próxima reconciliación (la ranura se queda sin `remotePath`).
    */
   const uploadLater = useCallback(
-    (profileId: ProfileId, slot: Slot, blob: Blob, meta: SlotMeta) => {
-      void pushAppearance(profileId, slot, blob, meta)
+    (owner: AppearanceOwner, slot: Slot, blob: Blob, meta: SlotMeta) => {
+      void pushAppearance(owner, slot, blob, meta)
         .then(async (path) => {
           if (!path) return;
-          await markSynced(profileId, slot, path);
-          annotate(slotKey(profileId, slot), { remotePath: path });
+          await markSynced(owner, slot, path);
+          annotate(slotKey(owner, slot), { remotePath: path });
         })
         .catch(() => undefined);
     },
@@ -149,36 +161,36 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   // En ambos casos se publica el Blob que ha quedado guardado, no el archivo
   // original: así lo que se ve es exactamente lo que se ha almacenado.
   const setPhoto = useCallback(
-    async (profileId: ProfileId, slot: PhotoSlot, file: File) => {
-      const { blob, ...meta } = await savePhotoSlot(profileId, slot, file);
-      publish(slotKey(profileId, slot), blob, meta);
-      uploadLater(profileId, slot, blob, meta);
+    async (owner: AppearanceOwner, slot: PhotoSlot, file: File) => {
+      const { blob, ...meta } = await savePhotoSlot(owner, slot, file);
+      publish(slotKey(owner, slot), blob, meta);
+      uploadLater(owner, slot, blob, meta);
     },
     [publish, uploadLater],
   );
 
   const setAnthemFile = useCallback(
-    async (profileId: ProfileId, file: File) => {
-      const { blob, ...meta } = await saveAnthem(profileId, file);
-      publish(slotKey(profileId, 'anthem'), blob, meta);
-      uploadLater(profileId, 'anthem', blob, meta);
+    async (owner: AppearanceOwner, file: File) => {
+      const { blob, ...meta } = await saveAnthem(owner, file);
+      publish(slotKey(owner, 'anthem'), blob, meta);
+      uploadLater(owner, 'anthem', blob, meta);
     },
     [publish, uploadLater],
   );
 
   const reset = useCallback(
-    async (profileId: ProfileId, slot: Slot) => {
+    async (owner: AppearanceOwner, slot: Slot) => {
       // Se quita también de la nube: es lo que hace que el resto de móviles
       // vuelvan a lo de fábrica en su próxima sincronización.
-      const stored = (await loadAllSlots())[slotKey(profileId, slot)];
+      const stored = (await loadAllSlots())[slotKey(owner, slot)];
       const remotePath = stored?.meta.remotePath;
 
-      await clearSlot(profileId, slot);
-      withdraw(slotKey(profileId, slot));
+      await clearSlot(owner, slot);
+      withdraw(slotKey(owner, slot));
 
       if (remotePath) {
         try {
-          await deleteAppearance(slotKey(profileId, slot), remotePath);
+          await deleteAppearance(slotKey(owner, slot), remotePath);
         } catch {
           // Sin red se queda en la nube; al volver, el móvil que aún lo tenga
           // lo restaurará. Es preferible a perderlo en todas partes.
@@ -207,19 +219,19 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       for (const id of ids) {
         const row = byId.get(id);
         const mine = local[id];
-        const [profileId, slot] = id.split(':') as [ProfileId, Slot];
+        const [owner, slot] = id.split(':') as [AppearanceOwner, Slot];
 
         // Sólo aquí: o es nuevo de este móvil, o lo han quitado en otro.
         if (!row) {
           if (!mine) continue;
 
           if (mine.meta.remotePath) {
-            await clearSlot(profileId, slot);
+            await clearSlot(owner, slot);
             withdraw(id);
           } else {
-            const path = await pushAppearance(profileId, slot, mine.blob, mine.meta);
+            const path = await pushAppearance(owner, slot, mine.blob, mine.meta);
             if (path) {
-              await markSynced(profileId, slot, path);
+              await markSynced(owner, slot, path);
               annotate(id, { remotePath: path });
             }
           }
@@ -235,9 +247,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
           const there = Date.parse(row.updated_at);
 
           if (here > there) {
-            const path = await pushAppearance(profileId, slot, mine.blob, mine.meta);
+            const path = await pushAppearance(owner, slot, mine.blob, mine.meta);
             if (path) {
-              await markSynced(profileId, slot, path);
+              await markSynced(owner, slot, path);
               annotate(id, { remotePath: path });
             }
             continue;
@@ -245,7 +257,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
           if (here === there) {
             // El mismo archivo en los dos lados: sólo falta anotar la ruta.
             if (!mine.meta.remotePath) {
-              await markSynced(profileId, slot, row.path);
+              await markSynced(owner, slot, row.path);
               annotate(id, { remotePath: row.path });
             }
             continue;
@@ -263,7 +275,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
           savedAt: row.updated_at,
           remotePath: row.path,
         };
-        await putRemoteSlot(profileId, slot, blob, meta);
+        await putRemoteSlot(owner, slot, blob, meta);
         publish(id, blob, meta);
       }
     } catch {
@@ -300,9 +312,22 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     [slots],
   );
 
+  const chosenCover = slots[slotKey(APP_OWNER, 'cover')]?.url;
+
   const value = useMemo<AppearanceValue>(
-    () => ({ ready, slots, dress, setPhoto, setAnthem: setAnthemFile, reset, sync, syncing }),
-    [ready, slots, dress, setPhoto, setAnthemFile, reset, sync, syncing],
+    () => ({
+      ready,
+      slots,
+      dress,
+      appCover: chosenCover ?? DEFAULT_APP_COVER,
+      appCoverCustom: Boolean(chosenCover),
+      setPhoto,
+      setAnthem: setAnthemFile,
+      reset,
+      sync,
+      syncing,
+    }),
+    [ready, slots, dress, chosenCover, setPhoto, setAnthemFile, reset, sync, syncing],
   );
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;

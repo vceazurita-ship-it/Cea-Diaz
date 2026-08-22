@@ -4,8 +4,9 @@ import { useMemo } from 'react';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
+import { VoiceField } from '@/components/ui/VoiceField';
 import { buildChallengeWeek, challengeHistory, TIER_LABEL } from '@/lib/challenges';
-import { formatShort } from '@/lib/dates';
+import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { collectRewards, rarityLabel, rewardKindOf, rewardLabelFor } from '@/lib/rewards';
 import type {
   ChallengeWeek,
@@ -18,11 +19,17 @@ import type {
   ScoredChallenge,
 } from '@/types';
 
+/** Clave con la que se guarda lo que se apunta desde este panel. */
+export const CHALLENGE_NOTE_KEY = 'retos';
+
 interface ChallengesPanelProps {
   profile: Profile;
   date: DateKey;
   entries: Record<string, DayEntry>;
   skin: ProfileSkin;
+  /** Lo apuntado sobre los retos en el día que se está viendo. */
+  note: string;
+  onNoteChange: (text: string) => void;
 }
 
 /* -------------------------------------------------------------------------
@@ -160,7 +167,14 @@ function headline(done: number, total: number, kid: boolean): string {
   return kid ? '¡Semana redonda! Los has conseguido todos. 🏆' : 'Los tres superados: semana redonda. 🏆';
 }
 
-export function ChallengesPanel({ profile, date, entries, skin }: ChallengesPanelProps) {
+export function ChallengesPanel({
+  profile,
+  date,
+  entries,
+  skin,
+  note,
+  onNoteChange,
+}: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
   const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
     skin === 'pitch' ? ' font-display tracking-[0.14em]' : ''
@@ -245,6 +259,22 @@ export function ChallengesPanel({ profile, date, entries, skin }: ChallengesPane
           ))}
         </ul>
       )}
+
+      {/* Cómo van los retos, contado a mano o dictado */}
+      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
+        <VoiceField
+          rows={2}
+          label="📝 Cómo van los retos"
+          value={note}
+          onChange={onNoteChange}
+          placeholder={
+            kid
+              ? '¿Qué reto estás intentando? ¿Qué te está costando?'
+              : 'Cómo va cada reto, qué se atasca, qué habría que cambiar…'
+          }
+          hint={`Se guarda en ${friendlyDateLabel(date).toLowerCase()} y viaja al consejo del día junto con lo demás.`}
+        />
+      </div>
 
       {/* Álbum de premios */}
       {rewardKind && (

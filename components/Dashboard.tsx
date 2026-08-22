@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
-import { ChallengesPanel } from '@/components/challenges/ChallengesPanel';
+import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
 import { MealPhotoCard } from '@/components/meals/MealPhotoCard';
 import { DayNoteCard, PendingChallengeCard } from '@/components/notes/DayNoteCard';
@@ -98,6 +98,12 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
 
   const handleChange = (metricId: string, value: Parameters<HabitStore['setValue']>[3]) => {
     store.setValue(profile.id, date, metricId, value);
+  };
+
+  /** Notas sueltas del día: una por categoría, más la del panel de retos. */
+  const notes = entry?.notes ?? {};
+  const writeNote = (key: string, text: string) => {
+    store.setEntryNote(profile.id, date, key, text);
   };
 
   /* ------------------------------------------------ atajos de teclado */
@@ -280,6 +286,8 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
                 variant={kid ? 'kid' : 'adult'}
                 skin={skin}
                 defaultOpen={kid ? index === 0 : true}
+                note={notes[category.id] ?? ''}
+                onNoteChange={(text) => writeNote(category.id, text)}
               />
             ))
           )}
@@ -292,16 +300,25 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
           {/* Observaciones del día, dictado y consejo */}
           <DayNoteCard profile={profile} date={date} store={store} kid={kid} filled={filled} />
 
-          <p className="pt-1 text-center text-[11px] t-3">
+          {/* Los atajos sólo se anuncian donde hay teclado: en el móvil eran
+              cuatro líneas de letra pequeña que no llevaban a ninguna parte. */}
+          <p className="hidden pt-1 text-center text-[11px] t-3 sm:block">
             Atajos: <kbd className="font-mono font-bold">←</kbd>{' '}
             <kbd className="font-mono font-bold">→</kbd> cambian de día ·{' '}
-            <kbd className="font-mono font-bold">H</kbd> vuelve a hoy
-             · <kbd className="font-mono font-bold">Esc</kbd> vuelve a los perfiles
+            <kbd className="font-mono font-bold">H</kbd> vuelve a hoy ·{' '}
+            <kbd className="font-mono font-bold">Esc</kbd> vuelve a los perfiles
           </p>
         </div>
       ) : tab === 'challenges' ? (
         <div role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">
-          <ChallengesPanel profile={profile} date={date} entries={store.entries} skin={skin} />
+          <ChallengesPanel
+            profile={profile}
+            date={date}
+            entries={store.entries}
+            skin={skin}
+            note={notes[CHALLENGE_NOTE_KEY] ?? ''}
+            onNoteChange={(text) => writeNote(CHALLENGE_NOTE_KEY, text)}
+          />
         </div>
       ) : (
         <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">

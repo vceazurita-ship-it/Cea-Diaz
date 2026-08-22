@@ -74,8 +74,8 @@ export function ToggleControl({
               onClick={() => onChange(active ? undefined : answer)}
               aria-pressed={active}
               title={active ? 'Pulsa otra vez para dejarlo sin registrar' : undefined}
-              className={`min-w-[44px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors
-                disabled:cursor-not-allowed disabled:opacity-40
+              className={`min-h-[2.25rem] min-w-[46px] rounded-lg px-3 text-xs font-bold
+                transition-colors disabled:cursor-not-allowed disabled:opacity-40
                 ${
                   active && answer
                     ? 'bg-accent t-on-accent'

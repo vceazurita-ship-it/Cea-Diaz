@@ -25,6 +25,10 @@ const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5';
 const MAX_TEXT = 24_000;
 /** Días de historial que se aceptan para calibrar la progresión. */
 const MAX_HISTORY = 21;
+/** Notas sueltas del día: hay una por categoría, más la de retos. */
+const MAX_NOTES = 20;
+/** Tope de cada nota suelta: son apuntes cortos, no el relato del día. */
+const MAX_NOTE_TEXT = 4_000;
 
 const AdviceSchema = z.object({
   resumen: z.string(),
@@ -43,6 +47,8 @@ interface RequestBody {
   profileId?: string;
   date?: string;
   observaciones?: string;
+  /** Notas sueltas del día, por categoría y del panel de retos. */
+  notas?: Record<string, string>;
   values?: Record<string, MetricValue>;
   history?: HistoryDay[];
   retoPrevio?: NextChallenge;
@@ -72,7 +78,7 @@ export async function POST(request: Request) {
     return bad('La petición no es un JSON válido.', 400);
   }
 
-  const { profileId, date, observaciones, values, history, retoPrevio } = body;
+  const { profileId, date, observaciones, notas, values, history, retoPrevio } = body;
 
   if (!profileId || !(profileId in PROFILES_BY_ID)) return bad('Perfil desconocido.', 400);
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad('Fecha no válida.', 400);
@@ -80,8 +86,18 @@ export async function POST(request: Request) {
   const text = (observaciones ?? '').slice(0, MAX_TEXT);
   const registered = values ?? {};
 
+  // Las notas sueltas llegan como diccionario abierto: se limita cuántas son
+  // y cuánto ocupa cada una antes de que lleguen al modelo.
+  const remarks = Object.fromEntries(
+    Object.entries(notas ?? {})
+      .filter(([key, value]) => typeof key === 'string' && typeof value === 'string')
+      .slice(0, MAX_NOTES)
+      .map(([key, value]) => [key.slice(0, 64), value.slice(0, MAX_NOTE_TEXT)]),
+  );
+
   // Sin nada que contar y sin nada registrado no hay consejo que dar.
-  if (!text.trim() && Object.keys(registered).length === 0) {
+  const saidSomething = text.trim() || Object.values(remarks).some((note) => note.trim());
+  if (!saidSomething && Object.keys(registered).length === 0) {
     return bad('Cuenta cómo ha ido el día o registra algo antes de pedir consejo.', 400);
   }
 
@@ -104,6 +120,7 @@ export async function POST(request: Request) {
             registered,
             (history ?? []).slice(-MAX_HISTORY),
             retoPrevio,
+            remarks,
           ),
         },
       ],

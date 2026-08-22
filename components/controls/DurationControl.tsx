@@ -77,12 +77,14 @@ export function DurationControl({
 
   return (
     <div className="py-2">
-      <div className="flex items-center gap-3">
+      {/* Igual que en el contador: antes que recortar el nombre de la métrica,
+          la fila se parte y la cifra baja a la línea siguiente. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-lg" aria-hidden>
           {metric.icon}
         </span>
-        <p className="min-w-0 flex-1 truncate text-sm font-medium t-1">{metric.label}</p>
-        <span className="shrink-0 text-sm font-semibold tabular-nums">
+        <p className="min-w-[8rem] flex-1 text-sm font-medium leading-snug t-1">{metric.label}</p>
+        <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
           <span className={registered ? 't-accent' : 't-3'}>{registered ? current : '—'}</span>
           <span className="t-3">
             {' '}
@@ -117,8 +119,8 @@ export function DurationControl({
           type="button"
           disabled={disabled || !registered}
           onClick={() => onChange(undefined)}
-          className="shrink-0 rounded-lg px-2.5 py-2 text-[11px] font-semibold t-3
-                     transition-colors hover-soft hover:t-2 disabled:invisible"
+          className="flex h-10 shrink-0 items-center rounded-lg px-2.5 text-[11px] font-semibold
+                     t-3 transition-colors hover-soft hover:t-2 disabled:invisible"
           title="Borrar registro"
         >
           Limpiar

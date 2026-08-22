@@ -38,8 +38,10 @@ const PHOTO_FIELDS: Array<{
   },
   {
     slot: 'cover',
-    label: 'Portada',
-    hint: 'El fondo de la tarjeta en el selector de perfiles.',
+    // No se llama «portada» para no confundirla con la de la app, que es la
+    // foto grande de la pantalla de inicio y se cambia desde Ajustes.
+    label: 'Banda de la tarjeta',
+    hint: 'El fondo de la tarjeta de este perfil en el selector.',
     aspect: '16 / 9',
   },
   {
@@ -103,7 +105,7 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
   };
 
   return (
-    <Modal title={`Personalizar ${profile.name}`} onClose={onClose}>
+    <Modal title={`Personalizar ${profile.name}`} onClose={onClose} size="lg">
       <p className="mb-4 text-sm t-2">
         Cambia las fotos y la música de este perfil sin tocar el código. Con la cuenta de casa
         iniciada llegan también al resto de móviles; si no, se quedan en este. Siempre puedes
@@ -116,7 +118,9 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
         </p>
       )}
 
-      <div className="space-y-4">
+      {/* En el móvil, una ranura debajo de otra; en el portátil caben dos por
+          fila y se ve todo el aspecto del perfil sin desplazarse. */}
+      <div className="grid gap-3 sm:grid-cols-2">
         {fields.map((field) => (
           <PhotoField
             key={field.slot}
@@ -146,7 +150,7 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
         ))}
 
         {/* ------------------------------------------------------ sintonía */}
-        <section className="rounded-2xl border p-3 hairline surf-1">
+        <section className="rounded-2xl border p-3 hairline surf-1 sm:col-span-2">
           <div className="mb-1 flex items-baseline justify-between gap-2">
             <h3 className="text-sm font-bold t-1">Sintonía</h3>
             {custom('anthem') && (

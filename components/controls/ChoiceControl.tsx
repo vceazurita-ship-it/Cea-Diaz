@@ -34,8 +34,8 @@ export function ChoiceControl({
               onClick={() => onChange(selected ? undefined : option.value)}
               aria-pressed={selected}
               title={selected ? 'Pulsa otra vez para borrarlo' : undefined}
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 transition-all
-                disabled:opacity-40
+              className={`flex min-h-[2.5rem] items-center gap-1.5 rounded-xl border px-3
+                transition-all disabled:opacity-40
                 ${kid ? 'text-sm font-bold' : 'text-xs font-medium'}
                 ${
                   selected

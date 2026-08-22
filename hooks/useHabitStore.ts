@@ -32,6 +32,7 @@ import type {
   HabitDatabase,
   MealAnalysis,
   MetricValue,
+  NoteKey,
   ProfileId,
 } from '@/types';
 
@@ -56,6 +57,9 @@ export interface HabitStore {
     value: MetricValue | undefined,
   ) => void;
   setNote: (profileId: ProfileId, date: DateKey, note: string) => void;
+  /** Nota suelta del día: una por categoría, más la del panel de retos. */
+  getEntryNote: (profileId: ProfileId, date: DateKey, key: NoteKey) => string;
+  setEntryNote: (profileId: ProfileId, date: DateKey, key: NoteKey, text: string) => void;
   clearDay: (profileId: ProfileId, date: DateKey) => void;
   /** Copia los registros de un día en otro. Devuelve cuántos ha copiado. */
   copyDay: (profileId: ProfileId, from: DateKey, to: DateKey) => number;
@@ -446,6 +450,7 @@ export function useHabitStore(): HabitStore {
           profileId,
           values,
           note: current?.note,
+          notes: current?.notes,
           updatedAt: new Date().toISOString(),
         };
 
@@ -464,11 +469,45 @@ export function useHabitStore(): HabitStore {
         profileId,
         values: current?.values ?? {},
         note,
+        notes: current?.notes,
         updatedAt: new Date().toISOString(),
       };
       return { ...prev, entries: { ...prev.entries, [key]: next } };
     });
   }, []);
+
+  const getEntryNote = useCallback(
+    (profileId: ProfileId, date: DateKey, noteKey: NoteKey) =>
+      db.entries[entryKey(profileId, date)]?.notes?.[noteKey] ?? '',
+    [db],
+  );
+
+  const setEntryNote = useCallback(
+    (profileId: ProfileId, date: DateKey, noteKey: NoteKey, text: string) => {
+      setDb((prev) => {
+        const key = entryKey(profileId, date);
+        const current = prev.entries[key];
+        const notes = { ...(current?.notes ?? {}) };
+
+        // Una nota vaciada se quita del todo: así el registro no arrastra
+        // claves con cadenas en blanco de días en que se borró lo escrito.
+        if (text.trim()) notes[noteKey] = text;
+        else delete notes[noteKey];
+
+        const next: DayEntry = {
+          date,
+          profileId,
+          values: current?.values ?? {},
+          note: current?.note,
+          notes: Object.keys(notes).length > 0 ? notes : undefined,
+          updatedAt: new Date().toISOString(),
+        };
+
+        return { ...prev, entries: { ...prev.entries, [key]: next } };
+      });
+    },
+    [],
+  );
 
   const clearDay = useCallback((profileId: ProfileId, date: DateKey) => {
     setDb((prev) => {
@@ -480,9 +519,10 @@ export function useHabitStore(): HabitStore {
   }, []);
 
   /**
-   * Copia los valores de un día en otro. No arrastra la nota: es propia del
-   * día y repetirla induciría a error. Devuelve el número de métricas
-   * copiadas para poder acusarlo en el aviso.
+   * Copia los valores de un día en otro. No arrastra las notas —ni la del
+   * día ni las de cada categoría—: son propias de la jornada y repetirlas
+   * induciría a error. Devuelve el número de métricas copiadas para poder
+   * acusarlo en el aviso.
    */
   const copyDay = useCallback(
     (profileId: ProfileId, from: DateKey, to: DateKey) => {
@@ -506,6 +546,7 @@ export function useHabitStore(): HabitStore {
           // Lo ya registrado en el destino manda: copiar nunca pisa un dato.
           values: { ...origin.values, ...(target?.values ?? {}) },
           note: target?.note,
+          notes: target?.notes,
           updatedAt: new Date().toISOString(),
         };
 
@@ -658,6 +699,8 @@ export function useHabitStore(): HabitStore {
       getValue,
       setValue,
       setNote,
+      getEntryNote,
+      setEntryNote,
       clearDay,
       copyDay,
       getMeals,
@@ -697,6 +740,8 @@ export function useHabitStore(): HabitStore {
       getValue,
       setValue,
       setNote,
+      getEntryNote,
+      setEntryNote,
       clearDay,
       copyDay,
       getMeals,

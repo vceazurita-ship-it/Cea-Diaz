@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAppearance } from '@/hooks/useAppearance';
-import { PROFILES, accentStyle } from '@/lib/profiles';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useTheme } from '@/hooks/useTheme';
+import { PROFILES, accentFor, accentStyle } from '@/lib/profiles';
 import type { ProfileId } from '@/types';
 
 interface TopBarProps {
@@ -24,6 +26,7 @@ export function TopBar({
   onCustomize,
 }: TopBarProps) {
   const { dress } = useAppearance();
+  const { mode } = useTheme();
   const activeRef = useRef<HTMLButtonElement>(null);
 
   // Con seis perfiles la tira se desborda en el móvil: al cambiar de perfil
@@ -79,7 +82,7 @@ export function TopBar({
                 type="button"
                 onClick={() => onSelect(profile.id)}
                 aria-current={active ? 'page' : undefined}
-                style={accentStyle(profile.accent)}
+                style={accentStyle(accentFor(profile, mode))}
                 className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-3
                   text-sm font-semibold transition-colors
                   ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
@@ -101,6 +104,8 @@ export function TopBar({
             );
           })}
         </div>
+
+        <ThemeToggle className="h-11 px-2.5" />
 
         {onCustomize && (
           <button

@@ -49,14 +49,14 @@ La puesta en marcha de Supabase está detallada más abajo.
 
 ```
 app/
-  layout.tsx           Layout raíz, metadatos y fondo ambiental
+  layout.tsx           Layout raíz, metadatos y modo pintado antes del primer render
   api/plato/route.ts   Análisis de la foto del plato con Claude
   api/consejo/route.ts Consejo del día y reto progresivo con Claude
   page.tsx             Orquestador: selector ↔ dashboard ↔ PIN ↔ ajustes
   manifest.ts          Manifiesto PWA (instalable en el móvil)
   globals.css          Tailwind + utilidades propias (.card, .card-kid, .btn…)
 components/
-  Ambient.tsx          Decoración de fondo, distinta por piel
+  Ambient.tsx          Decoración de fondo, teñida con el color del perfil
   ProfileSelector.tsx  Pantalla inicial con los 6 perfiles, su foto y su estado
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
   Dashboard.tsx        Cabecera del perfil + pestañas Registro / Retos / Resúmenes
@@ -68,26 +68,28 @@ components/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
   meals/
-    MealPhotoCard.tsx  Foto del plato, nota y recomendaciones
+    MealPhotoCard.tsx  Plato desde la cámara o la galería, nota y recomendaciones
   notes/
     DayNoteCard.tsx    Observaciones dictadas, consejo y reto pendiente
   DateNavigator.tsx    Navegación por días con tira semanal
-  CategoryCard.tsx     Categoría plegable con su cumplimiento
+  CategoryCard.tsx     Categoría plegable con su cumplimiento y su nota
   SportsPanel.tsx      Layout especial del desglose deportivo
   PinLock.tsx          Bloqueo del módulo privado de pareja
-  SettingsPanel.tsx    Datos de ejemplo, importación/exportación, PIN y borrado
+  SettingsPanel.tsx    Modo día/noche, portada, ejemplo, copias, PIN y borrado
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
-  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast
+  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast, VoiceField, ThemeToggle
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
-  useDictation.ts      Dictado por voz con la Web Speech API del navegador
+  useDictation.ts      Dictado por voz con la Web Speech API, un micro a la vez
+  useTheme.tsx         Modo día o noche, guardado en este dispositivo
+  useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
   audio/               Sintonías de perfil (las pone cada casa)
   icon.svg             Icono de la app instalada
 lib/
-  profiles.ts          Los 6 perfiles: datos, fotos, acentos y piel visual
+  profiles.ts          Los 6 perfiles: datos, fotos, tinte, acentos y piel
   habits.ts            Catálogo de categorías y métricas por perfil
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
@@ -101,6 +103,7 @@ lib/
   cloud.ts             Sincronización: mezcla por fecha, lápidas y fotos
   dates.ts             Utilidades de fecha en es-ES
   storage.ts           Lectura/escritura en localStorage
+  appearance.ts        Ranuras de aspecto (fotos y sintonía) en IndexedDB
   seed.ts              Generador determinista de datos de ejemplo
 supabase/
   schema.sql           Tablas, políticas RLS y cubo de fotos
@@ -202,11 +205,16 @@ registrado sube solo en cuanto vuelve la conexión.
    (o desactiva *Confirm email* en **Authentication → Providers → Email**).
 6. En cada móvil de casa se entra **una sola vez**: la sesión queda guardada.
 
+> **Si ya tenías Supabase montado antes de las notas por categoría:** vuelve a pegar
+> `supabase/schema.sql` entero y dale a *Run*. Es idempotente —no borra nada— y añade
+> las dos columnas nuevas (`entries.notes` y `meals.context`). Hasta que se ejecute,
+> este móvil guarda igual pero la subida a la nube falla y lo avisa en Ajustes.
+
 ### Qué sube y qué no
 
 | Sube | Se queda en el móvil |
 | ---- | -------------------- |
-| Registros diarios, notas y observaciones | El PIN del módulo de pareja |
+| Registros diarios, observaciones y notas de categoría | El PIN del módulo de pareja |
 | Comidas: nota, alimentos y consejos | La caché de miniaturas (se rellena sola desde la nube) |
 | Miniaturas de los platos (cubo `comidas`) | La preferencia «trabajar sólo en este móvil» |
 | Consejos del día y retos de progresión | |
@@ -240,9 +248,23 @@ no un muro.
 
 En el registro diario de quien tiene objetivos de alimentación (Leo, Hugo, María y
 Víctor) hay una tarjeta **📷 Foto de la comida**: se elige el momento del día —que
-viene propuesto según la hora—, se hace la foto del plato y Claude devuelve una
-**nota de 0 a 10** y de uno a tres ajustes concretos: qué reducir, qué aumentar,
-qué cambiar por otra cosa o qué añadir.
+viene propuesto según la hora—, se pone el plato y Claude devuelve una **nota de 0 a
+10** y de uno a tres ajustes concretos: qué reducir, qué aumentar, qué cambiar por
+otra cosa o qué añadir.
+
+La foto puede venir de dos sitios, y por eso hay dos botones:
+
+- **📸 Hacer foto del plato** abre directamente la cámara.
+- **🖼️ Elegir una del móvil** abre la galería, para el plato que ya se fotografió
+  antes de sentarse a comer o el que llegó por WhatsApp.
+
+Son dos `<input type="file">` distintos porque el atributo `capture` es lo que manda
+al móvil abrir el objetivo, y un mismo campo no puede hacer las dos cosas.
+
+Encima de los botones hay un campo **🗣️ Cuéntalo (opcional)**, que se escribe o se
+dicta: lo que la foto no puede enseñar —cómo está cocinado, si se lo terminó, qué
+bebió con ello—. Va con la foto al análisis y se guarda con la comida, para saber
+después sobre qué se juzgó.
 
 El plato no se juzga en abstracto, sino **contra el objetivo de quien come**: el
 análisis recibe la edad, el papel en la familia, los objetivos diarios de comida
@@ -261,16 +283,16 @@ se dice en la propia tarjeta.
 | `app/api/plato/route.ts` | Valida la petición, llama a Claude con visión y devuelve el veredicto ya comprobado contra un esquema de Zod. Vive en el servidor porque la clave de la API no puede estar en el navegador. |
 | `lib/mealPrompt.ts` | Arma el contexto (quién come, sus objetivos, lo ya registrado) a partir del catálogo de hábitos, para no repetir los objetivos en dos sitios. |
 | `lib/photos.ts` | Reduce la foto en el propio móvil a 1024 px para analizarla y a 320 px para guardarla, y gestiona las miniaturas en IndexedDB. |
-| `components/meals/MealPhotoCard.tsx` | La tarjeta: momento del día, botón de foto, resultado y comidas del día con su media. |
+| `components/meals/MealPhotoCard.tsx` | La tarjeta: momento del día, lo que se cuenta del plato, cámara o galería, resultado y comidas del día con su media. |
 
 La foto **completa nunca se sube**: se reduce antes de enviarla, y de lo que queda
 sólo se guarda una **miniatura en IndexedDB** de este dispositivo —`localStorage`,
 donde vive el resto de la base, se llenaría en dos semanas—. Las miniaturas que ya no
 pertenecen a ninguna comida se borran al arrancar la app.
 
-La nota y los consejos sí viajan en la copia de seguridad (`meals` en el JSON
-exportado, versión 2 del formato); las miniaturas no, porque son locales: al
-importar en otro móvil se conservan las notas pero no las fotos.
+La nota, lo que se contó del plato y los consejos sí viajan en la copia de seguridad
+(`meals` en el JSON exportado, versión 5 del formato); las miniaturas no, porque son
+locales: al importar en otro móvil se conservan las notas pero no las fotos.
 
 Las notas de las comidas **no cuentan** para el cumplimiento diario ni para los
 retos: son una lectura aparte, y las casillas de nutrición se siguen marcando a mano.
@@ -288,6 +310,28 @@ retos: son una lectura aparte, y las casillas de nutrición se siguen marcando a
 La nota del día tiene un botón **🎙️ Contarlo en voz alta**: se dicta cómo ha ido cada
 hábito —el entrenamiento, el trabajo, lo que se ha comido, lo que ha dolido— y el
 texto se va escribiendo solo en la nota, que sigue siendo editable a mano.
+
+### Dónde se puede dictar
+
+El campo dictable es el mismo componente en todas partes
+(`components/ui/VoiceField.tsx`), así que se comporta igual en los cuatro sitios en
+que aparece:
+
+| Dónde | Qué se apunta ahí |
+| ----- | ----------------- |
+| **📔 Observaciones del día** | El relato de la jornada, del que sale el consejo. |
+| **📝 Nota de cada categoría** | Lo que ninguna casilla recoge: «le dolía el tobillo», «sólo media hora de entreno». Está al final de cada tarjeta desplegada, y la tarjeta plegada lo delata con un 📝. |
+| **📝 Cómo van los retos** | En la pestaña de retos: qué se atasca, qué habría que cambiar. |
+| **🗣️ Cuéntalo** | En la tarjeta de la comida, lo que la foto no enseña. |
+
+Lo dictado se **añade al final** de lo que ya hubiera, así que se puede escribir un
+poco, dictar el resto y corregir a mano. Sólo hay un micrófono abierto a la vez:
+empezar a dictar en un campo cierra el anterior en vez de pelearse con él.
+
+Las notas de las categorías y la de los retos se guardan en el registro del día
+(`notes` en `DayEntry`, columna `notes` en la tabla `entries`) y **viajan al consejo
+del día** junto con las observaciones y lo registrado. No cuentan para el
+cumplimiento: son contexto, no una métrica más.
 
 Con **💡 Consejo para mañana**, lo contado se manda junto con lo registrado ese día y
 vuelve con uno a tres consejos concretos para mañana o los próximos días. Nada de
@@ -384,34 +428,82 @@ Los retos se generan con los datos anteriores al lunes, así que el listón no s
 mientras la semana corre, y la rotación entre candidatos usa una semilla estable por
 perfil y semana: durante siete días son siempre los mismos tres.
 
-## Pieles visuales
+## Color: modo, tinte y piel
 
-Cada perfil declara una `skin` en `lib/profiles.ts`. La piel no es una variante
-de componente: es un juego completo de *tokens* CSS (fondo, superficies, bordes,
-texto, tipografía de titulares) definido en `app/globals.css` bajo `[data-skin=…]`.
-`app/page.tsx` fija el atributo en `<main>` y en `<html>` según el perfil activo,
-de modo que basta añadir un bloque de variables para inventar una piel nueva.
+Tres cosas deciden cómo se ve la app, y son independientes entre sí. Eso es lo que
+permite que Leo sea verde y Hugo rojo sin duplicar ni un componente, y que los dos
+se vean bien de día y de noche.
 
-| Piel        | Perfiles          | Registro visual                                                        |
-| ----------- | ----------------- | ---------------------------------------------------------------------- |
-| `pitch`     | Leo · Hugo        | Verde césped, franjas de siega, líneas de cal, tipografía de dorsal, marcador de estadio, cromo y foto de acción. El fútbol ocupa fila completa en el desglose deportivo. |
-| `editorial` | María · Víctor    | Papel claro, serif de titular, filetes finos, mucho aire y retrato enmarcado. Acento esmeralda (Víctor) y rosa (María). |
-| `night`     | Familia · Pareja · selector | La piel oscura neutra de siempre, con foto lateral en la cabecera. |
+| Pieza | Qué decide | Dónde vive |
+| ----- | ---------- | ---------- |
+| **Modo** (`data-mode`) | Día o noche. Vale para toda la app. | Lo elige la casa; se guarda en este dispositivo |
+| **Tinte** (`--tint`) | De qué color es la sección: verde, rojo, azul noche… | `tint` en `lib/profiles.ts` |
+| **Piel** (`data-skin`) | La maquetación y la tipografía de titulares | `skin` en `lib/profiles.ts` |
 
-Los componentes **nunca** usan colores literales: emplean las utilidades
-`t-1`/`t-2`/`t-3` (texto), `surf-1`/`surf-2`/`surf-3` (superficies) y `hairline`
-(bordes). Por eso el mismo control se lee bien sobre fondo oscuro y sobre papel.
-El acento de cada perfil tiene dos valores: `accent` para fondos oscuros y
-`accentDeep` para la piel clara, donde un rosa pastel no tendría contraste
-suficiente; `accentFor(profile, skin)` resuelve cuál toca.
+### Modo día y modo noche
 
-El acento viaja por el mismo camino que las pieles: `app/page.tsx` lo publica
-como variable CSS `--accent` sobre `<main>` (`accentStyle()`), y los componentes
-lo consumen con `bg-accent`, `t-accent`, `border-accent`, `bg-accent-soft` o
-`bg-accent-faint`. Escribirlo en un `style` elemento a elemento, como se hacía
-antes, impedía teñir los estados `:hover` y `:focus`; ahora el anillo de foco
-de toda la app es el color del perfil activo.
+Un interruptor **☀️/🌙** siempre a mano: en la barra superior dentro de un perfil y
+junto a **⚙️ Ajustes** en el pie, que está también en la pantalla de inicio. En
+Ajustes hay además las tres opciones completas:
 
+- **📱 Automático** (por defecto) sigue lo que tenga configurado el móvil, y lo
+  acompaña si el teléfono cambia solo al anochecer.
+- **☀️ Día** y **🌙 Noche** mandan sobre el móvil y se recuerdan.
+
+La elección **no viaja a la nube** a propósito: es una preferencia del aparato —la
+tableta de la cocina y el móvil de la mesilla no quieren lo mismo—, igual que el
+volumen o el PIN. Un guion mínimo en `app/layout.tsx` pinta el modo elegido **antes
+del primer pintado**, para que quien use el modo día no vea un fogonazo oscuro en
+cada carga.
+
+### El tinte de cada perfil
+
+| Perfil | Color | Acento de noche | Acento de día |
+| ------ | ----- | --------------- | ------------- |
+| **Leo** | Verde | `#4ade80` | `#15803d` |
+| **Hugo** | Rojo | `#f87171` | `#b91c1c` |
+| **María** | Rosa | `#f472b6` | `#be3a6e` |
+| **Víctor** | Azul noche | `#60a5fa` | `#1d4ed8` |
+| **Familia** | Naranja | `#fb923c` | `#c2410c` |
+| **Pareja** | Frambuesa | `#f43f5e` | `#be123c` |
+
+El tinte tiñe el **fondo, las tarjetas, los bordes, los textos, las barras y los
+botones** de toda la sección. Los redondeles de cada categoría y de los cinco
+deportes conservan su color propio: son lo que permite distinguir 🍎 nutrición de
+😴 sueño de un vistazo, y uniformarlos los volvería indistinguibles.
+
+Los tokens no se escriben a mano: se calculan mezclando el tinte con un gris base
+con `color-mix()`, así que **inventar un color nuevo es declarar un `--tint` y nada
+más**. `app/page.tsx` lo publica sobre `<main>` y sobre `<html>`, igual que el
+acento, y de ahí salen `--bg`, `--surface`, `--border`, `--text`…
+
+> El cálculo depende de `color-mix()`, disponible en Chrome 111+, Safari 16.2+ y
+> Firefox 113+ (finales de 2022 en adelante). En un navegador más antiguo los
+> fondos no se resolverían.
+
+Las proporciones de la mezcla están elegidas para que **los seis perfiles pasen
+AA (4,5:1)** en los dos modos, incluido el texto terciario, que es el más pequeño.
+
+### Las pieles
+
+La piel ya no decide colores: sólo cómo se compone la página.
+
+| Piel | Perfiles | Registro visual |
+| ---- | -------- | --------------- |
+| `pitch` | Leo · Hugo | Franjas de siega, líneas de cal, tipografía de dorsal, marcador de estadio, cromo y foto de acción a sangre. El fútbol ocupa fila completa en el desglose deportivo. |
+| `editorial` | María · Víctor | Serif de titular, filetes finos, mucho aire y retrato enmarcado. |
+| `night` | Familia · Pareja · selector | Composición neutra con foto lateral en la cabecera. |
+
+Los componentes **nunca** usan colores literales: emplean `t-1`/`t-2`/`t-3` (texto),
+`surf-1`/`surf-2`/`surf-3` (superficies), `hairline` (bordes) y `track` (carriles).
+Por eso el mismo control se lee bien en verde de noche y en azul sobre papel. Las
+franjas de césped y las líneas de cal también son tokens (`--stripe`, `--chalk`):
+claras sobre fondo oscuro y oscuras sobre papel, porque una cal blanca sobre papel
+blanco no se vería.
+
+El acento tiene dos valores por perfil, `accent` y `accentDeep`, y
+`accentFor(profile, mode)` resuelve cuál toca: el mismo verde claro que luce de
+noche se pierde sobre papel blanco.
 ## Fotos
 
 Las imágenes de `public/photos` son recortes ya optimizados de las fotos
@@ -427,7 +519,27 @@ originales (~2,5 MB en total). Cada perfil puede declarar:
 
 Todos son opcionales: sin `photo` el avatar cae al emoji sobre su degradado, y
 sin `hero` la cabecera se pinta sin foto. Para cambiar una imagen basta con
-sustituir el archivo manteniendo el nombre.
+sustituir el archivo manteniendo el nombre… o hacerlo desde la propia app, que es
+lo que de verdad usa la casa.
+
+### La portada de la app
+
+La foto grande de la pantalla de inicio no es de ningún perfil: es de la casa. Se
+cambia desde **⚙️ Ajustes → Aspecto de la app → Portada**, o tocando el botón
+**🖼️ Cambiar portada** que hay sobre la propia foto.
+
+Por dentro es una ranura más del almacén de aspecto, sólo que su dueño no es un
+perfil sino `app` (`APP_OWNER` en `lib/appearance.ts`). En la nube es un
+`profile_id` más —la columna no tiene clave ajena—, así que **se sincroniza con el
+resto de móviles sin ningún caso especial** y sin tocar el esquema. Sin foto
+elegida se pinta la de fábrica, `/photos/portada.jpg`.
+
+### Fotos y sintonía de cada perfil
+
+Desde **🎨** en la barra superior, con el perfil abierto: retrato, foto grande de
+la cabecera, banda de la tarjeta del selector, cromo (sólo los peques) y sintonía.
+Todo se guarda en IndexedDB como Blob y viaja a la nube si hay sesión; **↩️
+Original** deshace la personalización y devuelve lo que trae el código.
 
 ## Interfaz
 
@@ -463,6 +575,40 @@ Los ajustes permiten **exportar e importar** el JSON: una copia de seguridad que
 no se puede restaurar no es una copia. Al importar se elige entre fusionar con
 lo actual o reemplazarlo.
 
+### En el móvil
+
+La app se usa sobre todo con el pulgar y de pie, así que hay cuatro cosas
+resueltas a propósito:
+
+- **Todo lo tocable llega a 40 px de alto.** El suelo lo pone `.btn` en
+  `globals.css`, no cada botón por su cuenta; los que no son `.btn` (las fichas
+  del contador, el Sí/No, el cierre de los avisos) lo llevan declarado.
+- **Los campos van a 16 px en pantalla estrecha.** Por debajo de eso, Safari de
+  iPhone amplía la página al enfocar y luego no la devuelve: escribir una nota
+  dejaba la app descuadrada. A partir de tableta vuelven a 14.
+- **Al tocar hay acuse.** La app apaga el destello gris del navegador porque
+  ensucia las tarjetas, así que devuelve un `scale: 0.98` inmediato. Se usa la
+  propiedad `scale` y no `transform` para que se componga con los `transform`
+  que ya llevan algunos botones en lugar de pisarlos.
+- **Las hojas modales miden con `dvh`.** Con `vh`, la barra de direcciones
+  cuenta como espacio libre y la hoja se sale por abajo. El bloqueo del fondo
+  fija el `<body>` a su posición y la restituye al cerrar, que es lo único que
+  impide que Safari arrastre la página por detrás.
+
+Nada de esto tiene equivalente al pasar el ratón, así que **lo que sólo se veía
+al posarse encima ahora se ve siempre**: el porcentaje de cada barra en el
+gráfico de la semana estaba escondido tras un `:hover` y era inalcanzable justo
+en el aparato desde el que más se consulta.
+
+### En el portátil
+
+- Ajustes y el editor de aspecto se abren en panel ancho, con las ranuras de
+  fotos a dos columnas.
+- `color-scheme` acompaña al modo, así que la barra de desplazamiento, los
+  menús nativos y el relleno de contraseñas dejan de pintarse en blanco contra
+  una app oscura.
+- Los atajos de teclado se anuncian sólo donde hay teclado.
+
 ### Accesibilidad
 
 - Anillo de foco visible en **todo** elemento que reciba el teclado, teñido con
@@ -470,9 +616,17 @@ lo actual o reemplazarlo.
 - Diálogos con `Escape`, foco atrapado dentro del panel, fondo bloqueado y
   devolución del foco al cerrarse.
 - `aria-pressed`, `aria-expanded`, `aria-current` y `role="group"` en los
-  controles; los cambios de cumplimiento se anuncian con `aria-live`.
+  controles; los cambios de cumplimiento se anuncian con `aria-live` (una sola
+  región viva: anidarlas hacía que el aviso se cantara dos veces).
 - Se respeta `prefers-reduced-motion`: las animaciones se anulan.
-- Enlace «Saltar al contenido» y áreas tocables holgadas en el móvil.
+- Enlace «Saltar al contenido».
+- **Contraste comprobado, no supuesto.** Las proporciones de mezcla de
+  `globals.css` están elegidas para que los seis perfiles, en los dos modos,
+  pasen AA (4,5:1) en las nueve combinaciones que la app usa de verdad: los tres
+  niveles de texto sobre tarjeta y sobre chip, el texto encima del acento, el
+  acento como texto y los dos velos de acento. El mapa de calor del mes rellena
+  entre el 16 % y el 40 % de acento por el mismo motivo: llenar la casilla del
+  todo no dejaba contraste para el número de encima.
 
 ## Instalación en el móvil
 

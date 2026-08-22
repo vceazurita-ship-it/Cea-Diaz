@@ -16,6 +16,15 @@
 
 import type { ProfileId } from '@/types';
 
+/**
+ * De quién es la ranura. Casi siempre de un perfil, pero la portada de la
+ * pantalla de inicio no es de nadie en concreto: es de la app, y por eso
+ * existe este dueño de más. En la nube es un `profile_id` más —la columna
+ * no tiene clave ajena—, así que se sincroniza sin ningún caso especial.
+ */
+export const APP_OWNER = 'app';
+export type AppearanceOwner = ProfileId | typeof APP_OWNER;
+
 /** Ranuras que se pueden sustituir. */
 export type PhotoSlot = 'photo' | 'hero' | 'cover' | 'card';
 export type Slot = PhotoSlot | 'anthem';
@@ -58,8 +67,8 @@ const DB_NAME = 'habitos-familia-aspecto';
 const DB_VERSION = 1;
 const STORE = 'ranuras';
 
-function key(profileId: ProfileId, slot: Slot): string {
-  return `${profileId}:${slot}`;
+function key(owner: AppearanceOwner, slot: Slot): string {
+  return `${owner}:${slot}`;
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -132,7 +141,7 @@ async function shrinkImage(file: File, slot: PhotoSlot): Promise<Blob> {
  * Devuelve los datos de lo guardado para poder rotularlo sin releer.
  */
 export async function savePhotoSlot(
-  profileId: ProfileId,
+  owner: AppearanceOwner,
   slot: PhotoSlot,
   file: File,
 ): Promise<StoredSlot> {
@@ -149,12 +158,12 @@ export async function savePhotoSlot(
   };
 
   const stored: StoredSlot = { ...meta, blob };
-  await withStore<void>('readwrite', (store) => store.put(stored, key(profileId, slot)));
+  await withStore<void>('readwrite', (store) => store.put(stored, key(owner, slot)));
   return stored;
 }
 
 /** Guarda la sintonía del perfil tal cual: reconvertir audio en el móvil no compensa. */
-export async function saveAnthem(profileId: ProfileId, file: File): Promise<StoredSlot> {
+export async function saveAnthem(owner: AppearanceOwner, file: File): Promise<StoredSlot> {
   if (!file.type.startsWith('audio/')) {
     throw new Error('Ese archivo no es un audio.');
   }
@@ -174,14 +183,14 @@ export async function saveAnthem(profileId: ProfileId, file: File): Promise<Stor
   };
 
   const stored: StoredSlot = { ...meta, blob: file };
-  await withStore<void>('readwrite', (store) => store.put(stored, key(profileId, 'anthem')));
+  await withStore<void>('readwrite', (store) => store.put(stored, key(owner, 'anthem')));
   return stored;
 }
 
 /** Quita la personalización de una ranura: el perfil vuelve a lo de fábrica. */
-export async function clearSlot(profileId: ProfileId, slot: Slot): Promise<void> {
+export async function clearSlot(owner: AppearanceOwner, slot: Slot): Promise<void> {
   try {
-    await withStore<void>('readwrite', (store) => store.delete(key(profileId, slot)));
+    await withStore<void>('readwrite', (store) => store.delete(key(owner, slot)));
   } catch {
     // Si no se puede borrar, lo de fábrica sigue estando debajo intacto.
   }
@@ -233,22 +242,22 @@ export { key as slotKey };
  * vez por dispositivo.
  */
 export async function putRemoteSlot(
-  profileId: ProfileId,
+  owner: AppearanceOwner,
   slot: Slot,
   blob: Blob,
   meta: SlotMeta,
 ): Promise<void> {
   const stored: StoredSlot = { ...meta, blob };
-  await withStore<void>('readwrite', (store) => store.put(stored, key(profileId, slot)));
+  await withStore<void>('readwrite', (store) => store.put(stored, key(owner, slot)));
 }
 
 /** Anota que una ranura ya está en la nube, sin tocar el archivo. */
 export async function markSynced(
-  profileId: ProfileId,
+  owner: AppearanceOwner,
   slot: Slot,
   remotePath: string,
 ): Promise<void> {
-  const id = key(profileId, slot);
+  const id = key(owner, slot);
   const stored = await withStore<StoredSlot | undefined>('readonly', (store) => store.get(id));
   if (!stored) return;
 

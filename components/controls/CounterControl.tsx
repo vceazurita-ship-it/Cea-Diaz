@@ -70,23 +70,26 @@ export function CounterControl({
   }
 
   return (
-    <div className="flex items-center gap-3 py-2">
+    // La fila se parte en dos cuando no cabe, en vez de recortar el nombre de
+    // la métrica: en un móvil estrecho, «Vasos de agua» se quedaba en «Vas…»
+    // y la fila dejaba de decir qué se estaba contando.
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
       <span className="text-lg" aria-hidden>
         {metric.icon}
       </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium t-1">{metric.label}</p>
+      <div className="min-w-[8rem] flex-1">
+        <p className="text-sm font-medium leading-snug t-1">{metric.label}</p>
         <div className="mt-1 max-w-[220px]">
           <ProgressBar ratio={ratio} />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         <button
           type="button"
           disabled={disabled || !registered}
           onClick={() => onChange(undefined)}
-          className="mr-1 rounded-lg px-2 py-2 text-[11px] font-semibold t-3
+          className="mr-1 flex h-10 w-8 items-center justify-center rounded-lg text-[11px] font-semibold t-3
                      transition-colors hover-soft hover:t-2 disabled:invisible"
           aria-label={`Borrar el registro de ${metric.label}`}
           title="Borrar registro"
@@ -97,7 +100,7 @@ export function CounterControl({
           type="button"
           disabled={disabled || current <= 0}
           onClick={() => set(current - metric.step)}
-          className="h-9 w-9 rounded-lg border hairline surf-1 text-base leading-none
+          className="h-10 w-10 rounded-lg border hairline surf-1 text-base leading-none
                      t-1 transition-colors hover-soft disabled:opacity-30"
           aria-label={`Restar ${metric.unit}`}
         >
@@ -111,7 +114,7 @@ export function CounterControl({
           type="button"
           disabled={disabled || current >= metric.max}
           onClick={() => set(current + metric.step)}
-          className="h-9 w-9 rounded-lg border hairline surf-1 text-base leading-none
+          className="h-10 w-10 rounded-lg border hairline surf-1 text-base leading-none
                      t-1 transition-colors hover-soft disabled:opacity-30"
           aria-label={`Sumar ${metric.unit}`}
         >

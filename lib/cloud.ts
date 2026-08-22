@@ -42,6 +42,8 @@ interface EntryRow {
   day: string;
   metrics: Record<string, MetricValue>;
   note: string | null;
+  /** Notas por categoría y del panel de retos. */
+  notes: Record<string, string> | null;
   updated_at: string;
 }
 
@@ -57,6 +59,8 @@ interface MealRow {
   foods: MealFood[];
   wins: string[];
   tweaks: MealTweak[];
+  /** Lo que se contó del plato al fotografiarlo. */
+  context: string | null;
   photo_path: string | null;
   created_at: string;
   updated_at: string;
@@ -87,16 +91,22 @@ const toEntryRow = (entry: DayEntry, owner: string): EntryRow => ({
   day: entry.date,
   metrics: entry.values,
   note: entry.note ?? null,
+  notes: entry.notes ?? {},
   updated_at: entry.updatedAt,
 });
 
-const fromEntryRow = (row: EntryRow): DayEntry => ({
-  date: row.day,
-  profileId: row.profile_id as ProfileId,
-  values: row.metrics ?? {},
-  note: row.note ?? undefined,
-  updatedAt: row.updated_at,
-});
+const fromEntryRow = (row: EntryRow): DayEntry => {
+  const notes = row.notes ?? {};
+  return {
+    date: row.day,
+    profileId: row.profile_id as ProfileId,
+    values: row.metrics ?? {},
+    note: row.note ?? undefined,
+    // Sin notas se deja el campo fuera, como cuando el registro nace aquí.
+    notes: Object.keys(notes).length > 0 ? notes : undefined,
+    updatedAt: row.updated_at,
+  };
+};
 
 const toMealRow = (meal: MealAnalysis, owner: string): MealRow => ({
   id: meal.id,
@@ -110,6 +120,7 @@ const toMealRow = (meal: MealAnalysis, owner: string): MealRow => ({
   foods: meal.alimentos,
   wins: meal.aciertos,
   tweaks: meal.ajustes,
+  context: meal.contexto ?? null,
   photo_path: meal.photoPath ?? null,
   created_at: meal.createdAt,
   updated_at: meal.updatedAt,
@@ -127,6 +138,7 @@ const fromMealRow = (row: MealRow): MealAnalysis => ({
   alimentos: row.foods ?? [],
   aciertos: row.wins ?? [],
   ajustes: row.tweaks ?? [],
+  contexto: row.context || undefined,
   // `photoId` es la clave local; se conserva la del identificador para poder
   // reutilizar la miniatura ya guardada en este mismo móvil.
   photoId: row.id,

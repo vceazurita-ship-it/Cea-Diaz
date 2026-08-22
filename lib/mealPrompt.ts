@@ -130,19 +130,37 @@ export function mealSystemPrompt(profile: Profile): string {
   ].join('\n');
 }
 
-/** Mensaje con el plato y todo lo que hace falta para juzgarlo. */
+/**
+ * Mensaje con el plato y todo lo que hace falta para juzgarlo.
+ *
+ * @param context lo que se ha contado del plato al fotografiarlo, dictado o
+ *                escrito. Es lo que la foto no puede enseñar: si va con
+ *                aceite, si se lo terminó, qué bebió con ello.
+ */
 export function mealUserPrompt(
   profileId: ProfileId,
   moment: MealMoment,
   values: Record<string, MetricValue>,
+  context = '',
 ): string {
   const profile = getProfile(profileId);
   const targets = dailyTargets(profileId);
   const done = todaySoFar(profileId, values);
 
+  const said = context.trim();
+
   return [
     `QUIÉN COME: ${whoIs(profile)}`,
     `MOMENTO DEL DÍA: ${moment}.`,
+    '',
+    said
+      ? [
+          'LO QUE CUENTAN DEL PLATO (dictado en voz alta, puede traer erratas):',
+          said,
+          'Dalo por bueno: describe lo que la foto no puede enseñar. Si contradice',
+          'a la foto, dilo en el resumen en vez de elegir en silencio.',
+        ].join('\n')
+      : '',
     '',
     targets.length ? `SUS OBJETIVOS DIARIOS:\n- ${targets.join('\n- ')}` : '',
     '',

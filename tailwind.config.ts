@@ -13,21 +13,9 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'var(--font-sans)', 'sans-serif'],
       },
-      colors: {
-        ink: {
-          50: '#f6f7f9',
-          100: '#eceef2',
-          200: '#d5dae3',
-          300: '#b0b9c9',
-          400: '#8593aa',
-          500: '#65758f',
-          600: '#505d76',
-          700: '#424c60',
-          800: '#394151',
-          900: '#232936',
-          950: '#161a23',
-        },
-      },
+      // Aquí vivía una escala de grises («ink») de cuando la app era sólo
+      // oscura. Ya no hace falta: los grises salen de los tokens del modo, que
+      // son los únicos que saben si toca papel o noche.
       keyframes: {
         pop: {
           '0%': { transform: 'scale(1)' },

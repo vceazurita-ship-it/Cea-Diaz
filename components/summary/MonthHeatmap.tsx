@@ -9,6 +9,22 @@ interface MonthHeatmapProps {
   onSelectDay?: (date: string) => void;
 }
 
+/**
+ * Relleno de una casilla según lo registrado ese día.
+ *
+ * Antes se bajaba la opacidad de un fondo de acento, y eso se llevaba por
+ * delante el número: en los días flojos quedaba casi invisible, y en modo día
+ * el blanco sobre un velo pálido no se leía en absoluto. Ahora se mezcla un
+ * color opaco, y la mezcla se queda **entre el 16 % y el 40 %** de acento: es
+ * rampa de sobra para comparar unos días con otros, y a la vez el techo que
+ * mantiene el número por encima de 4,5:1 en los seis perfiles y en los dos
+ * modos. Llenar la casilla del todo no dejaba contraste para nada encima.
+ */
+function fillFor(ratio: number): string {
+  const strength = Math.round((0.16 + Math.max(0, Math.min(1, ratio)) * 0.24) * 100);
+  return `color-mix(in srgb, var(--accent) ${strength}%, var(--bg-2))`;
+}
+
 export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
   if (days.length === 0) return null;
 
@@ -41,8 +57,8 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
             }`}
             className={`flex aspect-square items-center justify-center rounded-lg text-[11px]
                        font-semibold tabular-nums transition-transform hover:scale-110
-                       ${day.empty ? 'surf-2 t-3' : 'bg-accent t-on-accent'}`}
-            style={day.empty ? undefined : { opacity: Math.max(0.28, day.ratio) }}
+                       ${day.empty ? 'surf-2 t-3' : 't-1'}`}
+            style={day.empty ? undefined : { backgroundColor: fillFor(day.ratio) }}
           >
             {Number(day.date.slice(-2))}
           </button>
@@ -51,8 +67,12 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
 
       <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] t-3">
         <span>Menos</span>
-        {[0.15, 0.4, 0.65, 0.85, 1].map((level) => (
-          <span key={level} className="h-3 w-3 rounded bg-accent" style={{ opacity: level }} />
+        {[0, 0.25, 0.5, 0.75, 1].map((level) => (
+          <span
+            key={level}
+            className="h-3 w-3 rounded"
+            style={{ backgroundColor: fillFor(level) }}
+          />
         ))}
         <span>Más</span>
       </div>

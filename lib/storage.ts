@@ -9,8 +9,12 @@ import type { DateKey, HabitDatabase, ProfileId } from '@/types';
 
 export const STORAGE_KEY = 'habitos-familia:v1';
 export const PIN_STORAGE_KEY = 'habitos-familia:pin';
-/** v2 añadió `meals`, v3 `advice` y v4 las lápidas de la nube. */
-export const DB_VERSION = 4;
+/**
+ * v2 añadió `meals`, v3 `advice`, v4 las lápidas de la nube y v5 las notas
+ * por categoría. Todas las subidas son aditivas: lo guardado con una versión
+ * anterior se lee tal cual y los campos nuevos aparecen vacíos.
+ */
+export const DB_VERSION = 5;
 
 export function emptyDatabase(): HabitDatabase {
   return { version: DB_VERSION, entries: {}, meals: {}, advice: {}, tombstones: {} };

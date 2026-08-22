@@ -25,9 +25,11 @@ export function WeekChart({ days, onSelectDay }: WeekChartProps) {
             }`}
             className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
           >
-            {/* El valor aparece al posarse encima, pero el sitio está siempre
-                reservado para que las barras no salten al recorrerlas. */}
-            <span className="h-3 text-[10px] font-semibold tabular-nums t-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            {/* El valor va siempre visible: en un móvil no existe «posar el
+                ratón encima», así que esconderlo tras un :hover lo dejaba
+                inalcanzable justo en el aparato desde el que más se consulta.
+                En pantalla grande se refuerza al recorrer las barras. */}
+            <span className="h-3 text-[10px] font-semibold tabular-nums t-3 transition-colors group-hover:t-1 group-focus-visible:t-1">
               {day.empty ? '—' : percent(day.ratio)}
             </span>
             <div className="flex w-full flex-1 items-end">

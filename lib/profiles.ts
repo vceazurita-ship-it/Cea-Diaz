@@ -1,4 +1,15 @@
-import type { Profile, ProfileId, ProfileSkin } from '@/types';
+import type { Profile, ProfileId, ProfileSkin, ThemeMode } from '@/types';
+
+/* =========================================================================
+ *  Los seis perfiles.
+ *
+ *  Cada uno lleva su `tint`: el color del que salen el fondo, las tarjetas y
+ *  los bordes de toda su sección, de día y de noche. Leo es verde, Hugo rojo
+ *  y Víctor azul noche, de modo que se sabe en la casa de quién se está sin
+ *  leer el nombre. El `accent` es el mismo color en versión saturada, para
+ *  botones y barras; `accentDeep` es su variante para el modo día, donde un
+ *  color claro sobre papel blanco no se leería.
+ * ========================================================================= */
 
 export const PROFILES: Profile[] = [
   {
@@ -9,8 +20,10 @@ export const PROFILES: Profile[] = [
     tagline: '5 deportes, mucha energía',
     kind: 'kid',
     avatar: '🦁',
-    gradient: 'from-sky-400 to-indigo-500',
-    accent: '#38bdf8',
+    gradient: 'from-lime-400 to-emerald-600',
+    accent: '#4ade80',
+    accentDeep: '#15803d',
+    tint: '#16a34a',
     skin: 'pitch',
     photo: '/photos/av-leo.jpg',
     hero: '/photos/accion-leo.jpg',
@@ -29,8 +42,10 @@ export const PROFILES: Profile[] = [
     tagline: 'Constancia y récords propios',
     kind: 'kid',
     avatar: '🐯',
-    gradient: 'from-amber-400 to-orange-500',
-    accent: '#fbbf24',
+    gradient: 'from-rose-400 to-red-600',
+    accent: '#f87171',
+    accentDeep: '#b91c1c',
+    tint: '#dc2626',
     skin: 'pitch',
     photo: '/photos/av-hugo.jpg',
     hero: '/photos/accion-hugo.jpg',
@@ -52,6 +67,7 @@ export const PROFILES: Profile[] = [
     gradient: 'from-rose-400 to-fuchsia-500',
     accent: '#f472b6',
     accentDeep: '#be3a6e',
+    tint: '#db2777',
     skin: 'editorial',
     photo: '/photos/av-maria.jpg',
     hero: '/photos/hero-maria.jpg',
@@ -67,9 +83,10 @@ export const PROFILES: Profile[] = [
     tagline: 'Alto rendimiento dentro y fuera del campo',
     kind: 'adult',
     avatar: '⚽',
-    gradient: 'from-emerald-400 to-teal-600',
-    accent: '#34d399',
-    accentDeep: '#0a7d5e',
+    gradient: 'from-sky-400 to-blue-700',
+    accent: '#60a5fa',
+    accentDeep: '#1d4ed8',
+    tint: '#1e40af',
     skin: 'editorial',
     photo: '/photos/av-victor.jpg',
     hero: '/photos/hero-victor.jpg',
@@ -84,6 +101,8 @@ export const PROFILES: Profile[] = [
     avatar: '🏡',
     gradient: 'from-yellow-400 via-orange-400 to-rose-500',
     accent: '#fb923c',
+    accentDeep: '#c2410c',
+    tint: '#f97316',
     skin: 'night',
     photo: '/photos/av-familia.jpg',
     hero: '/photos/hero-familia.jpg',
@@ -99,7 +118,9 @@ export const PROFILES: Profile[] = [
     kind: 'group',
     avatar: '💞',
     gradient: 'from-pink-500 to-rose-600',
-    accent: '#f43f5e',
+    accent: '#fb7185',
+    accentDeep: '#be123c',
+    tint: '#e11d48',
     skin: 'night',
     photo: '/photos/av-pareja.jpg',
     hero: '/photos/hero-pareja.jpg',
@@ -128,13 +149,18 @@ export function skinOf(profile: Profile | null | undefined): ProfileSkin {
 }
 
 /**
- * Acento adecuado a la piel en la que se está pintando el perfil.
- * Sobre fondo claro hace falta la variante oscura para que el texto
- * teñido con el acento siga siendo legible.
+ * Acento adecuado al modo en que se está pintando. De día, sobre papel
+ * claro, hace falta la variante oscura para que el texto teñido con el
+ * acento —y el botón principal, que lleva texto blanco encima— siga
+ * siendo legible.
  */
-export function accentFor(profile: Profile, skin: ProfileSkin = skinOf(profile)): string {
-  return skin === 'editorial' ? profile.accentDeep ?? profile.accent : profile.accent;
+export function accentFor(profile: Profile, mode: ThemeMode): string {
+  return mode === 'light' ? profile.accentDeep ?? profile.accent : profile.accent;
 }
+
+/** Tinte neutro del selector y de las pantallas sin perfil. */
+export const NEUTRAL_TINT = '#64748b';
+export const NEUTRAL_ACCENT = { dark: '#818cf8', light: '#4338ca' };
 
 export const INDIVIDUAL_PROFILES = PROFILES.filter((p) => p.kind !== 'group');
 export const GROUP_PROFILES = PROFILES.filter((p) => p.kind === 'group');
@@ -146,4 +172,13 @@ export const GROUP_PROFILES = PROFILES.filter((p) => p.kind === 'group');
  */
 export function accentStyle(color: string): React.CSSProperties {
   return { '--accent': color } as React.CSSProperties;
+}
+
+/**
+ * El acento y el tinte juntos, que es como viajan sobre <main> y sobre cada
+ * tarjeta del selector: el tinte tiene que estar en el mismo elemento donde
+ * se resuelven los tokens, porque `--bg` y compañía se calculan con él.
+ */
+export function paletteStyle(accent: string, tint: string): React.CSSProperties {
+  return { '--accent': accent, '--tint': tint } as React.CSSProperties;
 }

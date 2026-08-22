@@ -3,7 +3,8 @@
 import { Photo } from '@/components/ui/Photo';
 import { useEffect, useState } from 'react';
 import { DEFAULT_PIN, loadPin } from '@/lib/storage';
-import { accentStyle } from '@/lib/profiles';
+import { useTheme } from '@/hooks/useTheme';
+import { accentFor, accentStyle } from '@/lib/profiles';
 import type { Profile } from '@/types';
 
 interface PinLockProps {
@@ -20,6 +21,7 @@ interface PinLockProps {
  * La foto se muestra desenfocada: identifica el módulo sin desvelar contenido.
  */
 export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
+  const { mode } = useTheme();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   // La pista del PIN por defecto sólo tiene sentido si nadie lo ha cambiado.
@@ -39,7 +41,7 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
 
   return (
     <div
-      style={accentStyle(profile.accent)}
+      style={accentStyle(accentFor(profile, mode))}
       className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col items-center justify-center px-4"
     >
       <div className="relative mb-5 h-24 w-24 overflow-hidden rounded-3xl shadow-xl">

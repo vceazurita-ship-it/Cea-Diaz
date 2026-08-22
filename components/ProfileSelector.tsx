@@ -2,7 +2,14 @@
 
 import { Photo } from '@/components/ui/Photo';
 import { useAppearance } from '@/hooks/useAppearance';
-import { GROUP_PROFILES, INDIVIDUAL_PROFILES, PROFILES, accentStyle } from '@/lib/profiles';
+import { useTheme } from '@/hooks/useTheme';
+import {
+  GROUP_PROFILES,
+  INDIVIDUAL_PROFILES,
+  PROFILES,
+  accentFor,
+  paletteStyle,
+} from '@/lib/profiles';
 import { percent } from '@/lib/scoring';
 import type { Profile, ProfileId } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
@@ -20,6 +27,8 @@ interface ProfileSelectorProps {
   onSelect: (id: ProfileId) => void;
   glances: Record<ProfileId, ProfileGlance>;
   hydrated: boolean;
+  /** Abre los ajustes, donde vive el cambio de portada. */
+  onEditCover: () => void;
 }
 
 function ProfileCard({
@@ -36,6 +45,7 @@ function ProfileCard({
   priority?: boolean;
 }) {
   const { dress } = useAppearance();
+  const { mode } = useTheme();
   const profile = dress(base);
   const kid = profile.kind === 'kid';
   const pct = Math.round((glance?.today ?? 0) * 100);
@@ -44,9 +54,12 @@ function ProfileCard({
     <button
       type="button"
       onClick={() => onSelect(profile.id)}
-      // El acento viaja como variable para que el anillo de foco, la barra y
-      // el distintivo de la tarjeta se tiñan solos con el color del perfil.
-      style={accentStyle(profile.accent)}
+      // El acento y el tinte viajan como variables para que el anillo de
+      // foco, la barra, el distintivo y el filete de la tarjeta se tiñan con
+      // el color del perfil: el selector adelanta de qué color es cada
+      // sección antes de entrar. El acento se pide para el modo actual,
+      // porque el mismo verde claro que luce de noche se pierde sobre papel.
+      style={paletteStyle(accentFor(profile, mode), profile.tint)}
       aria-label={`Abrir el perfil de ${profile.name}${
         hydrated && glance
           ? glance.tracked
@@ -163,8 +176,14 @@ function ProfileCard({
   );
 }
 
-export function ProfileSelector({ onSelect, glances, hydrated }: ProfileSelectorProps) {
+export function ProfileSelector({
+  onSelect,
+  glances,
+  hydrated,
+  onEditCover,
+}: ProfileSelectorProps) {
   const tracked = PROFILES.filter((p) => glances[p.id]?.tracked).length;
+  const { appCover, appCoverCustom } = useAppearance();
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
@@ -174,25 +193,34 @@ export function ProfileSelector({ onSelect, glances, hydrated }: ProfileSelector
             ningún velo tape las caras sea cual sea el tamaño de pantalla. */}
         <div className="relative h-52 w-full sm:h-72">
           <Photo
-            src="/photos/portada.jpg"
-            alt="Leo, Hugo, María y Víctor"
+            src={appCover}
+            alt="Portada de la casa"
             fill
             sizes="(min-width: 1024px) 1024px, 100vw"
             className="object-cover"
-            style={{ objectPosition: 'center 88%' }}
+            // El encuadre de fábrica está pensado para esa foto concreta;
+            // una elegida en casa se centra, que es lo que funciona siempre.
+            style={{ objectPosition: appCoverCustom ? 'center' : 'center 88%' }}
             priority
           />
           <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg)] to-transparent" />
+
+          <button
+            type="button"
+            onClick={onEditCover}
+            className="chip absolute right-3 top-3 min-h-[2.25rem] backdrop-blur-sm surf-2 t-1 hover-soft"
+            title="Cambiar la portada de la app"
+          >
+            🖼️ <span className="hidden sm:inline">Cambiar portada</span>
+          </button>
         </div>
 
         <div className="relative px-5 pb-7 pt-4 text-center sm:pb-9">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] t-3">
             Seguimiento de hábitos
           </p>
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-            <span className="bg-gradient-to-r from-sky-300 via-fuchsia-300 to-amber-300 bg-clip-text text-transparent">
-              Hábitos en Familia
-            </span>
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl t-1">
+            Hábitos en Familia
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm t-2">
             Elige tu perfil para registrar el día, o entra en los módulos compartidos.
