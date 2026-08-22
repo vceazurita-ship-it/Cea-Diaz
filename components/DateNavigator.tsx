@@ -82,8 +82,8 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
               }`}
               className={`flex flex-col items-center gap-1 rounded-xl py-2 transition-colors
                 disabled:cursor-not-allowed
-                ${selected ? 'surf-3' : 'hover-soft'}
-                ${future ? 'opacity-25' : ''}`}
+                ${selected ? 'surf-3' : future ? '' : 'hover-soft'}
+                ${future ? 'opacity-45' : ''}`}
             >
               <span className="text-[10px] font-bold uppercase t-3">{WEEKDAY_LABELS[i]}</span>
 

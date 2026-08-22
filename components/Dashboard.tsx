@@ -163,7 +163,18 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
       />
 
       {/* Pestañas */}
-      <div className="mb-4 flex rounded-2xl border p-1 hairline surf-1" role="tablist">
+      <div
+        className="mb-4 flex rounded-2xl border p-1 hairline surf-1"
+        role="tablist"
+        aria-label="Secciones del perfil"
+        onKeyDown={(event) => {
+          const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+          if (!delta) return;
+          event.preventDefault();
+          const index = tabs.findIndex((option) => option.id === tab);
+          setTab(tabs[(index + delta + tabs.length) % tabs.length].id);
+        }}
+      >
         {tabs.map((option) => {
           const active = tab === option.id;
           return (
@@ -172,6 +183,9 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
               type="button"
               role="tab"
               aria-selected={active}
+              aria-controls={`panel-${option.id}`}
+              id={`tab-${option.id}`}
+              tabIndex={active ? 0 : -1}
               onClick={() => setTab(option.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2.5
                 text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
@@ -186,7 +200,7 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
       </div>
 
       {tab === 'today' ? (
-        <div className="space-y-4">
+        <div className="space-y-4" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
           <DateNavigator
             date={date}
             onChange={onDateChange}
@@ -225,7 +239,7 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
 
             <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
               {pending > 0
-                ? `${filled}/${total} · quedan ${pending}`
+                ? `${filled}/${total} · ${pending === 1 ? 'queda 1' : `quedan ${pending}`}`
                 : `${total}/${total} · día completo 🎉`}
             </span>
           </div>
@@ -282,13 +296,16 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             Atajos: <kbd className="font-mono font-bold">←</kbd>{' '}
             <kbd className="font-mono font-bold">→</kbd> cambian de día ·{' '}
             <kbd className="font-mono font-bold">H</kbd> vuelve a hoy
-            {!isToday(date) && ' · Esc vuelve a los perfiles'}
+             · <kbd className="font-mono font-bold">Esc</kbd> vuelve a los perfiles
           </p>
         </div>
       ) : tab === 'challenges' ? (
-        <ChallengesPanel profile={profile} date={date} entries={store.entries} skin={skin} />
+        <div role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">
+          <ChallengesPanel profile={profile} date={date} entries={store.entries} skin={skin} />
+        </div>
       ) : (
-        <SummaryView
+        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
+          <SummaryView
           profile={profile}
           date={date}
           entries={store.entries}
@@ -297,7 +314,8 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             onDateChange(selected);
             setTab('today');
           }}
-        />
+          />
+        </div>
       )}
     </div>
   );

@@ -64,7 +64,9 @@ export function CategoryCard({
               ? category.description
               : complete
                 ? '✓ Completa'
-                : `Quedan ${pending} por registrar`}
+                : pending === 1
+                    ? 'Queda 1 por registrar'
+                    : `Quedan ${pending} por registrar`}
           </span>
         </span>
 

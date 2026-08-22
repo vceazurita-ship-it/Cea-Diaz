@@ -32,7 +32,7 @@ export function TopBar({ activeId, onSelect, onHome, lockedIds = [] }: TopBarPro
         <button
           type="button"
           onClick={onHome}
-          className="btn-ghost shrink-0 px-2.5 py-1.5"
+          className="btn-ghost h-11 shrink-0 px-2.5"
           aria-label="Volver al selector de perfiles"
           title="Selector de perfiles (Esc)"
         >
@@ -69,14 +69,14 @@ export function TopBar({ activeId, onSelect, onHome, lockedIds = [] }: TopBarPro
                 onClick={() => onSelect(profile.id)}
                 aria-current={active ? 'page' : undefined}
                 style={accentStyle(profile.accent)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5
+                className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-3
                   text-sm font-semibold transition-colors
                   ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
                 title={locked ? `${profile.name} (bloqueado)` : profile.name}
               >
                 <Avatar
                   profile={profile}
-                  size={26}
+                  size={32}
                   shape="circle"
                   className={active ? 'ring-2 ring-white/30' : 'opacity-90'}
                 />

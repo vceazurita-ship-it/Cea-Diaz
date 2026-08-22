@@ -26,7 +26,9 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
   useEffect(() => {
     restoreTo.current = document.activeElement as HTMLElement | null;
     const first = panel.current?.querySelector<HTMLElement>(FOCUSABLE);
-    first?.focus();
+    // Sin nada enfocable dentro, el foco va al propio panel: así Escape y el
+    // atrapado del tabulador siguen funcionando.
+    (first ?? panel.current)?.focus();
     return () => restoreTo.current?.focus?.();
   }, []);
 
@@ -75,6 +77,7 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
     >
       <div
         ref={panel}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}

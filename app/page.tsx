@@ -158,7 +158,7 @@ export default function HomePage() {
           />
         )}
 
-        <div id="contenido">
+        <div id="contenido" tabIndex={-1} className="outline-none">
           {!profile ? (
             <ProfileSelector onSelect={select} glances={glances} hydrated={store.hydrated} />
           ) : needsPin ? (
