@@ -95,6 +95,7 @@ lib/
   mealPrompt.ts        Contexto e instrucciones del análisis de fotos de comida
   advicePrompt.ts      Contexto del consejo del día y de la progresión de entreno
   photos.ts            Reducción de fotos y miniaturas en IndexedDB
+  rateLimit.ts         Tope de peticiones por IP en las rutas de Claude
   sound.ts             Sintonía al entrar en un perfil, con desvanecido
   supabase.ts          Cliente de la nube (opcional: sin claves, no se usa)
   cloud.ts             Sincronización: mezcla por fecha, lápidas y fotos
@@ -274,10 +275,13 @@ importar en otro móvil se conservan las notas pero no las fotos.
 Las notas de las comidas **no cuentan** para el cumplimiento diario ni para los
 retos: son una lectura aparte, y las casillas de nutrición se siguen marcando a mano.
 
-> **Aviso:** `/api/plato` y `/api/consejo` son rutas públicas del despliegue. Si te preocupa que
-> alguien que descubra la URL consuma tu clave, activa *Deployment Protection* en
-> Vercel (Settings → Deployment Protection) o una regla de *Firewall* con límite de
-> peticiones.
+> **Aviso:** `/api/plato` y `/api/consejo` son rutas públicas del despliegue. Llevan un
+> **tope de 20 peticiones cada 10 minutos por IP** (`lib/rateLimit.ts`), invisible para
+> el uso de casa, que acota lo que alguien podría gastar de tu clave. No es una
+> barrera: el contador vive en memoria y en Vercel una función puede correr en varias
+> instancias, así que el límite es por instancia y se reinicia al enfriarse. La barrera
+> de verdad es **Settings → Deployment Protection**, que deja la app —y con ella sus
+> rutas y la música— sólo para quien inicie sesión con tu cuenta de Vercel.
 
 ## Observaciones en voz alta y consejo del día
 

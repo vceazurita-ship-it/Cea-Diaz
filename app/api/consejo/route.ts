@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adviceSystemPrompt, adviceUserPrompt, type HistoryDay } from '@/lib/advicePrompt';
 import { PROFILES_BY_ID } from '@/lib/profiles';
+import { clientIp, isRateLimited } from '@/lib/rateLimit';
 import type { MetricValue, NextChallenge, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -52,6 +53,11 @@ function bad(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
+  // Tope de gasto antes que nada: es lo más barato que se puede comprobar.
+  if (isRateLimited(clientIp(request))) {
+    return bad('Demasiadas peticiones desde este dispositivo. Espera unos minutos.', 429);
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return bad(
       'Falta configurar ANTHROPIC_API_KEY en el servidor. Sin clave no se puede pedir consejo.',
