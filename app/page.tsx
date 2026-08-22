@@ -12,9 +12,10 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { todayKey, weekKeys } from '@/lib/dates';
 import { prunePhotos } from '@/lib/photos';
+import { playAnthem, stopAnthem } from '@/lib/sound';
 import { PROFILES, accentFor, accentStyle, getProfile, skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
-import type { DateKey, ProfileId } from '@/types';
+import type { DateKey, Profile, ProfileId } from '@/types';
 
 /** Color de la barra del navegador por piel, para que la app se integre al instalarla. */
 const THEME_COLOR: Record<string, string> = {
@@ -30,6 +31,8 @@ export default function HomePage() {
   const [date, setDate] = useState<DateKey>(todayKey);
   const [unlocked, setUnlocked] = useState<ProfileId[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
+  const [nowPlaying, setNowPlaying] = useState<Profile | null>(null);
 
   /** Resumen de un vistazo para las tarjetas del selector. */
   const glances = useMemo(() => {
@@ -60,9 +63,24 @@ export default function HomePage() {
   const select = useCallback((id: ProfileId) => {
     setActiveProfile(id);
     setDate(todayKey());
+
+    // La sintonía se lanza aquí, dentro del gesto de tocar el perfil: es la
+    // única forma de que el navegador deje sonar algo.
+    const chosen = getProfile(id);
+    if (chosen.anthem && playAnthem(id, chosen.anthem, () => setNowPlaying(null))) {
+      setNowPlaying(chosen);
+    }
   }, []);
 
-  const goHome = useCallback(() => setActiveProfile(null), []);
+  const silence = useCallback(() => {
+    stopAnthem();
+    setNowPlaying(null);
+  }, []);
+
+  const goHome = useCallback(() => {
+    silence();
+    setActiveProfile(null);
+  }, [silence]);
 
   const profile = activeProfile ? getProfile(activeProfile) : null;
   const needsPin = Boolean(profile?.isPrivate) && !unlocked.includes(profile!.id);
@@ -89,6 +107,9 @@ export default function HomePage() {
     // Sólo al hidratar: después, cada borrado se limpia por su cuenta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.hydrated]);
+
+  // Nadie quiere música sonando en una pestaña que ya no mira.
+  useEffect(() => stopAnthem, []);
 
   // Volver al selector con Escape: la salida siempre está a una tecla.
   useEffect(() => {
@@ -157,7 +178,9 @@ export default function HomePage() {
           style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
           <p className="text-[11px] t-3">
-            Los datos se guardan en este navegador (localStorage).
+            {store.cloud.status === 'synced'
+              ? 'Los datos se guardan en este navegador y en la cuenta de casa.'
+              : 'Los datos se guardan en este navegador (localStorage).'}
           </p>
           <button
             type="button"
@@ -167,6 +190,18 @@ export default function HomePage() {
             ⚙️ Ajustes
           </button>
         </footer>
+
+        {/* Cortar la sintonía: siempre a un toque mientras suena */}
+        {nowPlaying && (
+          <button
+            type="button"
+            onClick={silence}
+            className="chip-accent fixed right-4 z-40 shadow-lg"
+            style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
+            🔇 {nowPlaying.anthemLabel ?? 'Silenciar'}
+          </button>
+        )}
 
         {settingsOpen && <SettingsPanel store={store} onClose={() => setSettingsOpen(false)} />}
       </main>

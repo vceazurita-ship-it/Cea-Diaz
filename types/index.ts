@@ -58,6 +58,13 @@ export interface Profile {
   squad?: string;
   /** Demarcación mostrada en la piel de fútbol. */
   position?: string;
+  /**
+   * Sintonía que suena al entrar en el perfil (ruta bajo /public). Opcional:
+   * sin archivo, se entra en silencio y no pasa nada.
+   */
+  anthem?: string;
+  /** Cómo se llama esa música, para poder decirlo mientras suena. */
+  anthemLabel?: string;
 }
 
 /* ------------------------------- Métricas ------------------------------- */

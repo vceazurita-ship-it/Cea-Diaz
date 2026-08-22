@@ -84,6 +84,7 @@ hooks/
   useDictation.ts      Dictado por voz con la Web Speech API del navegador
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
+  audio/               Sintonías de perfil (las pone cada casa)
   icon.svg             Icono de la app instalada
 lib/
   profiles.ts          Los 6 perfiles: datos, fotos, acentos y piel visual
@@ -94,6 +95,7 @@ lib/
   mealPrompt.ts        Contexto e instrucciones del análisis de fotos de comida
   advicePrompt.ts      Contexto del consejo del día y de la progresión de entreno
   photos.ts            Reducción de fotos y miniaturas en IndexedDB
+  sound.ts             Sintonía al entrar en un perfil, con desvanecido
   supabase.ts          Cliente de la nube (opcional: sin claves, no se usa)
   cloud.ts             Sincronización: mezcla por fecha, lápidas y fotos
   dates.ts             Utilidades de fecha en es-ES
@@ -137,6 +139,41 @@ el mismo con otros nombres.
 | **Víctor** (42)         | Salud y Bienestar · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
+
+## Sintonía de perfil
+
+Al entrar en un perfil puede sonar su música: Leo y Hugo reciben el himno del Real
+Madrid y María, *A Thousand Years*. Suena **veinte segundos**, entra y sale con un
+desvanecido, y se corta con el botón que aparece abajo a la derecha. Se apaga del todo
+en **⚙️ Ajustes → Sonido**.
+
+Tres detalles de comportamiento, para que sea una alegría y no un incordio:
+
+- **Sólo con gesto**: arranca al tocar el perfil, nunca al cargar la página. Es también
+  la única forma de que el navegador deje sonar algo.
+- **Con espera**: no se repite si se entra y se sale del mismo perfil en dos minutos.
+- **Sin drama**: si el archivo no está, se entra en silencio y no se avisa de nada.
+
+Se declara como un campo más del perfil, en `lib/profiles.ts`:
+
+```ts
+anthem: '/audio/himno.mp3',
+anthemLabel: 'Himno del Real Madrid',
+```
+
+Sin ese campo, se entra en silencio.
+
+### Los archivos los pones tú
+
+Van en `public/audio/` (las instrucciones completas, en `public/audio/LEEME.md`):
+`himno.mp3` para los peques y `maria.mp3` para María. Recorta el trozo que quieras
+oír —con 25-30 segundos basta, unos 400 KB— en vez de subir el tema entero.
+
+Las dos piezas tienen **derechos de autor**, así que colocarlas ahí y desplegar
+significa servirlas en una URL pública. Para uso doméstico lo sensato es cerrar el
+acceso: **Vercel → Settings → Deployment Protection** deja la app sólo para quien
+inicie sesión con tu cuenta, y de paso protege `/api/plato` y `/api/consejo` de que
+alguien gaste tu clave.
 
 ## La nube: Supabase
 
@@ -393,6 +430,7 @@ sustituir el archivo manteniendo el nombre.
 - **Adultos y grupos**: filas compactas, segmentados Sí/No, deslizadores y anillos de progreso.
 - **Retos**: tres objetivos de la semana con su porqué, puntos y medallero de las anteriores.
 - **Comidas**: foto del plato, nota de 0 a 10 y qué reducir, aumentar, cambiar o añadir.
+- **Sonido**: cada perfil puede recibirte con su sintonía, silenciable desde Ajustes.
 - **Voz**: se cuenta el día en voz alta y sale un consejo para mañana y un reto de entreno.
 - **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros.
 

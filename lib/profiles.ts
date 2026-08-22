@@ -18,6 +18,8 @@ export const PROFILES: Profile[] = [
     card: '/photos/cromo-leo.jpg',
     squad: '5',
     position: 'DEL',
+    anthem: '/audio/himno.mp3',
+    anthemLabel: 'Himno del Real Madrid',
   },
   {
     id: 'hugo',
@@ -36,6 +38,8 @@ export const PROFILES: Profile[] = [
     card: '/photos/cromo-hugo.jpg',
     squad: '9',
     position: 'DEL',
+    anthem: '/audio/himno.mp3',
+    anthemLabel: 'Himno del Real Madrid',
   },
   {
     id: 'maria',
@@ -52,6 +56,8 @@ export const PROFILES: Profile[] = [
     photo: '/photos/av-maria.jpg',
     hero: '/photos/hero-maria.jpg',
     cover: '/photos/cover-maria.jpg',
+    anthem: '/audio/maria.mp3',
+    anthemLabel: 'A Thousand Years · Christina Perri',
   },
   {
     id: 'victor',

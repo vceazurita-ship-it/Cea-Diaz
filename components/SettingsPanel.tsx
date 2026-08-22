@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { AdviceMap, EntryMap, HabitStore, MealMap } from '@/hooks/useHabitStore';
+import { setSoundEnabled, soundEnabled } from '@/lib/sound';
 import { loadPin, savePin } from '@/lib/storage';
 import type { DayAdvice, DayEntry, MealAnalysis } from '@/types';
 
@@ -129,8 +130,12 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const [pinVisible, setPinVisible] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [staged, setStaged] = useState<StagedImport | null>(null);
+  /** Se lee tras montar: en el servidor no hay `localStorage` que consultar. */
+  const [sound, setSound] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const notify = useToast();
+
+  useEffect(() => setSound(soundEnabled()), []);
 
   const entryCount = Object.keys(store.entries).length;
 
@@ -171,7 +176,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     const blob = new Blob(
       [
         JSON.stringify(
-          { version: 3, entries: store.entries, meals: store.meals, advice: store.advice },
+          { version: 4, entries: store.entries, meals: store.meals, advice: store.advice },
           null,
           2,
         ),
@@ -295,6 +300,29 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
             )}
           </section>
         )}
+
+        {/* ------------------------------------------------------ sonido */}
+        <section className="rounded-2xl border hairline surf-1 p-3">
+          <h3 className="mb-1 font-bold t-1">Sonido</h3>
+          <p className="mb-3 text-xs t-3">
+            Cada perfil puede tener su sintonía al entrar. Suena veinte segundos y se
+            desvanece; se corta con el botón que aparece abajo a la derecha.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              setSoundEnabled(next);
+            }}
+            aria-pressed={sound}
+            className={`btn px-3 py-1.5 text-xs font-semibold border
+              ${sound ? 'bg-accent-soft border-accent t-1' : 'hairline surf-2 t-2 hover-soft'}`}
+          >
+            {sound ? '🔊 Sintonías activadas' : '🔇 Sintonías silenciadas'}
+          </button>
+        </section>
 
         {/* ------------------------------------------------------- datos */}
         <section className="rounded-2xl border hairline surf-1 p-3">
