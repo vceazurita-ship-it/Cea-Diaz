@@ -350,3 +350,98 @@ export function tombstonesByTable(tombstones: Record<string, string>): Record<Cl
 export function emptySnapshot(): Pick<HabitDatabase, 'entries' | 'meals' | 'advice'> {
   return { entries: {}, meals: {}, advice: {} };
 }
+
+/* ---------------------------------------------------------------------------
+ * Aspecto de los perfiles
+ *
+ * Las fotos y la sintonía que sustituyen a las de fábrica. A diferencia de
+ * los hábitos, aquí no hay lápidas: la fila existe mientras exista la
+ * personalización, así que su ausencia ya significa «esto se ha quitado».
+ * ------------------------------------------------------------------------- */
+
+export const APPEARANCE_BUCKET = 'aspecto';
+
+export interface AppearanceRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  slot: string;
+  path: string;
+  name: string;
+  mime: string;
+  size: number;
+  updated_at: string;
+}
+
+/** Todo el aspecto personalizado de la cuenta. Vacío si no hay nube o sesión. */
+export async function pullAppearance(): Promise<AppearanceRow[]> {
+  const client = supabase();
+  if (!client) return [];
+
+  const { data, error } = await client.from('appearance').select('*');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AppearanceRow[];
+}
+
+/**
+ * Sube el archivo de una ranura y anota la fila. Devuelve la ruta dentro del
+ * cubo, o `null` si no hay sesión: la personalización se queda en este móvil
+ * y se volverá a intentar en la próxima sincronización.
+ */
+export async function pushAppearance(
+  profileId: string,
+  slot: string,
+  blob: Blob,
+  meta: { name: string; savedAt: string },
+): Promise<string | null> {
+  const client = supabase();
+  if (!client) return null;
+
+  const { data } = await client.auth.getSession();
+  const owner = data.session?.user.id;
+  if (!owner) return null;
+
+  const id = `${profileId}:${slot}`;
+  // La extensión se saca del tipo real, no del nombre original: hay móviles
+  // que entregan la foto sin extensión ninguna.
+  const extension = blob.type.split('/')[1]?.split(';')[0] || 'bin';
+  const path = `${owner}/${profileId}-${slot}.${extension}`;
+
+  const { error: uploadError } = await client.storage
+    .from(APPEARANCE_BUCKET)
+    .upload(path, blob, { contentType: blob.type, upsert: true });
+  if (uploadError) return null;
+
+  const { error } = await client.from('appearance').upsert({
+    id,
+    owner,
+    profile_id: profileId,
+    slot,
+    path,
+    name: meta.name,
+    mime: blob.type,
+    size: blob.size,
+    updated_at: meta.savedAt,
+  });
+  if (error) return null;
+
+  return path;
+}
+
+export async function downloadAppearance(path: string): Promise<Blob | null> {
+  const client = supabase();
+  if (!client) return null;
+
+  const { data, error } = await client.storage.from(APPEARANCE_BUCKET).download(path);
+  if (error || !data) return null;
+  return data;
+}
+
+/** Quita la personalización de la nube: fila y archivo. */
+export async function deleteAppearance(id: string, path: string): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  await client.storage.from(APPEARANCE_BUCKET).remove([path]);
+  await client.from('appearance').delete().eq('id', id);
+}

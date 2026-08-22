@@ -51,7 +51,7 @@ const PHOTO_FIELDS: Array<{
 ];
 
 export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
-  const { slots, dress, setPhoto, setAnthem, reset } = useAppearance();
+  const { slots, dress, setPhoto, setAnthem, reset, syncing } = useAppearance();
   const notify = useToast();
 
   /** Ranura en la que se está trabajando ahora, para deshabilitarla mientras. */
@@ -105,9 +105,16 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
   return (
     <Modal title={`Personalizar ${profile.name}`} onClose={onClose}>
       <p className="mb-4 text-sm t-2">
-        Cambia las fotos y la música de este perfil sin tocar el código. Todo se guarda en este
-        dispositivo y puedes volver a lo original cuando quieras.
+        Cambia las fotos y la música de este perfil sin tocar el código. Con la cuenta de casa
+        iniciada llegan también al resto de móviles; si no, se quedan en este. Siempre puedes
+        volver a lo original.
       </p>
+
+      {syncing && (
+        <p className="mb-4 text-xs t-3" aria-live="polite">
+          ☁️ Sincronizando con el resto de dispositivos…
+        </p>
+      )}
 
       <div className="space-y-4">
         {fields.map((field) => (
@@ -127,6 +134,7 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
                     : dressed.card
             }
             customName={custom(field.slot)?.meta.name}
+            synced={Boolean(custom(field.slot)?.meta.remotePath)}
             busy={busy === field.slot}
             onPick={(file) =>
               run(field.slot, () => setPhoto(profile.id, field.slot, file), `${field.label} actualizado.`)
@@ -141,7 +149,11 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
         <section className="rounded-2xl border p-3 hairline surf-1">
           <div className="mb-1 flex items-baseline justify-between gap-2">
             <h3 className="text-sm font-bold t-1">Sintonía</h3>
-            {custom('anthem') && <span className="chip-soft">Personalizada</span>}
+            {custom('anthem') && (
+              <span className="chip-soft">
+                {custom('anthem')?.meta.remotePath ? '☁️ En la nube' : 'Personalizada'}
+              </span>
+            )}
           </div>
           <p className="mb-3 text-xs t-3">
             Suena unos segundos al entrar en el perfil. Máximo 8 MB.
@@ -205,6 +217,8 @@ interface PhotoFieldProps {
   round?: boolean;
   src?: string;
   customName?: string;
+  /** La ranura ya ha llegado a la nube y la verán el resto de móviles. */
+  synced?: boolean;
   busy: boolean;
   onPick: (file: File) => void;
   onReset: () => void;
@@ -217,6 +231,7 @@ function PhotoField({
   round,
   src,
   customName,
+  synced,
   busy,
   onPick,
   onReset,
@@ -225,7 +240,9 @@ function PhotoField({
     <section className="rounded-2xl border p-3 hairline surf-1">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold t-1">{label}</h3>
-        {customName && <span className="chip-soft">Personalizada</span>}
+        {customName && (
+          <span className="chip-soft">{synced ? '☁️ En la nube' : 'Personalizada'}</span>
+        )}
       </div>
       <p className="mb-3 text-xs t-3">{hint}</p>
 

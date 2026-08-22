@@ -38,7 +38,14 @@ export interface SlotMeta {
   name: string;
   type: string;
   size: number;
+  /** Versión: en la sincronización gana la marca más reciente. */
   savedAt: string;
+  /**
+   * Ruta dentro del cubo `aspecto`, si esta ranura ya ha viajado a la nube.
+   * Su presencia es lo que distingue «subido y luego borrado en otro móvil»
+   * (hay que quitarlo aquí) de «recién elegido aquí» (hay que subirlo).
+   */
+  remotePath?: string;
 }
 
 export interface StoredSlot extends SlotMeta {
@@ -217,3 +224,33 @@ export async function loadAllSlots(): Promise<
 }
 
 export { key as slotKey };
+
+/* --------------------------------------------------------- sincronización */
+
+/**
+ * Guarda tal cual lo que viene de la nube, sin volver a reducirlo: ya se
+ * redujo en el móvil que lo subió, y reprocesarlo degradaría la imagen una
+ * vez por dispositivo.
+ */
+export async function putRemoteSlot(
+  profileId: ProfileId,
+  slot: Slot,
+  blob: Blob,
+  meta: SlotMeta,
+): Promise<void> {
+  const stored: StoredSlot = { ...meta, blob };
+  await withStore<void>('readwrite', (store) => store.put(stored, key(profileId, slot)));
+}
+
+/** Anota que una ranura ya está en la nube, sin tocar el archivo. */
+export async function markSynced(
+  profileId: ProfileId,
+  slot: Slot,
+  remotePath: string,
+): Promise<void> {
+  const id = key(profileId, slot);
+  const stored = await withStore<StoredSlot | undefined>('readonly', (store) => store.get(id));
+  if (!stored) return;
+
+  await withStore<void>('readwrite', (store) => store.put({ ...stored, remotePath }, id));
+}

@@ -36,7 +36,7 @@ export default function HomePage() {
 
 function Home() {
   const store = useHabitStore();
-  const { dress } = useAppearance();
+  const { dress, sync: syncAppearance } = useAppearance();
 
   const [activeProfile, setActiveProfile] = useState<ProfileId | null>(null);
   const [date, setDate] = useState<DateKey>(todayKey);
@@ -127,6 +127,14 @@ function Home() {
 
   // Nadie quiere música sonando en una pestaña que ya no mira.
   useEffect(() => stopAnthem, []);
+
+  // El aspecto viaja por su cuenta: son archivos, no filas, y no tiene
+  // sentido retrasar los hábitos esperando a que baje una canción. Se
+  // reconcilia en cuanto la cuenta está lista.
+  useEffect(() => {
+    if (store.cloud.status !== 'synced') return;
+    void syncAppearance();
+  }, [store.cloud.status, syncAppearance]);
 
   // Volver al selector con Escape: la salida siempre está a una tecla.
   useEffect(() => {
