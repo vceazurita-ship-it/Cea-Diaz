@@ -1,7 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+
+import {
+  deleteRows,
+  dirtyRows,
+  mergeById,
+  pullAll,
+  pushAdvice,
+  pushEntries,
+  pushMeals,
+  tombstonesByTable,
+  versionIndex,
+  type CloudTable,
+} from '@/lib/cloud';
+import { addDays } from '@/lib/dates';
 import { buildSeedDatabase } from '@/lib/seed';
+import { cloudConfigured, supabase } from '@/lib/supabase';
 import {
   clearDatabase,
   emptyDatabase,
@@ -9,12 +25,22 @@ import {
   loadDatabase,
   saveDatabase,
 } from '@/lib/storage';
-import type { DateKey, DayEntry, HabitDatabase, MetricValue, ProfileId } from '@/types';
+import type {
+  DateKey,
+  DayAdvice,
+  DayEntry,
+  HabitDatabase,
+  MealAnalysis,
+  MetricValue,
+  ProfileId,
+} from '@/types';
 
 /** Estado del guardado, para poder acusarlo en la interfaz. */
 export type SaveStatus = 'idle' | 'saving' | 'saved';
 
 export type EntryMap = Record<string, DayEntry>;
+export type MealMap = Record<string, MealAnalysis>;
+export type AdviceMap = Record<string, DayAdvice>;
 
 export interface HabitStore {
   /** `false` hasta que se leen los datos del navegador (evita desajustes de hidratación). */
@@ -33,13 +59,97 @@ export interface HabitStore {
   clearDay: (profileId: ProfileId, date: DateKey) => void;
   /** Copia los registros de un día en otro. Devuelve cuántos ha copiado. */
   copyDay: (profileId: ProfileId, from: DateKey, to: DateKey) => number;
+  /** Análisis de fotos de comida, por identificador. */
+  meals: MealMap;
+  /** Comidas de un perfil en un día, de la más antigua a la más reciente. */
+  getMeals: (profileId: ProfileId, date: DateKey) => MealAnalysis[];
+  addMeal: (meal: MealAnalysis) => void;
+  removeMeal: (id: string) => void;
+  /** Consejos del día, por clave `${profileId}:${date}`. */
+  advice: AdviceMap;
+  getAdvice: (profileId: ProfileId, date: DateKey) => DayAdvice | undefined;
+  setAdvice: (advice: DayAdvice) => void;
+  removeAdvice: (id: string) => void;
+  /**
+   * Reto de progresión aún sin cumplir, de los días anteriores a `date`.
+   * Es lo que convierte «lo de hoy» en «un punto más la próxima vez».
+   */
+  pendingChallenge: (profileId: ProfileId, date: DateKey) => DayAdvice | undefined;
+  markChallengeDone: (id: string, done: boolean) => void;
   loadDemoData: () => void;
   resetAll: () => void;
-  /** Sustituye o fusiona registros procedentes de un archivo exportado. */
-  importEntries: (entries: EntryMap, mode: 'merge' | 'replace') => void;
+  /** Sustituye o fusiona lo que venga de un archivo exportado. */
+  importEntries: (
+    data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap },
+    mode: 'merge' | 'replace',
+  ) => void;
   /** Copia del estado actual, para poder ofrecer «Deshacer» tras una acción destructiva. */
-  snapshot: () => EntryMap;
-  restore: (entries: EntryMap) => void;
+  snapshot: () => StoreSnapshot;
+  restore: (snapshot: StoreSnapshot) => void;
+  /* -------------------------------- nube -------------------------------- */
+  cloud: CloudState;
+  /** `true` si en este móvil se ha decidido trabajar sin nube. */
+  localOnly: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  /** Fuerza una sincronización completa. */
+  syncNow: () => Promise<void>;
+  /** Deja de pedir la cuenta en este móvil (o vuelve a pedirla). */
+  setLocalOnly: (value: boolean) => void;
+}
+
+/** Lo que hace falta para dejar la base como estaba. */
+export interface StoreSnapshot {
+  entries: EntryMap;
+  meals: MealMap;
+  advice: AdviceMap;
+}
+
+/* --------------------------------- Nube --------------------------------- */
+
+/**
+ *  - `off`         no hay Supabase configurado: sólo este navegador.
+ *  - `signed-out`  hay nube, pero nadie ha entrado todavía.
+ *  - `syncing`     bajando y subiendo.
+ *  - `synced`      al día.
+ *  - `error`       la última sincronización falló; lo local sigue intacto.
+ */
+export type CloudStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error';
+
+export interface CloudState {
+  configured: boolean;
+  status: CloudStatus;
+  /** Cuenta con la que se ha entrado en este móvil. */
+  email: string | null;
+  lastSync: string | null;
+  error: string | null;
+}
+
+/** Clave que recuerda que en este móvil se ha elegido trabajar sin nube. */
+const LOCAL_ONLY_KEY = 'habitos-familia:solo-local';
+
+/** Espera mínima entre sincronizaciones automáticas al volver a la app. */
+const SYNC_THROTTLE_MS = 30_000;
+
+/** Anota un borrado para que la nube lo repita en la próxima subida. */
+function grave(
+  tombstones: Record<string, string>,
+  table: CloudTable,
+  id: string,
+): Record<string, string> {
+  return { ...tombstones, [`${table}:${id}`]: new Date().toISOString() };
+}
+
+/** Quita sólo las lápidas ya propagadas; las nuevas siguen esperando su turno. */
+function forget(
+  tombstones: Record<string, string>,
+  propagated: string[],
+): Record<string, string> {
+  if (propagated.length === 0) return tombstones;
+  const rest = { ...tombstones };
+  for (const key of propagated) delete rest[key];
+  return rest;
 }
 
 /** Espera antes de escribir en localStorage: teclear una nota no debe serializar en cada tecla. */
@@ -54,6 +164,214 @@ export function useHabitStore(): HabitStore {
   useEffect(() => {
     setDb(loadDatabase());
     setHydrated(true);
+  }, []);
+
+  /* ----------------------------------------------------------- nube */
+
+  const [session, setSession] = useState<Session | null>(null);
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus>(
+    cloudConfigured ? 'signed-out' : 'off',
+  );
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [localOnly, setLocalOnlyState] = useState(false);
+
+  // Espejo del estado para poder sincronizar sin re-crear los callbacks en
+  // cada tecla: `db` cambia constantemente, la sesión casi nunca.
+  const dbRef = useRef(db);
+  dbRef.current = db;
+
+  /** Versión ya subida de cada fila: `id → updatedAt`, por tabla. */
+  const synced = useRef<Record<CloudTable, Record<string, string>>>({
+    entries: {},
+    meals: {},
+    advice: {},
+  });
+
+  const lastSyncAt = useRef(0);
+
+  useEffect(() => {
+    setLocalOnlyState(window.localStorage.getItem(LOCAL_ONLY_KEY) === '1');
+  }, []);
+
+  // Sesión: se recupera la guardada y se escuchan los cambios.
+  useEffect(() => {
+    const client = supabase();
+    if (!client) return;
+
+    client.auth.getSession().then(({ data }) => setSession(data.session));
+
+    const { data } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  /* ------------------------------------------- subida y bajada */
+
+  /**
+   * Sincronización completa: propaga borrados, baja lo que hayan escrito los
+   * demás móviles, mezcla por fecha de edición y sube lo que aquí es nuevo.
+   */
+  const syncNow = useCallback(async () => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    setCloudStatus('syncing');
+    setCloudError(null);
+
+    try {
+      const current = dbRef.current;
+
+      // 1. Lo borrado aquí deja de existir también allí.
+      const propagated = Object.keys(current.tombstones);
+      const graves = tombstonesByTable(current.tombstones);
+      for (const table of Object.keys(graves) as CloudTable[]) {
+        await deleteRows(table, graves[table]);
+      }
+
+      // 2. Lo de todos, mezclado con lo de aquí.
+      const remote = await pullAll();
+      const merged: HabitDatabase = {
+        ...current,
+        entries: mergeById('entries', current.entries, remote.entries, current.tombstones),
+        meals: mergeById('meals', current.meals, remote.meals, current.tombstones),
+        advice: mergeById('advice', current.advice, remote.advice, current.tombstones),
+        tombstones: {},
+      };
+
+      // 3. Y de vuelta lo que allí no está o está más viejo.
+      const remoteIndex = {
+        entries: versionIndex(remote.entries),
+        meals: versionIndex(remote.meals),
+        advice: versionIndex(remote.advice),
+      };
+
+      await pushEntries(dirtyRows(merged.entries, remoteIndex.entries), uid);
+      await pushMeals(dirtyRows(merged.meals, remoteIndex.meals), uid);
+      await pushAdvice(dirtyRows(merged.advice, remoteIndex.advice), uid);
+
+      synced.current = {
+        entries: versionIndex(merged.entries),
+        meals: versionIndex(merged.meals),
+        advice: versionIndex(merged.advice),
+      };
+
+      // La mezcla se rehace contra el estado de este instante, no contra la
+      // foto de hace unos segundos: si alguien ha escrito mientras bajaba,
+      // lo suyo es más reciente y debe ganar.
+      setDb((prev) => ({
+        ...prev,
+        entries: mergeById('entries', prev.entries, remote.entries, prev.tombstones),
+        meals: mergeById('meals', prev.meals, remote.meals, prev.tombstones),
+        advice: mergeById('advice', prev.advice, remote.advice, prev.tombstones),
+        tombstones: forget(prev.tombstones, propagated),
+      }));
+
+      setLastSync(new Date().toISOString());
+      setCloudStatus('synced');
+      lastSyncAt.current = Date.now();
+    } catch (error) {
+      setCloudError(error instanceof Error ? error.message : 'No se ha podido sincronizar.');
+      setCloudStatus('error');
+    }
+  }, [session]);
+
+  /** Empujón incremental: sólo lo tocado desde la última subida. */
+  const pushLocalChanges = useCallback(async () => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    const current = dbRef.current;
+    const propagated = Object.keys(current.tombstones);
+    const graves = tombstonesByTable(current.tombstones);
+    const pendingGraves = propagated.length > 0;
+
+    const changed = {
+      entries: dirtyRows(current.entries, synced.current.entries),
+      meals: dirtyRows(current.meals, synced.current.meals),
+      advice: dirtyRows(current.advice, synced.current.advice),
+    };
+
+    if (!pendingGraves && !Object.values(changed).some((rows) => rows.length > 0)) return;
+
+    try {
+      for (const table of Object.keys(graves) as CloudTable[]) {
+        await deleteRows(table, graves[table]);
+      }
+
+      await pushEntries(changed.entries, uid);
+      await pushMeals(changed.meals, uid);
+      await pushAdvice(changed.advice, uid);
+
+      for (const row of changed.entries) {
+        synced.current.entries[entryKey(row.profileId, row.date)] = row.updatedAt;
+      }
+      for (const row of changed.meals) synced.current.meals[row.id] = row.updatedAt;
+      for (const row of changed.advice) synced.current.advice[row.id] = row.updatedAt;
+
+      if (pendingGraves) {
+        setDb((prev) => ({ ...prev, tombstones: forget(prev.tombstones, propagated) }));
+      }
+
+      setLastSync(new Date().toISOString());
+      setCloudStatus('synced');
+    } catch (error) {
+      // Se reintenta en la siguiente sincronización: lo local no se toca.
+      setCloudError(error instanceof Error ? error.message : 'No se ha podido guardar en la nube.');
+      setCloudStatus('error');
+    }
+  }, [session]);
+
+  // Primera sincronización al entrar, y luego al volver a la app.
+  useEffect(() => {
+    if (!hydrated || !session) return;
+    void syncNow();
+  }, [hydrated, session, syncNow]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastSyncAt.current < SYNC_THROTTLE_MS) return;
+      void syncNow();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [session, syncNow]);
+
+  /* ------------------------------------------------ sesión */
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const client = supabase();
+    if (!client) throw new Error('La nube no está configurada.');
+
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    const client = supabase();
+    if (!client) throw new Error('La nube no está configurada.');
+
+    const { error } = await client.auth.signUp({ email, password });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const client = supabase();
+    if (!client) return;
+
+    await client.auth.signOut();
+    // Se olvida lo sincronizado, no lo guardado: los datos siguen en el móvil.
+    synced.current = { entries: {}, meals: {}, advice: {} };
+    setCloudStatus('signed-out');
+  }, []);
+
+  const setLocalOnly = useCallback((value: boolean) => {
+    if (value) window.localStorage.setItem(LOCAL_ONLY_KEY, '1');
+    else window.localStorage.removeItem(LOCAL_ONLY_KEY);
+    setLocalOnlyState(value);
   }, []);
 
   // Última versión pendiente de escribir, para poder volcarla si la pestaña
@@ -76,10 +394,12 @@ export function useHabitStore(): HabitStore {
     const timer = window.setTimeout(() => {
       flush();
       setStatus('saved');
+      // Guardado en el móvil; la nube va detrás y nunca bloquea la escritura.
+      void pushLocalChanges();
     }, SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [db, hydrated, flush]);
+  }, [db, hydrated, flush, pushLocalChanges]);
 
   // Red de seguridad: al ocultar o cerrar la pestaña se vuelca lo pendiente.
   useEffect(() => {
@@ -150,9 +470,10 @@ export function useHabitStore(): HabitStore {
 
   const clearDay = useCallback((profileId: ProfileId, date: DateKey) => {
     setDb((prev) => {
+      const key = entryKey(profileId, date);
       const entries = { ...prev.entries };
-      delete entries[entryKey(profileId, date)];
-      return { ...prev, entries };
+      delete entries[key];
+      return { ...prev, entries, tombstones: grave(prev.tombstones, 'entries', key) };
     });
   }, []);
 
@@ -194,32 +515,142 @@ export function useHabitStore(): HabitStore {
     [db],
   );
 
+  /* ------------------------------------------------------ comidas */
+
+  const getMeals = useCallback(
+    (profileId: ProfileId, date: DateKey) =>
+      Object.values(db.meals)
+        .filter((meal) => meal.profileId === profileId && meal.date === date)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [db],
+  );
+
+  const addMeal = useCallback((meal: MealAnalysis) => {
+    setDb((prev) => ({ ...prev, meals: { ...prev.meals, [meal.id]: meal } }));
+  }, []);
+
+  const removeMeal = useCallback((id: string) => {
+    setDb((prev) => {
+      const meals = { ...prev.meals };
+      delete meals[id];
+      return { ...prev, meals, tombstones: grave(prev.tombstones, 'meals', id) };
+    });
+  }, []);
+
+  /* ------------------------------------------------------ consejos */
+
+  const getAdvice = useCallback(
+    (profileId: ProfileId, date: DateKey) => db.advice[entryKey(profileId, date)],
+    [db],
+  );
+
+  const setAdvice = useCallback((advice: DayAdvice) => {
+    setDb((prev) => ({ ...prev, advice: { ...prev.advice, [advice.id]: advice } }));
+  }, []);
+
+  const removeAdvice = useCallback((id: string) => {
+    setDb((prev) => {
+      const advice = { ...prev.advice };
+      delete advice[id];
+      return { ...prev, advice, tombstones: grave(prev.tombstones, 'advice', id) };
+    });
+  }, []);
+
+  /** El reto vivo más reciente: sólo se mira una quincena hacia atrás. */
+  const pendingChallenge = useCallback(
+    (profileId: ProfileId, date: DateKey) => {
+      const floor = addDays(date, -15);
+
+      return Object.values(db.advice)
+        .filter(
+          (advice) =>
+            advice.profileId === profileId &&
+            advice.reto !== undefined &&
+            !advice.retoCumplido &&
+            advice.date < date &&
+            advice.date >= floor,
+        )
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+    },
+    [db],
+  );
+
+  const markChallengeDone = useCallback((id: string, done: boolean) => {
+    setDb((prev) => {
+      const advice = prev.advice[id];
+      if (!advice) return prev;
+      const next = { ...advice, retoCumplido: done, updatedAt: new Date().toISOString() };
+      return { ...prev, advice: { ...prev.advice, [id]: next } };
+    });
+  }, []);
+
   const loadDemoData = useCallback(() => {
-    setDb(buildSeedDatabase());
+    // Los datos de ejemplo no traen comidas ni consejos: son de cada casa.
+    setDb((prev) => ({ ...buildSeedDatabase(), meals: prev.meals, advice: prev.advice }));
   }, []);
 
   const resetAll = useCallback(() => {
     clearDatabase();
-    setDb(emptyDatabase());
+    setDb((prev) => {
+      let tombstones = prev.tombstones;
+      for (const id of Object.keys(prev.entries)) tombstones = grave(tombstones, 'entries', id);
+      for (const id of Object.keys(prev.meals)) tombstones = grave(tombstones, 'meals', id);
+      for (const id of Object.keys(prev.advice)) tombstones = grave(tombstones, 'advice', id);
+      return { ...emptyDatabase(), tombstones };
+    });
   }, []);
 
-  const importEntries = useCallback((entries: EntryMap, mode: 'merge' | 'replace') => {
-    setDb((prev) => ({
-      ...prev,
-      entries: mode === 'replace' ? entries : { ...prev.entries, ...entries },
-    }));
-  }, []);
+  const importEntries = useCallback(
+    (data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap }, mode: 'merge' | 'replace') => {
+      const meals = data.meals ?? {};
+      const advice = data.advice ?? {};
+      setDb((prev) => ({
+        ...prev,
+        entries: mode === 'replace' ? data.entries : { ...prev.entries, ...data.entries },
+        meals: mode === 'replace' ? meals : { ...prev.meals, ...meals },
+        advice: mode === 'replace' ? advice : { ...prev.advice, ...advice },
+      }));
+    },
+    [],
+  );
 
-  const snapshot = useCallback(() => db.entries, [db]);
+  const snapshot = useCallback(
+    () => ({ entries: db.entries, meals: db.meals, advice: db.advice }),
+    [db],
+  );
 
-  const restore = useCallback((entries: EntryMap) => {
-    setDb((prev) => ({ ...prev, entries }));
+  const restore = useCallback((state: StoreSnapshot) => {
+    setDb((prev) => {
+      // Deshacer un borrado también deshace su lápida, y se olvida su versión
+      // subida para que la fila vuelva a viajar a la nube.
+      const tombstones = { ...prev.tombstones };
+      const revive = (table: CloudTable, ids: string[]) => {
+        for (const id of ids) {
+          delete tombstones[`${table}:${id}`];
+          delete synced.current[table][id];
+        }
+      };
+
+      revive('entries', Object.keys(state.entries));
+      revive('meals', Object.keys(state.meals));
+      revive('advice', Object.keys(state.advice));
+
+      return {
+        ...prev,
+        entries: state.entries,
+        meals: state.meals,
+        advice: state.advice,
+        tombstones,
+      };
+    });
   }, []);
 
   return useMemo(
     () => ({
       hydrated,
       entries: db.entries,
+      meals: db.meals,
+      advice: db.advice,
       status,
       getEntry,
       getValue,
@@ -227,15 +658,38 @@ export function useHabitStore(): HabitStore {
       setNote,
       clearDay,
       copyDay,
+      getMeals,
+      addMeal,
+      removeMeal,
+      getAdvice,
+      setAdvice,
+      removeAdvice,
+      pendingChallenge,
+      markChallengeDone,
       loadDemoData,
       resetAll,
       importEntries,
       snapshot,
       restore,
+      cloud: {
+        configured: cloudConfigured,
+        status: cloudStatus,
+        email: session?.user.email ?? null,
+        lastSync,
+        error: cloudError,
+      },
+      localOnly,
+      signIn,
+      signUp,
+      signOut,
+      syncNow,
+      setLocalOnly,
     }),
     [
       hydrated,
       db.entries,
+      db.meals,
+      db.advice,
       status,
       getEntry,
       getValue,
@@ -243,11 +697,29 @@ export function useHabitStore(): HabitStore {
       setNote,
       clearDay,
       copyDay,
+      getMeals,
+      addMeal,
+      removeMeal,
+      getAdvice,
+      setAdvice,
+      removeAdvice,
+      pendingChallenge,
+      markChallengeDone,
       loadDemoData,
       resetAll,
       importEntries,
       snapshot,
       restore,
+      cloudStatus,
+      cloudError,
+      lastSync,
+      localOnly,
+      session,
+      signIn,
+      signUp,
+      signOut,
+      syncNow,
+      setLocalOnly,
     ],
   );
 }

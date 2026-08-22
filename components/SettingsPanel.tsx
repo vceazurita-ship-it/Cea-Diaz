@@ -3,9 +3,9 @@
 import { useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
-import type { EntryMap, HabitStore } from '@/hooks/useHabitStore';
+import type { AdviceMap, EntryMap, HabitStore, MealMap } from '@/hooks/useHabitStore';
 import { loadPin, savePin } from '@/lib/storage';
-import type { DayEntry } from '@/types';
+import type { DayAdvice, DayEntry, MealAnalysis } from '@/types';
 
 interface SettingsPanelProps {
   store: HabitStore;
@@ -15,8 +15,88 @@ interface SettingsPanelProps {
 /** Registros pendientes de confirmar tras elegir un archivo. */
 interface StagedImport {
   entries: EntryMap;
+  meals: MealMap;
+  advice: AdviceMap;
   count: number;
   fileName: string;
+}
+
+/**
+ * Las comidas analizadas viajan en la copia igual que los registros. Las
+ * miniaturas no: viven en IndexedDB, en el dispositivo, así que al importar
+ * en otro móvil se conservan la nota y los consejos, pero no la foto.
+ */
+function parseMeals(raw: unknown): MealMap {
+  const source = (raw as { meals?: unknown })?.meals;
+  if (!source || typeof source !== 'object') return {};
+
+  const meals: MealMap = {};
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    const meal = value as Partial<MealAnalysis>;
+    if (!meal || typeof meal !== 'object') continue;
+    if (typeof meal.date !== 'string' || typeof meal.profileId !== 'string') continue;
+    if (typeof meal.nota !== 'number' || typeof meal.moment !== 'string') continue;
+
+    meals[key] = {
+      esComida: true,
+      nota: meal.nota,
+      titulo: typeof meal.titulo === 'string' ? meal.titulo : 'Plato',
+      resumen: typeof meal.resumen === 'string' ? meal.resumen : '',
+      alimentos: Array.isArray(meal.alimentos) ? meal.alimentos : [],
+      aciertos: Array.isArray(meal.aciertos) ? meal.aciertos : [],
+      ajustes: Array.isArray(meal.ajustes) ? meal.ajustes : [],
+      id: typeof meal.id === 'string' ? meal.id : key,
+      profileId: meal.profileId as MealAnalysis['profileId'],
+      date: meal.date,
+      moment: meal.moment as MealAnalysis['moment'],
+      photoId: typeof meal.photoId === 'string' ? meal.photoId : undefined,
+      createdAt:
+        typeof meal.createdAt === 'string' ? meal.createdAt : new Date().toISOString(),
+      updatedAt:
+        typeof meal.updatedAt === 'string'
+          ? meal.updatedAt
+          : typeof meal.createdAt === 'string'
+            ? meal.createdAt
+            : new Date().toISOString(),
+    };
+  }
+
+  return meals;
+}
+
+/** Los consejos viajan igual: son texto y pesan poco. */
+function parseAdvice(raw: unknown): AdviceMap {
+  const source = (raw as { advice?: unknown })?.advice;
+  if (!source || typeof source !== 'object') return {};
+
+  const advice: AdviceMap = {};
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    const item = value as Partial<DayAdvice>;
+    if (!item || typeof item !== 'object') continue;
+    if (typeof item.date !== 'string' || typeof item.profileId !== 'string') continue;
+    if (!Array.isArray(item.consejos)) continue;
+
+    advice[key] = {
+      id: typeof item.id === 'string' ? item.id : key,
+      profileId: item.profileId as DayAdvice['profileId'],
+      date: item.date,
+      resumen: typeof item.resumen === 'string' ? item.resumen : '',
+      consejos: item.consejos,
+      reto: item.reto,
+      retoCumplido: item.retoCumplido === true,
+      observaciones: typeof item.observaciones === 'string' ? item.observaciones : '',
+      createdAt:
+        typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
+      updatedAt:
+        typeof item.updatedAt === 'string'
+          ? item.updatedAt
+          : typeof item.createdAt === 'string'
+            ? item.createdAt
+            : new Date().toISOString(),
+    };
+  }
+
+  return advice;
 }
 
 /** Comprueba que lo leído del archivo tiene forma de registro antes de aceptarlo. */
@@ -54,6 +134,29 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
 
   const entryCount = Object.keys(store.entries).length;
 
+  /** Estado de la nube en una línea. */
+  const cloudSummary = (() => {
+    const when = store.cloud.lastSync
+      ? new Date(store.cloud.lastSync).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
+
+    switch (store.cloud.status) {
+      case 'signed-out':
+        return 'Sin sesión: lo que se registre aquí sólo está en este móvil.';
+      case 'syncing':
+        return 'Sincronizando…';
+      case 'synced':
+        return `${store.cloud.email} · al día${when ? ` desde las ${when}` : ''}.`;
+      case 'error':
+        return 'La última sincronización falló. Los datos siguen guardados en el móvil.';
+      default:
+        return 'Sólo este navegador.';
+    }
+  })();
+
   const changePin = () => {
     if (pin.length < 4) {
       notify({ message: 'El PIN debe tener al menos 4 dígitos.', icon: '⚠️', tone: 'danger' });
@@ -65,9 +168,16 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   };
 
   const exportData = () => {
-    const blob = new Blob([JSON.stringify({ version: 1, entries: store.entries }, null, 2)], {
-      type: 'application/json',
-    });
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          { version: 3, entries: store.entries, meals: store.meals, advice: store.advice },
+          null,
+          2,
+        ),
+      ],
+      { type: 'application/json' },
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -80,7 +190,8 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const pickFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const entries = parseEntries(JSON.parse(await file.text()));
+      const raw = JSON.parse(await file.text());
+      const entries = parseEntries(raw);
       if (!entries) {
         notify({
           message: 'El archivo no contiene registros reconocibles.',
@@ -89,7 +200,13 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
         });
         return;
       }
-      setStaged({ entries, count: Object.keys(entries).length, fileName: file.name });
+      setStaged({
+        entries,
+        meals: parseMeals(raw),
+        advice: parseAdvice(raw),
+        count: Object.keys(entries).length,
+        fileName: file.name,
+      });
     } catch {
       notify({ message: 'No se ha podido leer el archivo.', icon: '⚠️', tone: 'danger' });
     } finally {
@@ -100,7 +217,10 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const applyImport = (mode: 'merge' | 'replace') => {
     if (!staged) return;
     const before = store.snapshot();
-    store.importEntries(staged.entries, mode);
+    store.importEntries(
+      { entries: staged.entries, meals: staged.meals, advice: staged.advice },
+      mode,
+    );
     setStaged(null);
     notify({
       message: `${staged.count} ${staged.count === 1 ? 'día importado' : 'días importados'}.`,
@@ -134,6 +254,48 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   return (
     <Modal title="⚙️ Ajustes" onClose={onClose}>
       <div className="space-y-4 text-sm">
+        {/* -------------------------------------------------------- nube */}
+        {store.cloud.configured && (
+          <section className="rounded-2xl border hairline surf-1 p-3">
+            <h3 className="mb-1 font-bold t-1">Nube</h3>
+            <p className="mb-3 text-xs t-3">{cloudSummary}</p>
+
+            <div className="flex flex-wrap gap-2">
+              {store.cloud.status === 'signed-out' ? (
+                <button
+                  type="button"
+                  onClick={() => store.setLocalOnly(false)}
+                  className="btn-primary px-3 py-1.5 text-xs"
+                >
+                  🔑 Entrar con la cuenta de casa
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void store.syncNow()}
+                    disabled={store.cloud.status === 'syncing'}
+                    className="btn-ghost px-3 py-1.5 text-xs"
+                  >
+                    🔄 Sincronizar ahora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void store.signOut()}
+                    className="btn-ghost px-3 py-1.5 text-xs t-3"
+                  >
+                    Cerrar sesión
+                  </button>
+                </>
+              )}
+            </div>
+
+            {store.cloud.error && (
+              <p className="mt-2 text-[11px] t-danger">⚠️ {store.cloud.error}</p>
+            )}
+          </section>
+        )}
+
         {/* ------------------------------------------------------- datos */}
         <section className="rounded-2xl border hairline surf-1 p-3">
           <h3 className="mb-1 font-bold t-1">Datos</h3>

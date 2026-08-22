@@ -1,7 +1,7 @@
 import { addDays, todayKey } from '@/lib/dates';
 import { getCategories, SPORTS } from '@/lib/habits';
 import { PROFILES } from '@/lib/profiles';
-import { entryKey } from '@/lib/storage';
+import { DB_VERSION, entryKey } from '@/lib/storage';
 import type { DayEntry, HabitDatabase, Metric, MetricValue } from '@/types';
 
 /**
@@ -84,5 +84,6 @@ export function buildSeedDatabase(days = 28): HabitDatabase {
     }
   }
 
-  return { version: 1, entries };
+  // Sin comidas: las fotos de los platos son de cada casa, no de un ejemplo.
+  return { version: DB_VERSION, entries, meals: {}, advice: {}, tombstones: {} };
 }

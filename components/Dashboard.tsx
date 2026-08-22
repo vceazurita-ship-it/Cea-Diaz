@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
 import { ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
+import { MealPhotoCard } from '@/components/meals/MealPhotoCard';
+import { DayNoteCard, PendingChallengeCard } from '@/components/notes/DayNoteCard';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
 import { useToast } from '@/components/ui/Toast';
@@ -11,6 +13,7 @@ import type { HabitStore } from '@/hooks/useHabitStore';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
 import { getCategories } from '@/lib/habits';
+import { hasFoodGoals } from '@/lib/mealPrompt';
 import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import type { DashboardTab, DateKey, Profile } from '@/types';
@@ -77,6 +80,22 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
       })
     : categories;
 
+  /** Reto de progresión que quedó pendiente de una sesión anterior. */
+  const pendingAdvice = store.pendingChallenge(profile.id, date);
+
+  const completeChallenge = () => {
+    if (!pendingAdvice) return;
+    store.markChallengeDone(pendingAdvice.id, true);
+    notify({
+      message: '¡Reto conseguido!',
+      icon: '🏅',
+      action: {
+        label: 'Deshacer',
+        onClick: () => store.markChallengeDone(pendingAdvice.id, false),
+      },
+    });
+  };
+
   const handleChange = (metricId: string, value: Parameters<HabitStore['setValue']>[3]) => {
     store.setValue(profile.id, date, metricId, value);
   };
@@ -117,17 +136,6 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
           }
         : { message: 'El día anterior no tiene registros que copiar.', icon: '🤷' },
     );
-  };
-
-  const deleteDay = () => {
-    const before = store.snapshot();
-    store.clearDay(profile.id, date);
-    notify({
-      message: `Se ha borrado ${friendlyDateLabel(date).toLowerCase()}.`,
-      icon: '🗑️',
-      tone: 'danger',
-      action: { label: 'Deshacer', onClick: () => store.restore(before) },
-    });
   };
 
   const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
@@ -222,6 +230,14 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             </span>
           </div>
 
+          {pendingAdvice && (
+            <PendingChallengeCard
+              advice={pendingAdvice}
+              kid={kid}
+              onDone={completeChallenge}
+            />
+          )}
+
           {visibleCategories.length === 0 ? (
             <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
               <p className="text-4xl" aria-hidden>
@@ -254,44 +270,13 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             ))
           )}
 
-          {/* Nota del día */}
-          <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-            <label
-              htmlFor="nota"
-              className="mb-2 block text-sm font-bold uppercase tracking-wide t-2"
-            >
-              📔 Nota del día
-            </label>
-            <textarea
-              id="nota"
-              rows={3}
-              value={entry?.note ?? ''}
-              onChange={(e) => store.setNote(profile.id, date, e.target.value)}
-              placeholder={
-                kid ? '¿Qué ha sido lo mejor de hoy?' : 'Observaciones, incidencias, ideas...'
-              }
-              className="field w-full resize-y p-3"
-            />
+          {/* Fotos de comida: sólo donde hay objetivos de alimentación */}
+          {hasFoodGoals(profile.id) && (
+            <MealPhotoCard profile={profile} date={date} store={store} kid={kid} />
+          )}
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs t-3" aria-live="polite">
-                {!entry
-                  ? 'Aún no hay registros para este día.'
-                  : store.status === 'saving'
-                    ? '⏳ Guardando…'
-                    : `✓ Guardado · ${filled} ${filled === 1 ? 'registro' : 'registros'}`}
-              </p>
-              {entry && (
-                <button
-                  type="button"
-                  onClick={deleteDay}
-                  className="btn-ghost t-danger px-2.5 py-1.5 text-xs"
-                >
-                  🗑️ Borrar el día
-                </button>
-              )}
-            </div>
-          </div>
+          {/* Observaciones del día, dictado y consejo */}
+          <DayNoteCard profile={profile} date={date} store={store} kid={kid} filled={filled} />
 
           <p className="pt-1 text-center text-[11px] t-3">
             Atajos: <kbd className="font-mono font-bold">←</kbd>{' '}

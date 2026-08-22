@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ambient } from '@/components/Ambient';
+import { SignIn } from '@/components/cloud/SignIn';
 import { Dashboard } from '@/components/Dashboard';
 import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
@@ -10,6 +11,7 @@ import { TopBar } from '@/components/TopBar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { todayKey, weekKeys } from '@/lib/dates';
+import { prunePhotos } from '@/lib/photos';
 import { PROFILES, accentFor, accentStyle, getProfile, skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import type { DateKey, ProfileId } from '@/types';
@@ -79,6 +81,15 @@ export default function HomePage() {
       ?.setAttribute('content', THEME_COLOR[skin] ?? THEME_COLOR.night);
   }, [skin]);
 
+  // Miniaturas huérfanas: al arrancar no hay nada pendiente de deshacerse,
+  // así que lo que ya no pertenece a ninguna comida se puede tirar.
+  useEffect(() => {
+    if (!store.hydrated) return;
+    prunePhotos(Object.values(store.meals).map((meal) => meal.photoId ?? meal.id));
+    // Sólo al hidratar: después, cada borrado se limpia por su cuenta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.hydrated]);
+
   // Volver al selector con Escape: la salida siempre está a una tecla.
   useEffect(() => {
     if (!profile) return;
@@ -88,6 +99,22 @@ export default function HomePage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [profile, settingsOpen, goHome]);
+
+  // Con nube configurada y sin sesión, lo primero es entrar. Sólo se pide una
+  // vez por móvil, y siempre se puede seguir trabajando en local.
+  const needsSignIn =
+    store.hydrated && store.cloud.configured && store.cloud.status === 'signed-out' && !store.localOnly;
+
+  if (needsSignIn) {
+    return (
+      <ToastProvider>
+        <main data-skin="night" className="min-h-screen surf-page">
+          <Ambient skin="night" />
+          <SignIn store={store} />
+        </main>
+      </ToastProvider>
+    );
+  }
 
   return (
     <ToastProvider>

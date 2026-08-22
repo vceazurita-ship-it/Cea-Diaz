@@ -9,10 +9,11 @@ import type { DateKey, HabitDatabase, ProfileId } from '@/types';
 
 export const STORAGE_KEY = 'habitos-familia:v1';
 export const PIN_STORAGE_KEY = 'habitos-familia:pin';
-export const DB_VERSION = 1;
+/** v2 añadió `meals`, v3 `advice` y v4 las lápidas de la nube. */
+export const DB_VERSION = 4;
 
 export function emptyDatabase(): HabitDatabase {
-  return { version: DB_VERSION, entries: {} };
+  return { version: DB_VERSION, entries: {}, meals: {}, advice: {}, tombstones: {} };
 }
 
 export function entryKey(profileId: ProfileId, date: DateKey): string {
@@ -29,7 +30,13 @@ export function loadDatabase(): HabitDatabase {
     const parsed = JSON.parse(raw) as Partial<HabitDatabase>;
     if (!parsed || typeof parsed !== 'object' || !parsed.entries) return emptyDatabase();
 
-    return { version: parsed.version ?? DB_VERSION, entries: parsed.entries };
+    return {
+      version: parsed.version ?? DB_VERSION,
+      entries: parsed.entries,
+      meals: parsed.meals ?? {},
+      advice: parsed.advice ?? {},
+      tombstones: parsed.tombstones ?? {},
+    };
   } catch {
     // Datos corruptos: se empieza de cero en lugar de romper la app.
     return emptyDatabase();

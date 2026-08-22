@@ -194,6 +194,101 @@ export type EntryKey = string;
 export interface HabitDatabase {
   version: number;
   entries: Record<EntryKey, DayEntry>;
+  /** Análisis de fotos de comida, por identificador propio. */
+  meals: Record<string, MealAnalysis>;
+  /** Consejos del día, bajo la misma clave `${profileId}:${date}`. */
+  advice: Record<EntryKey, DayAdvice>;
+  /**
+   * Borrados pendientes de propagar a la nube, como `tabla:id` → momento del
+   * borrado. Sin esto, lo borrado en un móvil volvería en la siguiente
+   * sincronización, porque en la nube seguiría existiendo.
+   */
+  tombstones: Record<string, string>;
+}
+
+/* ------------------------- Consejos y progresión ------------------------ */
+
+/** Reto para la próxima sesión, un punto por encima de lo hecho hoy. */
+export interface NextChallenge {
+  /** Dónde toca: «gimnasio», «entrenamiento propio», «atletismo»… */
+  ambito: string;
+  titulo: string;
+  detalle: string;
+  /** Sobre qué se ha construido la progresión. */
+  partiendoDe: string;
+}
+
+/** Lo que devuelve el análisis de las observaciones del día. */
+export interface DayAdviceVerdict {
+  /** Una línea que resume lo contado, para saber de qué salió el consejo. */
+  resumen: string;
+  /** Consejos para mañana o los próximos días. */
+  consejos: string[];
+  /** Sólo si el día incluye gimnasio o entrenamiento. */
+  reto?: NextChallenge;
+}
+
+export interface DayAdvice extends DayAdviceVerdict {
+  id: EntryKey;
+  profileId: ProfileId;
+  date: DateKey;
+  /** Copia de las observaciones sobre las que se generó. */
+  observaciones: string;
+  /** Lo marca quien cumple el reto de la próxima sesión. */
+  retoCumplido?: boolean;
+  createdAt: string;
+  /** Última modificación; es lo que decide quién gana al sincronizar. */
+  updatedAt: string;
+}
+
+/* ------------------------------ Comidas --------------------------------- */
+
+export type MealMoment = 'desayuno' | 'comida' | 'merienda' | 'cena';
+
+/** Cómo encaja ese alimento en el objetivo de quien come. */
+export type FoodBalance = 'bien' | 'justo' | 'sobra' | 'falta';
+
+/** Qué habría que hacer distinto la próxima vez. */
+export type MealAdviceKind = 'aumentar' | 'reducir' | 'cambiar' | 'anadir';
+
+export interface MealFood {
+  nombre: string;
+  /** Ración estimada a ojo: «un puñado», «medio plato»… */
+  racion: string;
+  balance: FoodBalance;
+}
+
+export interface MealAdvice {
+  tipo: MealAdviceKind;
+  texto: string;
+}
+
+/** Lo que devuelve el análisis de la foto, ya validado. */
+export interface MealVerdict {
+  /** `false` cuando la foto no es un plato de comida. */
+  esComida: boolean;
+  /** Nota de 0 a 10 respecto al objetivo de esa persona. */
+  nota: number;
+  /** Nombre corto del plato. */
+  titulo: string;
+  resumen: string;
+  alimentos: MealFood[];
+  aciertos: string[];
+  ajustes: MealAdvice[];
+}
+
+export interface MealAnalysis extends MealVerdict {
+  id: string;
+  profileId: ProfileId;
+  date: DateKey;
+  moment: MealMoment;
+  /** Clave de la miniatura en IndexedDB; ausente si no se pudo guardar. */
+  photoId?: string;
+  /** Ruta del objeto en Supabase Storage, cuando la foto ya está en la nube. */
+  photoPath?: string;
+  createdAt: string;
+  /** Última modificación; es lo que decide quién gana al sincronizar. */
+  updatedAt: string;
 }
 
 /* -------------------------------- Cálculo ------------------------------- */
