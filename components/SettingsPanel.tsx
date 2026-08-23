@@ -5,12 +5,12 @@ import { Photo } from '@/components/ui/Photo';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useAppearance } from '@/hooks/useAppearance';
-import type { AdviceMap, EntryMap, HabitStore, MealMap } from '@/hooks/useHabitStore';
+import type { AdviceMap, EntryMap, HabitStore, MealMap, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_OWNER } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
 import { loadPin, savePin } from '@/lib/storage';
-import type { DayAdvice, DayEntry, MealAnalysis, ThemePreference } from '@/types';
+import type { DayAdvice, DayEntry, MealAnalysis, Task, ThemePreference } from '@/types';
 
 interface SettingsPanelProps {
   store: HabitStore;
@@ -22,6 +22,7 @@ interface StagedImport {
   entries: EntryMap;
   meals: MealMap;
   advice: AdviceMap;
+  tasks: TaskMap;
   count: number;
   fileName: string;
 }
@@ -103,6 +104,44 @@ function parseAdvice(raw: unknown): AdviceMap {
   }
 
   return advice;
+}
+
+/**
+ * Los recados, con su fecha y su estado. El vínculo con Google Calendar no
+ * viaja: el evento pertenece a una cuenta concreta y restaurar la copia en
+ * otra casa dejaría tareas apuntando a citas de un calendario ajeno.
+ */
+function parseTasks(raw: unknown): TaskMap {
+  const source = (raw as { tasks?: unknown })?.tasks;
+  if (!source || typeof source !== 'object') return {};
+
+  const tasks: TaskMap = {};
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    const item = value as Partial<Task>;
+    if (!item || typeof item !== 'object') continue;
+    if (typeof item.title !== 'string' || typeof item.profileId !== 'string') continue;
+
+    const now = new Date().toISOString();
+
+    tasks[key] = {
+      id: typeof item.id === 'string' ? item.id : key,
+      profileId: item.profileId as Task['profileId'],
+      title: item.title,
+      detail: typeof item.detail === 'string' ? item.detail : undefined,
+      kind: typeof item.kind === 'string' ? (item.kind as Task['kind']) : 'otro',
+      due: typeof item.due === 'string' ? item.due : undefined,
+      time: typeof item.time === 'string' ? item.time : undefined,
+      duration: typeof item.duration === 'number' ? item.duration : undefined,
+      remindBefore: typeof item.remindBefore === 'number' ? item.remindBefore : undefined,
+      repeat: typeof item.repeat === 'string' ? (item.repeat as Task['repeat']) : 'none',
+      done: item.done === true,
+      doneAt: typeof item.doneAt === 'string' ? item.doneAt : undefined,
+      createdAt: typeof item.createdAt === 'string' ? item.createdAt : now,
+      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : now,
+    };
+  }
+
+  return tasks;
 }
 
 /**
@@ -238,9 +277,16 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     const blob = new Blob(
       [
         JSON.stringify(
-          // v5 añadió las notas por categoría y lo que se cuenta del plato.
-          // Los archivos de versiones anteriores se siguen leyendo enteros.
-          { version: 5, entries: store.entries, meals: store.meals, advice: store.advice },
+          // v5 añadió las notas por categoría y lo que se cuenta del plato;
+          // v6, los recados. Los archivos de versiones anteriores se siguen
+          // leyendo enteros.
+          {
+            version: 6,
+            entries: store.entries,
+            meals: store.meals,
+            advice: store.advice,
+            tasks: store.tasks,
+          },
           null,
           2,
         ),
@@ -273,6 +319,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
         entries,
         meals: parseMeals(raw),
         advice: parseAdvice(raw),
+        tasks: parseTasks(raw),
         count: Object.keys(entries).length,
         fileName: file.name,
       });
@@ -287,7 +334,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     if (!staged) return;
     const before = store.snapshot();
     store.importEntries(
-      { entries: staged.entries, meals: staged.meals, advice: staged.advice },
+      { entries: staged.entries, meals: staged.meals, advice: staged.advice, tasks: staged.tasks },
       mode,
     );
     setStaged(null);

@@ -84,6 +84,7 @@ export function buildSeedDatabase(days = 28): HabitDatabase {
     }
   }
 
-  // Sin comidas: las fotos de los platos son de cada casa, no de un ejemplo.
-  return { version: DB_VERSION, entries, meals: {}, advice: {}, tombstones: {} };
+  // Sin comidas ni recados: las fotos de los platos y las citas del dentista
+  // son de cada casa, no de un ejemplo.
+  return { version: DB_VERSION, entries, meals: {}, advice: {}, tasks: {}, tombstones: {} };
 }

@@ -6,8 +6,9 @@ Aplicación web independiente de seguimiento de hábitos para una familia de cua
 Funciona **local-first**: se escribe siempre primero en el navegador, así que la app
 va rápida y no se cae sin cobertura. Encima de eso, dos servicios opcionales que se
 activan con sus claves: **Supabase**, para que lo registrado se guarde de verdad y se
-vea desde todos los móviles, y **Claude**, para analizar las fotos de comida y dar el
-consejo del día. Sin claves, todo sigue funcionando contra el propio navegador.
+vea desde todos los móviles, **Claude**, para analizar las fotos de comida y dar el
+consejo del día, y **Google Calendar**, para que los recados de cada uno avisen a su
+hora. Sin claves, todo sigue funcionando contra el propio navegador.
 
 ## Puesta en marcha
 
@@ -38,6 +39,9 @@ npm run lint       # ESLint
 | `ANTHROPIC_API_KEY` | Fotos de comida y consejo del día | Esas dos funciones avisan; el resto va igual |
 | `NEXT_PUBLIC_SUPABASE_URL` | Guardar y sincronizar entre móviles | Cada móvil guarda sólo lo suyo |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ídem | Ídem |
+| `GOOGLE_CLIENT_ID` | Llevar las tareas a Google Calendar | Las tareas se guardan igual, sin calendario |
+| `GOOGLE_CLIENT_SECRET` | Ídem | Ídem |
+| `SUPABASE_SERVICE_ROLE_KEY` | Guardar el permiso de Google (sólo en el servidor) | Ídem |
 
 Las dos `NEXT_PUBLIC_*` se incrustan al compilar: si se añaden después del primer
 despliegue, hay que **volver a desplegar** para que surtan efecto.
@@ -52,6 +56,7 @@ app/
   layout.tsx           Layout raíz, metadatos y modo pintado antes del primer render
   api/plato/route.ts   Análisis de la foto del plato con Claude
   api/consejo/route.ts Consejo del día y reto progresivo con Claude
+  api/calendario/       Cuenta de Google de cada perfil, vuelta del permiso y eventos
   page.tsx             Orquestador: selector ↔ dashboard ↔ PIN ↔ ajustes
   manifest.ts          Manifiesto PWA (instalable en el móvil)
   globals.css          Tailwind + utilidades propias (.card, .card-kid, .btn…)
@@ -59,7 +64,7 @@ components/
   Ambient.tsx          Decoración de fondo, teñida con el color del perfil
   ProfileSelector.tsx  Pantalla inicial con los 6 perfiles, su foto y su estado
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
-  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Retos / Resúmenes
+  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Retos / Tareas / Resúmenes
   profile/
     ProfileHeader.tsx  Las tres cabeceras de perfil (fútbol, editorial, grupo)
   cloud/
@@ -71,6 +76,11 @@ components/
     MealPhotoCard.tsx  Plato desde la cámara o la galería, nota y recomendaciones
   notes/
     DayNoteCard.tsx    Observaciones dictadas, consejo y reto pendiente
+  tasks/
+    TasksPanel.tsx     Recados y citas del perfil, agrupados por urgencia
+    TaskComposer.tsx   Alta y edición: qué, cuándo, aviso y repetición
+    TaskItem.tsx       Una tarea: tachar, editar, mandar al calendario
+    CalendarAccount.tsx Cuenta de Google enlazada y calendario de destino
   DateNavigator.tsx    Navegación por días con tira semanal
   CategoryCard.tsx     Categoría plegable con su cumplimiento, su nota y su criterio
   SportsPanel.tsx      Layout especial del desglose deportivo
@@ -101,6 +111,11 @@ lib/
   mealPrompt.ts        Contexto e instrucciones del análisis de fotos de comida
   advicePrompt.ts      Contexto del consejo del día y de la progresión de entreno
   photos.ts            Reducción de fotos y miniaturas en IndexedDB
+  tasks.ts             Recados: montones por urgencia, repetición y etiquetas
+  calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
+  googleCalendar.ts    Google Calendar desde el servidor: permisos, tokens y eventos
+  calendarLinks.ts     Los permisos guardados, uno por perfil, con el token cifrado
+  supabaseAdmin.ts     Cliente con clave de servicio, sólo para las rutas de /api
   rateLimit.ts         Tope de peticiones por IP en las rutas de Claude
   sound.ts             Sintonía al entrar en un perfil, con desvanecido
   supabase.ts          Cliente de la nube (opcional: sin claves, no se usa)
@@ -110,7 +125,7 @@ lib/
   appearance.ts        Ranuras de aspecto (fotos y sintonía) en IndexedDB
   seed.ts              Generador determinista de datos de ejemplo
 supabase/
-  schema.sql           Tablas, políticas RLS y cubo de fotos
+  schema.sql           Tablas, políticas RLS y cubos de fotos
 types/
   index.ts             Esquema de datos completo
 ```
@@ -138,6 +153,11 @@ Los registros se guardan como `DayEntry` bajo la clave `${profileId}:${YYYY-MM-D
 de modo que cada perfil tiene su propio historial independiente. Esa misma clave es
 la que identifica la fila en Supabase, así que el modelo local y el de la nube son
 el mismo con otros nombres.
+
+Las **tareas** son la excepción a esa forma, y por eso viven en su propia colección
+(`tasks`) con identificador propio: un hábito es la misma casilla repetida cada día,
+pero dos «comprar leche» del mismo día son dos recados distintos y ninguno de los dos
+pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 
 ### Perfiles y categorías
 
@@ -278,8 +298,8 @@ registrado sube solo en cuanto vuelve la conexión.
 ### Puesta en marcha, una vez
 
 1. Crea un proyecto en [supabase.com](https://supabase.com) (el plan gratuito sobra).
-2. **SQL Editor** → pega entero `supabase/schema.sql` → *Run*. Crea las tres tablas,
-   sus políticas de seguridad y el cubo de las fotos.
+2. **SQL Editor** → pega entero `supabase/schema.sql` → *Run*. Crea las tablas,
+   sus políticas de seguridad y los cubos de archivos.
 3. **Project Settings → API** → copia *Project URL* y la clave *anon public*.
 4. En Vercel, **Settings → Environment Variables**:
    `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Estas dos se
@@ -289,10 +309,11 @@ registrado sube solo en cuanto vuelve la conexión.
    (o desactiva *Confirm email* en **Authentication → Providers → Email**).
 6. En cada móvil de casa se entra **una sola vez**: la sesión queda guardada.
 
-> **Si ya tenías Supabase montado antes de las notas por categoría:** vuelve a pegar
+> **Si ya tenías Supabase montado de antes:** vuelve a pegar
 > `supabase/schema.sql` entero y dale a *Run*. Es idempotente —no borra nada— y añade
-> las dos columnas nuevas (`entries.notes` y `meals.context`). Hasta que se ejecute,
-> este móvil guarda igual pero la subida a la nube falla y lo avisa en Ajustes.
+> lo que falte: las columnas de las notas por categoría (`entries.notes`, `meals.context`)
+> y las tablas `tasks` y `calendar_links`. Hasta que se ejecute, este móvil guarda igual
+> pero la subida a la nube falla y lo avisa en Ajustes.
 
 ### Qué sube y qué no
 
@@ -302,6 +323,7 @@ registrado sube solo en cuanto vuelve la conexión.
 | Comidas: nota, alimentos y consejos | La caché de miniaturas (se rellena sola desde la nube) |
 | Miniaturas de los platos (cubo `comidas`) | La preferencia «trabajar sólo en este móvil» |
 | Consejos del día y retos de progresión | |
+| Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | El permiso de Google (vive cifrado en el servidor) |
 
 ### Cómo resuelve los conflictos
 
@@ -319,10 +341,15 @@ se pisa.
 
 ### Seguridad
 
-Las tres tablas tienen **RLS** y sus políticas sólo dejan ver y tocar las filas cuyo
-`owner` coincide con la sesión. Sin haber entrado no se lee absolutamente nada, aunque
-alguien tenga la clave pública (que va, por fuerza, dentro del navegador). El cubo de
-fotos es privado y se sirve con URL firmada.
+Todas las tablas de datos tienen **RLS** y sus políticas sólo dejan ver y tocar las filas
+cuyo `owner` coincide con la sesión. Sin haber entrado no se lee absolutamente nada,
+aunque alguien tenga la clave pública (que va, por fuerza, dentro del navegador). El cubo
+de fotos es privado y se sirve con URL firmada.
+
+`calendar_links` es la excepción, y a más: guarda los permisos de Google Calendar, así
+que tiene RLS **sin ninguna política** —la clave pública no la ve ni con sesión iniciada—
+y su token va cifrado con una clave que sólo existe en el entorno del servidor. Sólo las
+rutas de `app/api/calendario` pueden tocarla.
 
 La cuenta es **compartida por la casa**: quien entra ve los seis perfiles, igual que
 antes. El módulo de pareja sigue protegido por su PIN, que es una barrera doméstica,
@@ -511,6 +538,161 @@ sólo tener el historial (una exportación de los datos se lleva la colección c
 Los retos se generan con los datos anteriores al lunes, así que el listón no se mueve
 mientras la semana corre, y la rotación entre candidatos usa una semilla estable por
 perfil y semana: durante siete días son siempre los mismos tres.
+
+## Tareas y Google Calendar
+
+Cada perfil tiene su propia agenda, en la pestaña **📋 Tareas** (en los peques, **Agenda**).
+Es donde van las cosas que ocurren una vez y se tachan —la revisión del dentista, la
+reunión del colegio, comprar leche— y vive aparte de los hábitos a propósito: un hábito
+se repite cada día y se puntúa, un recado no. **Las tareas no entran en el cumplimiento
+ni en las estrellas**; nadie debería sacar peor nota por no haber comprado leche.
+
+Una tarea es, como mínimo, un título y un día. Todo lo demás está plegado detrás de
+«Hora, tipo, aviso y repetición», porque la mayoría de las veces no hace falta:
+
+| Campo         | Para qué                                                        |
+| ------------- | --------------------------------------------------------------- |
+| Tipo          | Cita, colegio, compra, casa, salud, trabajo, ocio u otro. Pone el icono y el color del evento |
+| Hora          | Sin ella, la tarea ocupa el día entero                            |
+| Duración      | Sólo con hora; por defecto, una hora                              |
+| Aviso         | Antelación del recordatorio                                       |
+| Repetición    | Diaria, semanal o mensual                                         |
+
+El título **se puede dictar**, con el mismo micrófono que las observaciones del día:
+escribir con el pulgar mientras se sale de la consulta del pediatra es justo cuando
+peor se hace.
+
+La lista se agrupa sola por urgencia —**se pasaron**, hoy, mañana, esta semana, más
+adelante, sin fecha, hechas— y la pestaña lleva un contador con lo que vence hoy, para
+verlo desde cualquier otra. Las hechas se esconden hasta que se piden.
+
+Una tarea que **se repite** no se cierra al tacharla: salta a su siguiente fecha y
+vuelve a estar pendiente, que es lo que se espera de «sacar la basura». El salto de mes
+se recorta al último día real, así que un «cada mes» nacido un 31 cae en el 28 de
+febrero y no se desliza al 3 de marzo.
+
+### Que aparezca en el calendario del móvil
+
+La app no escribe en el móvil: escribe en **la cuenta de Google**, y el móvil enseña
+esa cuenta. Por eso el recado sale en la app de Calendario de todos los dispositivos
+donde esa cuenta esté añadida, y sigue ahí aunque se desinstale esta app.
+
+- **Android.** Si el móvil ya está iniciado con esa cuenta, no hay nada que hacer: sale
+  solo en Google Calendar. Si el recado no aparece, es que ese calendario concreto está
+  desmarcado en **Calendar → ☰ → Ajustes → \[la cuenta\]**.
+- **iPhone.** Hay que añadir la cuenta una vez en **Ajustes → Aplicaciones → Calendario →
+  Cuentas → Añadir cuenta → Google**, con el interruptor de *Calendarios* activado.
+  (O instalar la app de Google Calendar, que es lo que menos falla.) Ojo: los calendarios
+  **secundarios** de Google no aparecen en el Calendario de iOS hasta marcarlos en
+  <https://calendar.google.com/calendar/syncselect> desde el propio iPhone.
+- **Los avisos** los da el móvil, no esta app: llegan aunque la app esté cerrada o
+  desinstalada, porque son notificaciones del calendario.
+
+Si en casa se quiere que todos vean los recados de todos, lo práctico es crear **un
+calendario compartido** en Google («Familia»), compartirlo con quien corresponda, y
+elegirlo como destino en los cuatro perfiles.
+
+### Que no se caiga nunca
+
+Un permiso de Google puede morir: alguien lo retira desde su cuenta, cambia la
+contraseña, o el proyecto sigue sin publicar y caduca a los siete días. La app está
+hecha para que eso **se note y se recupere solo**, en lugar de dejar de avisar en
+silencio:
+
+- Cada operación real contra Google deja anotado si el permiso sigue vivo. Cuando deja
+  de estarlo, la tarjeta de la cuenta lo dice en rojo, explica por qué y ofrece
+  **volver a conectar**. Hay además un botón **🩺 Comprobar** para verificarlo a mano.
+- Un recado que no ha podido llegar al calendario —sin cobertura, o con el permiso
+  caído— queda marcado como pendiente (`calendarPending`) y se ve como *«Se mandará al
+  calendario»*. La app **lo reintenta sola** al volver a abrir la sección, así que
+  apuntar algo en el coche acaba igualmente en el calendario.
+- Reintenta en fila y **se para a la primera negativa**: si el permiso ha caducado,
+  fallarían todas igual y no tiene sentido insistir.
+- Quitar un recado del calendario a mano cancela su reintento: la app no vuelve a
+  ponerlo por su cuenta.
+
+Lo único que la app **no** puede arreglar sola es el estado del proyecto en Google:
+para que los permisos no caduquen cada semana hay que publicarlo, y eso se hace una vez
+(ver más abajo).
+
+### Enlazar una cuenta de Google
+
+El enlace es **por perfil**, no por casa. Cada uno conecta la cuenta que quiera y elige
+en qué calendario de esa cuenta caen sus recados, de modo que Leo —que no tiene cuenta
+propia— puede colgar los suyos del calendario compartido de la familia sin mezclarse con
+el trabajo de nadie. Se hace desde la propia pestaña de tareas, al final.
+
+A partir de ahí, **lo que se apunte con fecha viaja solo al calendario** y avisa a su
+hora: para eso se conectó. Lo que no tiene fecha se queda en la app, porque un
+recordatorio necesita un cuándo. Cada recado se puede quitar del calendario por
+separado, editar (el evento se pone al día) o borrar (el evento se retira, y deshacer
+lo vuelve a poner).
+
+Las tareas puntuales pierden su evento al tacharse —ya no hay nada que recordar—; las
+que se repiten conservan su serie en Google y siguen avisando.
+
+> **Los avisos de las tareas de todo el día.** Google cuenta la antelación desde el
+> comienzo del evento, y en un evento de día entero el comienzo es la medianoche. Por eso
+> ahí sólo se puede avisar la víspera o antes, y la app ofrece justo esas opciones en vez
+> de otras que Google no podría cumplir.
+
+### Cómo está montado
+
+Nada de Google toca el navegador. La app le pide al servidor «conecta este perfil» o
+«manda este recado», y las credenciales viven sólo en las rutas de `app/api/calendario`:
+
+| Ruta                        | Qué hace                                                        |
+| --------------------------- | --------------------------------------------------------------- |
+| `GET /api/calendario`        | Qué perfiles tienen calendario y si la integración está disponible |
+| `POST /api/calendario`       | Conectar, desconectar, listar calendarios de la cuenta o cambiar de calendario |
+| `GET /api/calendario/callback` | La vuelta desde Google; canjea el permiso y devuelve a la app   |
+| `POST /api/calendario/evento`  | Crea, actualiza o retira el evento de una tarea                 |
+
+El permiso duradero (`refresh_token`) se guarda en `calendar_links` con doble
+protección: va **cifrado** con una clave derivada de `GOOGLE_CLIENT_SECRET` —que sólo
+existe en el entorno del servidor, nunca en la base— y la tabla tiene RLS activado y
+**ninguna política**, de modo que la clave pública del navegador no la ve ni con sesión
+iniciada. Sólo la clave de servicio puede tocarla. Desconectar borra la fila y revoca el
+permiso en la propia cuenta de Google, no sólo aquí.
+
+El ida y vuelta del consentimiento es una navegación del navegador y no puede llevar
+cabecera de sesión, así que **quién autoriza qué viaja firmado** (HMAC) dentro del
+parámetro `state`, y caduca a los diez minutos: sin eso, cualquiera podría devolver un
+consentimiento diciendo que es de otra cuenta y colgarle su calendario. Al volver, la
+app reconstruye dónde estaba quien lo pidió —su perfil, sus tareas— y le cuenta cómo ha
+ido.
+
+### Configuración
+
+En Google Cloud Console: habilitar la **Google Calendar API** y crear un **ID de cliente
+de OAuth** de tipo «Aplicación web», con estas URIs de redirección:
+
+```
+http://localhost:3000/api/calendario/callback
+https://TU-DOMINIO/api/calendario/callback
+```
+
+Y en el entorno (ver `.env.example`):
+
+```bash
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SUPABASE_SERVICE_ROLE_KEY=   # sin NEXT_PUBLIC_: no puede acabar en el navegador
+```
+
+**Sin ninguna de las tres, la sección de tareas funciona igual**: la lista se guarda en
+el móvil y en la cuenta de casa, se ve desde todos los dispositivos y lo dice claramente
+en vez de ofrecer un botón que no lleva a ninguna parte. Es la misma regla que rige el
+resto de la app.
+
+> **Pon la pantalla de consentimiento «En producción». Esto es lo que hace que dure para
+> siempre.** Mientras el proyecto de Google siga en estado *Testing*, los permisos
+> **caducan a los siete días** y habría que volver a conectar cada cuenta todas las
+> semanas. En **Pantalla de consentimiento de OAuth → Publicar aplicación** eso deja de
+> pasar y el enlace se mantiene indefinidamente. Al no estar verificada por Google —no
+> hace falta para un uso doméstico, con el tope de 100 cuentas de sobra— la primera vez
+> aparece un aviso de «app no verificada»: se entra por *Configuración avanzada → Ir
+> a…*, y sólo la primera vez por cuenta.
 
 ## Color: modo, tinte y piel
 
@@ -725,3 +907,9 @@ la pantalla de bloqueo sólo muestra esa pista mientras nadie lo haya cambiado).
 Es una barrera doméstica, no seguridad real: los datos viven sin cifrar en el `localStorage`
 del navegador. Si en el futuro se quiere sincronizar entre dispositivos, basta con sustituir
 `loadDatabase` / `saveDatabase` en `lib/storage.ts` por llamadas a una API.
+
+De la app **sale muy poco, y sólo cuando se pide**: la foto de un plato y las
+observaciones del día van a Claude al pulsar su botón, y un recado va a Google Calendar
+si ese perfil tiene cuenta enlazada y la tarea tiene fecha. Los permisos de Google se
+guardan cifrados en el servidor, no viajan nunca al navegador, y desconectar una cuenta
+los borra aquí y los revoca allí. Nada más sale de la casa.

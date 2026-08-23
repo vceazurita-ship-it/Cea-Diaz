@@ -7,6 +7,7 @@ import { Dashboard } from '@/components/Dashboard';
 import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import type { CalendarNotice } from '@/components/tasks/TasksPanel';
 import { TopBar } from '@/components/TopBar';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -27,7 +28,7 @@ import {
   skinOf,
 } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
-import type { DateKey, Profile, ProfileId } from '@/types';
+import type { DashboardTab, DateKey, Profile, ProfileId } from '@/types';
 
 export default function HomePage() {
   return (
@@ -52,6 +53,10 @@ function Home() {
   const [editing, setEditing] = useState<Profile | null>(null);
   /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
   const [nowPlaying, setNowPlaying] = useState<Profile | null>(null);
+  /** Desenlace de la vuelta desde Google Calendar, si se viene de allí. */
+  const [calendarReturn, setCalendarReturn] = useState<CalendarNotice | null>(null);
+  /** Pestaña de partida del panel; sólo la fija esa vuelta. */
+  const [landingTab, setLandingTab] = useState<DashboardTab | undefined>();
 
   /** Resumen de un vistazo para las tarjetas del selector. */
   const glances = useMemo(() => {
@@ -144,6 +149,34 @@ function Home() {
   // Nadie quiere música sonando en una pestaña que ya no mira.
   useEffect(() => stopAnthem, []);
 
+  // Vuelta desde Google Calendar. El consentimiento saca de la app y devuelve
+  // a la raíz, así que hay que reconstruir dónde estaba quien lo pidió: se
+  // vuelve a su perfil, directamente a sus tareas, y allí se le cuenta cómo
+  // ha ido. La sintonía no suena en este camino: no se ha entrado al perfil,
+  // se ha vuelto a él a medio recado.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('calendario');
+    if (!outcome) return;
+
+    const asked = params.get('perfil');
+    const known = PROFILES.some((profile) => profile.id === asked);
+
+    setCalendarReturn({
+      ok: outcome === 'ok',
+      profileId: known ? (asked as ProfileId) : undefined,
+      reason: params.get('motivo') ?? undefined,
+    });
+
+    if (known) {
+      setActiveProfile(asked as ProfileId);
+      setLandingTab('tasks');
+    }
+
+    // La barra se limpia: recargar no debe repetir el aviso ni el viaje.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
   // El aspecto viaja por su cuenta: son archivos, no filas, y no tiene
   // sentido retrasar los hábitos esperando a que baje una canción. Se
   // reconcilia en cuanto la cuenta está lista.
@@ -226,7 +259,20 @@ function Home() {
               onCancel={goHome}
             />
           ) : (
-            <Dashboard profile={profile} date={date} onDateChange={setDate} store={store} />
+            <Dashboard
+              profile={profile}
+              date={date}
+              onDateChange={setDate}
+              store={store}
+              initialTab={landingTab}
+              calendarNotice={
+                calendarReturn &&
+                (!calendarReturn.profileId || calendarReturn.profileId === profile.id)
+                  ? calendarReturn
+                  : null
+              }
+              onCalendarNoticeSeen={() => setCalendarReturn(null)}
+            />
           )}
         </div>
 

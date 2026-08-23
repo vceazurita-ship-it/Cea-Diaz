@@ -146,3 +146,86 @@ create policy "aspecto propio" on storage.objects
   for all to authenticated
   using (bucket_id = 'aspecto' and owner = auth.uid())
   with check (bucket_id = 'aspecto' and owner = auth.uid());
+
+-- --------------------------------------------------------------- tareas
+--  Recados y citas de cada uno: la revisión del dentista, la reunión del
+--  colegio, comprar leche. A diferencia de los registros diarios, no hay
+--  una fila por día sino una por encargo, con identificador propio.
+
+create table if not exists public.tasks (
+  id            text primary key,
+  owner         uuid not null references auth.users (id) on delete cascade,
+  profile_id    text not null,
+  title         text not null,
+  detail        text,
+  kind          text not null default 'otro',
+  due_day       date,                    -- nulo en las tareas sin fecha
+  due_time      time,                    -- nulo si ocupa el día entero
+  duration      integer,                 -- minutos, sólo cuando hay hora
+  remind_before integer,                 -- minutos de antelación del aviso
+  repeat_rule   text not null default 'none',
+  done          boolean not null default false,
+  done_at       timestamptz,
+  calendar      jsonb,                   -- evento espejo en Google Calendar
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists tasks_owner_due_idx on public.tasks (owner, profile_id, due_day);
+
+alter table public.tasks enable row level security;
+
+drop policy if exists "tareas propias" on public.tasks;
+create policy "tareas propias" on public.tasks
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
+-- -------------------------------------------- permisos de Google Calendar
+--  Una fila por perfil enlazado. Guarda el permiso duradero que deja crear
+--  eventos en nombre de esa cuenta, así que es lo más sensible del proyecto
+--  y se protege por partida doble:
+--
+--   1. El token va cifrado con una clave que sólo existe en el entorno del
+--      servidor, nunca en la base.
+--   2. La tabla tiene RLS activado y **ninguna** política, de modo que la
+--      clave pública del navegador no la ve ni con sesión iniciada. Sólo la
+--      clave de servicio (`SUPABASE_SERVICE_ROLE_KEY`, que vive en las
+--      rutas de `app/api`) puede tocarla.
+--
+--  Quitar el permiso desde la app borra la fila y lo revoca en Google.
+
+create table if not exists public.calendar_links (
+  id            text primary key,        -- `${owner}:${profileId}`
+  owner         uuid not null references auth.users (id) on delete cascade,
+  profile_id    text not null,
+  email         text not null default '',-- cuenta de Google enlazada
+  calendar_id   text not null default 'primary',
+  calendar_name text not null default '',
+  refresh_token text not null,           -- cifrado (AES-256-GCM)
+  connected_at  timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists calendar_links_owner_idx on public.calendar_links (owner);
+
+alter table public.calendar_links enable row level security;
+
+--  Por si una versión anterior del esquema hubiera dejado alguna abierta.
+drop policy if exists "calendarios propios" on public.calendar_links;
+
+-- Columnas añadidas después: quien ya tenga las tablas creadas las recibe
+-- aquí sin perder nada.
+--
+--  `tasks.calendar_pending`  la tarea debía ir al calendario y no llegó
+--                            (sin cobertura, o Google falló). Se reintenta.
+--  `calendar_links.broken`   Google ha dejado de aceptar el permiso: hay que
+--                            volver a conectar esa cuenta, y la app lo dice.
+--  `calendar_links.checked_at` última vez que se comprobó que seguía vivo.
+
+alter table public.tasks
+  add column if not exists calendar_pending boolean not null default false;
+
+alter table public.calendar_links
+  add column if not exists broken boolean not null default false,
+  add column if not exists checked_at timestamptz;

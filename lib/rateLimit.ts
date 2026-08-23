@@ -28,23 +28,35 @@ export function clientIp(request: Request): string {
   return request.headers.get('x-real-ip') ?? 'desconocida';
 }
 
+export interface RateLimitOptions {
+  /**
+   * Contador aparte. Las rutas que gastan la clave de Claude y las que sólo
+   * escriben en un calendario no compiten por el mismo cupo: apuntar seis
+   * recados seguidos no puede dejar a nadie sin analizar la cena.
+   */
+  bucket?: string;
+  /** Peticiones permitidas en la ventana; por defecto, las de la clave. */
+  max?: number;
+}
+
 /**
  * Anota una petición y dice si se pasa del tope.
  * @returns `true` si hay que rechazarla.
  */
-export function isRateLimited(ip: string): boolean {
+export function isRateLimited(ip: string, options: RateLimitOptions = {}): boolean {
   const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((time) => now - time < WINDOW_MS);
+  const key = options.bucket ? `${options.bucket}:${ip}` : ip;
+  const recent = (hits.get(key) ?? []).filter((time) => now - time < WINDOW_MS);
 
   recent.push(now);
-  hits.set(ip, recent);
+  hits.set(key, recent);
 
   // Limpieza perezosa: sólo cuando el mapa se hace grande.
   if (hits.size > MAX_TRACKED) {
-    for (const [key, times] of hits) {
-      if (times.every((time) => now - time >= WINDOW_MS)) hits.delete(key);
+    for (const [tracked, times] of hits) {
+      if (times.every((time) => now - time >= WINDOW_MS)) hits.delete(tracked);
     }
   }
 
-  return recent.length > MAX_REQUESTS;
+  return recent.length > (options.max ?? MAX_REQUESTS);
 }

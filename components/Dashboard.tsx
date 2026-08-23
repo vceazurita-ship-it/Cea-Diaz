@@ -9,6 +9,7 @@ import { MealPhotoCard } from '@/components/meals/MealPhotoCard';
 import { DayNoteCard, PendingChallengeCard } from '@/components/notes/DayNoteCard';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
+import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { buildChallengeWeek } from '@/lib/challenges';
@@ -17,6 +18,7 @@ import { getCategories } from '@/lib/habits';
 import { hasFoodGoals } from '@/lib/mealPrompt';
 import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
+import { dueCount } from '@/lib/tasks';
 import type { DashboardTab, DateKey, Profile } from '@/types';
 
 interface DashboardProps {
@@ -24,10 +26,23 @@ interface DashboardProps {
   date: DateKey;
   onDateChange: (date: DateKey) => void;
   store: HabitStore;
+  /** Pestaña de partida; se usa al volver de conectar Google Calendar. */
+  initialTab?: DashboardTab;
+  /** Desenlace de esa conexión, para acusarlo donde se pidió. */
+  calendarNotice?: CalendarNotice | null;
+  onCalendarNoticeSeen?: () => void;
 }
 
-export function Dashboard({ profile, date, onDateChange, store }: DashboardProps) {
-  const [tab, setTab] = useState<DashboardTab>('today');
+export function Dashboard({
+  profile,
+  date,
+  onDateChange,
+  store,
+  initialTab,
+  calendarNotice,
+  onCalendarNoticeSeen,
+}: DashboardProps) {
+  const [tab, setTab] = useState<DashboardTab>(initialTab ?? 'today');
   const [onlyPending, setOnlyPending] = useState(false);
   const notify = useToast();
 
@@ -145,16 +160,21 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
     );
   };
 
+  /** Recados que urgen hoy; se acusan en la propia pestaña. */
+  const tasksDue = dueCount(store.getTasks(profile.id));
+
   const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
     skin === 'pitch'
       ? [
           { id: 'today', label: 'Partido', icon: '⚽' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
+          { id: 'tasks', label: 'Agenda', icon: '📋' },
           { id: 'summary', label: 'Estadísticas', icon: '📊' },
         ]
       : [
           { id: 'today', label: 'Registro', icon: '📝' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
+          { id: 'tasks', label: 'Tareas', icon: '📋' },
           { id: 'summary', label: 'Resúmenes', icon: '📊' },
         ];
 
@@ -194,13 +214,24 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
               id={`tab-${option.id}`}
               tabIndex={active ? 0 : -1}
               onClick={() => setTab(option.id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2.5
-                text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-1.5
+                py-2.5 text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
                 ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}
                 ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}`}
             >
               <span aria-hidden>{option.icon}</span>
-              {option.label}
+              <span className="truncate">{option.label}</span>
+
+              {/* Lo que urge hoy se ve desde cualquier pestaña */}
+              {option.id === 'tasks' && tasksDue > 0 && (
+                <span
+                  aria-label={`${tasksDue} pendientes`}
+                  className={`shrink-0 rounded-full px-1.5 text-[10px] tabular-nums
+                    ${active ? 'bg-white/25' : 'bg-accent-soft t-1'}`}
+                >
+                  {tasksDue}
+                </span>
+              )}
             </button>
           );
         })}
@@ -323,6 +354,17 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             skin={skin}
             note={notes[CHALLENGE_NOTE_KEY] ?? ''}
             onNoteChange={(text) => writeNote(CHALLENGE_NOTE_KEY, text)}
+          />
+        </div>
+      ) : tab === 'tasks' ? (
+        <div role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">
+          <TasksPanel
+            profile={profile}
+            store={store}
+            kid={kid}
+            skin={skin}
+            notice={calendarNotice}
+            onNoticeSeen={onCalendarNoticeSeen}
           />
         </div>
       ) : (

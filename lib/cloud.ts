@@ -9,6 +9,10 @@ import type {
   MetricValue,
   NextChallenge,
   ProfileId,
+  Task,
+  TaskCalendarLink,
+  TaskKind,
+  TaskRepeat,
 } from '@/types';
 
 /* =========================================================================
@@ -27,7 +31,7 @@ import type {
  * ========================================================================= */
 
 /** Tablas que se sincronizan; el prefijo también nombra las lápidas. */
-export type CloudTable = 'entries' | 'meals' | 'advice';
+export type CloudTable = 'entries' | 'meals' | 'advice' | 'tasks';
 
 export const PHOTO_BUCKET = 'comidas';
 
@@ -76,6 +80,30 @@ interface AdviceRow {
   challenge: NextChallenge | null;
   challenge_done: boolean;
   observations: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TaskRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  title: string;
+  detail: string | null;
+  kind: string;
+  /** Día en que toca; `null` en las tareas sin fecha. */
+  due_day: string | null;
+  /** Hora `HH:MM`; `null` si es de todo el día. */
+  due_time: string | null;
+  duration: number | null;
+  remind_before: number | null;
+  repeat_rule: string;
+  done: boolean;
+  done_at: string | null;
+  /** El evento espejo en Google Calendar, si la tarea ya viajó. */
+  calendar: TaskCalendarLink | null;
+  /** Debía viajar y no llegó; se reintenta al abrir la sección. */
+  calendar_pending: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -174,6 +202,46 @@ const fromAdviceRow = (row: AdviceRow): DayAdvice => ({
   updatedAt: row.updated_at,
 });
 
+const toTaskRow = (task: Task, owner: string): TaskRow => ({
+  id: task.id,
+  owner,
+  profile_id: task.profileId,
+  title: task.title,
+  detail: task.detail ?? null,
+  kind: task.kind,
+  due_day: task.due ?? null,
+  due_time: task.time ?? null,
+  duration: task.duration ?? null,
+  remind_before: task.remindBefore ?? null,
+  repeat_rule: task.repeat,
+  done: task.done,
+  done_at: task.doneAt ?? null,
+  calendar: task.calendar ?? null,
+  calendar_pending: task.calendarPending ?? false,
+  created_at: task.createdAt,
+  updated_at: task.updatedAt,
+});
+
+const fromTaskRow = (row: TaskRow): Task => ({
+  id: row.id,
+  profileId: row.profile_id as ProfileId,
+  title: row.title,
+  detail: row.detail || undefined,
+  kind: row.kind as TaskKind,
+  due: row.due_day ?? undefined,
+  // Postgres devuelve `time` como `HH:MM:SS`; a la app le basta con la hora.
+  time: row.due_time ? row.due_time.slice(0, 5) : undefined,
+  duration: row.duration ?? undefined,
+  remindBefore: row.remind_before ?? undefined,
+  repeat: row.repeat_rule as TaskRepeat,
+  done: row.done,
+  doneAt: row.done_at ?? undefined,
+  calendar: row.calendar ?? undefined,
+  calendarPending: row.calendar_pending === true ? true : undefined,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 /* ---------------------------------------------------------------------------
  * Bajada
  * ------------------------------------------------------------------------- */
@@ -182,6 +250,7 @@ export interface CloudSnapshot {
   entries: Record<string, DayEntry>;
   meals: Record<string, MealAnalysis>;
   advice: Record<string, DayAdvice>;
+  tasks: Record<string, Task>;
 }
 
 /** Se trae todo: una familia genera miles de filas, no millones. */
@@ -189,16 +258,17 @@ export async function pullAll(): Promise<CloudSnapshot> {
   const client = supabase();
   if (!client) throw new Error('La nube no está configurada.');
 
-  const [entries, meals, advice] = await Promise.all([
+  const [entries, meals, advice, tasks] = await Promise.all([
     client.from('entries').select('*'),
     client.from('meals').select('*'),
     client.from('advice').select('*'),
+    client.from('tasks').select('*'),
   ]);
 
-  const error = entries.error ?? meals.error ?? advice.error;
+  const error = entries.error ?? meals.error ?? advice.error ?? tasks.error;
   if (error) throw new Error(error.message);
 
-  const snapshot: CloudSnapshot = { entries: {}, meals: {}, advice: {} };
+  const snapshot: CloudSnapshot = { entries: {}, meals: {}, advice: {}, tasks: {} };
 
   for (const row of (entries.data ?? []) as EntryRow[]) {
     snapshot.entries[row.id] = fromEntryRow(row);
@@ -208,6 +278,9 @@ export async function pullAll(): Promise<CloudSnapshot> {
   }
   for (const row of (advice.data ?? []) as AdviceRow[]) {
     snapshot.advice[row.id] = fromAdviceRow(row);
+  }
+  for (const row of (tasks.data ?? []) as TaskRow[]) {
+    snapshot.tasks[row.id] = fromTaskRow(row);
   }
 
   return snapshot;
@@ -239,6 +312,10 @@ export async function pushMeals(meals: MealAnalysis[], owner: string): Promise<v
 
 export async function pushAdvice(advice: DayAdvice[], owner: string): Promise<void> {
   await upsertAll('advice', advice.map((item) => toAdviceRow(item, owner)));
+}
+
+export async function pushTasks(tasks: Task[], owner: string): Promise<void> {
+  await upsertAll('tasks', tasks.map((task) => toTaskRow(task, owner)));
 }
 
 /** Propaga los borrados anotados como lápidas. */
@@ -347,7 +424,7 @@ export function versionIndex<T extends Versioned>(rows: Record<string, T>): Reco
 
 /** Reparte las lápidas por tabla. */
 export function tombstonesByTable(tombstones: Record<string, string>): Record<CloudTable, string[]> {
-  const grouped: Record<CloudTable, string[]> = { entries: [], meals: [], advice: [] };
+  const grouped: Record<CloudTable, string[]> = { entries: [], meals: [], advice: [], tasks: [] };
 
   for (const key of Object.keys(tombstones)) {
     const separator = key.indexOf(':');
@@ -359,8 +436,8 @@ export function tombstonesByTable(tombstones: Record<string, string>): Record<Cl
 }
 
 /** Base vacía con la forma que espera el resto de la app. */
-export function emptySnapshot(): Pick<HabitDatabase, 'entries' | 'meals' | 'advice'> {
-  return { entries: {}, meals: {}, advice: {} };
+export function emptySnapshot(): Pick<HabitDatabase, 'entries' | 'meals' | 'advice' | 'tasks'> {
+  return { entries: {}, meals: {}, advice: {}, tasks: {} };
 }
 
 /* ---------------------------------------------------------------------------

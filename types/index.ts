@@ -257,6 +257,8 @@ export interface HabitDatabase {
   meals: Record<string, MealAnalysis>;
   /** Consejos del día, bajo la misma clave `${profileId}:${date}`. */
   advice: Record<EntryKey, DayAdvice>;
+  /** Recados y citas de cada uno, por identificador propio. */
+  tasks: Record<string, Task>;
   /**
    * Borrados pendientes de propagar a la nube, como `tabla:id` → momento del
    * borrado. Sin esto, lo borrado en un móvil volvería en la siguiente
@@ -582,7 +584,117 @@ export interface AttentionItem {
   status: 'sinRegistrar' | 'flojo' | 'excedido';
 }
 
+/* --------------------------------- Tareas -------------------------------- */
+
+/**
+ * De qué va el recado. No cambia el cálculo de nada: sirve para ponerle un
+ * icono, agruparlo de un vistazo y decirle a Google Calendar de qué color
+ * pintar el evento.
+ */
+export type TaskKind =
+  | 'cita'
+  | 'colegio'
+  | 'compra'
+  | 'casa'
+  | 'salud'
+  | 'trabajo'
+  | 'ocio'
+  | 'otro';
+
+/** Cada cuánto vuelve la tarea. `none` es lo normal: se hace y se acabó. */
+export type TaskRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
+
+/** El evento espejo en Google Calendar, cuando la tarea ya ha viajado. */
+export interface TaskCalendarLink {
+  /** Identificador del evento en Google. */
+  eventId: string;
+  /** Calendario en el que vive; puede no ser el principal de la cuenta. */
+  calendarId: string;
+  /** Enlace para abrirlo en Google Calendar. */
+  htmlLink?: string;
+  /**
+   * Copia de lo que se mandó la última vez. Comparándola con la tarea actual
+   * se sabe si el evento está desfasado sin preguntárselo a Google.
+   */
+  signature: string;
+  syncedAt: string;
+}
+
+export interface Task {
+  id: string;
+  profileId: ProfileId;
+  title: string;
+  /** Detalle opcional: la dirección de la consulta, qué marca de leche… */
+  detail?: string;
+  kind: TaskKind;
+  /** Día en que toca. Ausente en las tareas sin fecha («algún día»). */
+  due?: DateKey;
+  /** Hora `HH:MM` dentro de ese día; sin ella, es tarea de todo el día. */
+  time?: string;
+  /** Minutos que ocupa, sólo cuando hay hora. */
+  duration?: number;
+  /** Minutos de antelación del aviso; `null` explícito sería «sin aviso». */
+  remindBefore?: number;
+  repeat: TaskRepeat;
+  done: boolean;
+  /** Cuándo se marcó hecha (ISO). */
+  doneAt?: string;
+  calendar?: TaskCalendarLink;
+  /**
+   * La tarea debería estar en el calendario y todavía no lo está: se apuntó
+   * sin cobertura, o el envío falló. La app lo reintenta sola en cuanto
+   * vuelve a abrirse la sección, y por eso hace falta distinguirlo de una
+   * tarea que nunca se quiso mandar o que se quitó a mano.
+   */
+  calendarPending?: boolean;
+  createdAt: string;
+  /** Última modificación; es lo que decide quién gana al sincronizar. */
+  updatedAt: string;
+}
+
+/** Montón en el que cae una tarea al ordenarlas por urgencia. */
+export type TaskBucket =
+  | 'vencidas'
+  | 'hoy'
+  | 'manana'
+  | 'semana'
+  | 'despues'
+  | 'sinFecha'
+  | 'hechas';
+
+/**
+ * Lo que la app sabe de la cuenta de Google enlazada a un perfil. Nunca
+ * incluye credenciales: los tokens viven en el servidor y no salen de allí.
+ */
+export interface CalendarLink {
+  profileId: ProfileId;
+  /** Cuenta de Google con la que se enlazó. */
+  email: string;
+  calendarId: string;
+  calendarName: string;
+  connectedAt: string;
+  /**
+   * Google ha dejado de aceptar el permiso: alguien lo retiró desde su
+   * cuenta, cambió la contraseña o el proyecto sigue sin publicar y ha
+   * caducado. Hay que volver a conectar, y la app tiene que decirlo en vez
+   * de quedarse callada dando por hecho que sigue enlazada.
+   */
+  needsReconnect: boolean;
+  /** Última vez que se comprobó que el permiso seguía vivo (ISO). */
+  checkedAt?: string;
+}
+
+/** Un calendario de la cuenta, para poder elegir dónde caen los recordatorios. */
+export interface CalendarOption {
+  id: string;
+  name: string;
+  /** El principal de la cuenta. */
+  primary: boolean;
+  /** Sin permiso de escritura no se puede usar para crear eventos. */
+  writable: boolean;
+}
+
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';
-export type DashboardTab = 'today' | 'challenges' | 'summary';
+export type DashboardTab = 'today' | 'challenges' | 'tasks' | 'summary';

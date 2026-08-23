@@ -11,6 +11,7 @@ import {
   pushAdvice,
   pushEntries,
   pushMeals,
+  pushTasks,
   tombstonesByTable,
   versionIndex,
   type CloudTable,
@@ -34,6 +35,7 @@ import type {
   MetricValue,
   NoteKey,
   ProfileId,
+  Task,
 } from '@/types';
 
 /** Estado del guardado, para poder acusarlo en la interfaz. */
@@ -42,6 +44,7 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export type EntryMap = Record<string, DayEntry>;
 export type MealMap = Record<string, MealAnalysis>;
 export type AdviceMap = Record<string, DayAdvice>;
+export type TaskMap = Record<string, Task>;
 
 export interface HabitStore {
   /** `false` hasta que se leen los datos del navegador (evita desajustes de hidratación). */
@@ -80,11 +83,19 @@ export interface HabitStore {
    */
   pendingChallenge: (profileId: ProfileId, date: DateKey) => DayAdvice | undefined;
   markChallengeDone: (id: string, done: boolean) => void;
+  /* ------------------------------- tareas ------------------------------- */
+  /** Recados y citas, por identificador. */
+  tasks: TaskMap;
+  /** Las de un perfil, sin ordenar: de eso se encarga `lib/tasks.ts`. */
+  getTasks: (profileId: ProfileId) => Task[];
+  /** Alta o modificación: la fila entra tal cual, con su `updatedAt`. */
+  saveTask: (task: Task) => void;
+  removeTask: (id: string) => void;
   loadDemoData: () => void;
   resetAll: () => void;
   /** Sustituye o fusiona lo que venga de un archivo exportado. */
   importEntries: (
-    data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap },
+    data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap; tasks?: TaskMap },
     mode: 'merge' | 'replace',
   ) => void;
   /** Copia del estado actual, para poder ofrecer «Deshacer» tras una acción destructiva. */
@@ -108,6 +119,7 @@ export interface StoreSnapshot {
   entries: EntryMap;
   meals: MealMap;
   advice: AdviceMap;
+  tasks: TaskMap;
 }
 
 /* --------------------------------- Nube --------------------------------- */
@@ -190,6 +202,7 @@ export function useHabitStore(): HabitStore {
     entries: {},
     meals: {},
     advice: {},
+    tasks: {},
   });
 
   const lastSyncAt = useRef(0);
@@ -239,6 +252,7 @@ export function useHabitStore(): HabitStore {
         entries: mergeById('entries', current.entries, remote.entries, current.tombstones),
         meals: mergeById('meals', current.meals, remote.meals, current.tombstones),
         advice: mergeById('advice', current.advice, remote.advice, current.tombstones),
+        tasks: mergeById('tasks', current.tasks, remote.tasks, current.tombstones),
         tombstones: {},
       };
 
@@ -247,16 +261,19 @@ export function useHabitStore(): HabitStore {
         entries: versionIndex(remote.entries),
         meals: versionIndex(remote.meals),
         advice: versionIndex(remote.advice),
+        tasks: versionIndex(remote.tasks),
       };
 
       await pushEntries(dirtyRows(merged.entries, remoteIndex.entries), uid);
       await pushMeals(dirtyRows(merged.meals, remoteIndex.meals), uid);
       await pushAdvice(dirtyRows(merged.advice, remoteIndex.advice), uid);
+      await pushTasks(dirtyRows(merged.tasks, remoteIndex.tasks), uid);
 
       synced.current = {
         entries: versionIndex(merged.entries),
         meals: versionIndex(merged.meals),
         advice: versionIndex(merged.advice),
+        tasks: versionIndex(merged.tasks),
       };
 
       // La mezcla se rehace contra el estado de este instante, no contra la
@@ -267,6 +284,7 @@ export function useHabitStore(): HabitStore {
         entries: mergeById('entries', prev.entries, remote.entries, prev.tombstones),
         meals: mergeById('meals', prev.meals, remote.meals, prev.tombstones),
         advice: mergeById('advice', prev.advice, remote.advice, prev.tombstones),
+        tasks: mergeById('tasks', prev.tasks, remote.tasks, prev.tombstones),
         tombstones: forget(prev.tombstones, propagated),
       }));
 
@@ -293,6 +311,7 @@ export function useHabitStore(): HabitStore {
       entries: dirtyRows(current.entries, synced.current.entries),
       meals: dirtyRows(current.meals, synced.current.meals),
       advice: dirtyRows(current.advice, synced.current.advice),
+      tasks: dirtyRows(current.tasks, synced.current.tasks),
     };
 
     if (!pendingGraves && !Object.values(changed).some((rows) => rows.length > 0)) return;
@@ -305,12 +324,14 @@ export function useHabitStore(): HabitStore {
       await pushEntries(changed.entries, uid);
       await pushMeals(changed.meals, uid);
       await pushAdvice(changed.advice, uid);
+      await pushTasks(changed.tasks, uid);
 
       for (const row of changed.entries) {
         synced.current.entries[entryKey(row.profileId, row.date)] = row.updatedAt;
       }
       for (const row of changed.meals) synced.current.meals[row.id] = row.updatedAt;
       for (const row of changed.advice) synced.current.advice[row.id] = row.updatedAt;
+      for (const row of changed.tasks) synced.current.tasks[row.id] = row.updatedAt;
 
       if (pendingGraves) {
         setDb((prev) => ({ ...prev, tombstones: forget(prev.tombstones, propagated) }));
@@ -368,7 +389,7 @@ export function useHabitStore(): HabitStore {
 
     await client.auth.signOut();
     // Se olvida lo sincronizado, no lo guardado: los datos siguen en el móvil.
-    synced.current = { entries: {}, meals: {}, advice: {} };
+    synced.current = { entries: {}, meals: {}, advice: {}, tasks: {} };
     setCloudStatus('signed-out');
   }, []);
 
@@ -627,9 +648,34 @@ export function useHabitStore(): HabitStore {
     });
   }, []);
 
+  /* -------------------------------------------------------- tareas */
+
+  const getTasks = useCallback(
+    (profileId: ProfileId) =>
+      Object.values(db.tasks).filter((task) => task.profileId === profileId),
+    [db],
+  );
+
+  const saveTask = useCallback((task: Task) => {
+    setDb((prev) => ({ ...prev, tasks: { ...prev.tasks, [task.id]: task } }));
+  }, []);
+
+  const removeTask = useCallback((id: string) => {
+    setDb((prev) => {
+      const tasks = { ...prev.tasks };
+      delete tasks[id];
+      return { ...prev, tasks, tombstones: grave(prev.tombstones, 'tasks', id) };
+    });
+  }, []);
+
   const loadDemoData = useCallback(() => {
-    // Los datos de ejemplo no traen comidas ni consejos: son de cada casa.
-    setDb((prev) => ({ ...buildSeedDatabase(), meals: prev.meals, advice: prev.advice }));
+    // Los datos de ejemplo no traen comidas, consejos ni recados: son de cada casa.
+    setDb((prev) => ({
+      ...buildSeedDatabase(),
+      meals: prev.meals,
+      advice: prev.advice,
+      tasks: prev.tasks,
+    }));
   }, []);
 
   const resetAll = useCallback(() => {
@@ -639,26 +685,32 @@ export function useHabitStore(): HabitStore {
       for (const id of Object.keys(prev.entries)) tombstones = grave(tombstones, 'entries', id);
       for (const id of Object.keys(prev.meals)) tombstones = grave(tombstones, 'meals', id);
       for (const id of Object.keys(prev.advice)) tombstones = grave(tombstones, 'advice', id);
+      for (const id of Object.keys(prev.tasks)) tombstones = grave(tombstones, 'tasks', id);
       return { ...emptyDatabase(), tombstones };
     });
   }, []);
 
   const importEntries = useCallback(
-    (data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap }, mode: 'merge' | 'replace') => {
+    (
+      data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap; tasks?: TaskMap },
+      mode: 'merge' | 'replace',
+    ) => {
       const meals = data.meals ?? {};
       const advice = data.advice ?? {};
+      const tasks = data.tasks ?? {};
       setDb((prev) => ({
         ...prev,
         entries: mode === 'replace' ? data.entries : { ...prev.entries, ...data.entries },
         meals: mode === 'replace' ? meals : { ...prev.meals, ...meals },
         advice: mode === 'replace' ? advice : { ...prev.advice, ...advice },
+        tasks: mode === 'replace' ? tasks : { ...prev.tasks, ...tasks },
       }));
     },
     [],
   );
 
   const snapshot = useCallback(
-    () => ({ entries: db.entries, meals: db.meals, advice: db.advice }),
+    () => ({ entries: db.entries, meals: db.meals, advice: db.advice, tasks: db.tasks }),
     [db],
   );
 
@@ -677,12 +729,14 @@ export function useHabitStore(): HabitStore {
       revive('entries', Object.keys(state.entries));
       revive('meals', Object.keys(state.meals));
       revive('advice', Object.keys(state.advice));
+      revive('tasks', Object.keys(state.tasks));
 
       return {
         ...prev,
         entries: state.entries,
         meals: state.meals,
         advice: state.advice,
+        tasks: state.tasks,
         tombstones,
       };
     });
@@ -694,6 +748,7 @@ export function useHabitStore(): HabitStore {
       entries: db.entries,
       meals: db.meals,
       advice: db.advice,
+      tasks: db.tasks,
       status,
       getEntry,
       getValue,
@@ -711,6 +766,9 @@ export function useHabitStore(): HabitStore {
       removeAdvice,
       pendingChallenge,
       markChallengeDone,
+      getTasks,
+      saveTask,
+      removeTask,
       loadDemoData,
       resetAll,
       importEntries,
@@ -752,6 +810,10 @@ export function useHabitStore(): HabitStore {
       removeAdvice,
       pendingChallenge,
       markChallengeDone,
+      db.tasks,
+      getTasks,
+      saveTask,
+      removeTask,
       loadDemoData,
       resetAll,
       importEntries,
