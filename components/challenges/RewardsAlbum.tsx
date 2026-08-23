@@ -15,6 +15,12 @@ const RARITY_STYLE: Record<string, string> = {
   chispa: 'from-rose-300/25 to-orange-300/20 border-rose-300/35',
   fuerza: 'from-fuchsia-400/25 to-violet-500/20 border-fuchsia-300/35',
   oro: 'from-amber-300/35 to-rose-400/25 border-amber-300/45',
+  // Los de la casa: verdes y cálidos, para distinguirlos de los de fútbol.
+  casa: 'from-emerald-300/25 to-teal-500/20 border-emerald-300/35',
+  equipo: 'from-teal-400/25 to-cyan-500/20 border-teal-300/35',
+  leyenda_casa: 'from-amber-300/35 to-emerald-400/25 border-amber-300/45',
+  // La técnica de la semana: fuego de anime, para que se note que es otra cosa.
+  tecnica: 'from-orange-400/35 to-rose-600/25 border-orange-300/50',
 };
 
 const THEME_LABEL: Record<FraseReward['theme'], string> = {
@@ -96,9 +102,12 @@ export function RewardsAlbum({
   kid,
   headingClass,
 }: RewardsAlbumProps) {
-  const cromos = kind === 'cromo';
   const copy = albumCopyOf(profileId);
   if (!copy) return null;
+
+  // Con mazo mixto —frases y cromos de casa— manda la rejilla ancha: un
+  // cromo se lee bien estrecho, pero una frase no.
+  const cromos = kind === 'cromo' && !rewards.some((item) => item.reward.kind === 'frase');
 
   return (
     <div className={`${kid ? 'card-kid' : 'card'} p-4`}>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDictation } from '@/hooks/useDictation';
 import { addDays, capitalize, formatShort, todayKey } from '@/lib/dates';
 import {
   DEFAULT_ALL_DAY_REMINDER,
@@ -66,15 +65,6 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
   const field = useRef<HTMLInputElement>(null);
 
   // Lo dictado se añade al final de lo que ya hubiera, como en las notas.
-  const latest = useRef(title);
-  latest.current = title;
-
-  const dictation = useDictation((chunk) => {
-    const next = latest.current ? `${latest.current} ${chunk}` : chunk;
-    latest.current = next;
-    setTitle(next);
-  });
-
   const reminders = useMemo(() => remindersFor(Boolean(time)), [time]);
 
   // El aviso por defecto depende de si hay hora, así que al ponerla o
@@ -148,29 +138,7 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
           className="field min-h-[2.75rem] flex-1 p-3"
         />
 
-        {dictation.supported && (
-          <button
-            type="button"
-            onClick={dictation.listening ? dictation.stop : dictation.start}
-            aria-pressed={dictation.listening}
-            aria-label={dictation.listening ? 'Parar de dictar' : 'Dictar la tarea'}
-            className={`btn min-h-[2.75rem] min-w-[2.75rem] border px-3 py-2
-              ${
-                dictation.listening
-                  ? 'bg-accent t-on-accent border-accent animate-pulse'
-                  : 'hairline surf-1 t-2 hover-soft'
-              }`}
-          >
-            {dictation.listening ? '⏹️' : '🎙️'}
-          </button>
-        )}
       </div>
-
-      {dictation.listening && (
-        <p className="mt-1.5 text-xs t-3" aria-live="polite">
-          🎧 Escuchando… {dictation.interim && <span className="italic">{dictation.interim}</span>}
-        </p>
-      )}
 
       {/* Cuándo */}
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -350,7 +318,7 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          disabled={!title.trim() || dictation.listening}
+          disabled={!title.trim()}
           className="btn-primary px-3 py-2 text-xs"
         >
           {editing ? '💾 Guardar cambios' : '➕ Añadir tarea'}

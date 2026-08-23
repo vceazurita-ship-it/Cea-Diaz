@@ -16,7 +16,6 @@ import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 import { todayKey, weekKeys } from '@/lib/dates';
-import { prunePhotos } from '@/lib/photos';
 import { playAnthem, stopAnthem } from '@/lib/sound';
 import {
   NEUTRAL_ACCENT,
@@ -136,15 +135,6 @@ function Home() {
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', painted);
     }
   }, [skin, mode, tint, accent]);
-
-  // Miniaturas huérfanas: al arrancar no hay nada pendiente de deshacerse,
-  // así que lo que ya no pertenece a ninguna comida se puede tirar.
-  useEffect(() => {
-    if (!store.hydrated) return;
-    prunePhotos(Object.values(store.meals).map((meal) => meal.photoId ?? meal.id));
-    // Sólo al hidratar: después, cada borrado se limpia por su cuenta.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.hydrated]);
 
   // Nadie quiere música sonando en una pestaña que ya no mira.
   useEffect(() => stopAnthem, []);

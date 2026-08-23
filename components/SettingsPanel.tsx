@@ -5,12 +5,12 @@ import { Photo } from '@/components/ui/Photo';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useAppearance } from '@/hooks/useAppearance';
-import type { AdviceMap, EntryMap, HabitStore, MealMap, TaskMap } from '@/hooks/useHabitStore';
+import type { EntryMap, HabitStore, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_OWNER } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
 import { loadPin, savePin } from '@/lib/storage';
-import type { DayAdvice, DayEntry, MealAnalysis, Task, ThemePreference } from '@/types';
+import type { DayEntry, Task, ThemePreference } from '@/types';
 
 interface SettingsPanelProps {
   store: HabitStore;
@@ -20,90 +20,9 @@ interface SettingsPanelProps {
 /** Registros pendientes de confirmar tras elegir un archivo. */
 interface StagedImport {
   entries: EntryMap;
-  meals: MealMap;
-  advice: AdviceMap;
   tasks: TaskMap;
   count: number;
   fileName: string;
-}
-
-/**
- * Las comidas analizadas viajan en la copia igual que los registros. Las
- * miniaturas no: viven en IndexedDB, en el dispositivo, así que al importar
- * en otro móvil se conservan la nota y los consejos, pero no la foto.
- */
-function parseMeals(raw: unknown): MealMap {
-  const source = (raw as { meals?: unknown })?.meals;
-  if (!source || typeof source !== 'object') return {};
-
-  const meals: MealMap = {};
-  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
-    const meal = value as Partial<MealAnalysis>;
-    if (!meal || typeof meal !== 'object') continue;
-    if (typeof meal.date !== 'string' || typeof meal.profileId !== 'string') continue;
-    if (typeof meal.nota !== 'number' || typeof meal.moment !== 'string') continue;
-
-    meals[key] = {
-      esComida: true,
-      nota: meal.nota,
-      titulo: typeof meal.titulo === 'string' ? meal.titulo : 'Plato',
-      resumen: typeof meal.resumen === 'string' ? meal.resumen : '',
-      alimentos: Array.isArray(meal.alimentos) ? meal.alimentos : [],
-      aciertos: Array.isArray(meal.aciertos) ? meal.aciertos : [],
-      ajustes: Array.isArray(meal.ajustes) ? meal.ajustes : [],
-      id: typeof meal.id === 'string' ? meal.id : key,
-      profileId: meal.profileId as MealAnalysis['profileId'],
-      date: meal.date,
-      moment: meal.moment as MealAnalysis['moment'],
-      contexto: typeof meal.contexto === 'string' ? meal.contexto : undefined,
-      photoId: typeof meal.photoId === 'string' ? meal.photoId : undefined,
-      createdAt:
-        typeof meal.createdAt === 'string' ? meal.createdAt : new Date().toISOString(),
-      updatedAt:
-        typeof meal.updatedAt === 'string'
-          ? meal.updatedAt
-          : typeof meal.createdAt === 'string'
-            ? meal.createdAt
-            : new Date().toISOString(),
-    };
-  }
-
-  return meals;
-}
-
-/** Los consejos viajan igual: son texto y pesan poco. */
-function parseAdvice(raw: unknown): AdviceMap {
-  const source = (raw as { advice?: unknown })?.advice;
-  if (!source || typeof source !== 'object') return {};
-
-  const advice: AdviceMap = {};
-  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
-    const item = value as Partial<DayAdvice>;
-    if (!item || typeof item !== 'object') continue;
-    if (typeof item.date !== 'string' || typeof item.profileId !== 'string') continue;
-    if (!Array.isArray(item.consejos)) continue;
-
-    advice[key] = {
-      id: typeof item.id === 'string' ? item.id : key,
-      profileId: item.profileId as DayAdvice['profileId'],
-      date: item.date,
-      resumen: typeof item.resumen === 'string' ? item.resumen : '',
-      consejos: item.consejos,
-      reto: item.reto,
-      retoCumplido: item.retoCumplido === true,
-      observaciones: typeof item.observaciones === 'string' ? item.observaciones : '',
-      createdAt:
-        typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
-      updatedAt:
-        typeof item.updatedAt === 'string'
-          ? item.updatedAt
-          : typeof item.createdAt === 'string'
-            ? item.createdAt
-            : new Date().toISOString(),
-    };
-  }
-
-  return advice;
 }
 
 /**
@@ -277,14 +196,13 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     const blob = new Blob(
       [
         JSON.stringify(
-          // v5 añadió las notas por categoría y lo que se cuenta del plato;
-          // v6, los recados. Los archivos de versiones anteriores se siguen
-          // leyendo enteros.
+          // v5 añadió las notas por categoría, v6 los recados y v7 retiró el
+          // análisis de fotos de comida y el consejo del día. Los archivos de
+          // versiones anteriores se siguen leyendo: lo que ya no existe
+          // simplemente se ignora.
           {
-            version: 6,
+            version: 7,
             entries: store.entries,
-            meals: store.meals,
-            advice: store.advice,
             tasks: store.tasks,
           },
           null,
@@ -317,8 +235,6 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       }
       setStaged({
         entries,
-        meals: parseMeals(raw),
-        advice: parseAdvice(raw),
         tasks: parseTasks(raw),
         count: Object.keys(entries).length,
         fileName: file.name,
@@ -334,7 +250,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     if (!staged) return;
     const before = store.snapshot();
     store.importEntries(
-      { entries: staged.entries, meals: staged.meals, advice: staged.advice, tasks: staged.tasks },
+      { entries: staged.entries, tasks: staged.tasks },
       mode,
     );
     setStaged(null);

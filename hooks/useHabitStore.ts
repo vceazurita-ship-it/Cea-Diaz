@@ -8,15 +8,12 @@ import {
   dirtyRows,
   mergeById,
   pullAll,
-  pushAdvice,
   pushEntries,
-  pushMeals,
   pushTasks,
   tombstonesByTable,
   versionIndex,
   type CloudTable,
 } from '@/lib/cloud';
-import { addDays } from '@/lib/dates';
 import { buildSeedDatabase } from '@/lib/seed';
 import { cloudConfigured, supabase } from '@/lib/supabase';
 import {
@@ -28,10 +25,8 @@ import {
 } from '@/lib/storage';
 import type {
   DateKey,
-  DayAdvice,
   DayEntry,
   HabitDatabase,
-  MealAnalysis,
   MetricValue,
   NoteKey,
   ProfileId,
@@ -42,8 +37,6 @@ import type {
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export type EntryMap = Record<string, DayEntry>;
-export type MealMap = Record<string, MealAnalysis>;
-export type AdviceMap = Record<string, DayAdvice>;
 export type TaskMap = Record<string, Task>;
 
 export interface HabitStore {
@@ -66,23 +59,6 @@ export interface HabitStore {
   clearDay: (profileId: ProfileId, date: DateKey) => void;
   /** Copia los registros de un día en otro. Devuelve cuántos ha copiado. */
   copyDay: (profileId: ProfileId, from: DateKey, to: DateKey) => number;
-  /** Análisis de fotos de comida, por identificador. */
-  meals: MealMap;
-  /** Comidas de un perfil en un día, de la más antigua a la más reciente. */
-  getMeals: (profileId: ProfileId, date: DateKey) => MealAnalysis[];
-  addMeal: (meal: MealAnalysis) => void;
-  removeMeal: (id: string) => void;
-  /** Consejos del día, por clave `${profileId}:${date}`. */
-  advice: AdviceMap;
-  getAdvice: (profileId: ProfileId, date: DateKey) => DayAdvice | undefined;
-  setAdvice: (advice: DayAdvice) => void;
-  removeAdvice: (id: string) => void;
-  /**
-   * Reto de progresión aún sin cumplir, de los días anteriores a `date`.
-   * Es lo que convierte «lo de hoy» en «un punto más la próxima vez».
-   */
-  pendingChallenge: (profileId: ProfileId, date: DateKey) => DayAdvice | undefined;
-  markChallengeDone: (id: string, done: boolean) => void;
   /* ------------------------------- tareas ------------------------------- */
   /** Recados y citas, por identificador. */
   tasks: TaskMap;
@@ -95,7 +71,7 @@ export interface HabitStore {
   resetAll: () => void;
   /** Sustituye o fusiona lo que venga de un archivo exportado. */
   importEntries: (
-    data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap; tasks?: TaskMap },
+    data: { entries: EntryMap; tasks?: TaskMap },
     mode: 'merge' | 'replace',
   ) => void;
   /** Copia del estado actual, para poder ofrecer «Deshacer» tras una acción destructiva. */
@@ -117,8 +93,6 @@ export interface HabitStore {
 /** Lo que hace falta para dejar la base como estaba. */
 export interface StoreSnapshot {
   entries: EntryMap;
-  meals: MealMap;
-  advice: AdviceMap;
   tasks: TaskMap;
 }
 
@@ -200,8 +174,6 @@ export function useHabitStore(): HabitStore {
   /** Versión ya subida de cada fila: `id → updatedAt`, por tabla. */
   const synced = useRef<Record<CloudTable, Record<string, string>>>({
     entries: {},
-    meals: {},
-    advice: {},
     tasks: {},
   });
 
@@ -250,8 +222,6 @@ export function useHabitStore(): HabitStore {
       const merged: HabitDatabase = {
         ...current,
         entries: mergeById('entries', current.entries, remote.entries, current.tombstones),
-        meals: mergeById('meals', current.meals, remote.meals, current.tombstones),
-        advice: mergeById('advice', current.advice, remote.advice, current.tombstones),
         tasks: mergeById('tasks', current.tasks, remote.tasks, current.tombstones),
         tombstones: {},
       };
@@ -259,20 +229,14 @@ export function useHabitStore(): HabitStore {
       // 3. Y de vuelta lo que allí no está o está más viejo.
       const remoteIndex = {
         entries: versionIndex(remote.entries),
-        meals: versionIndex(remote.meals),
-        advice: versionIndex(remote.advice),
         tasks: versionIndex(remote.tasks),
       };
 
       await pushEntries(dirtyRows(merged.entries, remoteIndex.entries), uid);
-      await pushMeals(dirtyRows(merged.meals, remoteIndex.meals), uid);
-      await pushAdvice(dirtyRows(merged.advice, remoteIndex.advice), uid);
       await pushTasks(dirtyRows(merged.tasks, remoteIndex.tasks), uid);
 
       synced.current = {
         entries: versionIndex(merged.entries),
-        meals: versionIndex(merged.meals),
-        advice: versionIndex(merged.advice),
         tasks: versionIndex(merged.tasks),
       };
 
@@ -282,8 +246,6 @@ export function useHabitStore(): HabitStore {
       setDb((prev) => ({
         ...prev,
         entries: mergeById('entries', prev.entries, remote.entries, prev.tombstones),
-        meals: mergeById('meals', prev.meals, remote.meals, prev.tombstones),
-        advice: mergeById('advice', prev.advice, remote.advice, prev.tombstones),
         tasks: mergeById('tasks', prev.tasks, remote.tasks, prev.tombstones),
         tombstones: forget(prev.tombstones, propagated),
       }));
@@ -309,8 +271,6 @@ export function useHabitStore(): HabitStore {
 
     const changed = {
       entries: dirtyRows(current.entries, synced.current.entries),
-      meals: dirtyRows(current.meals, synced.current.meals),
-      advice: dirtyRows(current.advice, synced.current.advice),
       tasks: dirtyRows(current.tasks, synced.current.tasks),
     };
 
@@ -322,15 +282,11 @@ export function useHabitStore(): HabitStore {
       }
 
       await pushEntries(changed.entries, uid);
-      await pushMeals(changed.meals, uid);
-      await pushAdvice(changed.advice, uid);
       await pushTasks(changed.tasks, uid);
 
       for (const row of changed.entries) {
         synced.current.entries[entryKey(row.profileId, row.date)] = row.updatedAt;
       }
-      for (const row of changed.meals) synced.current.meals[row.id] = row.updatedAt;
-      for (const row of changed.advice) synced.current.advice[row.id] = row.updatedAt;
       for (const row of changed.tasks) synced.current.tasks[row.id] = row.updatedAt;
 
       if (pendingGraves) {
@@ -389,7 +345,7 @@ export function useHabitStore(): HabitStore {
 
     await client.auth.signOut();
     // Se olvida lo sincronizado, no lo guardado: los datos siguen en el móvil.
-    synced.current = { entries: {}, meals: {}, advice: {}, tasks: {} };
+    synced.current = { entries: {}, tasks: {} };
     setCloudStatus('signed-out');
   }, []);
 
@@ -579,75 +535,6 @@ export function useHabitStore(): HabitStore {
     [db],
   );
 
-  /* ------------------------------------------------------ comidas */
-
-  const getMeals = useCallback(
-    (profileId: ProfileId, date: DateKey) =>
-      Object.values(db.meals)
-        .filter((meal) => meal.profileId === profileId && meal.date === date)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [db],
-  );
-
-  const addMeal = useCallback((meal: MealAnalysis) => {
-    setDb((prev) => ({ ...prev, meals: { ...prev.meals, [meal.id]: meal } }));
-  }, []);
-
-  const removeMeal = useCallback((id: string) => {
-    setDb((prev) => {
-      const meals = { ...prev.meals };
-      delete meals[id];
-      return { ...prev, meals, tombstones: grave(prev.tombstones, 'meals', id) };
-    });
-  }, []);
-
-  /* ------------------------------------------------------ consejos */
-
-  const getAdvice = useCallback(
-    (profileId: ProfileId, date: DateKey) => db.advice[entryKey(profileId, date)],
-    [db],
-  );
-
-  const setAdvice = useCallback((advice: DayAdvice) => {
-    setDb((prev) => ({ ...prev, advice: { ...prev.advice, [advice.id]: advice } }));
-  }, []);
-
-  const removeAdvice = useCallback((id: string) => {
-    setDb((prev) => {
-      const advice = { ...prev.advice };
-      delete advice[id];
-      return { ...prev, advice, tombstones: grave(prev.tombstones, 'advice', id) };
-    });
-  }, []);
-
-  /** El reto vivo más reciente: sólo se mira una quincena hacia atrás. */
-  const pendingChallenge = useCallback(
-    (profileId: ProfileId, date: DateKey) => {
-      const floor = addDays(date, -15);
-
-      return Object.values(db.advice)
-        .filter(
-          (advice) =>
-            advice.profileId === profileId &&
-            advice.reto !== undefined &&
-            !advice.retoCumplido &&
-            advice.date < date &&
-            advice.date >= floor,
-        )
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
-    },
-    [db],
-  );
-
-  const markChallengeDone = useCallback((id: string, done: boolean) => {
-    setDb((prev) => {
-      const advice = prev.advice[id];
-      if (!advice) return prev;
-      const next = { ...advice, retoCumplido: done, updatedAt: new Date().toISOString() };
-      return { ...prev, advice: { ...prev.advice, [id]: next } };
-    });
-  }, []);
-
   /* -------------------------------------------------------- tareas */
 
   const getTasks = useCallback(
@@ -669,11 +556,10 @@ export function useHabitStore(): HabitStore {
   }, []);
 
   const loadDemoData = useCallback(() => {
-    // Los datos de ejemplo no traen comidas, consejos ni recados: son de cada casa.
+    // Los datos de ejemplo no traen recados: las citas del dentista son de
+    // cada casa, no de un ejemplo.
     setDb((prev) => ({
       ...buildSeedDatabase(),
-      meals: prev.meals,
-      advice: prev.advice,
       tasks: prev.tasks,
     }));
   }, []);
@@ -683,8 +569,6 @@ export function useHabitStore(): HabitStore {
     setDb((prev) => {
       let tombstones = prev.tombstones;
       for (const id of Object.keys(prev.entries)) tombstones = grave(tombstones, 'entries', id);
-      for (const id of Object.keys(prev.meals)) tombstones = grave(tombstones, 'meals', id);
-      for (const id of Object.keys(prev.advice)) tombstones = grave(tombstones, 'advice', id);
       for (const id of Object.keys(prev.tasks)) tombstones = grave(tombstones, 'tasks', id);
       return { ...emptyDatabase(), tombstones };
     });
@@ -692,17 +576,13 @@ export function useHabitStore(): HabitStore {
 
   const importEntries = useCallback(
     (
-      data: { entries: EntryMap; meals?: MealMap; advice?: AdviceMap; tasks?: TaskMap },
+      data: { entries: EntryMap; tasks?: TaskMap },
       mode: 'merge' | 'replace',
     ) => {
-      const meals = data.meals ?? {};
-      const advice = data.advice ?? {};
       const tasks = data.tasks ?? {};
       setDb((prev) => ({
         ...prev,
         entries: mode === 'replace' ? data.entries : { ...prev.entries, ...data.entries },
-        meals: mode === 'replace' ? meals : { ...prev.meals, ...meals },
-        advice: mode === 'replace' ? advice : { ...prev.advice, ...advice },
         tasks: mode === 'replace' ? tasks : { ...prev.tasks, ...tasks },
       }));
     },
@@ -710,7 +590,7 @@ export function useHabitStore(): HabitStore {
   );
 
   const snapshot = useCallback(
-    () => ({ entries: db.entries, meals: db.meals, advice: db.advice, tasks: db.tasks }),
+    () => ({ entries: db.entries, tasks: db.tasks }),
     [db],
   );
 
@@ -727,15 +607,11 @@ export function useHabitStore(): HabitStore {
       };
 
       revive('entries', Object.keys(state.entries));
-      revive('meals', Object.keys(state.meals));
-      revive('advice', Object.keys(state.advice));
       revive('tasks', Object.keys(state.tasks));
 
       return {
         ...prev,
         entries: state.entries,
-        meals: state.meals,
-        advice: state.advice,
         tasks: state.tasks,
         tombstones,
       };
@@ -746,8 +622,6 @@ export function useHabitStore(): HabitStore {
     () => ({
       hydrated,
       entries: db.entries,
-      meals: db.meals,
-      advice: db.advice,
       tasks: db.tasks,
       status,
       getEntry,
@@ -758,14 +632,6 @@ export function useHabitStore(): HabitStore {
       setEntryNote,
       clearDay,
       copyDay,
-      getMeals,
-      addMeal,
-      removeMeal,
-      getAdvice,
-      setAdvice,
-      removeAdvice,
-      pendingChallenge,
-      markChallengeDone,
       getTasks,
       saveTask,
       removeTask,
@@ -791,8 +657,6 @@ export function useHabitStore(): HabitStore {
     [
       hydrated,
       db.entries,
-      db.meals,
-      db.advice,
       status,
       getEntry,
       getValue,
@@ -802,14 +666,6 @@ export function useHabitStore(): HabitStore {
       setEntryNote,
       clearDay,
       copyDay,
-      getMeals,
-      addMeal,
-      removeMeal,
-      getAdvice,
-      setAdvice,
-      removeAdvice,
-      pendingChallenge,
-      markChallengeDone,
       db.tasks,
       getTasks,
       saveTask,

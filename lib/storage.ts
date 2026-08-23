@@ -10,14 +10,16 @@ import type { DateKey, HabitDatabase, ProfileId } from '@/types';
 export const STORAGE_KEY = 'habitos-familia:v1';
 export const PIN_STORAGE_KEY = 'habitos-familia:pin';
 /**
- * v2 añadió `meals`, v3 `advice`, v4 las lápidas de la nube, v5 las notas
- * por categoría y v6 las tareas. Todas las subidas son aditivas: lo guardado
- * con una versión anterior se lee tal cual y los campos nuevos aparecen vacíos.
+ * v4 añadió las lápidas de la nube, v5 las notas por categoría y v6 las
+ * tareas. Todas las subidas son aditivas: lo guardado con una versión anterior
+ * se lee tal cual y los campos nuevos aparecen vacíos. La v7 retiró el análisis
+ * de fotos de comida y el consejo del día: lo que quedara guardado se ignora
+ * al leer.
  */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 export function emptyDatabase(): HabitDatabase {
-  return { version: DB_VERSION, entries: {}, meals: {}, advice: {}, tasks: {}, tombstones: {} };
+  return { version: DB_VERSION, entries: {}, tasks: {}, tombstones: {} };
 }
 
 export function entryKey(profileId: ProfileId, date: DateKey): string {
@@ -37,8 +39,6 @@ export function loadDatabase(): HabitDatabase {
     return {
       version: parsed.version ?? DB_VERSION,
       entries: parsed.entries,
-      meals: parsed.meals ?? {},
-      advice: parsed.advice ?? {},
       tasks: parsed.tasks ?? {},
       tombstones: parsed.tombstones ?? {},
     };

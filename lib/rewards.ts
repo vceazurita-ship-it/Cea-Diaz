@@ -33,6 +33,12 @@ import type {
 /** Tope de semanas que se recorren hacia atrás al reconstruir el álbum. */
 const MAX_WEEKS = 26;
 
+/**
+ * Identificador con el que se anota el premio de semana completa. No es un
+ * reto de verdad, así que no cuelga de ninguna tarjeta: se enseña aparte.
+ */
+export const WEEKLY_CHALLENGE_ID = 'semana-completa';
+
 /* ---------------------------------------------------------------------------
  * Cromos · nivel «cimiento»: LaLiga
  * ------------------------------------------------------------------------- */
@@ -1241,6 +1247,435 @@ const PAREJA_ORO: FraseReward[] = [
 ];
 
 /* ---------------------------------------------------------------------------
+ * Cromos de la casa · el regalo extra de María
+ *
+ * Mismo formato que los de fútbol, pero la plantilla es la de casa: los
+ * cuatro, los ratos que se repiten y las cosas que sólo pasan aquí. Van
+ * aparte del mazo de frases, así que cada reto que María supera le deja dos
+ * cosas: su frase y un cromo de la familia.
+ * ------------------------------------------------------------------------- */
+
+/** Los de diario: lo que se repite tanto que ya no se mira. */
+const CASA: CromoReward[] = [
+  {
+    kind: 'cromo',
+    id: 'mesa-ocho',
+    name: 'La mesa de la cena',
+    team: 'Los Cea Díaz',
+    position: 'Rutina diaria',
+    emblem: '🍽️',
+    dato: 'El sitio donde se enteran de cómo ha ido el día los cuatro a la vez.',
+    lema: 'Sin pantallas encima, la conversación aparece sola.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'cuento-noche',
+    name: 'El cuento de la noche',
+    team: 'Los Cea Díaz',
+    position: 'Último turno',
+    emblem: '📖',
+    dato: 'Diez minutos en los que salen las cosas que no salieron en la mesa.',
+    lema: 'Lo que se cuenta antes de dormir pesa más de lo que parece.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'taxi-entrenos',
+    name: 'El taxi de los entrenos',
+    team: 'Los Cea Díaz',
+    position: 'Logística',
+    emblem: '🚗',
+    dato: 'Cinco deportes entre dos hermanos: alguien conduce y nunca sale en la foto.',
+    lema: 'Llevar y traer también es entrenar.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'colada-domingo',
+    name: 'La colada del domingo',
+    team: 'Los Cea Díaz',
+    position: 'Retaguardia',
+    emblem: '🧺',
+    dato: 'Las equipaciones no aparecen limpias por su cuenta el lunes por la mañana.',
+    lema: 'Lo invisible es lo que sostiene la semana.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'desayuno-prisa',
+    name: 'El desayuno de las prisas',
+    team: 'Los Cea Díaz',
+    position: 'Primer tiempo',
+    emblem: '🥣',
+    dato: 'Doce minutos justos entre el despertador y la puerta.',
+    lema: 'Un desayuno que aguanta hasta el recreo vale por dos.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'paseo-cena',
+    name: 'El paseo de después de cenar',
+    team: 'María · Víctor',
+    position: 'Tiempo añadido',
+    emblem: '🌆',
+    dato: 'Veinte minutos en los que se habla de lo que en el salón cuesta.',
+    lema: 'Caminando salen las conversaciones que sentados no salen.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'aula-maria',
+    name: 'El aula de las nueve',
+    team: 'María',
+    position: 'Profesora de español',
+    emblem: '💻',
+    dato: 'Alumnos en otro huso horario esperando al otro lado de la pantalla.',
+    lema: 'Enseñar bien un día cansa; enseñar bien cada día construye.',
+    rarity: 'casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'consejo-domingo',
+    name: 'El consejo del domingo',
+    team: 'Los Cea Díaz',
+    position: 'Sala de reuniones',
+    emblem: '🗣️',
+    dato: 'Quince minutos con la semana delante y un reparto por escrito.',
+    lema: 'Lo que se decide en frío no se discute en caliente.',
+    rarity: 'casa',
+  },
+];
+
+/** Los de la plantilla: uno por cabeza. */
+const EQUIPO: CromoReward[] = [
+  {
+    kind: 'cromo',
+    id: 'leo-casa',
+    name: 'Leo',
+    team: 'Los Cea Díaz',
+    position: 'Cinco deportes · 8 años',
+    emblem: '🦁',
+    dato: 'Fútbol, natación, arte marcial, gimnasio y atletismo en la misma semana.',
+    lema: 'La energía no hay que fabricarla: hay que ponerle horario.',
+    rarity: 'equipo',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-casa',
+    name: 'Hugo',
+    team: 'Los Cea Díaz',
+    position: 'Récords propios · 9 años',
+    emblem: '🐯',
+    dato: 'Compite contra su marca anterior, no contra la de su hermano.',
+    lema: 'El listón que sirve es el que uno mismo dejó la semana pasada.',
+    rarity: 'equipo',
+  },
+  {
+    kind: 'cromo',
+    id: 'maria-casa',
+    name: 'María',
+    team: 'Los Cea Díaz',
+    position: 'Profesora · Aula digital',
+    emblem: '🌿',
+    dato: 'Da clase, sostiene la casa y aún saca el rato de leer.',
+    lema: 'Cuidarse no es quitarle tiempo a los demás: es poder dárselo.',
+    rarity: 'equipo',
+  },
+  {
+    kind: 'cromo',
+    id: 'victor-casa',
+    name: 'Víctor',
+    team: 'Los Cea Díaz',
+    position: 'Cuerpo técnico · Castilla',
+    emblem: '📋',
+    dato: 'Analiza rivales toda la semana y llega a casa a desconectar del análisis.',
+    lema: 'Dejar el trabajo en la puerta es la sesión más difícil del día.',
+    rarity: 'equipo',
+  },
+  {
+    kind: 'cromo',
+    id: 'hermanos-casa',
+    name: 'Los hermanos',
+    team: 'Los Cea Díaz',
+    position: 'Doble punta',
+    emblem: '🤝',
+    dato: 'Ocho y nueve años, cinco deportes y una tabla de logros compartida.',
+    lema: 'Que se empujen, no que se midan.',
+    rarity: 'equipo',
+  },
+  {
+    kind: 'cromo',
+    id: 'pareja-casa',
+    name: 'María y Víctor',
+    team: 'Los Cea Díaz',
+    position: 'Sociedad',
+    emblem: '💞',
+    dato: 'Diez minutos al día que no van de niños, ni de dinero, ni de agenda.',
+    lema: 'Cinco gestos buenos por cada roce; también en las semanas malas.',
+    rarity: 'equipo',
+  },
+];
+
+/** Los de leyenda: sólo caen con un reto de máximo esfuerzo. */
+const LEYENDA_CASA: CromoReward[] = [
+  {
+    kind: 'cromo',
+    id: 'plantilla-completa',
+    name: 'Los Cea Díaz',
+    team: 'Plantilla completa',
+    position: 'Equipo de casa',
+    emblem: '🏡',
+    dato: 'Cuatro horarios distintos que caben, casi siempre, en una misma mesa.',
+    lema: 'Lo que se repite junto es lo único que se queda.',
+    rarity: 'leyenda_casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'semana-entera',
+    name: 'La semana entera',
+    team: 'Los Cea Díaz',
+    position: 'Marca de la casa',
+    emblem: '🗓️',
+    dato: 'Siete días seguidos sin que se caiga ninguna de las rutinas grandes.',
+    lema: 'La constancia no se nota el día que se hace: se nota al mes.',
+    rarity: 'leyenda_casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'finde-cuadrado',
+    name: 'El finde que no se descuadró',
+    team: 'Los Cea Díaz',
+    position: 'Récord doméstico',
+    emblem: '🌞',
+    dato: 'Sábado y domingo con los horarios en pie y un lunes que no lo pagó.',
+    lema: 'El fin de semana decide cómo empieza la semana siguiente.',
+    rarity: 'leyenda_casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'partido-sofa',
+    name: 'El partido visto en el sofá',
+    team: 'Los Cea Díaz',
+    position: 'Grada de casa',
+    emblem: '📺',
+    dato: 'Los cuatro, la misma pantalla y nadie mirando el móvil.',
+    lema: 'Ver algo juntos cuenta más que verlo cada uno a su hora.',
+    rarity: 'leyenda_casa',
+  },
+  {
+    kind: 'cromo',
+    id: 'verano-familia',
+    name: 'El verano de los cuatro',
+    team: 'Los Cea Díaz',
+    position: 'Pretemporada',
+    emblem: '🏖️',
+    dato: 'Sin despertador, sin calendario de partidos y con el día entero por delante.',
+    lema: 'Descansar juntos también es entrenar la casa.',
+    rarity: 'leyenda_casa',
+  },
+];
+
+/** El mazo de la casa, por nivel de reto. */
+const CROMOS_CASA: Record<ChallengeTier, Reward[]> = {
+  base: CASA,
+  reto: EQUIPO,
+  maximo: LEYENDA_CASA,
+};
+
+/* ---------------------------------------------------------------------------
+ * Técnicas de la semana · el premio de Leo y Hugo
+ *
+ * En Oliver y Benji nadie mejora en abstracto: se desbloquea una técnica con
+ * nombre propio. Aquí igual, pero el jugador del cromo es el peque, y la
+ * técnica se gana cerrando **la semana entera de retos**, no un reto suelto.
+ * Cada uno tiene su mazo: el de Leo va de energía y atreverse, el de Hugo de
+ * constancia y récord propio, que es de lo que va cada uno.
+ * ------------------------------------------------------------------------- */
+
+const TECNICAS_LEO: CromoReward[] = [
+  {
+    kind: 'cromo',
+    id: 'leo-tiro-leon',
+    name: 'Tiro del León',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🦁',
+    dato: 'Carrera desde el centro del campo y disparo sin levantar la cabeza. El balón sale rugiendo.',
+    lema: 'La semana entera hecha: eso es lo que da fuerza al disparo.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-regate-relampago',
+    name: 'Regate Relámpago',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '⚡',
+    dato: 'Dos toques, un cambio de dirección y el defensa se queda mirando el sitio donde estabas.',
+    lema: 'Atrévete al uno contra uno aunque el primero salga mal.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-salto-pantera',
+    name: 'Salto de Pantera',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🐆',
+    dato: 'Remate de cabeza por encima de dos rivales más altos. Las piernas vienen de la piscina.',
+    lema: 'Lo que entrenas en un deporte aparece en otro.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-pase-imposible',
+    name: 'Pase Imposible',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🎯',
+    dato: 'Ve el hueco antes de que exista y mete el balón donde sólo cabía la idea.',
+    lema: 'Mira alrededor antes de que te llegue el balón, no después.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-muro-hermano',
+    name: 'Muro de Hermanos',
+    team: 'Leo y Hugo · Cea Díaz',
+    position: 'Técnica combinada',
+    emblem: '🤝',
+    dato: 'Pared con Hugo a toda velocidad: entran los dos y sale uno solo con el balón.',
+    lema: 'Los mejores nunca juegan solos.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-huracan',
+    name: 'Huracán de Cinco Deportes',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🌪️',
+    dato: 'Corre los noventa minutos como si fuera el primero. Fútbol, natación, tatami, gimnasio y pista en las piernas.',
+    lema: 'La energía no se fabrica: se le pone horario.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-parada-imposible',
+    name: 'Barrida del León',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🛡️',
+    dato: 'Entrada limpia en el último metro, se levanta con el balón y ya está mirando adelante.',
+    lema: 'Defender también es empezar la jugada.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'leo-tiro-final',
+    name: 'Disparo del Minuto 90',
+    team: 'Leo · Cea Díaz',
+    position: 'Técnica legendaria',
+    emblem: '🔥',
+    dato: 'Con todo cansado y el partido empatado, es cuando aparece. No es suerte: es lo entrenado saliendo solo.',
+    lema: 'Los momentos grandes son de quien llegó preparado.',
+    rarity: 'tecnica',
+  },
+];
+
+const TECNICAS_HUGO: CromoReward[] = [
+  {
+    kind: 'cromo',
+    id: 'hugo-tiro-tigre',
+    name: 'Tiro del Tigre Rubio',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🐯',
+    dato: 'Golpeo seco desde la frontal, siempre al mismo sitio. Lo ha repetido tantas veces que ya sale solo.',
+    lema: 'El gesto se repite hasta que no hay que pensarlo.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-record-propio',
+    name: 'Marca Propia',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '📈',
+    dato: 'No mira el marcador de los demás: mira el suyo de la semana pasada y lo pasa por poco.',
+    lema: 'El listón que sirve es el que dejaste tú.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-motor',
+    name: 'Motor de Constancia',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '⚙️',
+    dato: 'El que sigue corriendo igual en el minuto 80 que en el 10. No arranca fuerte: no se apaga.',
+    lema: 'Estar siempre disponible también es un talento.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-control-orientado',
+    name: 'Control Orientado',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '🧭',
+    dato: 'La para y ya está mirando a portería en el mismo movimiento. Gana medio segundo cada vez.',
+    lema: 'El primer toque decide toda la jugada.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-muro-hermano',
+    name: 'Muro de Hermanos',
+    team: 'Hugo y Leo · Cea Díaz',
+    position: 'Técnica combinada',
+    emblem: '🤝',
+    dato: 'Pared con Leo a toda velocidad: entran los dos y sale uno solo con el balón.',
+    lema: 'Que os empujéis, no que os midáis.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-carrera-invisible',
+    name: 'Carrera Invisible',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '💨',
+    dato: 'Arranca al espacio antes de que nadie mire. Casi ningún gol suyo empieza con el balón en los pies.',
+    lema: 'Corre el metro que nadie ve; ahí están los goles.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-cabeza-fria',
+    name: 'Cabeza Fría',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica desbloqueada',
+    emblem: '❄️',
+    dato: 'Falla una y la siguiente la juega igual de tranquilo. Ni celebra de más ni se hunde de menos.',
+    lema: 'Un fallo no se arrastra: se juega la siguiente.',
+    rarity: 'tecnica',
+  },
+  {
+    kind: 'cromo',
+    id: 'hugo-semana-perfecta',
+    name: 'Golpeo de la Semana Perfecta',
+    team: 'Hugo · Cea Díaz',
+    position: 'Técnica legendaria',
+    emblem: '🏅',
+    dato: 'Siete días cumpliendo lo que tocaba y el disparo sale distinto. Se nota en el partido del sábado.',
+    lema: 'La constancia no se ve el día que se hace: se ve al mes.',
+    rarity: 'tecnica',
+  },
+];
+
+/* ---------------------------------------------------------------------------
  * Mazos por perfil
  * ------------------------------------------------------------------------- */
 
@@ -1248,6 +1683,17 @@ interface Deck {
   kind: RewardKind;
   /** Un mazo por nivel de reto. */
   cards: Record<ChallengeTier, Reward[]>;
+  /**
+   * Segundo regalo del mismo reto, si lo hay. María y Víctor lo tienen: además
+   * de su frase o su aforismo se llevan un cromo de la casa.
+   */
+  bonus?: Record<ChallengeTier, Reward[]>;
+  /**
+   * Premio de **semana completa**: una sola carta, y sólo si esa semana no
+   * quedó ningún reto sin superar. Es el de Leo y Hugo, que desbloquean una
+   * técnica por semana en vez de una carta por reto.
+   */
+  weekly?: Reward[];
   /** Cómo se llama cada rareza en este mazo. */
   labels: Record<string, string>;
   /** Cómo se presenta la colección en la interfaz. */
@@ -1277,6 +1723,17 @@ const FRASE_LABELS = {
   oro: 'Frase de oro',
 };
 
+/**
+ * Rótulos que no dependen del perfil: los del mazo de la casa, que viaja
+ * como regalo extra y no como colección propia de nadie.
+ */
+const SHARED_LABELS: Record<string, string> = {
+  casa: 'Cromo de casa',
+  equipo: 'Cromo de la plantilla',
+  leyenda_casa: 'Cromo de leyenda de casa',
+  tecnica: 'Técnica de la semana',
+};
+
 const AFORISMO_LABELS = {
   chispa: 'Aforismo',
   fuerza: 'Aforismo de fuerza',
@@ -1292,24 +1749,48 @@ function textDeck(
 }
 
 const DECKS: Partial<Record<ProfileId, Deck>> = {
-  leo: CROMOS,
-  hugo: CROMOS,
-  maria: textDeck({ base: CHISPA, reto: FUERZA, maximo: ORO }, FRASE_LABELS, {
-    title: '🎁 Frases ganadas',
-    one: 'frase',
-    many: 'frases',
-    empty: 'Todavía no hay ninguna. Supera un reto y llegará la primera.',
-  }),
-  victor: textDeck(
-    { base: VICTOR_CHISPA, reto: VICTOR_FUERZA, maximo: VICTOR_ORO },
-    AFORISMO_LABELS,
-    {
-      title: '🎁 Aforismos ganados',
-      one: 'aforismo',
-      many: 'aforismos',
-      empty: 'Todavía no hay ninguno. Supera un reto y llegará el primero.',
+  // Mismo álbum de fútbol para los dos, pero cada uno desbloquea sus propias
+  // técnicas: el cromo semanal lleva su nombre, no el del hermano.
+  leo: {
+    ...CROMOS,
+    weekly: TECNICAS_LEO,
+    album: {
+      title: '🎁 Álbum de cromos y técnicas',
+      one: 'cromo',
+      many: 'cromos',
+      empty: 'Todavía no hay ninguno. Supera un reto y caerá el primero.',
     },
-  ),
+  },
+  hugo: {
+    ...CROMOS,
+    weekly: TECNICAS_HUGO,
+    album: {
+      title: '🎁 Álbum de cromos y técnicas',
+      one: 'cromo',
+      many: 'cromos',
+      empty: 'Todavía no hay ninguno. Supera un reto y caerá el primero.',
+    },
+  },
+  maria: {
+    // Cada reto que supera le deja dos cosas: su frase y un cromo de casa.
+    ...textDeck({ base: CHISPA, reto: FUERZA, maximo: ORO }, FRASE_LABELS, {
+      title: '🎁 Frases y cromos de casa',
+      one: 'regalo',
+      many: 'regalos',
+      empty: 'Todavía no hay ninguno. Supera un reto y llegarán los primeros.',
+    }),
+    bonus: CROMOS_CASA,
+  },
+  victor: {
+    // Como María: cada reto le deja el aforismo y un cromo de la casa.
+    ...textDeck({ base: VICTOR_CHISPA, reto: VICTOR_FUERZA, maximo: VICTOR_ORO }, AFORISMO_LABELS, {
+      title: '🎁 Aforismos y cromos de casa',
+      one: 'regalo',
+      many: 'regalos',
+      empty: 'Todavía no hay ninguno. Supera un reto y llegarán los primeros.',
+    }),
+    bonus: CROMOS_CASA,
+  },
   familia: textDeck(
     { base: FAMILIA_CHISPA, reto: FAMILIA_FUERZA, maximo: FAMILIA_ORO },
     AFORISMO_LABELS,
@@ -1343,14 +1824,30 @@ export function albumCopyOf(profileId: ProfileId): Deck['album'] | null {
 
 /** Cómo llama este perfil a esa rareza («Cromo de leyenda», «Aforismo de oro»). */
 export function rarityLabel(profileId: ProfileId, rarity: string): string {
-  return DECKS[profileId]?.labels[rarity] ?? rarity;
+  return DECKS[profileId]?.labels[rarity] ?? SHARED_LABELS[rarity] ?? rarity;
+}
+
+/** Cómo se llama el premio de semana completa de este perfil, si lo tiene. */
+export function weeklyLabelFor(profileId: ProfileId): string | null {
+  const sample = DECKS[profileId]?.weekly?.[0];
+  return sample ? SHARED_LABELS[sample.rarity] ?? null : null;
 }
 
 /** Nombre del premio que entrega un reto de ese nivel, para anunciarlo antes. */
 export function rewardLabelFor(profileId: ProfileId, tier: ChallengeTier): string | null {
   const deck = DECKS[profileId];
-  const sample = deck?.cards[tier][0];
-  return sample ? deck?.labels[sample.rarity] ?? null : null;
+  if (!deck) return null;
+
+  const main = deck.cards[tier][0];
+  if (!main) return null;
+
+  const label = deck.labels[main.rarity] ?? SHARED_LABELS[main.rarity] ?? null;
+
+  // Con mazo extra se anuncian los dos: es parte de lo que se está jugando.
+  const extra = deck.bonus?.[tier][0];
+  const extraLabel = extra ? SHARED_LABELS[extra.rarity] ?? null : null;
+
+  return label && extraLabel ? `${label} + ${extraLabel.toLowerCase()}` : label;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1402,13 +1899,23 @@ export function collectRewards(
   const first = firstWeekWithData(profile.id, entries) ?? currentWeek;
   const startWeek = first > limit ? first : limit;
 
-  // Cada nivel tiene su propio mazo barajado y su propio contador.
-  const piles: Record<ChallengeTier, Reward[]> = {
-    base: shuffle(deck.cards.base, hashSeed(`${profile.id}:base`)),
-    reto: shuffle(deck.cards.reto, hashSeed(`${profile.id}:reto`)),
-    maximo: shuffle(deck.cards.maximo, hashSeed(`${profile.id}:maximo`)),
-  };
+  // Cada nivel tiene su propio mazo barajado y su propio contador. El mazo
+  // extra se baraja con otra semilla, para que la frase y el cromo de un
+  // mismo reto no vayan siempre emparejados igual.
+  const pilesOf = (cards: Record<ChallengeTier, Reward[]>, salt: string) => ({
+    base: shuffle(cards.base, hashSeed(`${profile.id}:${salt}base`)),
+    reto: shuffle(cards.reto, hashSeed(`${profile.id}:${salt}reto`)),
+    maximo: shuffle(cards.maximo, hashSeed(`${profile.id}:${salt}maximo`)),
+  });
+
+  const piles = pilesOf(deck.cards, '');
+  const bonusPiles = deck.bonus ? pilesOf(deck.bonus, 'bonus:') : null;
   const dealt: Record<ChallengeTier, number> = { base: 0, reto: 0, maximo: 0 };
+
+  // El premio de semana completa lleva su propia baraja y su propio contador:
+  // no se reparte por reto sino por semana cerrada.
+  const weeklyPile = deck.weekly ? shuffle(deck.weekly, hashSeed(`${profile.id}:weekly`)) : null;
+  let weeksWon = 0;
 
   const unlocked: UnlockedReward[] = [];
 
@@ -1421,13 +1928,38 @@ export function collectRewards(
       const pile = piles[challenge.tier];
       if (pile.length === 0) continue;
 
+      const turn = dealt[challenge.tier];
+
       unlocked.push({
-        reward: pile[dealt[challenge.tier] % pile.length],
+        reward: pile[turn % pile.length],
         week,
         challengeId: challenge.id,
         challengeTitle: challenge.title,
       });
-      dealt[challenge.tier] += 1;
+
+      const bonusPile = bonusPiles?.[challenge.tier];
+      if (bonusPile && bonusPile.length > 0) {
+        unlocked.push({
+          reward: bonusPile[turn % bonusPile.length],
+          week,
+          challengeId: challenge.id,
+          challengeTitle: challenge.title,
+        });
+      }
+
+      dealt[challenge.tier] = turn + 1;
+    }
+
+    // Y, si no quedó ninguno sin superar, la técnica de la semana.
+    const perfect = challenges.length > 0 && challenges.every((c) => c.progress.done);
+    if (perfect && weeklyPile && weeklyPile.length > 0) {
+      unlocked.push({
+        reward: weeklyPile[weeksWon % weeklyPile.length],
+        week,
+        challengeId: WEEKLY_CHALLENGE_ID,
+        challengeTitle: 'Semana completa',
+      });
+      weeksWon += 1;
     }
   }
 

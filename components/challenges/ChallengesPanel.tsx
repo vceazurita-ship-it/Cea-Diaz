@@ -4,10 +4,17 @@ import { useMemo } from 'react';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
-import { VoiceField } from '@/components/ui/VoiceField';
+import { NoteField } from '@/components/ui/NoteField';
 import { buildChallengeWeek, challengeHistory, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
-import { collectRewards, rarityLabel, rewardKindOf, rewardLabelFor } from '@/lib/rewards';
+import {
+  WEEKLY_CHALLENGE_ID,
+  collectRewards,
+  rarityLabel,
+  rewardKindOf,
+  rewardLabelFor,
+  weeklyLabelFor,
+} from '@/lib/rewards';
 import type {
   ChallengeWeek,
   DateKey,
@@ -41,12 +48,13 @@ interface ChallengeCardProps {
   challenge: ScoredChallenge;
   kid: boolean;
   /** Premio ya ganado con este reto, si lo hubiera. */
-  reward?: Reward;
+  /** Lo ya ganado con este reto: puede ser más de una cosa. */
+  rewards?: Reward[];
   /** Qué se llevará si lo consigue, anunciado por adelantado. */
   prize?: string | null;
 }
 
-function ChallengeCard({ profileId, challenge, kid, reward, prize }: ChallengeCardProps) {
+function ChallengeCard({ profileId, challenge, kid, rewards, prize }: ChallengeCardProps) {
   const { progress } = challenge;
 
   return (
@@ -97,13 +105,20 @@ function ChallengeCard({ profileId, challenge, kid, reward, prize }: ChallengeCa
           <p className="mt-2 text-[11px] leading-snug t-3">💡 {challenge.why}</p>
 
           {/* El premio: anunciado antes, entregado después. */}
-          {reward ? (
-            <p className="mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug border-accent bg-accent-faint t-1">
-              🎁{' '}
-              {reward.kind === 'cromo'
-                ? `${rarityLabel(profileId, reward.rarity)}: ${reward.name} · ${reward.team}`
-                : `«${reward.text}»${reward.author ? ` — ${reward.author}` : ''}`}
-            </p>
+          {rewards && rewards.length > 0 ? (
+            <ul className="mt-2 space-y-1.5">
+              {rewards.map((reward) => (
+                <li
+                  key={reward.id}
+                  className="rounded-xl border p-2 text-[11px] font-semibold leading-snug border-accent bg-accent-faint t-1"
+                >
+                  🎁{' '}
+                  {reward.kind === 'cromo'
+                    ? `${rarityLabel(profileId, reward.rarity)}: ${reward.name} · ${reward.team}`
+                    : `«${reward.text}»${reward.author ? ` — ${reward.author}` : ''}`}
+                </li>
+              ))}
+            </ul>
           ) : (
             prize && <p className="mt-2 text-[11px] font-semibold t-2">🎁 En juego: {prize}</p>
           )}
@@ -193,18 +208,28 @@ export function ChallengesPanel({
     [rewardKind, profile, entries, date],
   );
 
-  /** Lo ganado esta misma semana, para enseñarlo junto a su reto. */
-  const wonThisWeek = useMemo(
-    () =>
-      new Map(
-        rewards
-          .filter((unlocked) => unlocked.week === week.from)
-          .map((unlocked) => [unlocked.challengeId, unlocked.reward]),
-      ),
-    [rewards, week.from],
-  );
+  /**
+   * Lo ganado esta misma semana, para enseñarlo junto a su reto. Es una lista
+   * por reto y no una sola carta: María se lleva dos cosas de cada uno.
+   */
+  const wonThisWeek = useMemo(() => {
+    const byChallenge = new Map<string, Reward[]>();
+
+    for (const unlocked of rewards) {
+      if (unlocked.week !== week.from) continue;
+      const list = byChallenge.get(unlocked.challengeId);
+      if (list) list.push(unlocked.reward);
+      else byChallenge.set(unlocked.challengeId, [unlocked.reward]);
+    }
+
+    return byChallenge;
+  }, [rewards, week.from]);
 
   const total = week.challenges.length;
+
+  /** La técnica de la semana: se gana cerrando la semana entera, no un reto. */
+  const weeklyPrize = weeklyLabelFor(profile.id);
+  const weeklyWon = wonThisWeek.get(WEEKLY_CHALLENGE_ID)?.[0];
 
   return (
     <div className="space-y-4">
@@ -231,6 +256,19 @@ export function ChallengesPanel({
               ✨ {week.xp} / {week.xpMax} puntos
             </span>
           </div>
+
+          {/* El premio de cerrar la semana entera, antes y después de ganarlo. */}
+          {weeklyPrize && total > 0 && (
+            <p
+              className={`rounded-xl border p-2 text-[11px] font-semibold leading-snug ${
+                weeklyWon ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'
+              }`}
+            >
+              {weeklyWon && weeklyWon.kind === 'cromo'
+                ? `🔓 ${weeklyPrize}: ${weeklyWon.name}`
+                : `🔒 ${weeklyPrize}: se desbloquea al superar los ${total} retos`}
+            </p>
+          )}
         </div>
       </div>
 
@@ -253,16 +291,16 @@ export function ChallengesPanel({
               profileId={profile.id}
               challenge={challenge}
               kid={kid}
-              reward={wonThisWeek.get(challenge.id)}
+              rewards={wonThisWeek.get(challenge.id)}
               prize={rewardLabelFor(profile.id, challenge.tier)}
             />
           ))}
         </ul>
       )}
 
-      {/* Cómo van los retos, contado a mano o dictado */}
+      {/* Cómo van los retos, apuntado a mano */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <VoiceField
+        <NoteField
           rows={2}
           label="📝 Cómo van los retos"
           value={note}
@@ -272,7 +310,7 @@ export function ChallengesPanel({
               ? '¿Qué reto estás intentando? ¿Qué te está costando?'
               : 'Cómo va cada reto, qué se atasca, qué habría que cambiar…'
           }
-          hint={`Se guarda en ${friendlyDateLabel(date).toLowerCase()} y viaja al consejo del día junto con lo demás.`}
+          hint={`Se guarda en ${friendlyDateLabel(date).toLowerCase()}, junto con lo demás del día.`}
         />
       </div>
 

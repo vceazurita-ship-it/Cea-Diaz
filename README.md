@@ -6,9 +6,8 @@ Aplicación web independiente de seguimiento de hábitos para una familia de cua
 Funciona **local-first**: se escribe siempre primero en el navegador, así que la app
 va rápida y no se cae sin cobertura. Encima de eso, dos servicios opcionales que se
 activan con sus claves: **Supabase**, para que lo registrado se guarde de verdad y se
-vea desde todos los móviles, **Claude**, para analizar las fotos de comida y dar el
-consejo del día, y **Google Calendar**, para que los recados de cada uno avisen a su
-hora. Sin claves, todo sigue funcionando contra el propio navegador.
+vea desde todos los móviles, y **Google Calendar**, para que los recados de cada uno
+avisen a su hora. Sin claves, todo sigue funcionando contra el propio navegador.
 
 ## Puesta en marcha
 
@@ -36,7 +35,6 @@ npm run lint       # ESLint
 
 | Variable | Para qué | Sin ella |
 | -------- | -------- | -------- |
-| `ANTHROPIC_API_KEY` | Fotos de comida y consejo del día | Esas dos funciones avisan; el resto va igual |
 | `NEXT_PUBLIC_SUPABASE_URL` | Guardar y sincronizar entre móviles | Cada móvil guarda sólo lo suyo |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ídem | Ídem |
 | `GOOGLE_CLIENT_ID` | Llevar las tareas a Google Calendar | Las tareas se guardan igual, sin calendario |
@@ -54,8 +52,6 @@ La puesta en marcha de Supabase está detallada más abajo.
 ```
 app/
   layout.tsx           Layout raíz, metadatos y modo pintado antes del primer render
-  api/plato/route.ts   Análisis de la foto del plato con Claude
-  api/consejo/route.ts Consejo del día y reto progresivo con Claude
   api/calendario/       Cuenta de Google de cada perfil, vuelta del permiso y eventos
   page.tsx             Orquestador: selector ↔ dashboard ↔ PIN ↔ ajustes
   manifest.ts          Manifiesto PWA (instalable en el móvil)
@@ -72,10 +68,10 @@ components/
   challenges/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
-  meals/
-    MealPhotoCard.tsx  Plato desde la cámara o la galería, nota y recomendaciones
+  learning/
+    LearningBonusCard.tsx  El bonus de aprendizaje del día, en su idioma
   notes/
-    DayNoteCard.tsx    Observaciones dictadas, consejo y reto pendiente
+    DayNoteCard.tsx    Observaciones del día y borrado del día
   tasks/
     TasksPanel.tsx     Recados y citas del perfil, agrupados por urgencia
     TaskComposer.tsx   Alta y edición: qué, cuándo, aviso y repetición
@@ -91,10 +87,9 @@ components/
   SettingsPanel.tsx    Modo día/noche, portada, ejemplo, copias, PIN y borrado
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
-  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast, VoiceField, ThemeToggle
+  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast, NoteField, ThemeToggle
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
-  useDictation.ts      Dictado por voz con la Web Speech API, un micro a la vez
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
   useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
 public/
@@ -108,24 +103,22 @@ lib/
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
   rewards.ts           Mazos de cromos y frases, y su reparto por reto superado
-  mealPrompt.ts        Contexto e instrucciones del análisis de fotos de comida
-  advicePrompt.ts      Contexto del consejo del día y de la progresión de entreno
-  photos.ts            Reducción de fotos y miniaturas en IndexedDB
+  learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
   googleCalendar.ts    Google Calendar desde el servidor: permisos, tokens y eventos
   calendarLinks.ts     Los permisos guardados, uno por perfil, con el token cifrado
   supabaseAdmin.ts     Cliente con clave de servicio, sólo para las rutas de /api
-  rateLimit.ts         Tope de peticiones por IP en las rutas de Claude
+  rateLimit.ts         Tope de peticiones por IP en las rutas de /api
   sound.ts             Sintonía al entrar en un perfil, con desvanecido
   supabase.ts          Cliente de la nube (opcional: sin claves, no se usa)
-  cloud.ts             Sincronización: mezcla por fecha, lápidas y fotos
+  cloud.ts             Sincronización: mezcla por fecha y lápidas
   dates.ts             Utilidades de fecha en es-ES
   storage.ts           Lectura/escritura en localStorage
   appearance.ts        Ranuras de aspecto (fotos y sintonía) en IndexedDB
   seed.ts              Generador determinista de datos de ejemplo
 supabase/
-  schema.sql           Tablas, políticas RLS y cubos de fotos
+  schema.sql           Tablas, políticas RLS y cubo de fotos de perfil
 types/
   index.ts             Esquema de datos completo
 ```
@@ -195,13 +188,20 @@ Cada hábito con criterio lleva:
 Se distinguen tres niveles, y se enseñan en la ficha:
 
 - **Consenso** — organismos y revisiones: OMS, Academia Americana de Pediatría,
-  Walter Willett (Plato de Harvard), Sabine Sonnentag (desconexión psicológica).
+  UNICEF (crianza sin violencia), Walter Willett (Plato de Harvard), Sabine
+  Sonnentag (desconexión psicológica), Diana Baumrind (estilos parentales), Alan
+  Kazdin (programas de crianza), Sue Johnson (terapia focalizada en la emoción) y
+  Howard Markman (programa PREP).
 - **Divulgación** — resumen razonable de la evidencia disponible: Matthew Walker
   (sueño), Andrew Huberman (luz y ritmo circadiano), Peter Attia (fuerza y
   longevidad), Tim Spector (variedad vegetal), James Clear y BJ Fogg (diseño de
   hábitos), Carol Dweck (elogio del esfuerzo), John Gottman (pareja), Cal Newport
-  (concentración), K. Anders Ericsson (práctica deliberada), **Marcos Vázquez**,
-  **Endika Montiel**, Carlos Ríos y Julio Basulto.
+  (concentración), K. Anders Ericsson (práctica deliberada), Daniel Siegel y Ross
+  Greene (crianza), Faber y Mazlish (hablar con los hijos), Laurence Steinberg
+  (adolescencia), Esther Perel, Eli Finkel y Arthur Aron (pareja), **Marcos
+  Vázquez**, **Endika Montiel**, Carlos Ríos, Julio Basulto, **Álvaro Bilbao**,
+  **Rafa Guerrero**, **Míriam Tirado**, **Silvia Álava**, **Antoni Bolinches**,
+  **Silvia Congost** y **Joan Garriga**.
 - **Con reservas** — **Frank Suárez**: se le cita sólo donde coincide con todos los
   demás (beber más agua, bajar azúcar y harina refinada). Su clasificación del
   sistema nervioso en «excitado» y «pasivo» y su reparto de alimentos en tipo A y
@@ -220,11 +220,6 @@ esto sustituye al pediatra ni al médico.
    «Por qué importan estos objetivos» con el criterio y las referencias.
 3. **Pesa los retos de la semana.** Entre dos retos igual de pertinentes, el
    generador se queda con el que ataca un hábito clave.
-4. **Ancla al consejo del día.** El análisis recibe los hábitos que hoy piden
-   atención con su cifra y su referencia, con instrucción expresa de apoyarse en
-   ellos, citar de quién son y no atribuirle a nadie cifras que no se le han dado.
-5. **Ancla el análisis del plato.** Cada objetivo de comida viaja al análisis con
-   el criterio del que sale, y el Plato de Harvard como referencia de reparto.
 
 ### Hábitos que entraron por criterio experto
 
@@ -281,8 +276,7 @@ suena igual de rápido; recortarlo sólo ahorra peso en el repositorio.
 Las dos piezas tienen **derechos de autor**, así que colocarlas ahí y desplegar
 significa servirlas en una URL pública. Para uso doméstico lo sensato es cerrar el
 acceso: **Vercel → Settings → Deployment Protection** deja la app sólo para quien
-inicie sesión con tu cuenta, y de paso protege `/api/plato` y `/api/consejo` de que
-alguien gaste tu clave.
+inicie sesión con tu cuenta.
 
 ## La nube: Supabase
 
@@ -299,7 +293,7 @@ registrado sube solo en cuanto vuelve la conexión.
 
 1. Crea un proyecto en [supabase.com](https://supabase.com) (el plan gratuito sobra).
 2. **SQL Editor** → pega entero `supabase/schema.sql` → *Run*. Crea las tablas,
-   sus políticas de seguridad y los cubos de archivos.
+   sus políticas de seguridad y el cubo de archivos.
 3. **Project Settings → API** → copia *Project URL* y la clave *anon public*.
 4. En Vercel, **Settings → Environment Variables**:
    `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Estas dos se
@@ -311,8 +305,8 @@ registrado sube solo en cuanto vuelve la conexión.
 
 > **Si ya tenías Supabase montado de antes:** vuelve a pegar
 > `supabase/schema.sql` entero y dale a *Run*. Es idempotente —no borra nada— y añade
-> lo que falte: las columnas de las notas por categoría (`entries.notes`, `meals.context`)
-> y las tablas `tasks` y `calendar_links`. Hasta que se ejecute, este móvil guarda igual
+> lo que falte: la columna de las notas por categoría (`entries.notes`) y las tablas
+> `tasks` y `calendar_links`. Hasta que se ejecute, este móvil guarda igual
 > pero la subida a la nube falla y lo avisa en Ajustes.
 
 ### Qué sube y qué no
@@ -320,10 +314,8 @@ registrado sube solo en cuanto vuelve la conexión.
 | Sube | Se queda en el móvil |
 | ---- | -------------------- |
 | Registros diarios, observaciones y notas de categoría | El PIN del módulo de pareja |
-| Comidas: nota, alimentos y consejos | La caché de miniaturas (se rellena sola desde la nube) |
-| Miniaturas de los platos (cubo `comidas`) | La preferencia «trabajar sólo en este móvil» |
-| Consejos del día y retos de progresión | |
-| Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | El permiso de Google (vive cifrado en el servidor) |
+| Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | La preferencia «trabajar sólo en este móvil» |
+| | El permiso de Google (vive cifrado en el servidor) |
 
 ### Cómo resuelve los conflictos
 
@@ -344,7 +336,7 @@ se pisa.
 Todas las tablas de datos tienen **RLS** y sus políticas sólo dejan ver y tocar las filas
 cuyo `owner` coincide con la sesión. Sin haber entrado no se lee absolutamente nada,
 aunque alguien tenga la clave pública (que va, por fuerza, dentro del navegador). El cubo
-de fotos es privado y se sirve con URL firmada.
+de fotos de perfil es privado y se sirve con URL firmada.
 
 `calendar_links` es la excepción, y a más: guarda los permisos de Google Calendar, así
 que tiene RLS **sin ninguna política** —la clave pública no la ve ni con sesión iniciada—
@@ -355,123 +347,77 @@ La cuenta es **compartida por la casa**: quien entra ve los seis perfiles, igual
 antes. El módulo de pareja sigue protegido por su PIN, que es una barrera doméstica,
 no un muro.
 
-## Fotos de comida
+## Bonus de aprendizaje del día
 
-En el registro diario de quien tiene objetivos de alimentación (Leo, Hugo, María y
-Víctor) hay una tarjeta **📷 Foto de la comida**: se elige el momento del día —que
-viene propuesto según la hora—, se pone el plato y Claude devuelve una **nota de 0 a
-10** y de uno a tres ajustes concretos: qué reducir, qué aumentar, qué cambiar por
-otra cosa o qué añadir.
+En la pestaña de registro, justo debajo de «A qué atender hoy», cada perfil recibe
+**una cosa útil al día**: un titular, dos o tres frases de explicación y algo
+concreto que hacer hoy mismo con ello.
 
-La foto puede venir de dos sitios, y por eso hay dos botones:
+### De dónde sale
 
-- **📸 Hacer foto del plato** abre directamente la cámara.
-- **🖼️ Elegir una del móvil** abre la galería, para el plato que ya se fotografió
-  antes de sentarse a comer o el que llegó por WhatsApp.
+No es un consejo genérico: sale de **donde esa persona está poniendo el interés**.
+La app mira los **últimos 14 días** y cuenta en qué categoría se rellenan más
+casillas —que es la definición operativa de interés: no lo que se dice que importa,
+sino donde se registra—. De esa categoría sale el bonus.
 
-Son dos `<input type="file">` distintos porque el atributo `capture` es lo que manda
-al móvil abrir el objetivo, y un mismo campo no puede hacer las dos cosas.
+Para que no se quede meses dentro de un solo tema, la rotación es de **dos días del
+tema principal y uno del segundo**. Dentro de cada tema, el catálogo se recorre
+entero antes de repetir ninguno.
 
-Encima de los botones hay un campo **🗣️ Cuéntalo (opcional)**, que se escribe o se
-dicta: lo que la foto no puede enseñar —cómo está cocinado, si se lo terminó, qué
-bebió con ello—. Va con la foto al análisis y se guarda con la comida, para saber
-después sobre qué se juzgó.
+### El idioma es parte del regalo
 
-El plato no se juzga en abstracto, sino **contra el objetivo de quien come**: el
-análisis recibe la edad, el papel en la familia, los objetivos diarios de comida
-declarados en `lib/habits.ts` y lo que esa persona ya lleva registrado hoy, para no
-repetir un consejo que ya está cumplido.
+| Perfil | Idioma | Por qué |
+| ------ | ------ | ------- |
+| **Leo · Hugo** | 🇬🇧 Inglés (nivel de primaria) | El bonus enseña la cosa útil **y** el idioma a la vez |
+| **Víctor** | 🇬🇧 Inglés (con el vocabulario del oficio) | Plan de sesión, feedback, scouting, cargas: la jerga real del cuerpo técnico |
+| **María** | 🇪🇸 Español | |
+| **Familia · Pareja** | 🇪🇸 Español | |
 
-Con los peques hay reglas innegociables en el *prompt* del sistema: no se menciona
-nunca peso, calorías ni dietas, ningún alimento es «malo», y se prioriza añadir y
-cambiar antes que quitar. Es una orientación doméstica, no un consejo médico, y así
-se dice en la propia tarjeta.
+Los de inglés traen debajo una línea de **vocabulario** con las palabras nuevas
+traducidas, para no tener que buscarlas fuera:
 
-### Cómo está montado
+> **Warm up properly** — A warm muscle stretches; a cold one tears…
+> *Vocabulario · to warm up = calentar · muscle = músculo · joint = articulación*
 
-| Pieza | Qué hace |
-| ----- | -------- |
-| `app/api/plato/route.ts` | Valida la petición, llama a Claude con visión y devuelve el veredicto ya comprobado contra un esquema de Zod. Vive en el servidor porque la clave de la API no puede estar en el navegador. |
-| `lib/mealPrompt.ts` | Arma el contexto (quién come, sus objetivos, lo ya registrado) a partir del catálogo de hábitos, para no repetir los objetivos en dos sitios. |
-| `lib/photos.ts` | Reduce la foto en el propio móvil a 1024 px para analizarla y a 320 px para guardarla, y gestiona las miniaturas en IndexedDB. |
-| `components/meals/MealPhotoCard.tsx` | La tarjeta: momento del día, lo que se cuenta del plato, cámara o galería, resultado y comidas del día con su media. |
+### El catálogo
 
-La foto **completa nunca se sube**: se reduce antes de enviarla, y de lo que queda
-sólo se guarda una **miniatura en IndexedDB** de este dispositivo —`localStorage`,
-donde vive el resto de la base, se llenaría en dos semanas—. Las miniaturas que ya no
-pertenecen a ninguna comida se borran al arrancar la app.
+`lib/learning.ts` es catálogo editable, igual que `lib/habits.ts`: añadir un bonus
+es añadir un objeto con su `topic` (el identificador de la categoría de la que
+cuelga), su idioma, su titular, su explicación, el `apply` de hoy y —si es en
+inglés— su `gloss`.
 
-La nota, lo que se contó del plato y los consejos sí viajan en la copia de seguridad
-(`meals` en el JSON exportado, versión 5 del formato); las miniaturas no, porque son
-locales: al importar en otro móvil se conservan las notas pero no las fotos.
+Hay pools para cada categoría de cada perfil: nutrición, sueño, deporte y estudio
+para los peques; sueño, nutrición, fuerza, desarrollo y oficio para María y Víctor;
+rutinas y tiempo juntos para familia; tiempo a solas y conexión para la pareja. Los
+de familia y pareja están escritos sobre el mismo criterio experto de la sección
+—Bilbao, Siegel, Kazdin, Greene, Baumrind, Álava, Guerrero, Gottman, Johnson,
+Markman, Perel, Aron, Finkel, Bolinches, Congost y Garriga—, así que el bonus y la
+ficha de criterio nunca se contradicen.
 
-Las notas de las comidas **no cuentan** para el cumplimiento diario ni para los
-retos: son una lectura aparte, y las casillas de nutrición se siguen marcando a mano.
+Como los retos y los premios, **no se guarda nada**: el bonus es una función pura de
+`(perfil, fecha, historial)`, así que el mismo día da siempre el mismo bonus en todos
+los móviles y no hay nada que sincronizar. Leo y Hugo comparten catálogo pero no
+orden: la rotación va sembrada con el perfil, así que el mismo día no les toca lo
+mismo.
 
-> **Aviso:** `/api/plato` y `/api/consejo` son rutas públicas del despliegue. Llevan un
-> **tope de 20 peticiones cada 10 minutos por IP** (`lib/rateLimit.ts`), invisible para
-> el uso de casa, que acota lo que alguien podría gastar de tu clave. No es una
-> barrera: el contador vive en memoria y en Vercel una función puede correr en varias
-> instancias, así que el límite es por instancia y se reinicia al enfriarse. La barrera
-> de verdad es **Settings → Deployment Protection**, que deja la app —y con ella sus
-> rutas y la música— sólo para quien inicie sesión con tu cuenta de Vercel.
+## Notas del día
 
-## Observaciones en voz alta y consejo del día
-
-La nota del día tiene un botón **🎙️ Contarlo en voz alta**: se dicta cómo ha ido cada
-hábito —el entrenamiento, el trabajo, lo que se ha comido, lo que ha dolido— y el
-texto se va escribiendo solo en la nota, que sigue siendo editable a mano.
-
-### Dónde se puede dictar
-
-El campo dictable es el mismo componente en todas partes
-(`components/ui/VoiceField.tsx`), así que se comporta igual en los cuatro sitios en
-que aparece:
+Además de las casillas, en tres sitios se puede escribir lo que ninguna casilla
+recoge. Es el mismo componente en todos (`components/ui/NoteField.tsx`), así que se
+comporta igual en los tres:
 
 | Dónde | Qué se apunta ahí |
 | ----- | ----------------- |
-| **📔 Observaciones del día** | El relato de la jornada, del que sale el consejo. |
+| **📔 Observaciones del día** | El relato de la jornada: cómo ha ido cada hábito. |
 | **📝 Nota de cada categoría** | Lo que ninguna casilla recoge: «le dolía el tobillo», «sólo media hora de entreno». Está al final de cada tarjeta desplegada, y la tarjeta plegada lo delata con un 📝. |
 | **📝 Cómo van los retos** | En la pestaña de retos: qué se atasca, qué habría que cambiar. |
-| **🗣️ Cuéntalo** | En la tarjeta de la comida, lo que la foto no enseña. |
-
-Lo dictado se **añade al final** de lo que ya hubiera, así que se puede escribir un
-poco, dictar el resto y corregir a mano. Sólo hay un micrófono abierto a la vez:
-empezar a dictar en un campo cierra el anterior en vez de pelearse con él.
 
 Las notas de las categorías y la de los retos se guardan en el registro del día
-(`notes` en `DayEntry`, columna `notes` en la tabla `entries`) y **viajan al consejo
-del día** junto con las observaciones y lo registrado. No cuentan para el
+(`notes` en `DayEntry`, columna `notes` en la tabla `entries`). No cuentan para el
 cumplimiento: son contexto, no una métrica más.
 
-Con **💡 Consejo para mañana**, lo contado se manda junto con lo registrado ese día y
-vuelve con uno a tres consejos concretos para mañana o los próximos días. Nada de
-«esfuérzate más»: qué hacer, cuánto y cuándo.
-
-### El reto progresivo
-
-Si el día incluye **gimnasio o entrenamiento propio**, el consejo trae además un reto
-para la siguiente sesión, **un punto por encima de lo hecho**: una serie más, dos
-minutos más, un descanso más corto. Para calibrarlo recibe las **tres últimas semanas
-de sesiones** y el reto anterior, de modo que la progresión sube desde la marca real y
-no pega saltos imposibles; el campo `partiendoDe` dice sobre qué se ha construido.
-
-Ese reto se queda **pendiente en la cabecera del día** hasta que se marca `✅
-Conseguido` o pasan quince días, así que aparece justo antes de la siguiente sesión,
-que es cuando sirve de algo. El siguiente consejo lo tiene en cuenta para subir desde
-ahí en lugar de repetirlo.
-
-Con los peques rigen las mismas reglas que en las fotos de comida: nada de peso ni
-calorías, nada de cargas de adulto —técnica, repeticiones con su propio cuerpo y
-constancia— y, si cuenta que le duele algo, el consejo es parar y avisar en casa.
-
-### Por qué el dictado es del navegador
-
-Claude no acepta audio, sólo texto e imagen. El reconocimiento de voz lo hace el
-propio móvil con la **Web Speech API** (`hooks/useDictation.ts`), así que no hay
-proveedor extra, no hay coste añadido y **ningún audio sale del dispositivo**: lo que
-viaja a `/api/consejo` es el texto. Donde el navegador no lo soporte, el botón no
-aparece y todo funciona escribiendo a mano.
+Se escriben a mano y ya está: **la app no tiene entrada por voz**. La tuvo —dictado
+con la Web Speech API del propio navegador— y se retiró por innecesaria.
 
 ## Retos
 
@@ -509,9 +455,9 @@ Cada reto superado entrega un regalo, y el nivel del reto decide la rareza:
 
 | Perfil          | Colección                | Cimiento         | Reto                                        | Máximo esfuerzo                          |
 | --------------- | ------------------------ | ---------------- | ------------------------------------------- | ---------------------------------------- |
-| **Leo · Hugo**  | Álbum de cromos          | LaLiga           | Estrellas + secundarios de *Oliver y Benji* | Leyendas del fútbol + Oliver, Benji, Mark Lenders y Roberto Sedinho |
-| **María**       | Frases                   | Frase del día    | Frase de fuerza                             | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) |
-| **Víctor**      | Aforismos de paternidad y oficio | Aforismo | Aforismo de fuerza                          | Aforismo de oro (Séneca, Marco Aurelio, Will Durant…) |
+| **Leo · Hugo**  | Álbum de cromos **+ técnicas** | LaLiga     | Estrellas + secundarios de *Oliver y Benji* | Leyendas del fútbol + Oliver, Benji, Mark Lenders y Roberto Sedinho |
+| **María**       | Frases **+ cromos de casa** | Frase del día + cromo de casa | Frase de fuerza + cromo de la plantilla | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) + cromo de leyenda de casa |
+| **Víctor**      | Aforismos **+ cromos de casa** | Aforismo + cromo de casa | Aforismo de fuerza + cromo de la plantilla | Aforismo de oro (Séneca, Marco Aurelio, Will Durant…) + cromo de leyenda de casa |
 | **Familia**     | Aforismos de la casa     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Tolstói, Pitágoras…)    |
 | **Pareja**      | Aforismos de los dos     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Saint-Exupéry…)         |
 
@@ -520,8 +466,43 @@ Cada cromo lleva su equipo, su demarcación, aquello por lo que se le recuerda y
 talento», del cromo de Iñaki Williams). Las frases y los aforismos van marcados por
 tema: 🏡 familia · 🌿 para ti · 💻 aula · 👨‍👦 paternidad · ⚽ oficio · 💞 pareja.
 
-El premio se **anuncia antes** («🎁 En juego: Cromo de leyenda») y se entrega al
-superar el reto, con el cromo o la frase visibles en la propia tarjeta y guardados
+#### Los cromos de casa
+
+María y Víctor tienen **dos regalos por reto**: su frase o su aforismo y, además, un
+cromo de la familia. Es el mismo formato de los de fútbol, pero la plantilla es la de
+casa —los cuatro, los ratos que se repiten y las cosas que sólo pasan aquí—, escrita
+para esta casa en concreto:
+
+| Nivel | Rareza | De qué van |
+| ----- | ------ | ---------- |
+| Cimiento | Cromo de casa | Lo de diario: la mesa de la cena, el cuento de la noche, el taxi de los entrenos, el aula de las nueve |
+| Reto | Cromo de la plantilla | Uno por cabeza: Leo, Hugo, María, Víctor, los hermanos, la pareja |
+| Máximo | Cromo de leyenda de casa | Las grandes: los Cea Díaz al completo, la semana entera, el finde que no se descuadró |
+
+En el código es un mazo aparte (`bonus` en el `Deck` de `lib/rewards.ts`), barajado
+con otra semilla para que la frase y el cromo no vayan siempre emparejados igual.
+Cualquier otro perfil puede recibir un segundo mazo con sólo declarárselo.
+
+#### Las técnicas de la semana
+
+Leo y Hugo tienen el otro tipo de premio: **uno por semana, y sólo si no queda ningún
+reto sin superar**. No es una carta más del álbum de fútbol, sino un cromo de *ellos*
+jugando, en el registro de *Oliver y Benji*: una técnica con nombre propio que se
+desbloquea al cerrar la semana entera.
+
+| | Leo | Hugo |
+| - | --- | ---- |
+| Va de | Energía y atreverse | Constancia y récord propio |
+| Ejemplos | Tiro del León · Regate Relámpago · Huracán de Cinco Deportes · Disparo del Minuto 90 | Tiro del Tigre Rubio · Marca Propia · Motor de Constancia · Carrera Invisible |
+
+Cada uno tiene su mazo (`weekly` en su `Deck`), así que el cromo lleva su nombre y no
+el del hermano; los dos comparten una técnica combinada, el **Muro de Hermanos**. En
+la cabecera de la pestaña de retos se ve el premio antes de ganarlo —«🔒 Técnica de la
+semana: se desbloquea al superar los 3 retos»— y, una vez cerrada la semana, con qué
+técnica se pagó.
+
+El premio se **anuncia antes** («🎁 En juego: Frase de oro + cromo de leyenda de
+casa») y se entrega al superar el reto, visible en la propia tarjeta y guardado
 en la colección de abajo. Cada perfil baraja su mazo con su semilla, así que Leo y
 Hugo no reciben los cromos en el mismo orden, y no se repite ninguno mientras queden
 cartas sin salir.
@@ -557,10 +538,6 @@ Una tarea es, como mínimo, un título y un día. Todo lo demás está plegado d
 | Duración      | Sólo con hora; por defecto, una hora                              |
 | Aviso         | Antelación del recordatorio                                       |
 | Repetición    | Diaria, semanal o mensual                                         |
-
-El título **se puede dictar**, con el mismo micrófono que las observaciones del día:
-escribir con el pulgar mientras se sale de la consulta del pediatra es justo cuando
-peor se hace.
 
 La lista se agrupa sola por urgencia —**se pasaron**, hoy, mañana, esta semana, más
 adelante, sin fecha, hechas— y la pestaña lleva un contador con lo que vence hoy, para
@@ -812,9 +789,9 @@ Original** deshace la personalización y devuelve lo que trae el código.
 - **Niños**: tarjetas grandes, emojis tocables, barras gruesas, estrellas y mensajes de ánimo.
 - **Adultos y grupos**: filas compactas, segmentados Sí/No, deslizadores y anillos de progreso.
 - **Retos**: tres objetivos de la semana con su porqué, puntos y medallero de las anteriores.
-- **Comidas**: foto del plato, nota de 0 a 10 y qué reducir, aumentar, cambiar o añadir.
+- **Bonus del día**: una cosa útil, sacada de donde cada uno registra más; en inglés para los peques y Víctor.
 - **Sonido**: cada perfil puede recibirte con su sintonía, silenciable desde Ajustes.
-- **Voz**: se cuenta el día en voz alta y sale un consejo para mañana y un reto de entreno.
+- **Notas**: lo que ninguna casilla recoge, en el día, en cada categoría y en los retos.
 - **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros.
 
 ## Usabilidad
@@ -908,8 +885,7 @@ Es una barrera doméstica, no seguridad real: los datos viven sin cifrar en el `
 del navegador. Si en el futuro se quiere sincronizar entre dispositivos, basta con sustituir
 `loadDatabase` / `saveDatabase` en `lib/storage.ts` por llamadas a una API.
 
-De la app **sale muy poco, y sólo cuando se pide**: la foto de un plato y las
-observaciones del día van a Claude al pulsar su botón, y un recado va a Google Calendar
+De la app **sale muy poco, y sólo cuando se pide**: un recado va a Google Calendar
 si ese perfil tiene cuenta enlazada y la tarea tiene fecha. Los permisos de Google se
 guardan cifrados en el servidor, no viajan nunca al navegador, y desconectar una cuenta
 los borra aquí y los revoca allí. Nada más sale de la casa.

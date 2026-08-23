@@ -5,8 +5,8 @@ import { CategoryCard } from '@/components/CategoryCard';
 import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
 import { AttentionCard } from '@/components/experts/AttentionCard';
-import { MealPhotoCard } from '@/components/meals/MealPhotoCard';
-import { DayNoteCard, PendingChallengeCard } from '@/components/notes/DayNoteCard';
+import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
+import { DayNoteCard } from '@/components/notes/DayNoteCard';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
 import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
@@ -15,7 +15,7 @@ import type { HabitStore } from '@/hooks/useHabitStore';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
 import { getCategories } from '@/lib/habits';
-import { hasFoodGoals } from '@/lib/mealPrompt';
+import { learningFor } from '@/lib/learning';
 import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import { dueCount } from '@/lib/tasks';
@@ -96,22 +96,6 @@ export function Dashboard({
       })
     : categories;
 
-  /** Reto de progresión que quedó pendiente de una sesión anterior. */
-  const pendingAdvice = store.pendingChallenge(profile.id, date);
-
-  const completeChallenge = () => {
-    if (!pendingAdvice) return;
-    store.markChallengeDone(pendingAdvice.id, true);
-    notify({
-      message: '¡Reto conseguido!',
-      icon: '🏅',
-      action: {
-        label: 'Deshacer',
-        onClick: () => store.markChallengeDone(pendingAdvice.id, false),
-      },
-    });
-  };
-
   const handleChange = (metricId: string, value: Parameters<HabitStore['setValue']>[3]) => {
     store.setValue(profile.id, date, metricId, value);
   };
@@ -162,6 +146,12 @@ export function Dashboard({
 
   /** Recados que urgen hoy; se acusan en la propia pestaña. */
   const tasksDue = dueCount(store.getTasks(profile.id));
+
+  /** El bonus del día, sacado de donde este perfil pone el interés. */
+  const learning = useMemo(
+    () => learningFor(profile, store.entries, date),
+    [profile, store.entries, date],
+  );
 
   const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
     skin === 'pitch'
@@ -282,16 +272,11 @@ export function Dashboard({
             </span>
           </div>
 
-          {pendingAdvice && (
-            <PendingChallengeCard
-              advice={pendingAdvice}
-              kid={kid}
-              onDone={completeChallenge}
-            />
-          )}
-
           {/* Antes de la lista de casillas, lo que de verdad hay que mirar hoy. */}
           <AttentionCard profile={profile} values={values} kid={kid} />
+
+          {/* El regalo del día: una cosa útil, en el idioma que le toca. */}
+          {learning && <LearningBonusCard learning={learning} kid={kid} />}
 
           {visibleCategories.length === 0 ? (
             <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
@@ -328,12 +313,7 @@ export function Dashboard({
             ))
           )}
 
-          {/* Fotos de comida: sólo donde hay objetivos de alimentación */}
-          {hasFoodGoals(profile.id) && (
-            <MealPhotoCard profile={profile} date={date} store={store} kid={kid} />
-          )}
-
-          {/* Observaciones del día, dictado y consejo */}
+          {/* Observaciones del día */}
           <DayNoteCard profile={profile} date={date} store={store} kid={kid} filled={filled} />
 
           {/* Los atajos sólo se anuncian donde hay teclado: en el móvil eran

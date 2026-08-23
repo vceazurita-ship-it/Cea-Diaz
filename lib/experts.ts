@@ -127,6 +127,94 @@ export const EXPERTS: Record<string, Expert> = {
     level: 'consenso',
   },
 
+  /* ------------------------------- crianza y familia */
+  baumrind: {
+    id: 'baumrind',
+    name: 'Diana Baumrind',
+    role: 'Psicóloga del desarrollo (Berkeley), estilos parentales',
+    field: 'Autoridad, límites y afecto',
+    level: 'consenso',
+  },
+  siegel: {
+    id: 'siegel',
+    name: 'Daniel Siegel',
+    role: 'Psiquiatra (UCLA), «El cerebro del niño»',
+    field: 'Emoción, conexión y desarrollo cerebral',
+    level: 'divulgacion',
+  },
+  kazdin: {
+    id: 'kazdin',
+    name: 'Alan Kazdin',
+    role: 'Psicólogo (Yale), Yale Parenting Center',
+    field: 'Refuerzo positivo y cambio de conducta',
+    level: 'consenso',
+  },
+  greene: {
+    id: 'greene',
+    name: 'Ross Greene',
+    role: 'Psicólogo clínico, «El niño explosivo»',
+    field: 'Conflicto y resolución colaborativa',
+    level: 'divulgacion',
+  },
+  faber: {
+    id: 'faber',
+    name: 'Faber y Mazlish',
+    role: 'Autoras de «Cómo hablar para que los niños escuchen»',
+    field: 'Escucha y lenguaje con los hijos',
+    level: 'divulgacion',
+  },
+  steinberg: {
+    id: 'steinberg',
+    name: 'Laurence Steinberg',
+    role: 'Psicólogo (Temple), adolescencia',
+    field: 'Autonomía y supervisión según la edad',
+    level: 'divulgacion',
+  },
+  unicef: {
+    id: 'unicef',
+    name: 'UNICEF',
+    role: 'Fondo de la ONU para la Infancia',
+    field: 'Crianza positiva y disciplina sin violencia',
+    level: 'consenso',
+  },
+
+  /* ---------------------------------------------- pareja */
+  johnson: {
+    id: 'johnson',
+    name: 'Sue Johnson',
+    role: 'Psicóloga, terapia focalizada en la emoción (EFT), «Abrázame fuerte»',
+    field: 'Apego adulto y reconexión',
+    level: 'consenso',
+  },
+  markman: {
+    id: 'markman',
+    name: 'Howard Markman',
+    role: 'Psicólogo (Universidad de Denver), programa PREP',
+    field: 'Prevención del conflicto de pareja',
+    level: 'consenso',
+  },
+  perel: {
+    id: 'perel',
+    name: 'Esther Perel',
+    role: 'Psicoterapeuta de pareja, «Inteligencia erótica»',
+    field: 'Deseo, distancia y vida propia',
+    level: 'divulgacion',
+  },
+  finkel: {
+    id: 'finkel',
+    name: 'Eli Finkel',
+    role: 'Psicólogo social (Northwestern), «The All-or-Nothing Marriage»',
+    field: 'Expectativas y tiempo dedicado',
+    level: 'divulgacion',
+  },
+  aron: {
+    id: 'aron',
+    name: 'Arthur Aron',
+    role: 'Psicólogo social (Stony Brook), auto-expansión',
+    field: 'Novedad compartida y cercanía',
+    level: 'divulgacion',
+  },
+
   /* ------------------------------------------------ habla hispana */
   marcos: {
     id: 'marcos',
@@ -154,6 +242,55 @@ export const EXPERTS: Record<string, Expert> = {
     name: 'Julio Basulto',
     role: 'Dietista-nutricionista, nutrición infantil',
     field: 'Alimentación de niños y familias',
+    level: 'divulgacion',
+  },
+  bilbao: {
+    id: 'bilbao',
+    name: 'Álvaro Bilbao',
+    role: 'Neuropsicólogo, «El cerebro del niño explicado a los padres»',
+    field: 'Desarrollo infantil, límites y juego',
+    level: 'divulgacion',
+  },
+  guerrero: {
+    id: 'guerrero',
+    name: 'Rafa Guerrero',
+    role: 'Psicólogo, «Educar en el vínculo»',
+    field: 'Apego y regulación emocional',
+    level: 'divulgacion',
+  },
+  tirado: {
+    id: 'tirado',
+    name: 'Míriam Tirado',
+    role: 'Divulgadora de crianza consciente, «Límites»',
+    field: 'Presencia, límites y rutinas',
+    level: 'divulgacion',
+  },
+  alava: {
+    id: 'alava',
+    name: 'Silvia Álava',
+    role: 'Psicóloga infantil, «El arte de educar jugando»',
+    field: 'Autonomía, juego y conducta',
+    level: 'divulgacion',
+  },
+  bolinches: {
+    id: 'bolinches',
+    name: 'Antoni Bolinches',
+    role: 'Psicólogo y sexólogo, terapia de pareja, «El secreto de la autoestima»',
+    field: 'Madurez personal y convivencia en pareja',
+    level: 'divulgacion',
+  },
+  congost: {
+    id: 'congost',
+    name: 'Silvia Congost',
+    role: 'Psicóloga, «Cuando amar demasiado es depender»',
+    field: 'Autoestima y dependencia emocional',
+    level: 'divulgacion',
+  },
+  garriga: {
+    id: 'garriga',
+    name: 'Joan Garriga',
+    role: 'Psicólogo gestáltico, «El buen amor en la pareja»',
+    field: 'Vínculo, aceptación y reparto de lugares',
     level: 'divulgacion',
   },
   frank: {
@@ -646,8 +783,10 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'Se asocia a mejor alimentación, más vocabulario y menos conductas de riesgo ' +
       'en la adolescencia. Basulto añade la parte de la mesa: el niño come mejor ' +
-      'cuando ve comer lo mismo a los mayores y nadie le presiona.',
-    experts: ['basulto', 'willett'],
+      'cuando ve comer lo mismo a los mayores y nadie le presiona. Faber y Mazlish ' +
+      'ponen el resto: en la mesa se pregunta y se escucha, no se interroga ni se ' +
+      'aprovecha para corregir el día.',
+    experts: ['basulto', 'willett', 'faber', 'bilbao'],
   },
   {
     metricId: 'rutina_sueno',
@@ -656,8 +795,11 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'La AAP recomienda la misma secuencia todas las noches —cena, ducha, cuento, ' +
       'luz fuera— porque la señal es la repetición. Es además el momento en que ' +
-      'los niños cuentan lo que no cuentan en la mesa.',
-    experts: ['aap', 'walker'],
+      'los niños cuentan lo que no cuentan en la mesa. Álvaro Bilbao insiste en que ' +
+      'ese rato de calma es cuando el cerebro del niño consolida lo aprendido, y ' +
+      'Míriam Tirado en que el límite se sostiene mejor si la rutina es la misma ' +
+      'para todos y no se negocia cada noche.',
+    experts: ['aap', 'walker', 'bilbao', 'tirado'],
   },
   {
     metricId: 'refuerzo_esfuerzo',
@@ -666,8 +808,13 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'Dweck: «has entrenado bien toda la semana» construye; «qué crack eres» crea ' +
       'miedo a fallar. Con dos hermanos deportistas es la diferencia entre ' +
-      'competir entre ellos y empujarse.',
-    experts: ['dweck'],
+      'competir entre ellos y empujarse. Kazdin añade la mecánica: el refuerzo pesa ' +
+      'cuando es concreto, inmediato y describe la conducta; el castigo enseña a ' +
+      'esconderla. Bilbao lo resume en que el elogio al esfuerzo alimenta la ' +
+      'motivación propia, y el elogio al talento la sustituye por la del adulto. ' +
+      'UNICEF cierra el marco: la crianza positiva reconoce y redirige, y deja ' +
+      'fuera el castigo físico y la humillación, sin excepciones.',
+    experts: ['dweck', 'kazdin', 'bilbao', 'unicef'],
   },
   {
     metricId: 'aire_libre',
@@ -675,8 +822,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'El aire libre suma luz, movimiento y menos pantalla de una vez.',
     detail:
       'En niños se asocia además a menos miopía: el tiempo al exterior es el factor ' +
-      'protector más consistente que se conoce.',
-    experts: ['oms', 'huberman'],
+      'protector más consistente que se conoce. Silvia Álava recuerda que el juego ' +
+      'libre al aire libre —sin actividad dirigida— es donde se entrenan la ' +
+      'iniciativa y la tolerancia al aburrimiento.',
+    experts: ['oms', 'huberman', 'alava'],
   },
   {
     metricId: 'tiempo_juego',
@@ -684,8 +833,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Jugar con ellos vale más que los planes grandes de fin de semana.',
     detail:
       'Cuarenta y cinco minutos de juego de verdad, sin móvil delante, pesan más ' +
-      'que una excursión al mes.',
-    experts: ['gottman', 'dweck'],
+      'que una excursión al mes. Álvaro Bilbao lo pone entre lo que más construye ' +
+      'el cerebro del niño, y Silvia Álava señala que jugando se enseña a perder, a ' +
+      'esperar turno y a negociar sin que parezca una lección.',
+    experts: ['gottman', 'dweck', 'bilbao', 'alava'],
   },
   {
     metricId: 'lectura_conjunta',
@@ -693,8 +844,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Leer con ellos sostiene la lectura de ellos.',
     detail:
       'Ver leer en casa predice el hábito lector infantil mejor que cualquier ' +
-      'insistencia. Vale igual la peli comentada que el libro.',
-    experts: ['clear', 'basulto'],
+      'insistencia. Vale igual la peli comentada que el libro: lo que cuenta es la ' +
+      'conversación de después. Siegel lo llama «contar el cuento de lo que pasó»: ' +
+      'poner en palabras lo vivido es lo que lo ordena.',
+    experts: ['clear', 'siegel', 'bilbao'],
   },
   {
     metricId: 'rutina_finde',
@@ -702,8 +855,11 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'El fin de semana es donde se descuadran el sueño y las comidas.',
     detail:
       'Walker llama «jet lag social» a mover dos horas el horario el sábado: se ' +
-      'paga el lunes. Una rutina mínima de finde protege la semana entera.',
-    experts: ['walker', 'clear'],
+      'paga el lunes. Una rutina mínima de finde protege la semana entera. ' +
+      'Steinberg avisa de cómo envejece esto: con la edad se negocian los bordes ' +
+      '—la hora de volver, la pantalla— pero el ancla y la supervisión siguen ' +
+      'haciendo falta bastante después de lo que parece.',
+    experts: ['walker', 'clear', 'steinberg'],
   },
   {
     metricId: 'tareas_hogar',
@@ -711,8 +867,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'El reparto de tareas evita que el cansancio se convierta en reproche.',
     detail:
       'Gottman lo sitúa entre los motivos más repetidos de conflicto doméstico, y ' +
-      'entre los más fáciles de desactivar poniéndolo por escrito.',
-    experts: ['gottman'],
+      'entre los más fáciles de desactivar poniéndolo por escrito. Con los peques ' +
+      'hay premio doble: Silvia Álava recuerda que las tareas de casa son la vía ' +
+      'más directa de enseñar autonomía y responsabilidad a esta edad.',
+    experts: ['gottman', 'alava'],
   },
   {
     metricId: 'consejo_familia',
@@ -720,8 +878,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Quince minutos de planificación semanal ahorran discusiones diarias.',
     detail:
       'Clear lo llama revisión: mirar qué funcionó y qué no, y decidir una sola ' +
-      'cosa a cambiar. En familia, además, reparte la carga mental.',
-    experts: ['clear', 'gottman'],
+      'cosa a cambiar. En familia, además, reparte la carga mental. Ross Greene ' +
+      'aporta el tono: los problemas que se repiten se resuelven *con* los hijos y ' +
+      'en frío —qué pasa, qué nos preocupa, qué probamos—, no a gritos en caliente.',
+    experts: ['clear', 'gottman', 'greene'],
   },
   {
     metricId: 'animo_familia',
@@ -729,8 +889,11 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'El clima de casa es un dato, no una impresión.',
     detail:
       'Anotado a diario enseña qué semanas se tuercen y con qué coinciden: sueño ' +
-      'corto, exámenes, cargas de trabajo.',
-    experts: ['gottman'],
+      'corto, exámenes, cargas de trabajo. Baumrind describe el clima que mejor ' +
+      'funciona —exigente y cálido a la vez— y Rafa Guerrero recuerda que el niño ' +
+      'regula sus emociones prestadas de las nuestras: la calma del adulto es parte ' +
+      'del ambiente que se está midiendo.',
+    experts: ['gottman', 'baumrind', 'guerrero'],
   },
 
   /* =============================== PAREJA =============================== */
@@ -741,8 +904,10 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'Gottman lo llama «charla de reencuentro»: al terminar el día, hablar de todo ' +
       'menos de niños, dinero y agenda. Es de las pocas rutinas con efecto medido ' +
-      'sobre la satisfacción de pareja.',
-    experts: ['gottman'],
+      'sobre la satisfacción de pareja. Sue Johnson explica por qué funciona: lo ' +
+      'que se pregunta de fondo, cada día, es «¿sigues ahí?», y basta con ' +
+      'responder que sí.',
+    experts: ['gottman', 'johnson'],
   },
   {
     metricId: 'gratitud',
@@ -751,8 +916,10 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'Es el hallazgo más conocido de Gottman: las parejas que duran mantienen unas ' +
       'cinco interacciones positivas por cada negativa, también en los días malos. ' +
-      'Se construye con gestos pequeños y diarios, no con grandes gestos.',
-    experts: ['gottman'],
+      'Se construye con gestos pequeños y diarios, no con grandes gestos. Bolinches ' +
+      'lo enmarca en su regla de fondo: sólo se quiere bien desde la propia ' +
+      'estabilidad; agradecer es el gesto más barato de mantenerla.',
+    experts: ['gottman', 'bolinches'],
   },
   {
     metricId: 'reparacion',
@@ -761,8 +928,10 @@ export const GUIDANCE: HabitGuidance[] = [
     detail:
       'Gottman: el intento de reparación —una broma, un «perdona», un acercarse— y ' +
       'sobre todo que el otro lo acepte, predice el futuro de la pareja mejor que ' +
-      'la frecuencia de las discusiones. El mismo día, sin dejarlo dormir.',
-    experts: ['gottman'],
+      'la frecuencia de las discusiones. El mismo día, sin dejarlo dormir. Markman ' +
+      'añade la parte práctica del programa PREP: pactar de antemano una señal para ' +
+      'parar y una hora para retomarlo, porque en caliente no se repara nada.',
+    experts: ['gottman', 'markman', 'johnson'],
   },
   {
     metricId: 'tiempo_pareja',
@@ -770,8 +939,11 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Tiempo juntos con el móvil fuera de la mesa, o no cuenta.',
     detail:
       'La presencia a medias se registra como ausencia. Media hora entera vale más ' +
-      'que una tarde compartiendo sofá y pantallas distintas.',
-    experts: ['gottman', 'newport'],
+      'que una tarde compartiendo sofá y pantallas distintas. Finkel lo mide así: ' +
+      'hoy se le pide a la pareja mucho más que hace cincuenta años, y sólo aguanta ' +
+      'esa exigencia si se le dedica tiempo de verdad; si no, conviene bajar lo que ' +
+      'se le pide.',
+    experts: ['gottman', 'newport', 'finkel'],
   },
   {
     metricId: 'cita',
@@ -779,8 +951,11 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Una cita al mes protegida en el calendario, o se la come la logística.',
     detail:
       'Gottman insiste en tratarla como un compromiso fijo, no como algo que se ' +
-      'hace «si da tiempo».',
-    experts: ['gottman'],
+      'hace «si da tiempo». Y que sea algo nuevo: Aron encontró que compartir ' +
+      'actividades novedosas —no las de siempre— es lo que reaviva la sensación de ' +
+      'cercanía. Perel apunta en la misma dirección: el deseo necesita un poco de ' +
+      'distancia y de vida propia que contar.',
+    experts: ['gottman', 'aron', 'perel'],
   },
   {
     metricId: 'planificacion',
@@ -788,8 +963,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Planificar juntos reparte la carga mental, que es la que menos se ve.',
     detail:
       'Poner la semana por escrito entre los dos evita que uno lleve la agenda de ' +
-      'los cuatro en la cabeza.',
-    experts: ['gottman', 'clear'],
+      'los cuatro en la cabeza. Joan Garriga lo mira desde los lugares: cuando cada ' +
+      'uno sabe qué le toca, deja de haber cuentas pendientes que se cobran en otra ' +
+      'conversación.',
+    experts: ['gottman', 'clear', 'garriga'],
   },
   {
     metricId: 'sintonia',
@@ -797,8 +974,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Notar el enfriamiento a tiempo es lo que permite corregirlo.',
     detail:
       'Gottman describe el distanciamiento como algo lento y silencioso. Una escala ' +
-      'diaria hace visible la pendiente antes de que sea una conversación difícil.',
-    experts: ['gottman'],
+      'diaria hace visible la pendiente antes de que sea una conversación difícil. ' +
+      'Silvia Congost avisa del error contrario: confundir la calma con sintonía y ' +
+      'aguantar en automático; el número está para mirarlo, no para tranquilizarse.',
+    experts: ['gottman', 'congost', 'johnson'],
   },
   {
     metricId: 'paseo',
@@ -806,8 +985,10 @@ export const GUIDANCE: HabitGuidance[] = [
     claim: 'Caminando se habla de lo que sentados cuesta.',
     detail:
       'Sin mirarse a la cara y en movimiento salen conversaciones que en el salón ' +
-      'no salen. Suma además luz y pasos.',
-    experts: ['gottman', 'marcos'],
+      'no salen. Suma además luz y pasos. Bolinches lo recomienda como el sitio ' +
+      'donde tratar lo que en casa se enquista: fuera del escenario del conflicto ' +
+      'se habla distinto.',
+    experts: ['gottman', 'marcos', 'bolinches'],
   },
 ];
 

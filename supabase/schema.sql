@@ -28,84 +28,16 @@ create index if not exists entries_owner_day_idx on public.entries (owner, profi
 alter table public.entries
   add column if not exists notes jsonb not null default '{}'::jsonb;
 
--- ------------------------------------------------------------- comidas
-create table if not exists public.meals (
-  id          text primary key,
-  owner       uuid not null references auth.users (id) on delete cascade,
-  profile_id  text not null,
-  day         date not null,
-  moment      text not null,
-  score       numeric(3, 1) not null,
-  title       text not null,
-  summary     text not null default '',
-  foods       jsonb not null default '[]'::jsonb,
-  wins        jsonb not null default '[]'::jsonb,
-  tweaks      jsonb not null default '[]'::jsonb,
-  context     text not null default '',  -- lo que se contó del plato al hacer la foto
-  photo_path  text,                      -- objeto dentro del cubo `comidas`
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
-create index if not exists meals_owner_day_idx on public.meals (owner, profile_id, day);
-
-alter table public.meals
-  add column if not exists context text not null default '';
-
--- ------------------------------------------------------------ consejos
-create table if not exists public.advice (
-  id            text primary key,        -- `${profileId}:${YYYY-MM-DD}`
-  owner         uuid not null references auth.users (id) on delete cascade,
-  profile_id    text not null,
-  day           date not null,
-  summary       text not null default '',
-  tips          jsonb not null default '[]'::jsonb,
-  challenge     jsonb,                   -- reto de la próxima sesión
-  challenge_done boolean not null default false,
-  observations  text not null default '',
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-
-create index if not exists advice_owner_day_idx on public.advice (owner, profile_id, day);
-
 -- ---------------------------------------------------------- seguridad
 --  Sin estas políticas la clave pública del navegador daría acceso a todo.
 
 alter table public.entries enable row level security;
-alter table public.meals   enable row level security;
-alter table public.advice  enable row level security;
 
 drop policy if exists "entries propias" on public.entries;
 create policy "entries propias" on public.entries
   for all to authenticated
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
-
-drop policy if exists "meals propias" on public.meals;
-create policy "meals propias" on public.meals
-  for all to authenticated
-  using (auth.uid() = owner)
-  with check (auth.uid() = owner);
-
-drop policy if exists "advice propios" on public.advice;
-create policy "advice propios" on public.advice
-  for all to authenticated
-  using (auth.uid() = owner)
-  with check (auth.uid() = owner);
-
--- ------------------------------------------------- fotos de las comidas
---  Cubo privado: las miniaturas sólo se sirven con una URL firmada.
-
-insert into storage.buckets (id, name, public)
-values ('comidas', 'comidas', false)
-on conflict (id) do nothing;
-
-drop policy if exists "fotos propias" on storage.objects;
-create policy "fotos propias" on storage.objects
-  for all to authenticated
-  using (bucket_id = 'comidas' and owner = auth.uid())
-  with check (bucket_id = 'comidas' and owner = auth.uid());
 
 -- ------------------------------------------------- aspecto de los perfiles
 --  Fotos y sintonías que sustituyen a las de fábrica. Una fila por ranura
@@ -135,7 +67,7 @@ create policy "aspecto propio" on public.appearance
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
---  Cubo privado, como el de las comidas.
+--  Cubo privado: las fotos sólo se sirven con una URL firmada.
 
 insert into storage.buckets (id, name, public)
 values ('aspecto', 'aspecto', false)

@@ -1,13 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  DayAdvice,
   DayEntry,
   HabitDatabase,
-  MealAnalysis,
-  MealFood,
-  MealAdvice as MealTweak,
   MetricValue,
-  NextChallenge,
   ProfileId,
   Task,
   TaskCalendarLink,
@@ -31,9 +26,7 @@ import type {
  * ========================================================================= */
 
 /** Tablas que se sincronizan; el prefijo también nombra las lápidas. */
-export type CloudTable = 'entries' | 'meals' | 'advice' | 'tasks';
-
-export const PHOTO_BUCKET = 'comidas';
+export type CloudTable = 'entries' | 'tasks';
 
 /* ---------------------------------------------------------------------------
  * Filas tal y como viven en Postgres
@@ -48,39 +41,6 @@ interface EntryRow {
   note: string | null;
   /** Notas por categoría y del panel de retos. */
   notes: Record<string, string> | null;
-  updated_at: string;
-}
-
-interface MealRow {
-  id: string;
-  owner: string;
-  profile_id: string;
-  day: string;
-  moment: string;
-  score: number;
-  title: string;
-  summary: string;
-  foods: MealFood[];
-  wins: string[];
-  tweaks: MealTweak[];
-  /** Lo que se contó del plato al fotografiarlo. */
-  context: string | null;
-  photo_path: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface AdviceRow {
-  id: string;
-  owner: string;
-  profile_id: string;
-  day: string;
-  summary: string;
-  tips: string[];
-  challenge: NextChallenge | null;
-  challenge_done: boolean;
-  observations: string;
-  created_at: string;
   updated_at: string;
 }
 
@@ -136,72 +96,6 @@ const fromEntryRow = (row: EntryRow): DayEntry => {
   };
 };
 
-const toMealRow = (meal: MealAnalysis, owner: string): MealRow => ({
-  id: meal.id,
-  owner,
-  profile_id: meal.profileId,
-  day: meal.date,
-  moment: meal.moment,
-  score: meal.nota,
-  title: meal.titulo,
-  summary: meal.resumen,
-  foods: meal.alimentos,
-  wins: meal.aciertos,
-  tweaks: meal.ajustes,
-  context: meal.contexto ?? null,
-  photo_path: meal.photoPath ?? null,
-  created_at: meal.createdAt,
-  updated_at: meal.updatedAt,
-});
-
-const fromMealRow = (row: MealRow): MealAnalysis => ({
-  esComida: true,
-  id: row.id,
-  profileId: row.profile_id as ProfileId,
-  date: row.day,
-  moment: row.moment as MealAnalysis['moment'],
-  nota: Number(row.score),
-  titulo: row.title,
-  resumen: row.summary,
-  alimentos: row.foods ?? [],
-  aciertos: row.wins ?? [],
-  ajustes: row.tweaks ?? [],
-  contexto: row.context || undefined,
-  // `photoId` es la clave local; se conserva la del identificador para poder
-  // reutilizar la miniatura ya guardada en este mismo móvil.
-  photoId: row.id,
-  photoPath: row.photo_path ?? undefined,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-});
-
-const toAdviceRow = (advice: DayAdvice, owner: string): AdviceRow => ({
-  id: advice.id,
-  owner,
-  profile_id: advice.profileId,
-  day: advice.date,
-  summary: advice.resumen,
-  tips: advice.consejos,
-  challenge: advice.reto ?? null,
-  challenge_done: advice.retoCumplido ?? false,
-  observations: advice.observaciones,
-  created_at: advice.createdAt,
-  updated_at: advice.updatedAt,
-});
-
-const fromAdviceRow = (row: AdviceRow): DayAdvice => ({
-  id: row.id,
-  profileId: row.profile_id as ProfileId,
-  date: row.day,
-  resumen: row.summary,
-  consejos: row.tips ?? [],
-  reto: row.challenge ?? undefined,
-  retoCumplido: row.challenge_done,
-  observaciones: row.observations,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-});
-
 const toTaskRow = (task: Task, owner: string): TaskRow => ({
   id: task.id,
   owner,
@@ -248,8 +142,6 @@ const fromTaskRow = (row: TaskRow): Task => ({
 
 export interface CloudSnapshot {
   entries: Record<string, DayEntry>;
-  meals: Record<string, MealAnalysis>;
-  advice: Record<string, DayAdvice>;
   tasks: Record<string, Task>;
 }
 
@@ -258,26 +150,18 @@ export async function pullAll(): Promise<CloudSnapshot> {
   const client = supabase();
   if (!client) throw new Error('La nube no está configurada.');
 
-  const [entries, meals, advice, tasks] = await Promise.all([
+  const [entries, tasks] = await Promise.all([
     client.from('entries').select('*'),
-    client.from('meals').select('*'),
-    client.from('advice').select('*'),
     client.from('tasks').select('*'),
   ]);
 
-  const error = entries.error ?? meals.error ?? advice.error ?? tasks.error;
+  const error = entries.error ?? tasks.error;
   if (error) throw new Error(error.message);
 
-  const snapshot: CloudSnapshot = { entries: {}, meals: {}, advice: {}, tasks: {} };
+  const snapshot: CloudSnapshot = { entries: {}, tasks: {} };
 
   for (const row of (entries.data ?? []) as EntryRow[]) {
     snapshot.entries[row.id] = fromEntryRow(row);
-  }
-  for (const row of (meals.data ?? []) as MealRow[]) {
-    snapshot.meals[row.id] = fromMealRow(row);
-  }
-  for (const row of (advice.data ?? []) as AdviceRow[]) {
-    snapshot.advice[row.id] = fromAdviceRow(row);
   }
   for (const row of (tasks.data ?? []) as TaskRow[]) {
     snapshot.tasks[row.id] = fromTaskRow(row);
@@ -306,14 +190,6 @@ export async function pushEntries(entries: DayEntry[], owner: string): Promise<v
   await upsertAll('entries', entries.map((entry) => toEntryRow(entry, owner)));
 }
 
-export async function pushMeals(meals: MealAnalysis[], owner: string): Promise<void> {
-  await upsertAll('meals', meals.map((meal) => toMealRow(meal, owner)));
-}
-
-export async function pushAdvice(advice: DayAdvice[], owner: string): Promise<void> {
-  await upsertAll('advice', advice.map((item) => toAdviceRow(item, owner)));
-}
-
 export async function pushTasks(tasks: Task[], owner: string): Promise<void> {
   await upsertAll('tasks', tasks.map((task) => toTaskRow(task, owner)));
 }
@@ -325,56 +201,6 @@ export async function deleteRows(table: CloudTable, ids: string[]): Promise<void
 
   const { error } = await client.from(table).delete().in('id', ids);
   if (error) throw new Error(error.message);
-}
-
-/* ---------------------------------------------------------------------------
- * Fotos de las comidas
- * ------------------------------------------------------------------------- */
-
-/**
- * Sube la miniatura y devuelve su ruta dentro del cubo. Devuelve `null` si
- * no hay nube o no hay sesión: la comida se guarda igual, sólo que la foto
- * se queda en este móvil.
- */
-export async function uploadPhoto(mealId: string, dataUrl: string): Promise<string | null> {
-  const client = supabase();
-  if (!client) return null;
-
-  const { data } = await client.auth.getSession();
-  const owner = data.session?.user.id;
-  if (!owner) return null;
-
-  const blob = await (await fetch(dataUrl)).blob();
-  const path = `${owner}/${mealId}.jpg`;
-
-  const { error } = await client.storage
-    .from(PHOTO_BUCKET)
-    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-
-  if (error) return null;
-  return path;
-}
-
-/** Descarga una miniatura de la nube como data URL, para poder cachearla. */
-export async function downloadPhoto(path: string): Promise<string | null> {
-  const client = supabase();
-  if (!client) return null;
-
-  const { data, error } = await client.storage.from(PHOTO_BUCKET).download(path);
-  if (error || !data) return null;
-
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(data);
-  });
-}
-
-export async function deletePhotoObject(path: string): Promise<void> {
-  const client = supabase();
-  if (!client) return;
-  await client.storage.from(PHOTO_BUCKET).remove([path]);
 }
 
 /* ---------------------------------------------------------------------------
@@ -424,7 +250,7 @@ export function versionIndex<T extends Versioned>(rows: Record<string, T>): Reco
 
 /** Reparte las lápidas por tabla. */
 export function tombstonesByTable(tombstones: Record<string, string>): Record<CloudTable, string[]> {
-  const grouped: Record<CloudTable, string[]> = { entries: [], meals: [], advice: [], tasks: [] };
+  const grouped: Record<CloudTable, string[]> = { entries: [], tasks: [] };
 
   for (const key of Object.keys(tombstones)) {
     const separator = key.indexOf(':');
@@ -436,8 +262,8 @@ export function tombstonesByTable(tombstones: Record<string, string>): Record<Cl
 }
 
 /** Base vacía con la forma que espera el resto de la app. */
-export function emptySnapshot(): Pick<HabitDatabase, 'entries' | 'meals' | 'advice' | 'tasks'> {
-  return { entries: {}, meals: {}, advice: {}, tasks: {} };
+export function emptySnapshot(): Pick<HabitDatabase, 'entries' | 'tasks'> {
+  return { entries: {}, tasks: {} };
 }
 
 /* ---------------------------------------------------------------------------

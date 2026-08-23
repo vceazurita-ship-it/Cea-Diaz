@@ -6,7 +6,7 @@ import type { ControlVariant } from '@/components/controls/types';
 import { PriorityChip } from '@/components/experts/CriteriaSheet';
 import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { VoiceField } from '@/components/ui/VoiceField';
+import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
 import { computeCategoryScore, percent } from '@/lib/scoring';
 import type { HabitCategory, HabitGuidance, Metric, MetricValue, ProfileId, ProfileSkin } from '@/types';
@@ -195,14 +195,13 @@ export function CategoryCard({
             </div>
           )}
 
-          {/* Lo que los botones no saben decir: se escribe o se dicta. */}
+          {/* Lo que los botones no saben decir: se escribe aquí. */}
           {onNoteChange && (
             <div className="border-t px-4 pb-4 pt-3 hairline">
-              <VoiceField
+              <NoteField
                 compact
                 rows={2}
                 label={`📝 Nota de ${category.label.toLowerCase()}`}
-                dictateLabel="🎙️ Dictar"
                 value={note}
                 onChange={onNoteChange}
                 placeholder={
