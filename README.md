@@ -156,9 +156,9 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 
 | Perfil                  | Categorías                                                                        |
 | ----------------------- | --------------------------------------------------------------------------------- |
-| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
+| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
-| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, series de carrera y core) · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
 
@@ -449,6 +449,51 @@ Cómo se decide cada uno (`lib/challenges.ts`):
 - **Comodines** — constancia, racha y registro, para que siempre haya un reto de cada
   nivel aunque el perfil esté recién estrenado.
 
+#### Retos fijos: lo que no se deduce del historial
+
+##### El reparto semanal de Víctor
+
+No todo se deduce del historial. Víctor tiene una rutina cerrada —**pierna, pecho,
+dorsal, series de carrera y core**, repartidas entre los siete días— que está decidida
+de antemano: lo único que cambia cada semana es si se ha hecho o no. Esos cinco retos
+se declaran en `ROUTINE` (`lib/challenges.ts`) y acompañan cada lunes a los tres que sí
+salen de los datos, así que su semana tiene ocho.
+
+El reto no pide cifras ni marcas: **se rellena solo el día que se marca la sesión** en
+Movimiento y Fuerza, donde el reparto vive como cinco casillas de sí/no
+(`split.pierna`, `split.pecho`…). Van con `weight: 0` a propósito: son contexto, no
+cumplimiento. Si contaran, un martes de pierna saldría suspendido por las cuatro
+sesiones que ese día no tocaban, que es justo lo contrario de lo que hay que medir.
+
+##### Las dos escaleras de Leo y Hugo
+
+Leo y Hugo llevan dos retos más cada semana, y los dos **suben un peldaño cada vez
+que se superan**:
+
+| Escalera | Prueba | Primer peldaño | Sube |
+| -------- | ------ | -------------- | ---- |
+| **Del balón** (`maximo`) | Toques seguidos sin que caiga | 5 toques | +3 |
+| **De gimnasio** (`reto`) | Flexiones seguidas | 5 flexiones | +2 |
+|  | Plancha aguantada | 20 s | +5 |
+|  | Saltos a la comba seguidos | 20 saltos | +5 |
+
+La del balón no cambia nunca, porque es su deporte. La de gimnasio **gira una prueba
+por semana** —flexiones, plancha, comba— en orden y no por sorteo: con una semilla
+salían cuatro semanas de flexiones de cada seis y la plancha no aparecía. Los dos
+hermanos hacen la misma prueba la misma semana, cada uno por su peldaño.
+
+El peldaño **no se guarda en ningún sitio**, como todo lo demás: se cuenta mirando
+las 16 semanas anteriores y sumando una por cada semana en la que se alcanzó el
+objetivo que tocaba entonces. Las semanas en blanco no cuentan, pero tampoco restan:
+unas vacaciones no tiran la escalera abajo, y una semana en la que no salga espera en
+el mismo sitio hasta que salga. Cada prueba lleva su propio peldaño, así que la que
+no toca esta semana sigue donde se quedó.
+
+Es la otra manera de ser incremental, y por eso convive con el récord personal en vez
+de sustituirlo: el récord persigue la mejor marca de los últimos 28 días y puede
+dispararse un día suelto; la escalera va de uno en uno y nunca pide de golpe algo que
+no se haya hecho antes.
+
 ### Premios
 
 Cada reto superado entrega un regalo, y el nivel del reto decide la rareza:
@@ -498,7 +543,7 @@ desbloquea al cerrar la semana entera.
 Cada uno tiene su mazo (`weekly` en su `Deck`), así que el cromo lleva su nombre y no
 el del hermano; los dos comparten una técnica combinada, el **Muro de Hermanos**. En
 la cabecera de la pestaña de retos se ve el premio antes de ganarlo —«🔒 Técnica de la
-semana: se desbloquea al superar los 3 retos»— y, una vez cerrada la semana, con qué
+semana: se desbloquea al superar los 5 retos»— y, una vez cerrada la semana, con qué
 técnica se pagó.
 
 El premio se **anuncia antes** («🎁 En juego: Frase de oro + cromo de leyenda de
@@ -518,7 +563,8 @@ modo que se recalculan solos y tanto el medallero como el álbum se reconstruyen
 sólo tener el historial (una exportación de los datos se lleva la colección consigo).
 Los retos se generan con los datos anteriores al lunes, así que el listón no se mueve
 mientras la semana corre, y la rotación entre candidatos usa una semilla estable por
-perfil y semana: durante siete días son siempre los mismos tres.
+perfil y semana: durante siete días son siempre los mismos tres. A ellos se suman los
+fijos —el reparto de Víctor y las escaleras de los peques—, que no se sortean.
 
 ## Tareas y Google Calendar
 

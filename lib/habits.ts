@@ -31,6 +31,75 @@ export const SPORTS: MetricGroup[] = [
   { id: 'atletismo', label: 'Atletismo', icon: '🏃', gradient: 'from-amber-400 to-yellow-600' },
 ];
 
+/**
+ * Las marcas de las dos escaleras semanales de Leo y Hugo: la del balón y la
+ * de gimnasio, que rota entre flexiones, plancha y comba (`lib/challenges.ts`).
+ * Aquí sólo se apunta la mejor marca del día; el peldaño que toca superar lo
+ * pone el reto, y sube solo la semana siguiente a conseguirlo.
+ *
+ * Van con `weight: 0`: son contexto, no cumplimiento. Nadie hace las cuatro
+ * pruebas cada día, y un lunes de comba no puede salir suspendido por las tres
+ * que ese día no tocaban.
+ *
+ * Son `duration` y no `counter` aunque cuenten toques o flexiones: el contador
+ * de los peques pinta una ficha tocable por unidad, y cuarenta pelotitas en fila
+ * no son una casilla. Con el deslizador se apunta «23» de un gesto.
+ */
+const kidMarkMetrics: Metric[] = [
+  {
+    id: 'reto.toques',
+    label: 'Toques sin que caiga',
+    icon: '🤹',
+    type: 'duration',
+    target: 15,
+    min: 0,
+    max: 100,
+    step: 1,
+    unit: 'toques',
+    weight: 0,
+    help: 'Tu mejor intento del día. El peldaño de esta semana está en Retos.',
+  },
+  {
+    id: 'reto.flexiones',
+    label: 'Flexiones seguidas',
+    icon: '💪',
+    type: 'duration',
+    target: 10,
+    min: 0,
+    max: 60,
+    step: 1,
+    unit: 'flexiones',
+    weight: 0,
+    help: 'Seguidas y sin parar. Cuentan las que salen bien.',
+  },
+  {
+    id: 'reto.plancha',
+    label: 'Plancha aguantada',
+    icon: '🧘',
+    type: 'duration',
+    target: 30,
+    min: 0,
+    max: 180,
+    step: 5,
+    unit: 's',
+    weight: 0,
+    help: 'Segundos aguantando sin que baje la cadera.',
+  },
+  {
+    id: 'reto.comba',
+    label: 'Saltos a la comba seguidos',
+    icon: '🨢',
+    type: 'duration',
+    target: 30,
+    min: 0,
+    max: 200,
+    step: 5,
+    unit: 'saltos',
+    weight: 0,
+    help: 'Seguidos, sin engancharse. Se vuelve a empezar si se para.',
+  },
+];
+
 /** Cada actividad genera asistencia + esfuerzo + sensaciones. */
 function sportMetrics(sport: MetricGroup): Metric[] {
   return [
@@ -195,6 +264,7 @@ function kidCategories(): HabitCategory[] {
           focus: 'esfuerzo',
           help: 'Todo lo que sea moverse: recreo, parque, bici, entrenamiento.',
         },
+        ...kidMarkMetrics,
       ],
     },
     {
@@ -543,6 +613,75 @@ const mariaCategories: HabitCategory[] = [
   },
 ];
 
+/**
+ * El reparto semanal de Víctor: cinco sesiones que se reparten los siete días
+ * —pierna, pecho, dorsal, series de carrera y core—. Cada una se marca el día
+ * que toca, y de ahí se rellenan solos los cinco retos fijos de su semana
+ * (`lib/challenges.ts`), que es justo para lo que existen estas casillas.
+ */
+export const VICTOR_SPLIT: Array<{
+  /** Sufijo del identificador de la métrica y del reto: pierna, pecho… */
+  id: string;
+  label: string;
+  icon: string;
+  help: string;
+  /** Por qué esa sesión está en la semana; lo cuenta la tarjeta del reto. */
+  why: string;
+}> = [
+  {
+    id: 'pierna',
+    label: 'Pierna',
+    icon: '🦵',
+    help: 'Sentadilla, peso muerto, zancadas: la sesión de tren inferior de la semana.',
+    why: 'El tren inferior sostiene todo lo demás: rodilla, cadera y espalda aguantan lo que la pierna sea capaz de aguantar.',
+  },
+  {
+    id: 'pecho',
+    label: 'Pecho',
+    icon: '🏋️',
+    help: 'Press de banca, fondos, empujes: la sesión de empuje de la semana.',
+    why: 'Empujar es la mitad del trabajo de tren superior, y la que primero se abandona cuando la semana aprieta.',
+  },
+  {
+    id: 'dorsal',
+    label: 'Dorsal',
+    icon: '🧗',
+    help: 'Dominadas, remo, jalón: la sesión de tirón de la semana.',
+    why: 'Tirar compensa lo que se empuja y endereza la postura que dejan las horas de vídeo y de banquillo.',
+  },
+  {
+    id: 'series',
+    label: 'Series de carrera',
+    icon: '🏃',
+    help: 'Series, cuestas o cambios de ritmo. El rodaje suave no cuenta aquí.',
+    why: 'Las series dan el estímulo que no da el trote: obligan al pulso a subir y a bajar, que es donde se gana el fondo.',
+  },
+  {
+    id: 'core',
+    label: 'Core',
+    icon: '🌀',
+    help: 'Plancha, antirrotación, lumbares: diez minutos bien hechos valen.',
+    why: 'El core es la bisagra entre lo que empuja y lo que corre: sin él, la espalda acaba pagando por las dos cosas.',
+  },
+];
+
+/**
+ * Las cinco casillas del reparto, tal y como se marcan en Movimiento y Fuerza.
+ *
+ * Van con `weight: 0` a propósito: son contexto, no cumplimiento. Si contaran,
+ * un martes de pierna saldría suspendido por las cuatro sesiones que ese día no
+ * tocaban, que es justo lo contrario de lo que hay que medir. El generador de
+ * retos sí las lee: no necesita el peso para saber qué día se entrenó.
+ */
+const victorSplitMetrics: Metric[] = VICTOR_SPLIT.map(({ id, label, icon, help }) => ({
+  id: `split.${id}`,
+  label,
+  icon,
+  type: 'toggle',
+  weight: 0,
+  help,
+}));
+
 const victorCategories: HabitCategory[] = [
   adultSleepCategory([
     {
@@ -573,7 +712,10 @@ const victorCategories: HabitCategory[] = [
       weight: 2,
       focus: 'esfuerzo',
     },
-    [{ id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' }],
+    [
+      { id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' },
+      ...victorSplitMetrics,
+    ],
   ),
   {
     id: 'desarrollo',

@@ -172,14 +172,16 @@ function headline(done: number, total: number, kid: boolean): string {
   if (done === 0) {
     return kid
       ? '¡Aún están todos por conseguir! Empieza por el que veas más cerca.'
-      : 'Semana recién empezada: los tres siguen en juego.';
+      : `Semana recién empezada: los ${total} siguen en juego.`;
   }
   if (done < total) {
     return kid
       ? `¡Muy bien! Ya llevas ${done}. Queda${total - done === 1 ? '' : 'n'} ${total - done}.`
       : `${done} superado${done === 1 ? '' : 's'}. Queda${total - done === 1 ? '' : 'n'} ${total - done} por cerrar.`;
   }
-  return kid ? '¡Semana redonda! Los has conseguido todos. 🏆' : 'Los tres superados: semana redonda. 🏆';
+  return kid
+    ? '¡Semana redonda! Los has conseguido todos. 🏆'
+    : `Los ${total} superados: semana redonda. 🏆`;
 }
 
 export function ChallengesPanel({

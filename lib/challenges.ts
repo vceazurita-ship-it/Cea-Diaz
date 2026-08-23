@@ -1,6 +1,6 @@
-import { addDays, weekKeys } from '@/lib/dates';
+import { addDays, parseDateKey, weekKeys } from '@/lib/dates';
 import { guidanceFor } from '@/lib/experts';
-import { findMetric, getCategories } from '@/lib/habits';
+import { VICTOR_SPLIT, findMetric, getCategories } from '@/lib/habits';
 import { computeCategoryScore, computeDayScore, isCeiling, metricRatio } from '@/lib/scoring';
 import type {
   Challenge,
@@ -34,6 +34,10 @@ import type {
  *
  *  Se generan con los datos anteriores al lunes, así que el listón no se
  *  mueve mientras la semana corre, y se evalúan sobre esos siete días.
+ *
+ *  A esos tres se suman los retos fijos de quien tenga una rutina cerrada
+ *  —el reparto semanal de Víctor—, que no se deducen de nada: están decididos
+ *  de antemano y se rellenan el día que se marca la sesión.
  * ========================================================================= */
 
 /** Ventana de historial que sirve de base para calibrar los retos. */
@@ -612,6 +616,227 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
 }
 
 /* ---------------------------------------------------------------------------
+ * Retos fijos: la rutina que no se sortea
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Hay retos que no tiene sentido deducir del historial, porque están decididos
+ * de antemano. Se declaran aquí, fuera del generador, y acompañan cada lunes a
+ * los tres que sí salen de los datos.
+ *
+ * Víctor reparte cinco sesiones entre los siete días —pierna, pecho, dorsal,
+ * series de carrera y core—. Ese reto no pide cifras: se rellena solo el día
+ * que se marca la sesión en Movimiento y Fuerza.
+ *
+ * Leo y Hugo llevan dos escaleras, la del balón y la de gimnasio, que sí piden
+ * una marca y suben un peldaño cada vez que se superan.
+ */
+const VICTOR_ROUTINE: Challenge[] = VICTOR_SPLIT.map(({ id, label, icon, why }) =>
+  make(
+    'base',
+    `rutina:${id}`,
+    icon,
+    `${label} · una sesión esta semana`,
+    'Basta con un día de los siete. Se marca en Movimiento y Fuerza y el reto se rellena solo.',
+    why,
+    { type: 'metricDays', metricId: `split.${id}`, threshold: 1, days: 1 },
+  ),
+);
+
+/* ---------------------------------------------------------------------------
+ * Escaleras: el reto que sube un peldaño cada vez que se supera
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Una escalera pide una marca concreta —quince toques, treinta segundos de
+ * plancha— y sube sola en cuanto se consigue. Es la otra manera de ser
+ * incremental: el récord personal persigue la mejor marca de los últimos 28
+ * días y puede dispararse en un día suelto; la escalera va de uno en uno, sin
+ * saltarse peldaños y sin bajar nunca, que es como se le pide más esfuerzo a
+ * un niño de ocho años sin que se le haga imposible.
+ */
+interface Ladder {
+  /** Sufijo del identificador del reto. */
+  id: string;
+  /** Casilla donde se apunta la marca del día. */
+  metricId: string;
+  icon: string;
+  tier: ChallengeTier;
+  /** Cómo se llama la escalera en la tarjeta. */
+  name: string;
+  /** Qué hay que hacer, con la cifra del peldaño ya dentro. */
+  detail: (target: number) => string;
+  /** Primer peldaño. */
+  base: number;
+  /** Cuánto sube cada vez que se supera. */
+  step: number;
+}
+
+/**
+ * Cuántas semanas atrás se mira para saber por qué peldaño va la escalera. Es
+ * un tope de coste, no una amnistía: cuatro meses de historial dan de sobra
+ * para llegar a lo más alto que estas escaleras pueden pedir.
+ */
+const LADDER_WEEKS = 16;
+
+/** Mejor marca de esa semana; 0 si no se apuntó nada. */
+function bestInWeek(
+  profileId: ProfileId,
+  metric: Metric,
+  weekStart: DateKey,
+  entries: Record<string, DayEntry>,
+): number {
+  let best = 0;
+  for (let i = 0; i < 7; i += 1) {
+    const date = addDays(weekStart, i);
+    const raw = numericValue(metric, entries[`${profileId}:${date}`]?.values[metric.id]);
+    if (raw !== null && raw > best) best = raw;
+  }
+  return best;
+}
+
+/**
+ * Peldaño al que se llega el lunes: se sube uno por cada semana anterior en la
+ * que se alcanzó el objetivo que tocaba entonces. Las semanas en blanco no
+ * cuentan, pero tampoco restan: unas vacaciones no tiran la escalera abajo.
+ */
+function ladderLevel(
+  profileId: ProfileId,
+  ladder: Ladder,
+  metric: Metric,
+  start: DateKey,
+  entries: Record<string, DayEntry>,
+): number {
+  let level = 0;
+  for (let back = LADDER_WEEKS; back >= 1; back -= 1) {
+    const target = ladder.base + level * ladder.step;
+    if (bestInWeek(profileId, metric, addDays(start, -7 * back), entries) + 1e-9 >= target) {
+      level += 1;
+    }
+  }
+  return level;
+}
+
+function ladderChallenge(
+  profileId: ProfileId,
+  ladder: Ladder,
+  start: DateKey,
+  entries: Record<string, DayEntry>,
+): Challenge | null {
+  const metric = findMetric(profileId, ladder.metricId);
+  if (!metric) return null;
+
+  const level = ladderLevel(profileId, ladder, metric, start, entries);
+  const target = ladder.base + level * ladder.step;
+
+  return make(
+    ladder.tier,
+    `escalera:${ladder.id}`,
+    ladder.icon,
+    `${ladder.name} · peldaño ${level + 1}`,
+    ladder.detail(target),
+    level === 0
+      ? 'Es el primer peldaño. Cada semana que lo superes sube un poco él solo, y las semanas que no salga te espera en el mismo sitio.'
+      : `Empezaste en ${amount(metric, ladder.base)} y ya has subido ${level} ${
+          level === 1 ? 'peldaño' : 'peldaños'
+        }. La escalera sólo sube cuando la superas: nunca te pide de golpe algo que no hayas hecho antes.`,
+    { type: 'metricBest', metricId: ladder.metricId, target },
+  );
+}
+
+/** La del balón: la que no cambia nunca, porque es su deporte. */
+const BALON: Ladder = {
+  id: 'toques',
+  metricId: 'reto.toques',
+  icon: '🤹',
+  tier: 'maximo',
+  name: 'Escalera del balón',
+  detail: (n) => `${n} toques seguidos sin que caiga el balón. Vale el mejor intento de cualquier día.`,
+  base: 5,
+  step: 3,
+};
+
+/**
+ * La de gimnasio, que rota cada lunes. Rota porque a los ocho años uno se
+ * cansa antes de la prueba que del esfuerzo, y porque cada una guarda su
+ * propio peldaño: la que no toca esta semana sigue esperando donde se quedó.
+ */
+const GIMNASIO: Ladder[] = [
+  {
+    id: 'flexiones',
+    metricId: 'reto.flexiones',
+    icon: '💪',
+    tier: 'reto',
+    name: 'Escalera de flexiones',
+    detail: (n) => `${n} flexiones seguidas, sin apoyar las rodillas y sin parar a mitad.`,
+    base: 5,
+    step: 2,
+  },
+  {
+    id: 'plancha',
+    metricId: 'reto.plancha',
+    icon: '🧘',
+    tier: 'reto',
+    name: 'Escalera de plancha',
+    detail: (n) => `${n} segundos de plancha, con la cadera arriba y la barriga apretada.`,
+    base: 20,
+    step: 5,
+  },
+  {
+    id: 'comba',
+    metricId: 'reto.comba',
+    icon: '🨢',
+    tier: 'reto',
+    name: 'Escalera de comba',
+    detail: (n) => `${n} saltos a la comba seguidos, sin engancharse ni pararse.`,
+    base: 20,
+    step: 5,
+  },
+];
+
+/** Semanas entre dos lunes, para hacer girar la rotación. */
+function weeksBetween(from: DateKey, to: DateKey): number {
+  const ms = parseDateKey(to).getTime() - parseDateKey(from).getTime();
+  return Math.round(ms / (7 * 24 * 60 * 60 * 1000));
+}
+
+/** Lunes desde el que se cuentan las semanas de la rotación. */
+const ROTATION_EPOCH = '2026-01-05';
+
+function kidLadders({ profileId, start, entries }: RoutineContext): Challenge[] {
+  // La prueba de gimnasio gira una por semana, en orden y no por sorteo: con
+  // una semilla salían cuatro semanas de flexiones de cada seis y la plancha no
+  // aparecía. Los dos hermanos hacen la misma prueba la misma semana —cada uno
+  // por su peldaño—, que es media competición gratis.
+  const turn = weeksBetween(ROTATION_EPOCH, start);
+  const gym = GIMNASIO[((turn % GIMNASIO.length) + GIMNASIO.length) % GIMNASIO.length];
+
+  return [BALON, gym]
+    .map((ladder) => ladderChallenge(profileId, ladder, start, entries))
+    .filter((challenge): challenge is Challenge => challenge !== null);
+}
+
+/* ------------------------------------------------------------------------- */
+
+/** Lo que hace falta para armar los retos fijos de un perfil. */
+interface RoutineContext {
+  profileId: ProfileId;
+  /** Lunes de la semana que se está armando. */
+  start: DateKey;
+  entries: Record<string, DayEntry>;
+}
+
+const ROUTINE: Partial<Record<ProfileId, (ctx: RoutineContext) => Challenge[]>> = {
+  victor: () => VICTOR_ROUTINE,
+  leo: kidLadders,
+  hugo: kidLadders,
+};
+
+function routineChallenges(ctx: RoutineContext): Challenge[] {
+  return ROUTINE[ctx.profileId]?.(ctx) ?? [];
+}
+
+/* ---------------------------------------------------------------------------
  * Selección y armado de la semana
  * ------------------------------------------------------------------------- */
 
@@ -663,7 +888,13 @@ export function buildChallengeWeek(
   const dayStats = collectDayStats(profile.id, baseline, entries);
 
   const candidates = buildCandidates(profile, stats, dayStats);
-  const chosen = pickChallenges(candidates, hashSeed(`${profile.id}:${start}`));
+
+  // La rutina fija va primero: es lo que toca sí o sí. Detrás, los tres que se
+  // calibran cada lunes sobre el historial.
+  const chosen = [
+    ...routineChallenges({ profileId: profile.id, start, entries }),
+    ...pickChallenges(candidates, hashSeed(`${profile.id}:${start}`)),
+  ];
 
   const challenges: ScoredChallenge[] = chosen.map((challenge) => ({
     ...challenge,
