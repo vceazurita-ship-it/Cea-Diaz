@@ -161,3 +161,56 @@ alter table public.tasks
 alter table public.calendar_links
   add column if not exists broken boolean not null default false,
   add column if not exists checked_at timestamptz;
+
+-- ------------------------------------------------------ ajustes de casa
+--  El modo día/noche, si suenan las sintonías y el PIN del módulo privado.
+--  Una sola fila por cuenta: son de la casa, no de cada aparato, y por eso
+--  se ponen una vez y valen en todos.
+--
+--  Del PIN se guarda la huella, nunca el número: la sal y el resumen de
+--  PBKDF2-SHA256 que calcula el navegador. Quien mire esta tabla no puede
+--  entrar en el módulo con lo que ve. Aun así son cuatro dígitos: es una
+--  barrera doméstica, no un cerrojo.
+
+create table if not exists public.settings (
+  owner       uuid primary key references auth.users (id) on delete cascade,
+  theme       text not null default 'auto',   -- auto | light | dark
+  sound       boolean not null default true,
+  pin_salt    text,                           -- nulos mientras valga el de fábrica
+  pin_hash    text,
+  pin_rounds  integer,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.settings enable row level security;
+
+drop policy if exists "ajustes propios" on public.settings;
+create policy "ajustes propios" on public.settings
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
+-- ---------------------------------------------------------- tiempo real
+--  Sin esto, un aparato sólo se entera de lo que escriben los demás cuando
+--  vuelve a mirar (al arrancar o en su repaso periódico). Añadiendo las
+--  tablas a la publicación, Postgres avisa en el momento y lo registrado en
+--  el móvil aparece en el portátil en un par de segundos, sin recargar.
+--
+--  Se comprueba antes de añadir para que relanzar el archivo no falle.
+
+do $$
+declare t text;
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    return;
+  end if;
+
+  foreach t in array array['entries', 'tasks'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;

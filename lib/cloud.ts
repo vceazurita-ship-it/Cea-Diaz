@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type {
   DayEntry,
   HabitDatabase,
+  HouseSettings,
   MetricValue,
   ProfileId,
   Task,
@@ -359,4 +360,65 @@ export async function deleteAppearance(id: string, path: string): Promise<void> 
 
   await client.storage.from(APPEARANCE_BUCKET).remove([path]);
   await client.from('appearance').delete().eq('id', id);
+}
+
+/* ---------------------------------------------------------------------------
+ * Ajustes de la casa
+ *
+ * El modo, las sintonías y el PIN. Una sola fila por cuenta, así que aquí no
+ * hay mezcla por identificador: se compara la fecha y gana la última
+ * elección, la haya hecho quien la haya hecho.
+ *
+ * Del PIN viaja la huella, nunca el número. Quien mire la tabla ve una sal y
+ * un resumen, que no sirven para entrar.
+ * ------------------------------------------------------------------------- */
+
+interface SettingsRow {
+  owner: string;
+  theme: string;
+  sound: boolean;
+  pin_salt: string | null;
+  pin_hash: string | null;
+  pin_rounds: number | null;
+  updated_at: string;
+}
+
+function fromSettingsRow(row: SettingsRow): HouseSettings {
+  return {
+    theme: row.theme as HouseSettings['theme'],
+    sound: row.sound,
+    pin:
+      row.pin_salt && row.pin_hash && row.pin_rounds
+        ? { salt: row.pin_salt, hash: row.pin_hash, rounds: row.pin_rounds }
+        : null,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Los ajustes de la cuenta, o `null` si nadie ha guardado ninguno todavía. */
+export async function pullSettings(): Promise<HouseSettings | null> {
+  const client = supabase();
+  if (!client) return null;
+
+  const { data, error } = await client.from('settings').select('*').maybeSingle();
+  if (error) throw new Error(error.message);
+
+  return data ? fromSettingsRow(data as SettingsRow) : null;
+}
+
+export async function pushSettings(settings: HouseSettings, owner: string): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('settings').upsert({
+    owner,
+    theme: settings.theme,
+    sound: settings.sound,
+    pin_salt: settings.pin?.salt ?? null,
+    pin_hash: settings.pin?.hash ?? null,
+    pin_rounds: settings.pin?.rounds ?? null,
+    updated_at: settings.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
 }

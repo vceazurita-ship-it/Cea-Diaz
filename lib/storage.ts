@@ -8,7 +8,6 @@ import type { DateKey, HabitDatabase, ProfileId } from '@/types';
  */
 
 export const STORAGE_KEY = 'habitos-familia:v1';
-export const PIN_STORAGE_KEY = 'habitos-familia:pin';
 /**
  * v4 añadió las lápidas de la nube, v5 las notas por categoría y v6 las
  * tareas. Todas las subidas son aditivas: lo guardado con una versión anterior
@@ -68,16 +67,5 @@ export function clearDatabase(): void {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
-/* --------------------------- PIN del módulo privado ----------------------- */
-
-export const DEFAULT_PIN = '2468';
-
-export function loadPin(): string {
-  if (typeof window === 'undefined') return DEFAULT_PIN;
-  return window.localStorage.getItem(PIN_STORAGE_KEY) ?? DEFAULT_PIN;
-}
-
-export function savePin(pin: string): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(PIN_STORAGE_KEY, pin);
-}
+/* El PIN del módulo privado vive en `lib/settings.ts`: se guarda como huella
+   y viaja a la nube con el resto de ajustes de la casa. */

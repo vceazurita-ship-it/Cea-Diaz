@@ -9,7 +9,12 @@ import type { EntryMap, HabitStore, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_OWNER } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
-import { loadPin, savePin } from '@/lib/storage';
+import {
+  DEFAULT_PIN,
+  setPin as storePin,
+  subscribeSettings,
+  usesDefaultPin,
+} from '@/lib/settings';
 import type { DayEntry, Task, ThemePreference } from '@/types';
 
 interface SettingsPanelProps {
@@ -106,7 +111,8 @@ function parseEntries(raw: unknown): EntryMap | null {
 
 export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const [pin, setPin] = useState('');
-  const [pinVisible, setPinVisible] = useState(false);
+  /** `true` mientras siga valiendo el de fábrica; sólo entonces se puede decir. */
+  const [defaultPin, setDefaultPin] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [staged, setStaged] = useState<StagedImport | null>(null);
   /** Se lee tras montar: en el servidor no hay `localStorage` que consultar. */
@@ -114,7 +120,17 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const notify = useToast();
 
-  useEffect(() => setSound(soundEnabled()), []);
+  // Se leen tras montar y se siguen escuchando: pueden cambiarlos desde
+  // otro aparato mientras esta pantalla está abierta.
+  useEffect(() => {
+    const read = () => {
+      setSound(soundEnabled());
+      setDefaultPin(usesDefaultPin());
+    };
+
+    read();
+    return subscribeSettings(read);
+  }, []);
 
   /* ---------------------------------------------------- aspecto de la app */
 
@@ -182,14 +198,23 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     }
   })();
 
-  const changePin = () => {
+  const changePin = async () => {
     if (pin.length < 4) {
       notify({ message: 'El PIN debe tener al menos 4 dígitos.', icon: '⚠️', tone: 'danger' });
       return;
     }
-    savePin(pin);
-    setPin('');
-    notify({ message: 'PIN actualizado.', icon: '🔐' });
+
+    try {
+      await storePin(pin);
+      setPin('');
+      notify({ message: 'PIN actualizado en todos los aparatos.', icon: '🔐' });
+    } catch (error) {
+      notify({
+        message: error instanceof Error ? error.message : 'No se ha podido guardar el PIN.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+    }
   };
 
   const exportData = () => {
@@ -400,6 +425,21 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
           </section>
         )}
 
+        {/* Sin nube no hay aviso por ninguna parte: la app se comporta como
+            siempre y parece que todo va bien, pero lo registrado en un
+            aparato no llega a los demás. Más vale decirlo. */}
+        {!store.cloud.configured && (
+          <section className="rounded-2xl border hairline surf-1 p-3">
+            <h3 className="mb-1 font-bold t-1">Nube</h3>
+            <p className="text-xs t-3">
+              Esta versión de la app no tiene la nube configurada: lo que se registre aquí se
+              queda sólo en este aparato y no se ve en el resto. Hay que definir{' '}
+              <code>NEXT_PUBLIC_SUPABASE_URL</code> y <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{' '}
+              y volver a desplegar, porque esas dos se incrustan al compilar.
+            </p>
+          </section>
+        )}
+
         {/* ------------------------------------------------------ sonido */}
         <section className="rounded-2xl border hairline surf-1 p-3">
           <h3 className="mb-1 font-bold t-1">Sonido</h3>
@@ -480,7 +520,9 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
         <section className="rounded-2xl border hairline surf-1 p-3">
           <h3 className="mb-1 font-bold t-1">PIN del módulo de pareja</h3>
           <p className="mb-3 text-xs t-3">
-            Barrera de privacidad doméstica: los datos se guardan sin cifrar en este navegador.
+            Barrera de privacidad doméstica: los registros se guardan sin cifrar en este
+            navegador. El PIN no: se guarda su huella, aquí y en la nube, así que vale en
+            todos los aparatos y no se puede leer en ninguno.
           </p>
           <div className="flex gap-2">
             <input
@@ -489,33 +531,29 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
               autoComplete="new-password"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              onKeyDown={(e) => e.key === 'Enter' && changePin()}
+              onKeyDown={(e) => e.key === 'Enter' && void changePin()}
               placeholder="Nuevo PIN (4-8 dígitos)"
               aria-label="Nuevo PIN"
               className="field flex-1"
             />
             <button
               type="button"
-              onClick={changePin}
+              onClick={() => void changePin()}
               disabled={pin.length < 4}
               className="btn-primary px-3"
             >
               Guardar
             </button>
           </div>
-          <p className="mt-2 flex items-center gap-2 text-xs t-3">
-            PIN actual:{' '}
-            <span className="font-mono font-bold t-2">
-              {pinVisible ? loadPin() : '•'.repeat(loadPin().length)}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPinVisible((v) => !v)}
-              className="rounded-lg px-2 py-1 text-xs t-3 transition-colors hover:t-1"
-              aria-label={pinVisible ? 'Ocultar el PIN' : 'Mostrar el PIN'}
-            >
-              {pinVisible ? '🙈' : '👁️'}
-            </button>
+          <p className="mt-2 text-xs t-3">
+            {defaultPin ? (
+              <>
+                Ahora mismo vale el de fábrica:{' '}
+                <span className="font-mono font-bold t-2">{DEFAULT_PIN}</span>.
+              </>
+            ) : (
+              'Hay uno puesto. No se puede enseñar, porque no se guarda el número: si se olvida, se pone otro aquí.'
+            )}
           </p>
         </section>
 

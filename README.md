@@ -313,9 +313,45 @@ registrado sube solo en cuanto vuelve la conexión.
 
 | Sube | Se queda en el móvil |
 | ---- | -------------------- |
-| Registros diarios, observaciones y notas de categoría | El PIN del módulo de pareja |
-| Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | La preferencia «trabajar sólo en este móvil» |
+| Registros diarios, observaciones y notas de categoría | La preferencia «trabajar sólo en este móvil» |
+| Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | |
+| Fotos y sintonías de los perfiles | |
+| Ajustes de la casa: modo día/noche, sintonías y PIN | |
 | | El permiso de Google (vive cifrado en el servidor) |
+
+**El PIN no viaja en claro.** Lo que sube es su huella —PBKDF2-SHA256 con sal, calculada
+en el navegador—, así que ni la base ni la pantalla de Ajustes pueden enseñar el número:
+si se olvida, se pone otro. Sigue siendo una barrera doméstica y no un cerrojo: cuatro
+dígitos son cuatro dígitos.
+
+Al actualizar, lo que ya hubiera en cada aparato **se respeta**: nadie ve cambiarle el
+modo de golpe. A partir del primer cambio, manda la última elección en todos. La única
+excepción es el PIN: si en un móvil había uno propio, al convertirlo en huella se propaga,
+porque el bueno es ése y no el de fábrica que tengan los demás.
+
+### Cuándo se sincroniza
+
+Lo que se escribe sube casi al momento (medio segundo después de la última tecla).
+Bajar lo que han escrito los demás ocurre en cuatro momentos:
+
+| Cuándo | Qué pasa |
+| ------ | -------- |
+| Al abrir la app | Sincronización completa |
+| Al volver a la pestaña o a la ventana | Igual, con un margen de 30 s para no repetir |
+| Cada 45 s, con la app a la vista | Repaso: es lo que refresca un portátil que lleva horas abierto |
+| En cuanto otro aparato escribe | Aviso de Postgres por el canal de tiempo real: aparece en un par de segundos |
+
+Los ajustes de la casa —modo, sintonías y PIN— no pasan por la base local, así que se
+suben aparte medio segundo después de tocarlos y se recogen en cada sincronización.
+
+El repaso periódico no es un adorno: el navegador **no avisa** de que se ha pasado del
+móvil al portátil —`visibilitychange` sólo salta al minimizar o al cambiar de pestaña—,
+así que sin él un portátil con la app abierta se quedaba enseñando lo que bajó al
+arrancar hasta que alguien recargaba la página.
+
+El canal de tiempo real necesita que las tablas estén en la publicación
+`supabase_realtime`; de eso se encarga el bloque final de `supabase/schema.sql`. Si no
+está, no se rompe nada: se nota sólo en que el refresco tarda hasta 45 segundos.
 
 ### Cómo resuelve los conflictos
 

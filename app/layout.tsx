@@ -31,7 +31,8 @@ export const viewport: Viewport = {
  */
 const MODE_BOOTSTRAP = `
 try {
-  var p = localStorage.getItem('habitos-familia:modo');
+  var raw = localStorage.getItem('habitos-familia:ajustes');
+  var p = raw ? JSON.parse(raw).theme : localStorage.getItem('habitos-familia:modo');
   var m = p === 'light' || p === 'dark'
     ? p
     : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

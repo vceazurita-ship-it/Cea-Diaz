@@ -12,7 +12,7 @@
  *  reproducción falla en silencio y no pasa nada.
  * ========================================================================= */
 
-const SOUND_KEY = 'habitos-familia:sonido';
+import { loadSettings, updateSettings } from '@/lib/settings';
 
 /** Lo que dura la sintonía antes de desvanecerse. */
 const PLAY_MS = 20_000;
@@ -28,13 +28,14 @@ const lastPlayed = new Map<string, number>();
 
 export function soundEnabled(): boolean {
   if (typeof window === 'undefined') return false;
-  // Por defecto encendido: quien no lo quiera, lo apaga en Ajustes.
-  return window.localStorage.getItem(SOUND_KEY) !== 'off';
+  // Por defecto encendido: quien no lo quiera, lo apaga en Ajustes. La
+  // decisión se guarda con el resto de ajustes de la casa y viaja con ellos.
+  return loadSettings().sound;
 }
 
 export function setSoundEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SOUND_KEY, enabled ? 'on' : 'off');
+  updateSettings({ sound: enabled });
   if (!enabled) stopAnthem();
 }
 

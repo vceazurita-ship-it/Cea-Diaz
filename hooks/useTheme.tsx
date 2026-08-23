@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import { loadSettings, subscribeSettings, updateSettings } from '@/lib/settings';
 import type { ThemeMode, ThemePreference } from '@/types';
 
 /* =========================================================================
@@ -12,18 +13,10 @@ import type { ThemeMode, ThemePreference } from '@/types';
  *  espera y lo que evita deslumbrar a las once de la noche. En cuanto se
  *  toca el interruptor, manda la elección y se recuerda.
  *
- *  El modo no viaja a la nube a propósito: es una preferencia del aparato
- *  —una tableta en la cocina y un móvil en la cama no quieren lo mismo—,
- *  igual que el volumen o el PIN.
+ *  La elección viaja a la nube con el resto de ajustes de la casa
+ *  (`lib/settings.ts`): se pone una vez y vale en todos los aparatos. Quien
+ *  quiera que cada uno vaya a su aire tiene `auto`, que sigue a cada móvil.
  * ========================================================================= */
-
-export const THEME_KEY = 'habitos-familia:modo';
-
-const PREFERENCES: ThemePreference[] = ['auto', 'light', 'dark'];
-
-function isPreference(value: unknown): value is ThemePreference {
-  return typeof value === 'string' && PREFERENCES.includes(value as ThemePreference);
-}
 
 /** Lo que quiere el móvil ahora mismo. */
 function systemMode(): ThemeMode {
@@ -58,9 +51,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [system, setSystem] = useState<ThemeMode>('dark');
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(THEME_KEY);
-    if (isPreference(stored)) setPreferenceState(stored);
+    setPreferenceState(loadSettings().theme);
     setSystem(systemMode());
+
+    // Y se sigue escuchando: el modo puede llegar de otro aparato en mitad
+    // de la tarde, y la app debe cambiar sola.
+    return subscribeSettings(() => setPreferenceState(loadSettings().theme));
   }, []);
 
   // Si el móvil cambia de modo (al anochecer, por ejemplo) y aquí está
@@ -78,13 +74,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setPreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
-    try {
-      if (next === 'auto') window.localStorage.removeItem(THEME_KEY);
-      else window.localStorage.setItem(THEME_KEY, next);
-    } catch {
-      // Modo privado o almacenamiento lleno: el modo vale para esta sesión
-      // y se vuelve a `auto` al recargar. No es motivo para molestar.
-    }
+    updateSettings({ theme: next });
   }, []);
 
   const toggle = useCallback(() => {

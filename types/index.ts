@@ -648,6 +648,34 @@ export interface CalendarOption {
   writable: boolean;
 }
 
+/* -------------------------------- Ajustes -------------------------------- */
+
+/**
+ * Huella del PIN. Nunca se guarda el número: se guarda de qué sal salió y
+ * qué resultado dio, que es lo único que hace falta para comprobarlo.
+ */
+export interface PinDigest {
+  /** Sal aleatoria, en hexadecimal. */
+  salt: string;
+  /** PBKDF2-SHA256 del PIN con esa sal, en hexadecimal. */
+  hash: string;
+  /** Vueltas usadas; se guarda para poder subirlas más adelante sin romper. */
+  rounds: number;
+}
+
+/**
+ * Lo que la casa elige una vez y vale en todas partes: el modo, si suenan
+ * las sintonías y el PIN del módulo privado. Lleva fecha de edición porque
+ * viaja a la nube y hay que saber qué elección es la última.
+ */
+export interface HouseSettings {
+  theme: ThemePreference;
+  sound: boolean;
+  /** `null` mientras siga valiendo el PIN de fábrica. */
+  pin: PinDigest | null;
+  updatedAt: string;
+}
+
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';

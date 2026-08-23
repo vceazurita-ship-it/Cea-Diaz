@@ -2,7 +2,7 @@
 
 import { Photo } from '@/components/ui/Photo';
 import { useEffect, useState } from 'react';
-import { DEFAULT_PIN, loadPin } from '@/lib/storage';
+import { DEFAULT_PIN, usesDefaultPin, verifyPin } from '@/lib/settings';
 import { useTheme } from '@/hooks/useTheme';
 import { accentFor, accentStyle } from '@/lib/profiles';
 import type { Profile } from '@/types';
@@ -16,7 +16,8 @@ interface PinLockProps {
 /**
  * Bloqueo ligero del módulo privado de pareja. Es una barrera de privacidad
  * doméstica (evita miradas curiosas), no un mecanismo de seguridad: los datos
- * viven en el navegador sin cifrar.
+ * viven en el navegador sin cifrar. El PIN sí se guarda como huella, así que
+ * comprobarlo tarda un instante y por eso el botón se desactiva mientras.
  *
  * La foto se muestra desenfocada: identifica el módulo sin desvelar contenido.
  */
@@ -24,19 +25,25 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
   const { mode } = useTheme();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  const [checking, setChecking] = useState(false);
   // La pista del PIN por defecto sólo tiene sentido si nadie lo ha cambiado.
   const [isDefaultPin, setIsDefaultPin] = useState(false);
 
-  useEffect(() => setIsDefaultPin(loadPin() === DEFAULT_PIN), []);
+  useEffect(() => setIsDefaultPin(usesDefaultPin()), []);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (pin === loadPin()) {
+    setChecking(true);
+    const ok = await verifyPin(pin);
+    setChecking(false);
+
+    if (ok) {
       onUnlock();
-    } else {
-      setError(true);
-      setPin('');
+      return;
     }
+
+    setError(true);
+    setPin('');
   };
 
   return (
@@ -69,7 +76,7 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
         Espacio privado de {profile.role}. Introduce el PIN para continuar.
       </p>
 
-      <form onSubmit={submit} className="w-full space-y-3">
+      <form onSubmit={(event) => void submit(event)} className="w-full space-y-3">
         <input
           type="password"
           inputMode="numeric"
@@ -94,8 +101,12 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
           {error ? 'PIN incorrecto' : ''}
         </p>
 
-        <button type="submit" disabled={pin.length < 4} className="btn-primary w-full py-3 text-base">
-          Entrar
+        <button
+          type="submit"
+          disabled={pin.length < 4 || checking}
+          className="btn-primary w-full py-3 text-base"
+        >
+          {checking ? 'Comprobando…' : 'Entrar'}
         </button>
 
         <button type="button" onClick={onCancel} className="btn-ghost w-full py-2.5">

@@ -1,20 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import type { RealtimePostgresChangesPayload, Session } from '@supabase/supabase-js';
 
 import {
   deleteRows,
   dirtyRows,
   mergeById,
   pullAll,
+  pullSettings,
   pushEntries,
+  pushSettings,
   pushTasks,
   tombstonesByTable,
   versionIndex,
   type CloudTable,
 } from '@/lib/cloud';
 import { buildSeedDatabase } from '@/lib/seed';
+import {
+  applyRemoteSettings,
+  loadSettings,
+  migrateLegacyPin,
+  subscribeSettings,
+} from '@/lib/settings';
 import { cloudConfigured, supabase } from '@/lib/supabase';
 import {
   clearDatabase,
@@ -122,6 +130,45 @@ const LOCAL_ONLY_KEY = 'habitos-familia:solo-local';
 /** Espera mínima entre sincronizaciones automáticas al volver a la app. */
 const SYNC_THROTTLE_MS = 30_000;
 
+/**
+ * Cada cuánto se comprueba, con la pestaña a la vista, si otro aparato ha
+ * escrito algo. Hace falta porque un portátil con la app abierta no recibe
+ * ningún aviso del navegador al cambiar de ventana: sin este repaso se
+ * quedaría enseñando lo que bajó al arrancar.
+ */
+const SYNC_POLL_MS = 45_000;
+
+/** Margen tras un aviso en tiempo real, para no bajar una vez por tecla. */
+const REALTIME_DEBOUNCE_MS = 1_500;
+
+/** Espera antes de subir un ajuste: apagar y encender el sonido son dos toques. */
+const SETTINGS_PUSH_MS = 600;
+
+/** Lo poco que hace falta de una fila avisada por el canal de tiempo real. */
+interface CloudRow {
+  id: string;
+  updated_at: string;
+}
+
+/**
+ * El modo, las sintonías y el PIN. No pasan por `db` —no son registros, sino
+ * cómo se ve y cómo se abre la app—, así que se reconcilian aparte y con la
+ * misma regla: gana la última elección, la haya hecho el aparato que sea.
+ */
+async function reconcileSettings(owner: string): Promise<void> {
+  const local = loadSettings();
+  const remote = await pullSettings();
+
+  if (remote && Date.parse(remote.updatedAt) > Date.parse(local.updatedAt)) {
+    applyRemoteSettings(remote);
+    return;
+  }
+
+  if (!remote || Date.parse(local.updatedAt) > Date.parse(remote.updatedAt)) {
+    await pushSettings(local, owner);
+  }
+}
+
 /** Anota un borrado para que la nube lo repita en la próxima subida. */
 function grave(
   tombstones: Record<string, string>,
@@ -154,6 +201,8 @@ export function useHabitStore(): HabitStore {
   useEffect(() => {
     setDb(loadDatabase());
     setHydrated(true);
+    // De paso se retira el PIN en claro que dejaran versiones anteriores.
+    void migrateLegacyPin();
   }, []);
 
   /* ----------------------------------------------------------- nube */
@@ -178,6 +227,8 @@ export function useHabitStore(): HabitStore {
   });
 
   const lastSyncAt = useRef(0);
+  /** Sincronización en curso: el repaso, el aviso y la vuelta pueden coincidir. */
+  const syncing = useRef(false);
 
   useEffect(() => {
     setLocalOnlyState(window.localStorage.getItem(LOCAL_ONLY_KEY) === '1');
@@ -202,7 +253,8 @@ export function useHabitStore(): HabitStore {
    */
   const syncNow = useCallback(async () => {
     const uid = session?.user.id;
-    if (!uid) return;
+    if (!uid || syncing.current) return;
+    syncing.current = true;
 
     setCloudStatus('syncing');
     setCloudError(null);
@@ -234,6 +286,18 @@ export function useHabitStore(): HabitStore {
 
       await pushEntries(dirtyRows(merged.entries, remoteIndex.entries), uid);
       await pushTasks(dirtyRows(merged.tasks, remoteIndex.tasks), uid);
+      // Los ajustes no deben tumbar la sincronización de los registros: si
+      // la tabla todavía no está —esquema sin actualizar—, se dice al final y
+      // se sigue como si nada.
+      let settingsError: string | null = null;
+      try {
+        await reconcileSettings(uid);
+      } catch (error) {
+        settingsError =
+          error instanceof Error
+            ? `Los ajustes de la casa no han viajado: ${error.message}`
+            : 'Los ajustes de la casa no han viajado.';
+      }
 
       synced.current = {
         entries: versionIndex(merged.entries),
@@ -250,12 +314,15 @@ export function useHabitStore(): HabitStore {
         tombstones: forget(prev.tombstones, propagated),
       }));
 
+      if (settingsError) setCloudError(settingsError);
       setLastSync(new Date().toISOString());
       setCloudStatus('synced');
       lastSyncAt.current = Date.now();
     } catch (error) {
       setCloudError(error instanceof Error ? error.message : 'No se ha podido sincronizar.');
       setCloudStatus('error');
+    } finally {
+      syncing.current = false;
     }
   }, [session]);
 
@@ -320,6 +387,97 @@ export function useHabitStore(): HabitStore {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [session, syncNow]);
+
+  // Repaso periódico mientras la app está a la vista. `visibilitychange` sólo
+  // salta al minimizar o al cambiar de pestaña, no al pasar del móvil al
+  // portátil, así que sin esto lo escrito en uno no aparecía en el otro hasta
+  // recargar la página.
+  useEffect(() => {
+    if (!session) return;
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      void syncNow();
+    }, SYNC_POLL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [session, syncNow]);
+
+  // Volver a la ventana o recuperar la cobertura: se mira sin esperar al repaso.
+  useEffect(() => {
+    if (!session) return;
+
+    const onWake = () => {
+      if (Date.now() - lastSyncAt.current < SYNC_THROTTLE_MS) return;
+      void syncNow();
+    };
+
+    window.addEventListener('focus', onWake);
+    window.addEventListener('online', onWake);
+    return () => {
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('online', onWake);
+    };
+  }, [session, syncNow]);
+
+  // Aviso en el momento: cuando otro aparato escribe, Postgres lo anuncia por
+  // el canal de tiempo real y aquí se baja en un par de segundos. Si el canal
+  // no está disponible no pasa nada: el repaso de arriba sigue cubriendo.
+  useEffect(() => {
+    const client = supabase();
+    if (!client || !session) return;
+
+    let timer = 0;
+    const soon = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void syncNow(), REALTIME_DEBOUNCE_MS);
+    };
+
+    const onChange = (payload: RealtimePostgresChangesPayload<CloudRow>) => {
+      const row = payload.new as Partial<CloudRow> | null;
+      const known = row?.id ? synced.current[payload.table as CloudTable]?.[row.id] : undefined;
+
+      // El eco de lo que este mismo navegador acaba de subir se descarta. Se
+      // compara como fecha y no como texto porque el mismo instante no se
+      // escribe igual aquí (`Z`) que en Postgres (`+00:00`).
+      if (known && row?.updated_at && Date.parse(known) === Date.parse(row.updated_at)) return;
+
+      soon();
+    };
+
+    const channel = client
+      .channel('casa')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, onChange)
+      .subscribe();
+
+    return () => {
+      window.clearTimeout(timer);
+      void client.removeChannel(channel);
+    };
+  }, [session, syncNow]);
+
+  // Los ajustes no pasan por `db`, así que no los arrastra la subida
+  // incremental: se suben en cuanto cambian. Si no, tocar el interruptor de
+  // la noche no llegaría al resto hasta el repaso.
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    let timer = 0;
+    const unsubscribe = subscribeSettings(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        // Un ajuste que no sube no rompe nada: el repaso lo recoge luego.
+        void pushSettings(loadSettings(), uid).catch(() => undefined);
+      }, SETTINGS_PUSH_MS);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [session]);
 
   /* ------------------------------------------------ sesión */
 
