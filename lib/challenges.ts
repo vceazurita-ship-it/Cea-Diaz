@@ -1,6 +1,7 @@
 import { addDays, weekKeys } from '@/lib/dates';
+import { guidanceFor } from '@/lib/experts';
 import { findMetric, getCategories } from '@/lib/habits';
-import { computeCategoryScore, computeDayScore, metricRatio } from '@/lib/scoring';
+import { computeCategoryScore, computeDayScore, isCeiling, metricRatio } from '@/lib/scoring';
 import type {
   Challenge,
   ChallengeProgress,
@@ -10,6 +11,7 @@ import type {
   DateKey,
   DayEntry,
   HabitCategory,
+  HabitPriority,
   Metric,
   MetricValue,
   Profile,
@@ -259,9 +261,13 @@ export function evaluateRule(
       const metric = findMetric(profileId, rule.metricId);
       let current = 0;
       if (metric) {
+        // En las métricas de techo el día cuenta cuando se queda por debajo;
+        // el umbral se lee al revés sin necesidad de otra regla.
+        const ceiling = isCeiling(metric);
         for (const date of dates) {
           const n = valueOn(date, metric);
-          if (n !== null && n + 1e-9 >= rule.threshold) current += 1;
+          if (n === null) continue;
+          if (ceiling ? n <= rule.threshold + 1e-9 : n + 1e-9 >= rule.threshold) current += 1;
         }
       }
       return makeProgress(current, rule.days, `${current} / ${days(rule.days)}`);
@@ -356,7 +362,9 @@ function thresholdText(metric: Metric, threshold: number): string {
   switch (metric.type) {
     case 'counter':
     case 'duration':
-      return `llegar a ${amount(metric, threshold)}`;
+      return isCeiling(metric)
+        ? `no pasar de ${amount(metric, threshold)}`
+        : `llegar a ${amount(metric, threshold)}`;
     case 'toggle':
       return 'marcarlo';
     case 'scale': {
@@ -370,6 +378,13 @@ function thresholdText(metric: Metric, threshold: number): string {
   }
 }
 
+/** Cuánto pesa el criterio experto al ordenar los candidatos de la semana. */
+const GUIDANCE_WEIGHT: Record<HabitPriority, number> = {
+  clave: 1.35,
+  importante: 1.15,
+  apoyo: 1,
+};
+
 function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DayStats): Candidate[] {
   const kid = profile.kind === 'kid';
   const group = profile.kind === 'group';
@@ -382,10 +397,11 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
     const weekly = clamp(Math.round(stat.activeDays / (BASELINE_DAYS / 7)), 1, 7);
 
     /* --- MÁXIMO · récord personal -------------------------------------- */
-    if (numeric && stat.samples >= 3 && stat.best > 0) {
+    if (numeric && !isCeiling(metric) && stat.samples >= 3 && stat.best > 0) {
       // Sólo tiene sentido batir la marca donde más es mejor. En lo demás
       // (dormir, hidratarse, comer) el objetivo es el objetivo: pasarse no
-      // es mejorar, así que el récord se detiene ahí.
+      // es mejorar, así que el récord se detiene ahí. Y donde la meta es un
+      // techo —pantallas— batir la marca sería exactamente lo contrario.
       const ceiling = metric.focus ? metric.max : metric.target;
       const step = stepOf(metric);
       const bump = Math.max(step, toStep(stat.best * 0.12, step, 'ceil'));
@@ -478,9 +494,12 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
 
     /* --- BASE · estrenar lo que nunca se ha registrado ------------------- */
     if (stat.samples === 0) {
-      const threshold = numeric
-        ? Math.max(stepOf(metric), toStep(metric.target / 2, stepOf(metric), 'ceil'))
-        : successThreshold(metric);
+      // Estrenar una métrica de suelo es llegar a la mitad del objetivo; en una
+      // de techo, quedarse por debajo de él: la mitad sería pedir el doble.
+      const threshold =
+        numeric && !isCeiling(metric)
+          ? Math.max(stepOf(metric), toStep(metric.target / 2, stepOf(metric), 'ceil'))
+          : successThreshold(metric);
 
       out.push({
         metricId: metric.id,
@@ -579,6 +598,15 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
       { type: 'dayRatioStreak', threshold: 0.8, days: 3 },
     ),
   });
+
+  /* --- El criterio experto inclina la balanza --------------------------- */
+  // Entre dos retos igual de pertinentes, la semana se la lleva el que ataca
+  // un hábito clave. No los inventa ni los impone: sólo los pone por delante.
+  for (const candidate of out) {
+    if (!candidate.metricId) continue;
+    const guidance = guidanceFor(profile.id, candidate.metricId);
+    if (guidance) candidate.priority *= GUIDANCE_WEIGHT[guidance.priority];
+  }
 
   return out;
 }

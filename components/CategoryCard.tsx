@@ -1,16 +1,20 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { MetricControl } from '@/components/controls/MetricControl';
 import type { ControlVariant } from '@/components/controls/types';
+import { PriorityChip } from '@/components/experts/CriteriaSheet';
 import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { VoiceField } from '@/components/ui/VoiceField';
+import { expertNames, guidanceFor } from '@/lib/experts';
 import { computeCategoryScore, percent } from '@/lib/scoring';
-import type { HabitCategory, MetricValue, ProfileSkin } from '@/types';
+import type { HabitCategory, HabitGuidance, Metric, MetricValue, ProfileId, ProfileSkin } from '@/types';
 
 interface CategoryCardProps {
   category: HabitCategory;
+  /** Necesario para resolver el criterio experto de cada métrica. */
+  profileId: ProfileId;
   values: Record<string, MetricValue>;
   onChange: (metricId: string, value: MetricValue | undefined) => void;
   variant: ControlVariant;
@@ -24,6 +28,7 @@ interface CategoryCardProps {
 
 export function CategoryCard({
   category,
+  profileId,
   values,
   onChange,
   variant,
@@ -33,9 +38,27 @@ export function CategoryCard({
   onNoteChange,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [showWhy, setShowWhy] = useState(false);
   const score = computeCategoryScore(category, values);
   const kid = variant === 'kid';
   const panelId = useId();
+  const whyId = useId();
+
+  // El criterio de los hábitos de esta categoría, uno por ficha: las cinco
+  // actividades deportivas comparten la suya y no se repite cinco veces.
+  const criteria = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ metric: Metric; guidance: HabitGuidance }> = [];
+
+    for (const metric of category.metrics) {
+      const guidance = guidanceFor(profileId, metric.id);
+      if (!guidance || seen.has(guidance.metricId)) continue;
+      seen.add(guidance.metricId);
+      out.push({ metric, guidance });
+    }
+
+    return out;
+  }, [category, profileId]);
 
   const pending = score.total - score.filled;
   const complete = score.total > 0 && pending === 0;
@@ -133,6 +156,44 @@ export function CategoryCard({
               ))
             )}
           </div>
+
+          {/* El porqué de estos objetivos, plegado: se consulta cuando se
+              discute una cifra, no todos los días. */}
+          {criteria.length > 0 && (
+            <div className="border-t px-4 py-3 hairline">
+              <button
+                type="button"
+                onClick={() => setShowWhy((v) => !v)}
+                aria-expanded={showWhy}
+                aria-controls={whyId}
+                className="btn-ghost px-2.5 py-1.5 text-xs"
+              >
+                📚 {kid ? '¿Por qué es importante?' : 'Por qué importan estos objetivos'}
+                <span className={`ml-1 inline-block transition-transform ${showWhy ? 'rotate-180' : ''}`} aria-hidden>
+                  ▾
+                </span>
+              </button>
+
+              {showWhy && (
+                <ul id={whyId} className="mt-2 animate-floatUp space-y-2">
+                  {criteria.map(({ metric, guidance }) => (
+                    <li key={guidance.metricId} className="rounded-xl p-2 surf-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span aria-hidden>{metric.icon}</span>
+                        <span className="text-xs font-semibold t-1">{metric.label}</span>
+                        <PriorityChip priority={guidance.priority} />
+                      </div>
+                      <p className="mt-1 text-xs leading-snug t-2">{guidance.claim}</p>
+                      <p className="mt-0.5 text-[11px] t-3">{guidance.detail}</p>
+                      <p className="mt-1 text-[11px] font-semibold t-3">
+                        {expertNames(guidance)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Lo que los botones no saben decir: se escribe o se dicta. */}
           {onNoteChange && (

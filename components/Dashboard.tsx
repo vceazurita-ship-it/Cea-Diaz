@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
 import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
+import { AttentionCard } from '@/components/experts/AttentionCard';
 import { MealPhotoCard } from '@/components/meals/MealPhotoCard';
 import { DayNoteCard, PendingChallengeCard } from '@/components/notes/DayNoteCard';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
@@ -258,6 +259,9 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
             />
           )}
 
+          {/* Antes de la lista de casillas, lo que de verdad hay que mirar hoy. */}
+          <AttentionCard profile={profile} values={values} kid={kid} />
+
           {visibleCategories.length === 0 ? (
             <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
               <p className="text-4xl" aria-hidden>
@@ -281,6 +285,7 @@ export function Dashboard({ profile, date, onDateChange, store }: DashboardProps
               <CategoryCard
                 key={category.id}
                 category={category}
+                profileId={profile.id}
                 values={values}
                 onChange={handleChange}
                 variant={kid ? 'kid' : 'adult'}

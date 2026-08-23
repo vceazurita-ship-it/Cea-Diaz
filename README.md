@@ -72,8 +72,11 @@ components/
   notes/
     DayNoteCard.tsx    Observaciones dictadas, consejo y reto pendiente
   DateNavigator.tsx    Navegación por días con tira semanal
-  CategoryCard.tsx     Categoría plegable con su cumplimiento y su nota
+  CategoryCard.tsx     Categoría plegable con su cumplimiento, su nota y su criterio
   SportsPanel.tsx      Layout especial del desglose deportivo
+  experts/
+    AttentionCard.tsx  Lo que hoy pide atención, por prioridad
+    CriteriaSheet.tsx  Ficha completa del criterio y de las referencias citadas
   PinLock.tsx          Bloqueo del módulo privado de pareja
   SettingsPanel.tsx    Modo día/noche, portada, ejemplo, copias, PIN y borrado
   controls/            Un control por tipo de métrica + despachador
@@ -91,6 +94,7 @@ public/
 lib/
   profiles.ts          Los 6 perfiles: datos, fotos, tinte, acentos y piel
   habits.ts            Catálogo de categorías y métricas por perfil
+  experts.ts           Criterio experto de cada hábito: prioridad, cifra y quién la sostiene
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
   rewards.ts           Mazos de cromos y frases, y su reparto por reto superado
@@ -121,6 +125,7 @@ concreta, sólo su *tipo*. Añadir un hábito nuevo es añadir un objeto a `lib/
 | `toggle`   | Sí / No                                | 1 si `true`                |
 | `counter`  | Vasos de agua, raciones, clases…       | `valor / objetivo`         |
 | `duration` | Horas de sueño, minutos de lectura…    | `valor / objetivo`         |
+| ↳ `direction: 'atMost'` | Pantallas de ocio (la meta es un **techo**) | 1 por debajo del techo, cayendo hasta 0 en el máximo |
 | `scale`    | Esfuerzo, energía, sintonía (1–5)      | normalizado en el rango    |
 | `choice`   | Sensaciones, ambiente                  | puntuación de la opción    |
 
@@ -138,11 +143,90 @@ el mismo con otros nombres.
 
 | Perfil                  | Categorías                                                                        |
 | ----------------------- | --------------------------------------------------------------------------------- |
-| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura) |
-| **María** (39)          | Salud y Bienestar · Desarrollo Personal (lectura y escritura) · Profesional (clases de español online) |
-| **Víctor** (42)         | Salud y Bienestar · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
+| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
+| **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
+
+En los adultos, sueño, nutrición y movimiento van en tres tarjetas y no en una sola
+de «Salud y Bienestar»: son los tres bloques que los expertos tratan por separado y
+con cifras propias, y juntos se leían como un cajón de catorce casillas. La tarjeta
+de sueño conserva el identificador `salud`, así que las notas ya escritas siguen
+donde estaban.
+
+## El criterio de los expertos
+
+`lib/habits.ts` dice **qué** se registra. `lib/experts.ts` dice **por qué**, **con qué
+cifra** y **quién lo sostiene**. Van separados a propósito: la interfaz cambia por
+motivos de interfaz, y el criterio cambia cuando cambia lo que se sabe.
+
+Cada hábito con criterio lleva:
+
+| Campo      | Qué es                                                              |
+| ---------- | ------------------------------------------------------------------- |
+| `priority` | `clave` (consenso amplio y efecto grande) · `importante` · `apoyo`   |
+| `claim`    | El titular: qué hacer y por qué, en una frase                        |
+| `detail`   | Las cifras, los matices y cómo se aplica en casa                     |
+| `experts`  | Las referencias que lo sostienen                                     |
+
+### Qué respaldo tiene cada referencia
+
+Se distinguen tres niveles, y se enseñan en la ficha:
+
+- **Consenso** — organismos y revisiones: OMS, Academia Americana de Pediatría,
+  Walter Willett (Plato de Harvard), Sabine Sonnentag (desconexión psicológica).
+- **Divulgación** — resumen razonable de la evidencia disponible: Matthew Walker
+  (sueño), Andrew Huberman (luz y ritmo circadiano), Peter Attia (fuerza y
+  longevidad), Tim Spector (variedad vegetal), James Clear y BJ Fogg (diseño de
+  hábitos), Carol Dweck (elogio del esfuerzo), John Gottman (pareja), Cal Newport
+  (concentración), K. Anders Ericsson (práctica deliberada), **Marcos Vázquez**,
+  **Endika Montiel**, Carlos Ríos y Julio Basulto.
+- **Con reservas** — **Frank Suárez**: se le cita sólo donde coincide con todos los
+  demás (beber más agua, bajar azúcar y harina refinada). Su clasificación del
+  sistema nervioso en «excitado» y «pasivo» y su reparto de alimentos en tipo A y
+  tipo E no están respaldados, y la ficha lo dice en voz alta.
+
+Sólo el primer nivel se presenta como hecho. La ficha cierra recordando que nada de
+esto sustituye al pediatra ni al médico.
+
+### Qué hace con eso la app
+
+1. **Marca los items a atender.** La pestaña de registro abre con «A qué atender
+   hoy»: sólo hábitos `clave` e `importante`, y sólo cuando están por debajo del
+   criterio, pasados de techo o sin registrar. Ordenados por prioridad y, dentro de
+   ella, por gravedad. Cuando no queda ninguno, lo dice.
+2. **Explica cada objetivo donde se registra.** Cada categoría lleva plegado un
+   «Por qué importan estos objetivos» con el criterio y las referencias.
+3. **Pesa los retos de la semana.** Entre dos retos igual de pertinentes, el
+   generador se queda con el que ataca un hábito clave.
+4. **Ancla al consejo del día.** El análisis recibe los hábitos que hoy piden
+   atención con su cifra y su referencia, con instrucción expresa de apoyarse en
+   ellos, citar de quién son y no atribuirle a nadie cifras que no se le han dado.
+5. **Ancla el análisis del plato.** Cada objetivo de comida viaja al análisis con
+   el criterio del que sale, y el Plato de Harvard como referencia de reparto.
+
+### Hábitos que entraron por criterio experto
+
+Los que faltaban y el consenso considera de primer orden:
+
+| Hábito                                    | Quién                     | Dónde                    |
+| ----------------------------------------- | ------------------------- | ------------------------ |
+| Misma hora de dormir y de despertar       | Walker, Huberman          | Todos                    |
+| Luz natural al levantarse                 | Huberman                  | Peques y adultos         |
+| Sin cafeína después de las 15:00          | Walker, Huberman          | Adultos                  |
+| Día sin alcohol                           | OMS, Walker               | Adultos                  |
+| Proteína en cada comida                   | Attia, Endika Montiel     | Peques y adultos         |
+| Medio plato de verdura (Plato de Harvard) | Willett                   | Adultos                  |
+| Sin ultraprocesados                       | OMS, Ríos, Spector        | Adultos (ya en peques)   |
+| Cena 3 h antes de dormir, sin picoteo     | Marcos Vázquez, Montiel   | Adultos                  |
+| Entrenamiento de fuerza                   | OMS, Attia, Montiel       | Adultos                  |
+| Pasos del día                             | Marcos Vázquez, Attia     | Adultos                  |
+| Movimiento del día (60 min)               | OMS                       | Peques                   |
+| Pantallas de ocio (**techo**)             | AAP                       | Peques y adultos         |
+| Rutina de acostarse de los peques         | AAP, Walker               | Familia                  |
+| Reconocer el esfuerzo, no el resultado    | Dweck                     | Familia                  |
+| Roce reparado el mismo día                | Gottman                   | Pareja                   |
 
 ## Sintonía de perfil
 

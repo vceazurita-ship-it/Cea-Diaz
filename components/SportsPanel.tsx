@@ -29,8 +29,12 @@ export function SportsPanel({
 }: SportsPanelProps) {
   const groups = category.groups ?? [];
   const pitch = skin === 'pitch';
+  // Métricas de la categoría que no pertenecen a ninguna actividad: el
+  // movimiento del día, que cuenta juegue o no juegue con un club.
+  const loose = category.metrics.filter((metric) => metric.group === undefined);
 
   return (
+    <div className="space-y-3">
     <div className="grid gap-3 sm:grid-cols-2">
       {groups.map((sport) => {
         const metrics = category.metrics.filter((m) => m.group === sport.id);
@@ -107,6 +111,21 @@ export function SportsPanel({
           </div>
         );
       })}
+    </div>
+
+      {loose.length > 0 && (
+        <div className={variant === 'kid' ? 'space-y-3' : 'divide-y divide-[var(--border)]'}>
+          {loose.map((metric) => (
+            <MetricControl
+              key={metric.id}
+              metric={metric}
+              value={values[metric.id]}
+              onChange={(value) => onChange(metric.id, value)}
+              variant={variant}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

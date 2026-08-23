@@ -96,6 +96,26 @@ export type MetricType = 'toggle' | 'counter' | 'duration' | 'scale' | 'choice';
  */
 export type MetricFocus = 'aprendizaje' | 'esfuerzo';
 
+/**
+ * Sentido del objetivo de una métrica con cifra.
+ *  - `atLeast` (por defecto) la meta es un suelo: cuanto más, mejor hasta ella.
+ *  - `atMost`  la meta es un techo: cumplir es quedarse por debajo.
+ *
+ * Hacía falta porque media docena de hábitos que los expertos consideran
+ * innegociables son límites, no metas: pantallas, cafeína tarde, ultraprocesados.
+ * Sin esto había que enunciarlos al revés («sin pantallas: sí/no») y se perdía
+ * el cuánto, que es justo lo que hay que vigilar.
+ */
+export type MetricDirection = 'atLeast' | 'atMost';
+
+/**
+ * Cuánto pesa el hábito en la literatura, y por tanto cuánto insiste la app:
+ *  - `clave`      consenso amplio y efecto grande (sueño, fuerza, ultraprocesados).
+ *  - `importante` bien respaldado, pero de segundo orden.
+ *  - `apoyo`      ayuda y suma, sin ser determinante.
+ */
+export type HabitPriority = 'clave' | 'importante' | 'apoyo';
+
 interface MetricBase {
   id: string;
   label: string;
@@ -123,6 +143,8 @@ export interface CounterMetric extends MetricBase {
   unit: string;
   /** Emoji repetido para la representación visual infantil. */
   pip?: string;
+  /** Suelo (por defecto) o techo. */
+  direction?: MetricDirection;
 }
 
 /** Cantidad continua con objetivo: minutos, horas de sueño... */
@@ -133,6 +155,8 @@ export interface DurationMetric extends MetricBase {
   max: number;
   step: number;
   unit: string;
+  /** Suelo (por defecto) o techo. */
+  direction?: MetricDirection;
 }
 
 /** Escala subjetiva 1..5 (esfuerzo, energía, ánimo). */
@@ -499,6 +523,63 @@ export interface UnlockedReward {
   week: DateKey;
   challengeId: string;
   challengeTitle: string;
+}
+
+/* ------------------------------- Criterio ------------------------------- */
+
+/**
+ * Qué respaldo tiene lo que dice cada referencia. Se muestra en la ficha para
+ * que se sepa qué es consenso y qué es la tesis de un divulgador concreto:
+ *  - `consenso`    lo sostienen organismos y revisiones (OMS, AAP, metaanálisis).
+ *  - `divulgacion` divulgadores que resumen bien la evidencia disponible.
+ *  - `discutido`   parte de su marco no está respaldado; se cita lo que sí lo está.
+ */
+export type EvidenceLevel = 'consenso' | 'divulgacion' | 'discutido';
+
+export interface Expert {
+  id: string;
+  name: string;
+  /** En una línea: de qué habla y desde dónde. */
+  role: string;
+  /** Ámbito en el que se le cita aquí. */
+  field: string;
+  level: EvidenceLevel;
+  /**
+   * Sólo en los `discutido`: qué parte de su discurso no está respaldada, para
+   * no repetirla sin más. Se enseña junto a su nombre.
+   */
+  caveat?: string;
+}
+
+/**
+ * El criterio experto detrás de un hábito. Vive aparte del catálogo de
+ * métricas —que es la interfaz— porque es otra cosa: el porqué, la cifra de
+ * referencia y quién la sostiene.
+ */
+export interface HabitGuidance {
+  /** Métrica a la que acompaña; la clave del registro. */
+  metricId: string;
+  priority: HabitPriority;
+  /** El titular: qué hay que hacer y por qué, en una frase. */
+  claim: string;
+  /** El detalle: cifras, matices y cómo aplicarlo en casa. */
+  detail: string;
+  /** Referencias que lo sostienen, por identificador de `EXPERTS`. */
+  experts: string[];
+  /** Sólo para estos perfiles; ausente significa «para todos». */
+  only?: ProfileId[];
+}
+
+/** Un hábito clave que hoy pide atención, ya resuelto contra lo registrado. */
+export interface AttentionItem {
+  guidance: HabitGuidance;
+  metric: Metric;
+  categoryId: string;
+  categoryLabel: string;
+  /** Cumplimiento de hoy, o `null` si aún no se ha registrado. */
+  ratio: number | null;
+  /** Qué le pasa: sin registrar, por debajo del suelo o por encima del techo. */
+  status: 'sinRegistrar' | 'flojo' | 'excedido';
 }
 
 /* ------------------------------ Navegación ------------------------------ */

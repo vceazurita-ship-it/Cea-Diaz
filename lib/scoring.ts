@@ -34,6 +34,16 @@ export function metricRatio(metric: Metric, value: MetricValue | undefined): num
     case 'duration': {
       const n = Number(value);
       if (Number.isNaN(n)) return null;
+
+      // Techo: cumplir es quedarse por debajo de la meta, y a partir de ahí el
+      // cumplimiento cae hasta agotarse en el máximo de la métrica. Con techo 0
+      // —«nada de esto»— sólo hay dos respuestas posibles.
+      if (metric.direction === 'atMost') {
+        if (n <= metric.target) return 1;
+        if (metric.max <= metric.target) return 0;
+        return clamp01((metric.max - n) / (metric.max - metric.target));
+      }
+
       if (metric.target <= 0) return n > 0 ? 1 : 0;
       return clamp01(n / metric.target);
     }
@@ -79,6 +89,18 @@ export function formatMetricValue(metric: Metric, value: MetricValue | undefined
     default:
       return String(value);
   }
+}
+
+/** ¿Es la meta un techo que no conviene pasar? */
+export function isCeiling(metric: Metric): boolean {
+  return (
+    (metric.type === 'counter' || metric.type === 'duration') && metric.direction === 'atMost'
+  );
+}
+
+/** Cómo se nombra el objetivo en pantalla: «meta» si es suelo, «máx» si es techo. */
+export function targetWord(metric: Metric): string {
+  return isCeiling(metric) ? 'máx' : 'meta';
 }
 
 /* ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 'use client';
 
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { isCeiling, metricRatio, targetWord } from '@/lib/scoring';
 import type { DurationMetric } from '@/types';
 import type { ControlProps } from './types';
 
@@ -18,7 +19,11 @@ export function DurationControl({
 }: ControlProps<DurationMetric>) {
   const registered = typeof value === 'number';
   const current = registered ? (value as number) : metric.min;
-  const ratio = metric.target > 0 ? Math.min(1, current / metric.target) : 0;
+  // Igual que en el contador: el cumplimiento lo calcula el mismo sitio que
+  // puntúa el día, de modo que un techo se pinta lleno mientras no se pase.
+  const ceiling = isCeiling(metric);
+  const ratio = metricRatio(metric, registered ? current : undefined) ?? 0;
+  const overrun = registered && ceiling && current > metric.target;
   // Partir de la meta al primer toque ahorra arrastrar el deslizador cada día.
   const startValue = Math.min(metric.max, Math.max(metric.min, metric.target));
 
@@ -49,11 +54,15 @@ export function DurationControl({
             −
           </button>
           <div className="min-w-[110px] text-center">
-            <div className={`text-3xl font-black tabular-nums ${registered ? 't-accent' : 't-3'}`}>
+            <div
+              className={`text-3xl font-black tabular-nums ${
+                overrun ? 't-danger' : registered ? 't-accent' : 't-3'
+              }`}
+            >
               {registered ? current : '—'}
             </div>
             <div className="text-xs font-semibold uppercase tracking-wide t-2">
-              {metric.unit} · meta {metric.target}
+              {metric.unit} · {targetWord(metric)} {metric.target}
             </div>
           </div>
           <button
@@ -85,10 +94,12 @@ export function DurationControl({
         </span>
         <p className="min-w-[8rem] flex-1 text-sm font-medium leading-snug t-1">{metric.label}</p>
         <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
-          <span className={registered ? 't-accent' : 't-3'}>{registered ? current : '—'}</span>
+          <span className={overrun ? 't-danger' : registered ? 't-accent' : 't-3'}>
+            {registered ? current : '—'}
+          </span>
           <span className="t-3">
-            {' '}
-            / {metric.target} {metric.unit}
+            {ceiling ? ` · ${targetWord(metric)} ` : ' / '}
+            {metric.target} {metric.unit}
           </span>
         </span>
       </div>

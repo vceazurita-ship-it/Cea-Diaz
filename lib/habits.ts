@@ -106,12 +106,21 @@ function kidCategories(): HabitCategory[] {
           weight: 2,
         },
         { id: 'desayuno', label: 'Desayuno completo', icon: '🥣', type: 'toggle' },
-        { id: 'plato_sano', label: 'Comida y cena sanas', icon: '🥗', type: 'toggle' },
+        {
+          id: 'proteina',
+          label: 'Proteína en cada comida',
+          icon: '🥚',
+          type: 'toggle',
+          weight: 2,
+          help: 'Huevo, pescado, carne, legumbre o lácteo: que se vea en el plato.',
+        },
+        { id: 'plato_sano', label: 'Comida y cena sanas', icon: '🥗', type: 'toggle', weight: 2 },
         {
           id: 'poco_dulce',
           label: 'Poco dulce y sin ultraprocesados',
           icon: '🍭',
           type: 'toggle',
+          weight: 2,
         },
       ],
     },
@@ -136,10 +145,26 @@ function kidCategories(): HabitCategory[] {
         },
         { id: 'hora_cama', label: 'A la cama antes de las 22:00', icon: '⏰', type: 'toggle' },
         {
+          id: 'horario_regular',
+          label: 'Misma hora de dormir y de despertar',
+          icon: '🔁',
+          type: 'toggle',
+          weight: 2,
+          help: 'Fin de semana incluido, con una hora de margen.',
+        },
+        {
           id: 'sin_pantallas_noche',
           label: 'Sin pantallas antes de dormir',
           icon: '📵',
           type: 'toggle',
+          weight: 2,
+        },
+        {
+          id: 'luz_manana',
+          label: 'Luz natural al levantarse',
+          icon: '🌅',
+          type: 'toggle',
+          help: 'De camino al cole ya cuenta: 10 minutos fuera, sin cristales.',
         },
         energyScale('energia', 'Nivel de energía al despertar', '⚡'),
       ],
@@ -152,7 +177,25 @@ function kidCategories(): HabitCategory[] {
       gradient: 'from-orange-400 to-pink-600',
       layout: 'sports',
       groups: SPORTS,
-      metrics: SPORTS.flatMap(sportMetrics),
+      metrics: [
+        ...SPORTS.flatMap(sportMetrics),
+        // Lo que pide la OMS a esta edad no es entrenar en un club: es moverse
+        // una hora al día. Los días sin entrenamiento son los que hay que mirar.
+        {
+          id: 'actividad_diaria',
+          label: 'Movimiento del día',
+          icon: '🤾',
+          type: 'duration',
+          target: 60,
+          min: 0,
+          max: 240,
+          step: 15,
+          unit: 'min',
+          weight: 2,
+          focus: 'esfuerzo',
+          help: 'Todo lo que sea moverse: recreo, parque, bici, entrenamiento.',
+        },
+      ],
     },
     {
       id: 'cognitivo',
@@ -206,6 +249,21 @@ function kidCategories(): HabitCategory[] {
           pip: '✏️',
           focus: 'aprendizaje',
         },
+        // Aquí la meta es un techo: cumplir es quedarse por debajo.
+        {
+          id: 'pantallas_ocio',
+          label: 'Pantallas de ocio',
+          icon: '📱',
+          type: 'duration',
+          target: 120,
+          min: 0,
+          max: 360,
+          step: 15,
+          unit: 'min',
+          direction: 'atMost',
+          weight: 2,
+          help: 'Tele, tablet, consola y móvil de ocio. Los deberes no cuentan.',
+        },
       ],
     },
   ];
@@ -213,15 +271,22 @@ function kidCategories(): HabitCategory[] {
 
 /* ---------------------------------------------------------------------------
  * ADULTOS
+ *
+ *  Sueño, nutrición y movimiento van en tres tarjetas y no en una sola de
+ *  «Salud y Bienestar»: son los tres bloques que los expertos tratan por
+ *  separado —y con cifras propias—, y metidos en la misma lista se leían como
+ *  un cajón de sastre de catorce casillas. La de sueño conserva el
+ *  identificador `salud` para no dejar huérfanas las notas ya escritas.
  * ------------------------------------------------------------------------- */
 
-const mariaCategories: HabitCategory[] = [
-  {
+/** Sueño y descanso: lo mismo para los dos, salvo lo que se pase en `extra`. */
+function adultSleepCategory(extra: Metric[] = []): HabitCategory {
+  return {
     id: 'salud',
-    label: 'Salud y Bienestar',
-    icon: '🌿',
-    description: 'Sueño, descanso, nutrición e hidratación.',
-    gradient: 'from-emerald-400 to-teal-600',
+    label: 'Sueño y Descanso',
+    icon: '🌙',
+    description: 'Horas, regularidad y lo que las protege.',
+    gradient: 'from-indigo-400 to-violet-600',
     metrics: [
       {
         id: 'horas_sueno',
@@ -235,14 +300,58 @@ const mariaCategories: HabitCategory[] = [
         unit: 'h',
         weight: 2,
       },
+      {
+        id: 'horario_regular',
+        label: 'Misma hora de dormir y de despertar',
+        icon: '🔁',
+        type: 'toggle',
+        weight: 2,
+        help: 'Fin de semana incluido, con una hora de margen.',
+      },
       energyScale('calidad_descanso', 'Calidad del descanso', '🌙'),
+      ...extra,
+      {
+        id: 'luz_manana',
+        label: 'Luz natural al levantarse',
+        icon: '🌅',
+        type: 'toggle',
+        help: '10 minutos en la calle, sin cristales de por medio.',
+      },
+      {
+        id: 'sin_cafeina_tarde',
+        label: 'Sin cafeína después de las 15:00',
+        icon: '☕',
+        type: 'toggle',
+      },
+      { id: 'sin_alcohol', label: 'Día sin alcohol', icon: '🚫', type: 'toggle' },
+      {
+        id: 'sin_pantallas_noche',
+        label: 'Sin pantallas la última hora',
+        icon: '📵',
+        type: 'toggle',
+        weight: 2,
+      },
+      { id: 'pausa_consciente', label: 'Pausa consciente / respiración', icon: '🧘', type: 'toggle' },
+    ],
+  };
+}
+
+/** Nutrición e hidratación: sólo cambia cuánta agua toca. */
+function adultNutritionCategory(water: { target: number; max: number }): HabitCategory {
+  return {
+    id: 'nutricion',
+    label: 'Nutrición e Hidratación',
+    icon: '🥗',
+    description: 'Plato, proteína, agua y el horario de las comidas.',
+    gradient: 'from-lime-400 to-emerald-600',
+    metrics: [
       {
         id: 'agua',
         label: 'Hidratación',
         icon: '💧',
         type: 'counter',
-        target: 8,
-        max: 12,
+        target: water.target,
+        max: water.max,
         step: 1,
         unit: 'vasos',
         pip: '💧',
@@ -250,7 +359,7 @@ const mariaCategories: HabitCategory[] = [
       {
         id: 'comidas',
         label: 'Comidas equilibradas',
-        icon: '🥗',
+        icon: '🍽️',
         type: 'counter',
         target: 3,
         max: 5,
@@ -259,20 +368,89 @@ const mariaCategories: HabitCategory[] = [
         pip: '🍽️',
       },
       {
-        id: 'movimiento',
-        label: 'Actividad física',
-        icon: '🚴',
-        type: 'duration',
-        target: 30,
-        min: 0,
-        max: 120,
-        step: 5,
-        unit: 'min',
+        id: 'proteina',
+        label: 'Proteína en cada comida',
+        icon: '🥚',
+        type: 'toggle',
+        weight: 2,
+        help: 'Objetivo de referencia: unos 1,6 g por kilo al día, repartidos.',
+      },
+      {
+        id: 'plato_sano',
+        label: 'Medio plato de verdura',
+        icon: '🥦',
+        type: 'toggle',
+        weight: 2,
+        help: 'Plato de Harvard: mitad verdura, un cuarto proteína, un cuarto hidrato entero.',
+      },
+      {
+        id: 'poco_dulce',
+        label: 'Sin ultraprocesados ni dulce',
+        icon: '🍭',
+        type: 'toggle',
+        weight: 2,
+      },
+      {
+        id: 'cena_temprana',
+        label: 'Cena 3 h antes de dormir, sin picoteo después',
+        icon: '🌇',
+        type: 'toggle',
+      },
+    ],
+  };
+}
+
+/** Movimiento y fuerza: `main` es el entrenamiento propio de cada uno. */
+function adultMovementCategory(main: Metric, extra: Metric[] = []): HabitCategory {
+  return {
+    id: 'movimiento_fuerza',
+    label: 'Movimiento y Fuerza',
+    icon: '🏋️',
+    description: 'Lo que se entrena y lo que se mueve el resto del día.',
+    gradient: 'from-amber-400 to-orange-600',
+    metrics: [
+      main,
+      {
+        id: 'fuerza',
+        label: 'Entrenamiento de fuerza',
+        icon: '💪',
+        type: 'toggle',
+        weight: 2,
+        help: 'Mínimo dos días por semana, con o sin material.',
+      },
+      {
+        id: 'pasos',
+        label: 'Pasos del día',
+        icon: '👟',
+        type: 'counter',
+        target: 8000,
+        max: 16000,
+        step: 500,
+        unit: 'pasos',
+        weight: 2,
         focus: 'esfuerzo',
       },
-      { id: 'pausa_consciente', label: 'Pausa consciente / respiración', icon: '🧘', type: 'toggle' },
+      ...extra,
     ],
-  },
+  };
+}
+
+const mariaCategories: HabitCategory[] = [
+  adultSleepCategory(),
+  adultNutritionCategory({ target: 8, max: 12 }),
+  adultMovementCategory({
+    id: 'movimiento',
+    label: 'Actividad física',
+    icon: '🚴',
+    type: 'duration',
+    target: 30,
+    min: 0,
+    max: 120,
+    step: 5,
+    unit: 'min',
+    weight: 2,
+    focus: 'esfuerzo',
+  }),
   {
     id: 'desarrollo',
     label: 'Desarrollo Personal',
@@ -307,6 +485,19 @@ const mariaCategories: HabitCategory[] = [
         focus: 'aprendizaje',
       },
       { id: 'diario', label: 'Entrada de diario', icon: '📔', type: 'toggle' },
+      {
+        id: 'pantallas_ocio',
+        label: 'Pantallas de ocio',
+        icon: '📱',
+        type: 'duration',
+        target: 120,
+        min: 0,
+        max: 360,
+        step: 15,
+        unit: 'min',
+        direction: 'atMost',
+        help: 'Redes, series y móvil de ocio. El trabajo no cuenta.',
+      },
     ],
   },
   {
@@ -353,74 +544,37 @@ const mariaCategories: HabitCategory[] = [
 ];
 
 const victorCategories: HabitCategory[] = [
-  {
-    id: 'salud',
-    label: 'Salud y Bienestar',
-    icon: '🌿',
-    description: 'Sueño, descanso, nutrición e hidratación.',
-    gradient: 'from-emerald-400 to-teal-600',
-    metrics: [
-      {
-        id: 'horas_sueno',
-        label: 'Horas de sueño',
-        icon: '🛏️',
-        type: 'duration',
-        target: 7.5,
-        min: 4,
-        max: 11,
-        step: 0.25,
-        unit: 'h',
-        weight: 2,
-      },
-      {
-        id: 'descanso',
-        label: 'Descanso / siesta',
-        icon: '🌤️',
-        type: 'duration',
-        target: 20,
-        min: 0,
-        max: 90,
-        step: 5,
-        unit: 'min',
-      },
-      energyScale('calidad_descanso', 'Calidad del descanso', '🌙'),
-      {
-        id: 'agua',
-        label: 'Hidratación',
-        icon: '💧',
-        type: 'counter',
-        target: 10,
-        max: 14,
-        step: 1,
-        unit: 'vasos',
-        pip: '💧',
-      },
-      {
-        id: 'comidas',
-        label: 'Comidas equilibradas',
-        icon: '🥗',
-        type: 'counter',
-        target: 3,
-        max: 5,
-        step: 1,
-        unit: 'comidas',
-        pip: '🍽️',
-      },
-      {
-        id: 'entreno_propio',
-        label: 'Entrenamiento propio',
-        icon: '🏋️',
-        type: 'duration',
-        target: 45,
-        min: 0,
-        max: 150,
-        step: 5,
-        unit: 'min',
-        focus: 'esfuerzo',
-      },
-      { id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' },
-    ],
-  },
+  adultSleepCategory([
+    {
+      id: 'descanso',
+      label: 'Descanso / siesta',
+      icon: '🌤️',
+      type: 'duration',
+      target: 20,
+      min: 0,
+      max: 90,
+      step: 5,
+      unit: 'min',
+      help: 'Corta y antes de las 15:00; pasada la media hora se despierta peor.',
+    },
+  ]),
+  adultNutritionCategory({ target: 10, max: 14 }),
+  adultMovementCategory(
+    {
+      id: 'entreno_propio',
+      label: 'Entrenamiento propio',
+      icon: '🏋️',
+      type: 'duration',
+      target: 45,
+      min: 0,
+      max: 150,
+      step: 5,
+      unit: 'min',
+      weight: 2,
+      focus: 'esfuerzo',
+    },
+    [{ id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' }],
+  ),
   {
     id: 'desarrollo',
     label: 'Desarrollo Personal',
@@ -455,6 +609,19 @@ const victorCategories: HabitCategory[] = [
         focus: 'aprendizaje',
       },
       { id: 'diario', label: 'Diario de reflexión', icon: '📔', type: 'toggle' },
+      {
+        id: 'pantallas_ocio',
+        label: 'Pantallas de ocio',
+        icon: '📱',
+        type: 'duration',
+        target: 120,
+        min: 0,
+        max: 360,
+        step: 15,
+        unit: 'min',
+        direction: 'atMost',
+        help: 'Redes, series y móvil de ocio. El vídeo de trabajo no cuenta.',
+      },
     ],
   },
   {
@@ -536,6 +703,14 @@ const familiaCategories: HabitCategory[] = [
         weight: 2,
       },
       {
+        id: 'rutina_sueno',
+        label: 'Rutina de acostarse de los peques',
+        icon: '🌜',
+        type: 'toggle',
+        weight: 2,
+        help: 'La misma secuencia todas las noches: cena, ducha, cuento, luz fuera.',
+      },
+      {
         id: 'rutina_finde',
         label: 'Rutina de fin de semana cumplida',
         icon: '🌞',
@@ -568,6 +743,13 @@ const familiaCategories: HabitCategory[] = [
       },
       { id: 'aire_libre', label: 'Salida al aire libre', icon: '🌳', type: 'toggle' },
       { id: 'lectura_conjunta', label: 'Lectura o peli en familia', icon: '📚', type: 'toggle' },
+      {
+        id: 'refuerzo_esfuerzo',
+        label: 'Reconocer el esfuerzo, no el resultado',
+        icon: '🌱',
+        type: 'toggle',
+        help: '«Has entrenado bien toda la semana» construye; «qué crack eres» no.',
+      },
       {
         id: 'animo_familia',
         label: 'Ambiente en casa',
@@ -617,7 +799,15 @@ const parejaCategories: HabitCategory[] = [
     gradient: 'from-purple-400 to-rose-600',
     metrics: [
       { id: 'check_in', label: 'Check-in del día (10 min)', icon: '💬', type: 'toggle', weight: 2 },
-      { id: 'gratitud', label: 'Gesto de agradecimiento', icon: '🙏', type: 'toggle' },
+      { id: 'gratitud', label: 'Gesto de agradecimiento', icon: '🙏', type: 'toggle', weight: 2 },
+      {
+        id: 'reparacion',
+        label: 'Roce reparado el mismo día',
+        icon: '🩹',
+        type: 'toggle',
+        weight: 2,
+        help: 'Si no ha habido roce, marca «Sí»: el día queda limpio igualmente.',
+      },
       { id: 'planificacion', label: 'Planificación de la semana juntos', icon: '📆', type: 'toggle' },
       {
         id: 'sintonia',

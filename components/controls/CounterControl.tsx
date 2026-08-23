@@ -1,6 +1,7 @@
 'use client';
 
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { isCeiling, metricRatio, targetWord } from '@/lib/scoring';
 import type { CounterMetric } from '@/types';
 import type { ControlProps } from './types';
 
@@ -13,8 +14,12 @@ export function CounterControl({
 }: ControlProps<CounterMetric>) {
   const current = typeof value === 'number' ? value : 0;
   const registered = value !== undefined;
-  const ratio = metric.target > 0 ? Math.min(1, current / metric.target) : 0;
-  const reached = registered && current >= metric.target;
+  // El cumplimiento lo calcula el mismo sitio que puntúa el día, para que un
+  // techo se pinte como techo y no como una meta a la que le falta camino.
+  const ceiling = isCeiling(metric);
+  const ratio = metricRatio(metric, registered ? current : undefined) ?? 0;
+  const reached = registered && !ceiling && current >= metric.target;
+  const overrun = registered && ceiling && current > metric.target;
 
   const set = (next: number) => {
     const clamped = Math.max(0, Math.min(metric.max, next));
@@ -29,9 +34,10 @@ export function CounterControl({
             {metric.icon}
           </span>
           <span className="flex-1 text-base font-bold leading-tight">{metric.label}</span>
-          <span className="text-sm font-black tabular-nums t-accent">
+          <span className={`text-sm font-black tabular-nums ${overrun ? 't-danger' : 't-accent'}`}>
             {current}/{metric.target}
             {reached && <span className="ml-1">🎉</span>}
+            {overrun && <span className="ml-1">⚠️</span>}
           </span>
         </div>
 
@@ -55,7 +61,13 @@ export function CounterControl({
                       : 'border-2 border-dashed hairline-strong opacity-45 grayscale hover:opacity-80'
                   }
                   ${extra ? 'ring-1 ring-amber-300/50' : ''}`}
-                title={extra ? `Por encima de la meta (${metric.target})` : undefined}
+                title={
+                  extra
+                    ? ceiling
+                      ? `Por encima del máximo (${metric.target})`
+                      : `Por encima de la meta (${metric.target})`
+                    : undefined
+                }
               >
                 {metric.pip ?? metric.icon}
               </button>
@@ -107,8 +119,12 @@ export function CounterControl({
           −
         </button>
         <span className="w-16 text-center text-sm font-semibold tabular-nums">
-          <span className={registered ? 't-accent' : 't-3'}>{registered ? current : '—'}</span>
-          <span className="t-3">/{metric.target}</span>
+          <span className={overrun ? 't-danger' : registered ? 't-accent' : 't-3'}>
+            {registered ? current : '—'}
+          </span>
+          <span className="t-3" title={`${targetWord(metric)} ${metric.target} ${metric.unit}`}>
+            /{metric.target}
+          </span>
         </span>
         <button
           type="button"

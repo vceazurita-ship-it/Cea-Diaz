@@ -1,3 +1,4 @@
+import { guidanceFor } from '@/lib/experts';
 import { getCategories } from '@/lib/habits';
 import { getProfile } from '@/lib/profiles';
 import { formatMetricValue } from '@/lib/scoring';
@@ -55,10 +56,15 @@ function dailyTargets(profileId: ProfileId): string[] {
     for (const metric of category.metrics) {
       if (!isFoodMetric(category.id, metric.id)) continue;
 
+      // El criterio experto viaja con el objetivo: así el plato no se juzga
+      // contra una cifra suelta, sino contra el porqué de esa cifra.
+      const guidance = guidanceFor(profileId, metric.id);
+      const why = guidance ? ` — ${guidance.claim}` : '';
+
       if (metric.type === 'counter' || metric.type === 'duration') {
-        targets.push(`${metric.label}: objetivo ${metric.target} ${metric.unit} al día`);
+        targets.push(`${metric.label}: objetivo ${metric.target} ${metric.unit} al día${why}`);
       } else if (metric.type === 'toggle') {
-        targets.push(`${metric.label}: sí / no`);
+        targets.push(`${metric.label}: sí / no${why}`);
       }
     }
   }
@@ -101,6 +107,9 @@ export function mealSystemPrompt(profile: Profile): string {
     '- Miras: verdura y fruta, proteína, hidrato (mejor integral), grasa de calidad,',
     '  presencia de fritos, ultraprocesados o azúcar añadido, y si la ración encaja',
     '  con su edad y su gasto físico.',
+    '- La referencia de reparto es el Plato de Harvard: mitad verdura y fruta, un',
+    '  cuarto proteína, un cuarto hidrato integral. Junto a cada objetivo diario te',
+    '  paso el criterio del que sale; úsalo y no lo contradigas.',
     '- 10 es un plato redondo para esa persona en ese momento del día; 5 es mejorable;',
     '  por debajo de 4, hay algo importante que corregir.',
     '- Si dudas de lo que hay en la foto, dilo en el resumen y sé prudente con la nota.',

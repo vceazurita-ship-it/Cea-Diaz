@@ -1,5 +1,6 @@
+import { attentionItems, expertNames } from '@/lib/experts';
 import { getCategories } from '@/lib/habits';
-import { formatMetricValue } from '@/lib/scoring';
+import { formatMetricValue, isCeiling } from '@/lib/scoring';
 import type { DateKey, Metric, MetricValue, NextChallenge, Profile, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -90,6 +91,30 @@ function loose(profileId: ProfileId, notes: Record<string, string>): string[] {
     .map(([key, text]) => `${names.get(key) ?? key}: ${text.trim()}`);
 }
 
+/**
+ * El criterio experto de lo que hoy se ha quedado corto, pasado de techo o sin
+ * contar. Es lo que evita que el consejo sea genérico: en vez de «duerme más»,
+ * el análisis recibe la cifra de referencia y de quién es, y puede citarla.
+ */
+function criteria(profileId: ProfileId, values: Record<string, MetricValue>): string[] {
+  return attentionItems(profileId, values, 6).map((item) => {
+    const { metric, guidance } = item;
+    const goal =
+      metric.type === 'counter' || metric.type === 'duration'
+        ? ` (${isCeiling(metric) ? 'techo' : 'objetivo'} ${metric.target} ${metric.unit})`
+        : '';
+
+    const state =
+      item.status === 'sinRegistrar'
+        ? 'sin registrar hoy'
+        : item.status === 'excedido'
+          ? `pasado de techo: ${formatMetricValue(metric, values[metric.id])}`
+          : `flojo hoy: ${formatMetricValue(metric, values[metric.id])}`;
+
+    return `[${guidance.priority}] ${metric.label}${goal} — ${state}. Criterio: ${guidance.claim} (${expertNames(guidance)})`;
+  });
+}
+
 /** ¿Ha habido sala o entrenamiento propio hoy? De eso depende que haya reto. */
 export function trainedToday(profileId: ProfileId, values: Record<string, MetricValue>): boolean {
   return getCategories(profileId)
@@ -137,6 +162,15 @@ export function adviceSystemPrompt(profile: Profile): string {
     '- Si el día ha ido bien, dilo y propón el siguiente escalón; no busques un fallo',
     '  donde no lo hay.',
     '',
+    'CRITERIO DE REFERENCIA:',
+    '- Te paso los hábitos que hoy se han quedado cortos, se han pasado del techo o',
+    '  no se han contado, cada uno con su cifra de referencia y con quién la sostiene.',
+    '  Están ordenados: los marcados [clave] van primero.',
+    '- Apóyate en ellos antes que en tu criterio general, y cuando uses uno di de',
+    '  quién es en media frase («la OMS pide 60 minutos», «Walker insiste en…»).',
+    '- No cites a nadie que no venga en esa lista, y no le atribuyas a nadie cifras',
+    '  que no te he dado.',
+    '',
     'RETO DE LA PRÓXIMA SESIÓN:',
     '- Si el día incluye gimnasio o entrenamiento propio, propón un reto para la',
     '  siguiente vez **un punto por encima de lo hecho hoy**: una serie más, dos',
@@ -176,6 +210,7 @@ export function adviceUserPrompt(
   const summary = daySummary(profile.id, values);
   const sessions = gymHistory(profile.id, history);
   const remarks = loose(profile.id, notes);
+  const pending = criteria(profile.id, values);
 
   return [
     `QUIÉN: ${profile.name}${profile.age ? `, ${profile.age} años` : ''} — ${profile.role}.`,
@@ -189,6 +224,10 @@ export function adviceUserPrompt(
       : '',
     '',
     summary.length ? `LO REGISTRADO HOY:\n- ${summary.join('\n- ')}` : 'HOY NO HAY NADA REGISTRADO.',
+    '',
+    pending.length
+      ? `HÁBITOS QUE HOY PIDEN ATENCIÓN, CON SU CRITERIO:\n- ${pending.join('\n- ')}`
+      : '',
     '',
     sessions.length
       ? `SESIONES ANTERIORES (para calibrar la progresión):\n- ${sessions.join('\n- ')}`
