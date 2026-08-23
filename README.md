@@ -501,6 +501,16 @@ Movimiento y Fuerza, donde el reparto vive como cinco casillas de sí/no
 cumplimiento. Si contaran, un martes de pierna saldría suspendido por las cuatro
 sesiones que ese día no tocaban, que es justo lo contrario de lo que hay que medir.
 
+Por el mismo motivo bajan de peso las dos casillas vecinas —**Entrenamiento propio**
+y **Entrenamiento de fuerza**—, que en Víctor van con `weight: 1` y en María siguen
+con `weight: 2`. Un reparto de cinco sesiones en siete días deja dos de descanso, y
+ese descanso está decidido, no incumplido: con el peso de fondo esos dos días le
+salían casi suspendidos. Con peso 1 restan, pero poco, y quien de verdad juzga el
+entreno son los cinco retos de la semana. El peso se queda **por encima de cero a
+propósito**: a cero, el generador dejaría de mirarlas (`collectMetricStats` salta las
+métricas de peso 0) y Víctor perdería los retos de récord y de máximo esfuerzo sobre
+sus propios minutos de entreno.
+
 ##### Las dos escaleras de Leo y Hugo
 
 Leo y Hugo llevan dos retos más cada semana, y los dos **suben un peldaño cada vez

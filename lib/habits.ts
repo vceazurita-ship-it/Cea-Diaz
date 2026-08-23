@@ -470,8 +470,22 @@ function adultNutritionCategory(water: { target: number; max: number }): HabitCa
   };
 }
 
-/** Movimiento y fuerza: `main` es el entrenamiento propio de cada uno. */
-function adultMovementCategory(main: Metric, extra: Metric[] = []): HabitCategory {
+/**
+ * Movimiento y fuerza: `main` es el entrenamiento propio de cada uno.
+ *
+ * Con `weeklyStrength` el entreno baja de peso 2 a peso 1. Es lo que necesita
+ * quien entrena por reparto semanal —Víctor reparte cinco sesiones entre siete
+ * días—: con el peso de fondo, los dos días de descanso que el propio reparto
+ * exige salían casi suspendidos por no haber entrenado. Sigue contando, porque
+ * sigue siendo lo importante del día que toca, pero ya no manda sobre la nota:
+ * de eso se encargan los cinco retos fijos de la semana. El peso se queda por
+ * encima de cero a propósito, que es lo que mantiene estas casillas retables.
+ */
+function adultMovementCategory(
+  main: Metric,
+  extra: Metric[] = [],
+  weeklyStrength = false,
+): HabitCategory {
   return {
     id: 'movimiento_fuerza',
     label: 'Movimiento y Fuerza',
@@ -485,8 +499,10 @@ function adultMovementCategory(main: Metric, extra: Metric[] = []): HabitCategor
         label: 'Entrenamiento de fuerza',
         icon: '💪',
         type: 'toggle',
-        weight: 2,
-        help: 'Mínimo dos días por semana, con o sin material.',
+        weight: weeklyStrength ? 1 : 2,
+        help: weeklyStrength
+          ? 'Se marca el día que toca sesión: el reparto va por semanas, no por días.'
+          : 'Mínimo dos días por semana, con o sin material.',
       },
       {
         id: 'pasos',
@@ -698,6 +714,11 @@ const victorCategories: HabitCategory[] = [
     },
   ]),
   adultNutritionCategory({ target: 10, max: 14 }),
+  // El entreno de Víctor va con `weight: 1` en vez de 2, porque su semana la
+  // manda el reparto: cinco sesiones repartidas entre siete días. Los dos que
+  // sobran son descanso decidido, no un hábito incumplido, y con el peso de
+  // fondo le hundían la nota. Resta, pero poco: quien de verdad juzga el entreno
+  // son los cinco retos fijos. Y al no ser cero, la casilla sigue siendo retable.
   adultMovementCategory(
     {
       id: 'entreno_propio',
@@ -709,13 +730,15 @@ const victorCategories: HabitCategory[] = [
       max: 150,
       step: 5,
       unit: 'min',
-      weight: 2,
+      weight: 1,
       focus: 'esfuerzo',
+      help: 'Minutos de la sesión que toque hoy. El reparto va por semanas: un día de descanso apenas resta.',
     },
     [
       { id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' },
       ...victorSplitMetrics,
     ],
+    true,
   ),
   {
     id: 'desarrollo',
