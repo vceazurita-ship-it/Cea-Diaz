@@ -351,6 +351,12 @@ export type ChallengeTier = 'base' | 'reto' | 'maximo';
 export type ChallengeRule =
   /** Mejor valor del periodo ≥ objetivo (récord personal). */
   | { type: 'metricBest'; metricId: string; target: number }
+  /**
+   * Menor valor apuntado del periodo ≤ objetivo: el récord de las marcas de
+   * tiempo, donde mejorar es bajar. Los días sin apuntar nada no cuentan, para
+   * que una casilla en blanco no valga como el mejor tiempo posible.
+   */
+  | { type: 'metricLow'; metricId: string; target: number }
   /** Suma del periodo ≥ objetivo (volumen semanal). */
   | { type: 'metricTotal'; metricId: string; target: number }
   /** Al menos `days` días con la métrica en `threshold` o más. */

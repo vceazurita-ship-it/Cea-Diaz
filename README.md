@@ -165,7 +165,7 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 | ----------------------- | --------------------------------------------------------------------------------- |
 | **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
-| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, series de carrera y core) · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
 
@@ -500,26 +500,70 @@ Cómo se decide cada uno (`lib/challenges.ts`):
 ##### El reparto semanal de Víctor
 
 No todo se deduce del historial. Víctor tiene una rutina cerrada —**pierna, pecho,
-dorsal, series de carrera y core**, repartidas entre los siete días— que está decidida
-de antemano: lo único que cambia cada semana es si se ha hecho o no. Esos cinco retos
-se declaran en `ROUTINE` (`lib/challenges.ts`) y acompañan cada lunes a los tres que sí
-salen de los datos, así que su semana tiene ocho.
+dorsal, flexiones, series de carrera y core**, repartidas entre los siete días— que
+está decidida de antemano: lo único que cambia cada semana es cuánto ha salido. El
+reparto se declara una sola vez en `VICTOR_SPLIT` (`lib/habits.ts`) y de ahí salen a la
+vez las casillas del día y los retos fijos de la semana (`ROUTINE`, en
+`lib/challenges.ts`), que acompañan cada lunes a los tres que sí salen de los datos.
 
-El reto no pide cifras ni marcas: **se rellena solo el día que se marca la sesión** en
-Movimiento y Fuerza, donde el reparto vive como cinco casillas de sí/no
-(`split.pierna`, `split.pecho`…). Van con `weight: 0` a propósito: son contexto, no
-cumplimiento. Si contaran, un martes de pierna saldría suspendido por las cuatro
-sesiones que ese día no tocaban, que es justo lo contrario de lo que hay que medir.
+Cada sesión se mide con una **marca**: un número comparable de un día para otro, con su
+ejercicio de referencia fijado a propósito —si un día se cambia de movimiento, la cifra
+deja de ser comparable y el listón mentiría—. El reto de la semana es superar la mejor
+marca anterior, no repetirla: el listón se congela el lunes con lo que hubiera hasta el
+domingo, sube un paso cada vez que se pasa y se queda donde está la semana que no
+salga. Las semanas anteriores a `VICTOR_MARKS_SINCE` se siguen evaluando con la regla
+de entonces —basta con haber entrenado—, porque en aquellos días no había dónde apuntar
+una cifra y con la regla nueva el medallero perdería medallas ya ganadas.
+
+Hay sesiones que piden **más de una marca**, porque no se progresa en ellas por un solo
+camino:
+
+| Sesión | Marcas |
+| --- | --- |
+| Pierna | Sentadilla · mejor serie |
+| Pecho | Press de banca · peso máximo (con las repes de esa serie) · Press de banca · más repeticiones (con el peso de esa serie) |
+| Dorsal | Dominadas seguidas · Dominada con lastre · peso máximo (con las repes de ese lastre) |
+| Flexiones | Flexiones seguidas · 500 flexiones · tiempo |
+| Series de carrera | Series completadas |
+| Core | Plancha aguantada |
+
+Al banca se sube moviendo más peso o aguantando más repeticiones, y a la barra de
+dominadas se llega un día en que sumar repeticiones a pelo deja de ser fuerza y pasa a
+ser fondo: con una sola casilla, la mitad del trabajo de la semana no aparecería en
+ninguna parte. Las cifras entre paréntesis son **acompañantes**: se apuntan al lado,
+nunca deciden si el reto está superado y existen porque «doce repeticiones» no dice si
+fue un buen día hasta que se sabe con qué peso.
+
+Las **500 flexiones** son la única marca del reparto en la que mejorar es bajar: el
+trabajo está decidido de antemano —son 500 siempre— y lo que se compara es lo que se
+tarda. Va con `direction: 'atMost'`, y de ahí en adelante todo se lee al revés: el
+récord es el tiempo más corto, el reto dice «baja de 58 min» y lo evalúa la regla
+`metricLow`, que ignora los días sin apuntar nada para que una casilla en blanco no
+valga como el mejor tiempo posible.
+
+Todo esto vive en Movimiento y Fuerza como una tarjeta por sesión: el interruptor de
+sí/no (`split.pierna`, `split.pecho`…), la marca (`marca.pecho`, `marca.pecho.repes`…)
+y su acompañante (`marca.pecho.con`). La marca principal de cada sesión conserva el
+identificador corto —`marca.pecho` a secas— para que los registros escritos cuando sólo
+había una marca por sesión sigan contando. Van con `weight: 0` a propósito: son
+contexto, no cumplimiento. Si contaran, un martes de pierna saldría suspendido por las
+cinco sesiones que ese día no tocaban, que es justo lo contrario de lo que hay que
+medir.
 
 Por el mismo motivo bajan de peso las dos casillas vecinas —**Entrenamiento propio**
 y **Entrenamiento de fuerza**—, que en Víctor van con `weight: 1` y en María siguen
-con `weight: 2`. Un reparto de cinco sesiones en siete días deja dos de descanso, y
-ese descanso está decidido, no incumplido: con el peso de fondo esos dos días le
+con `weight: 2`. Un reparto de seis sesiones en siete días deja días de descanso, y
+ese descanso está decidido, no incumplido: con el peso de fondo esos días le
 salían casi suspendidos. Con peso 1 restan, pero poco, y quien de verdad juzga el
-entreno son los cinco retos de la semana. El peso se queda **por encima de cero a
+entreno son los retos de cada marca. El peso se queda **por encima de cero a
 propósito**: a cero, el generador dejaría de mirarlas (`collectMetricStats` salta las
 métricas de peso 0) y Víctor perdería los retos de récord y de máximo esfuerzo sobre
 sus propios minutos de entreno.
+
+Debajo de los retos, **Marcas del reparto** enseña de dónde se viene: la mejor marca de
+cada una, con qué acompañante salió y las últimas anotadas, con las que fueron récord
+el día que se hicieron señaladas. El reto dice lo que hay que superar; esto dice si la
+cosa sube o lleva un mes clavada.
 
 ##### Las dos escaleras de Leo y Hugo
 

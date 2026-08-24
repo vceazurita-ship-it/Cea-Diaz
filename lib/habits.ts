@@ -1,4 +1,4 @@
-import type { HabitCategory, Metric, MetricGroup, ProfileId } from '@/types';
+import type { HabitCategory, Metric, MetricDirection, MetricGroup, ProfileId } from '@/types';
 
 /* ---------------------------------------------------------------------------
  * Helpers de construcción: mantienen las definiciones legibles y tipadas.
@@ -474,11 +474,11 @@ function adultNutritionCategory(water: { target: number; max: number }): HabitCa
  * Movimiento y fuerza: `main` es el entrenamiento propio de cada uno.
  *
  * Con `weeklyStrength` el entreno baja de peso 2 a peso 1. Es lo que necesita
- * quien entrena por reparto semanal —Víctor reparte cinco sesiones entre siete
- * días—: con el peso de fondo, los dos días de descanso que el propio reparto
+ * quien entrena por reparto semanal —Víctor reparte seis sesiones entre siete
+ * días—: con el peso de fondo, los días de descanso que el propio reparto
  * exige salían casi suspendidos por no haber entrenado. Sigue contando, porque
  * sigue siendo lo importante del día que toca, pero ya no manda sobre la nota:
- * de eso se encargan los cinco retos fijos de la semana. El peso se queda por
+ * de eso se encargan los retos fijos de la semana. El peso se queda por
  * encima de cero a propósito, que es lo que mantiene estas casillas retables.
  */
 function adultMovementCategory(
@@ -634,12 +634,72 @@ const mariaCategories: HabitCategory[] = [
 ];
 
 /**
- * El reparto semanal de Víctor: cinco sesiones que se reparten los siete días
- * —pierna, pecho, dorsal, series de carrera y core—. Cada una se marca el día
- * que toca, y de ahí se rellenan solos los cinco retos fijos de su semana
- * (`lib/challenges.ts`), que es justo para lo que existen estas casillas.
+ * El reparto semanal de Víctor: seis sesiones que se reparten los siete días
+ * —pierna, pecho, dorsal, flexiones, series de carrera y core—. Cada una se
+ * marca el día que toca, y de ahí se rellenan solos los retos fijos de su
+ * semana (`lib/challenges.ts`), que es justo para lo que existen estas
+ * casillas.
  */
-export const VICTOR_SPLIT: Array<{
+
+/**
+ * La cifra que acompaña a una marca sin ser ella la marca: con cuánto lastre
+ * salieron esas dominadas, con cuántos kilos esas doce repeticiones.
+ *
+ * Existe porque media marca no dice nada: «doce repeticiones» no cuenta si fue
+ * un buen día hasta que se sabe con qué peso, y sin el peso al lado el récord
+ * se batiría sólo con aligerar la barra. El récord lo lleva la marca; esto
+ * pone el precio a su lado y nunca decide si el reto está superado.
+ */
+export interface SplitCompanion {
+  label: string;
+  icon: string;
+  unit: string;
+  step: number;
+  max: number;
+  reference: number;
+  help: string;
+}
+
+/**
+ * La marca con la que se mide una sesión: un número comparable de un día para
+ * otro. Es lo que convierte «he entrenado pierna» en «he subido de 100 a 102,5
+ * kg», y de ahí sale el listón del reto de la semana siguiente.
+ *
+ * El ejercicio de referencia se fija aquí a propósito: si un día se cambia de
+ * movimiento, la cifra deja de ser comparable y el listón mentiría.
+ */
+export interface SplitMark {
+  /**
+   * Sufijo de la casilla dentro de la sesión. La marca principal va sin él
+   * —su casilla es `marca.pecho` a secas— para que los registros escritos
+   * cuando sólo había una marca por sesión sigan contando.
+   */
+  key?: string;
+  label: string;
+  /**
+   * Coletilla con la que el reto distingue esta marca de las otras de la misma
+   * sesión: «Pecho · peso máximo» frente a «Pecho · más repes». Se deja vacía
+   * cuando la sesión mide una sola cosa y el nombre ya no admite confusión.
+   */
+  short?: string;
+  icon: string;
+  unit: string;
+  /** Cuánto sube el listón cada vez que se supera. */
+  step: number;
+  /** Tope del deslizador. */
+  max: number;
+  /** Referencia que se pinta al lado de la cifra mientras no haya marca. */
+  reference: number;
+  help: string;
+  /**
+   * `atMost` en las marcas de tiempo: ahí mejorar es bajar, y tanto el récord
+   * como el listón del reto se leen al revés.
+   */
+  direction?: MetricDirection;
+  companion?: SplitCompanion;
+}
+
+export interface SplitSession {
   /** Sufijo del identificador de la métrica y del reto: pierna, pecho… */
   id: string;
   label: string;
@@ -650,26 +710,20 @@ export const VICTOR_SPLIT: Array<{
   /** Degradado de la tarjeta de la sesión en el registro del día. */
   gradient: string;
   /**
-   * La marca con la que se mide esa sesión: un solo número comparable de un
-   * día para otro. Es lo que convierte «he entrenado pierna» en «he subido de
-   * 100 a 102,5 kg», y de ahí sale el listón del reto de la semana siguiente.
-   *
-   * El ejercicio de referencia se fija aquí a propósito: si un día se cambia
-   * de movimiento, la cifra deja de ser comparable y el listón mentiría.
+   * Lo que se mide de esa sesión. Casi todas se resuelven con una cifra; las
+   * que no —al banca se sube moviendo más peso o aguantando más repeticiones—
+   * llevan una marca por cada manera de progresar, porque con una sola el
+   * trabajo de la otra no aparecería en ninguna parte.
    */
-  mark: {
-    label: string;
-    icon: string;
-    unit: string;
-    /** Cuánto sube el listón cada vez que se supera. */
-    step: number;
-    /** Tope del deslizador. */
-    max: number;
-    /** Referencia que se pinta al lado de la cifra mientras no haya marca. */
-    reference: number;
-    help: string;
-  };
-}> = [
+  marks: SplitMark[];
+}
+
+/** Las repeticiones que acompañan a una marca de peso. */
+function repsWith(help: string): SplitCompanion {
+  return { label: 'Repes de esa serie', icon: '🔁', unit: 'repes', step: 1, max: 20, reference: 3, help };
+}
+
+export const VICTOR_SPLIT: SplitSession[] = [
   {
     id: 'pierna',
     label: 'Pierna',
@@ -677,15 +731,17 @@ export const VICTOR_SPLIT: Array<{
     help: 'Sentadilla, peso muerto, zancadas: la sesión de tren inferior de la semana.',
     why: 'El tren inferior sostiene todo lo demás: rodilla, cadera y espalda aguantan lo que la pierna sea capaz de aguantar.',
     gradient: 'from-amber-400 to-orange-600',
-    mark: {
-      label: 'Sentadilla · mejor serie',
-      icon: '🏋️',
-      unit: 'kg',
-      step: 2.5,
-      max: 220,
-      reference: 60,
-      help: 'Kilos de la serie más pesada que hayas completado con buena técnica.',
-    },
+    marks: [
+      {
+        label: 'Sentadilla · mejor serie',
+        icon: '🏋️',
+        unit: 'kg',
+        step: 2.5,
+        max: 220,
+        reference: 60,
+        help: 'Kilos de la serie más pesada que hayas completado con buena técnica.',
+      },
+    ],
   },
   {
     id: 'pecho',
@@ -694,15 +750,45 @@ export const VICTOR_SPLIT: Array<{
     help: 'Press de banca, fondos, empujes: la sesión de empuje de la semana.',
     why: 'Empujar es la mitad del trabajo de tren superior, y la que primero se abandona cuando la semana aprieta.',
     gradient: 'from-rose-400 to-red-600',
-    mark: {
-      label: 'Press de banca · mejor serie',
-      icon: '🛗',
-      unit: 'kg',
-      step: 2.5,
-      max: 180,
-      reference: 40,
-      help: 'Kilos de la serie más pesada completada, sin rebote y con el recorrido entero.',
-    },
+    // Dos marcas porque al banca se sube por dos caminos que no son el mismo:
+    // el peso máximo es fuerza y las repeticiones son lo que la sostiene. Con
+    // una sola casilla, una semana entera de series largas parecería un
+    // estancamiento.
+    marks: [
+      {
+        label: 'Press de banca · peso máximo',
+        short: 'peso máximo',
+        icon: '🛗',
+        unit: 'kg',
+        step: 2.5,
+        max: 180,
+        reference: 40,
+        help: 'Kilos de la serie más pesada completada, sin rebote y con el recorrido entero.',
+        companion: repsWith(
+          'Cuántas repeticiones salieron con ese peso. La marca es el peso; esto dice a qué precio.',
+        ),
+      },
+      {
+        key: 'repes',
+        label: 'Press de banca · más repeticiones',
+        short: 'más repes',
+        icon: '🔁',
+        unit: 'repes',
+        step: 1,
+        max: 50,
+        reference: 8,
+        help: 'Repeticiones de la serie más larga, seguidas y sin dejar la barra en el soporte.',
+        companion: {
+          label: 'Peso de esa serie',
+          icon: '🛗',
+          unit: 'kg',
+          step: 2.5,
+          max: 180,
+          reference: 40,
+          help: 'Con cuántos kilos salieron. Sin el peso al lado, «doce repes» no dice nada.',
+        },
+      },
+    ],
   },
   {
     id: 'dorsal',
@@ -711,15 +797,68 @@ export const VICTOR_SPLIT: Array<{
     help: 'Dominadas, remo, jalón: la sesión de tirón de la semana.',
     why: 'Tirar compensa lo que se empuja y endereza la postura que dejan las horas de vídeo y de banquillo.',
     gradient: 'from-sky-400 to-blue-600',
-    mark: {
-      label: 'Dominadas seguidas',
-      icon: '🧗',
-      unit: 'dominadas',
-      step: 1,
-      max: 40,
-      reference: 6,
-      help: 'Las de la mejor serie, seguidas y con la barbilla por encima de la barra.',
-    },
+    // Igual que el banca: llega un punto en que sumar dominadas a pelo deja de
+    // ser fuerza y pasa a ser fondo. El lastre es el camino que sigue subiendo
+    // cuando el de las repeticiones se aplana.
+    marks: [
+      {
+        label: 'Dominadas seguidas',
+        icon: '🧗',
+        unit: 'dominadas',
+        step: 1,
+        max: 40,
+        reference: 6,
+        help: 'Las de la mejor serie, seguidas y con la barbilla por encima de la barra.',
+      },
+      {
+        key: 'lastre',
+        label: 'Dominada con lastre · peso máximo',
+        short: 'con lastre',
+        icon: '⛓️',
+        unit: 'kg',
+        step: 2.5,
+        max: 80,
+        reference: 5,
+        help: 'Kilos colgados del cinturón en la serie más pesada, con el recorrido entero y sin impulso.',
+        companion: repsWith(
+          'Cuántas dominadas salieron con ese lastre. Una a 20 kg y cinco a 20 kg no son el mismo día.',
+        ),
+      },
+    ],
+  },
+  {
+    id: 'flexiones',
+    label: 'Flexiones',
+    icon: '💪',
+    help: 'La serie larga de flexiones y, el día que toque, las 500 contra el reloj.',
+    why: 'Las flexiones son el empuje que no depende de nadie: se hacen en casa, en el patio o en un hotel, y son las que sostienen la semana en la que no se pisa la sala.',
+    gradient: 'from-fuchsia-400 to-pink-600',
+    marks: [
+      {
+        label: 'Flexiones seguidas',
+        icon: '💪',
+        unit: 'flexiones',
+        step: 1,
+        max: 200,
+        reference: 20,
+        help: 'Las de la serie más larga, sin apoyar las rodillas y sin pararse a mitad.',
+      },
+      {
+        key: '500',
+        label: '500 flexiones · tiempo',
+        short: 'las 500',
+        icon: '⏱️',
+        unit: 'min',
+        step: 1,
+        max: 180,
+        reference: 60,
+        // La única marca del reparto en la que mejorar es bajar: aquí el
+        // trabajo está decidido de antemano —son 500 siempre— y lo que se
+        // compara es lo que se tarda en hacerlo.
+        direction: 'atMost',
+        help: 'Minutos en completar 500 flexiones, en las series que hagan falta. Sólo cuenta el día que llegas a las 500.',
+      },
+    ],
   },
   {
     id: 'series',
@@ -728,15 +867,17 @@ export const VICTOR_SPLIT: Array<{
     help: 'Series, cuestas o cambios de ritmo. El rodaje suave no cuenta aquí.',
     why: 'Las series dan el estímulo que no da el trote: obligan al pulso a subir y a bajar, que es donde se gana el fondo.',
     gradient: 'from-lime-400 to-emerald-600',
-    mark: {
-      label: 'Series completadas',
-      icon: '⏱️',
-      unit: 'series',
-      step: 1,
-      max: 20,
-      reference: 6,
-      help: 'Series completas al ritmo previsto. La que se corta a mitad no cuenta.',
-    },
+    marks: [
+      {
+        label: 'Series completadas',
+        icon: '⏱️',
+        unit: 'series',
+        step: 1,
+        max: 20,
+        reference: 6,
+        help: 'Series completas al ritmo previsto. La que se corta a mitad no cuenta.',
+      },
+    ],
   },
   {
     id: 'core',
@@ -745,17 +886,29 @@ export const VICTOR_SPLIT: Array<{
     help: 'Plancha, antirrotación, lumbares: diez minutos bien hechos valen.',
     why: 'El core es la bisagra entre lo que empuja y lo que corre: sin él, la espalda acaba pagando por las dos cosas.',
     gradient: 'from-violet-400 to-purple-600',
-    mark: {
-      label: 'Plancha aguantada',
-      icon: '⏳',
-      unit: 's',
-      step: 5,
-      max: 300,
-      reference: 60,
-      help: 'Segundos de la plancha más larga, con la cadera arriba y sin arquear la espalda.',
-    },
+    marks: [
+      {
+        label: 'Plancha aguantada',
+        icon: '⏳',
+        unit: 's',
+        step: 5,
+        max: 300,
+        reference: 60,
+        help: 'Segundos de la plancha más larga, con la cadera arriba y sin arquear la espalda.',
+      },
+    ],
   },
 ];
+
+/** La casilla donde se apunta una marca. */
+export function markMetricId(sessionId: string, mark: SplitMark): string {
+  return mark.key ? `marca.${sessionId}.${mark.key}` : `marca.${sessionId}`;
+}
+
+/** La casilla de la cifra que acompaña a la marca. */
+export function companionMetricId(sessionId: string, mark: SplitMark): string {
+  return `${markMetricId(sessionId, mark)}.con`;
+}
 
 /** Una tarjeta por sesión en el registro del día, como las de los deportes. */
 export const VICTOR_SPLIT_GROUPS: MetricGroup[] = VICTOR_SPLIT.map(
@@ -770,17 +923,48 @@ export const VICTOR_SPLIT_GROUPS: MetricGroup[] = VICTOR_SPLIT.map(
 );
 
 /**
+ * Deslizador de una marca o de la cifra que la acompaña: es el mismo control
+ * en los dos casos, y así el que la acompaña no puede quedarse con un paso o
+ * un tope distintos de los de su marca.
+ *
+ * Deslizador y no contador: 102,5 kg se apunta de un gesto, y ciento dos
+ * fichas tocables no son una casilla.
+ */
+function markSlider(
+  group: string,
+  metricId: string,
+  source: SplitMark | SplitCompanion,
+  direction?: MetricDirection,
+): Metric {
+  return {
+    id: metricId,
+    label: source.label,
+    icon: source.icon,
+    type: 'duration',
+    target: source.reference,
+    min: 0,
+    max: source.max,
+    step: source.step,
+    unit: source.unit,
+    direction,
+    weight: 0,
+    group,
+    help: source.help,
+  };
+}
+
+/**
  * Las casillas del reparto, tal y como se marcan en Movimiento y Fuerza: por
- * cada sesión, el interruptor de «hecha» y la marca que ha salido.
+ * cada sesión, el interruptor de «hecha» y las marcas que hayan salido.
  *
  * Van con `weight: 0` a propósito: son contexto, no cumplimiento. Si contaran,
- * un martes de pierna saldría suspendido por las cuatro sesiones que ese día no
+ * un martes de pierna saldría suspendido por las cinco sesiones que ese día no
  * tocaban, que es justo lo contrario de lo que hay que medir. El generador de
  * retos sí las lee: no necesita el peso para saber qué día se entrenó ni con
  * qué marca.
  */
 const victorSplitMetrics: Metric[] = VICTOR_SPLIT.flatMap(
-  ({ id, label, icon, help, mark }): Metric[] => [
+  ({ id, label, icon, help, marks }): Metric[] => [
     {
       id: `split.${id}`,
       label,
@@ -790,22 +974,14 @@ const victorSplitMetrics: Metric[] = VICTOR_SPLIT.flatMap(
       group: id,
       help,
     },
-    {
-      id: `marca.${id}`,
-      label: mark.label,
-      icon: mark.icon,
-      // Deslizador y no contador: 102,5 kg se apunta de un gesto, y ciento dos
-      // fichas tocables no son una casilla.
-      type: 'duration',
-      target: mark.reference,
-      min: 0,
-      max: mark.max,
-      step: mark.step,
-      unit: mark.unit,
-      weight: 0,
-      group: id,
-      help: mark.help,
-    },
+    ...marks.flatMap((mark): Metric[] =>
+      mark.companion
+        ? [
+            markSlider(id, markMetricId(id, mark), mark, mark.direction),
+            markSlider(id, companionMetricId(id, mark), mark.companion),
+          ]
+        : [markSlider(id, markMetricId(id, mark), mark, mark.direction)],
+    ),
   ],
 );
 
@@ -826,10 +1002,11 @@ const victorCategories: HabitCategory[] = [
   ]),
   adultNutritionCategory({ target: 10, max: 14 }),
   // El entreno de Víctor va con `weight: 1` en vez de 2, porque su semana la
-  // manda el reparto: cinco sesiones repartidas entre siete días. Los dos que
-  // sobran son descanso decidido, no un hábito incumplido, y con el peso de
-  // fondo le hundían la nota. Resta, pero poco: quien de verdad juzga el entreno
-  // son los cinco retos fijos. Y al no ser cero, la casilla sigue siendo retable.
+  // manda el reparto: seis sesiones repartidas entre siete días, y no todas
+  // piden gimnasio. El día sin sesión es descanso decidido, no un hábito
+  // incumplido, y con el peso de fondo le hundía la nota. Resta, pero poco:
+  // quien de verdad juzga el entreno son los retos fijos de cada marca. Y al no
+  // ser cero, la casilla sigue siendo retable.
   adultMovementCategory(
     {
       id: 'entreno_propio',
