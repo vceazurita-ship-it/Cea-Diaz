@@ -8,14 +8,21 @@ import {
   dirtyRows,
   mergeById,
   pullAll,
+  pullLineups,
   pullSettings,
   pushEntries,
+  pushLineup,
   pushSettings,
   pushTasks,
   tombstonesByTable,
   versionIndex,
   type CloudTable,
 } from '@/lib/cloud';
+import {
+  applyRemoteLineups,
+  loadLineups,
+  subscribeLineups,
+} from '@/lib/lineup';
 import { buildSeedDatabase } from '@/lib/seed';
 import {
   applyRemoteSettings,
@@ -144,6 +151,13 @@ const REALTIME_DEBOUNCE_MS = 1_500;
 /** Espera antes de subir un ajuste: apagar y encender el sonido son dos toques. */
 const SETTINGS_PUSH_MS = 600;
 
+/**
+ * Espera antes de subir un campograma. Más generosa que la de los ajustes:
+ * montar un once son once toques seguidos, y no hay por qué mandar once
+ * escrituras a la nube por un solo equipo.
+ */
+const LINEUP_PUSH_MS = 1_500;
+
 /** Lo poco que hace falta de una fila avisada por el canal de tiempo real. */
 interface CloudRow {
   id: string;
@@ -166,6 +180,23 @@ async function reconcileSettings(owner: string): Promise<void> {
 
   if (!remote || Date.parse(local.updatedAt) > Date.parse(remote.updatedAt)) {
     await pushSettings(local, owner);
+  }
+}
+
+/**
+ * Los campogramas. Tampoco pasan por `db`: son una decisión de cada uno, no
+ * un registro del día. Se comparan perfil a perfil y gana la última
+ * alineación guardada, como en todo lo demás.
+ */
+async function reconcileLineups(owner: string): Promise<void> {
+  const remote = await pullLineups();
+  applyRemoteLineups(remote);
+
+  // Y de vuelta lo que allí no está o está más viejo.
+  for (const [profileId, local] of Object.entries(loadLineups())) {
+    const theirs = remote[profileId];
+    if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
+    await pushLineup(profileId, local, owner);
   }
 }
 
@@ -297,6 +328,21 @@ export function useHabitStore(): HabitStore {
           error instanceof Error
             ? `Los ajustes de la casa no han viajado: ${error.message}`
             : 'Los ajustes de la casa no han viajado.';
+      }
+
+      // Los campogramas, igual: si la tabla todavía no está, el equipo se
+      // queda en este aparato y se avisa, pero los registros ya han viajado.
+      try {
+        await reconcileLineups(uid);
+      } catch (error) {
+        // Si los ajustes ya han fallado, se cuenta ése: dos avisos seguidos
+        // sobre lo mismo —la tabla que falta— no informan más que uno.
+        if (!settingsError) {
+          settingsError =
+            error instanceof Error
+              ? `Los equipos del campograma no han viajado: ${error.message}`
+              : 'Los equipos del campograma no han viajado.';
+        }
       }
 
       synced.current = {
@@ -471,6 +517,28 @@ export function useHabitStore(): HabitStore {
         // Un ajuste que no sube no rompe nada: el repaso lo recoge luego.
         void pushSettings(loadSettings(), uid).catch(() => undefined);
       }, SETTINGS_PUSH_MS);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [session]);
+
+  // Y lo mismo con los campogramas: mover un cromo de sitio en la tableta
+  // tiene que verse en el móvil sin esperar al repaso.
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    let timer = 0;
+    const unsubscribe = subscribeLineups(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        for (const [profileId, lineup] of Object.entries(loadLineups())) {
+          void pushLineup(profileId, lineup, uid).catch(() => undefined);
+        }
+      }, LINEUP_PUSH_MS);
     });
 
     return () => {

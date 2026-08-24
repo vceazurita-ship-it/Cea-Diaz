@@ -68,6 +68,8 @@ components/
   challenges/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
+  team/
+    Campograma.tsx       El equipo montado con los cromos: formación, once y banquillo
   learning/
     LearningBonusCard.tsx  El bonus de aprendizaje del día, en su idioma
   notes/
@@ -92,6 +94,7 @@ hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
   useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
+  useLineup.ts         El equipo guardado de un perfil, atento a lo que llegue de otro móvil
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
   audio/               Sintonías de perfil (las pone cada casa)
@@ -103,6 +106,7 @@ lib/
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
   rewards.ts           Mazos de cromos y frases, y su reparto por reto superado
+  lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
@@ -306,8 +310,8 @@ registrado sube solo en cuanto vuelve la conexión.
 > **Si ya tenías Supabase montado de antes:** vuelve a pegar
 > `supabase/schema.sql` entero y dale a *Run*. Es idempotente —no borra nada— y añade
 > lo que falte: la columna de las notas por categoría (`entries.notes`) y las tablas
-> `tasks` y `calendar_links`. Hasta que se ejecute, este móvil guarda igual
-> pero la subida a la nube falla y lo avisa en Ajustes.
+> `tasks`, `calendar_links` y `lineups` (los equipos del campograma). Hasta que se
+> ejecute, este móvil guarda igual pero la subida a la nube falla y lo avisa en Ajustes.
 
 ### Qué sube y qué no
 
@@ -317,6 +321,7 @@ registrado sube solo en cuanto vuelve la conexión.
 | Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | |
 | Fotos y sintonías de los perfiles | |
 | Ajustes de la casa: modo día/noche, sintonías y PIN | |
+| Los equipos del campograma: formación, once, banquillo y capitán | |
 | | El permiso de Google (vive cifrado en el servidor) |
 
 **El PIN no viaja en claro.** Lo que sube es su huella —PBKDF2-SHA256 con sal, calculada
@@ -546,16 +551,24 @@ Cada reto superado entrega un regalo, y el nivel del reto decide la rareza:
 
 | Perfil          | Colección                | Cimiento         | Reto                                        | Máximo esfuerzo                          |
 | --------------- | ------------------------ | ---------------- | ------------------------------------------- | ---------------------------------------- |
-| **Leo · Hugo**  | Álbum de cromos **+ técnicas** | LaLiga     | Estrellas + secundarios de *Oliver y Benji* | Leyendas del fútbol + Oliver, Benji, Mark Lenders y Roberto Sedinho |
+| **Leo · Hugo**  | Álbum de cromos **+ técnicas** | Real Madrid Castilla | Los mejores de ahora: LaLiga + Premier League | Leyendas de la historia del fútbol |
 | **María**       | Frases **+ cromos de casa** | Frase del día + cromo de casa | Frase de fuerza + cromo de la plantilla | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) + cromo de leyenda de casa |
 | **Víctor**      | Aforismos **+ cromos de casa** | Aforismo + cromo de casa | Aforismo de fuerza + cromo de la plantilla | Aforismo de oro (Séneca, Marco Aurelio, Will Durant…) + cromo de leyenda de casa |
 | **Familia**     | Aforismos de la casa     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Tolstói, Pitágoras…)    |
 | **Pareja**      | Aforismos de los dos     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Saint-Exupéry…)         |
 
 Cada cromo lleva su equipo, su demarcación, aquello por lo que se le recuerda y un
-**lema** que traduce esa historia a esfuerzo («Estar siempre disponible también es un
-talento», del cromo de Iñaki Williams). Las frases y los aforismos van marcados por
+**lema** que traduce esa historia a esfuerzo («Presentarse cada día es un talento poco
+valorado», del cromo de Iñaki Williams). Las frases y los aforismos van marcados por
 tema: 🏡 familia · 🌿 para ti · 💻 aula · 👨‍👦 paternidad · ⚽ oficio · 💞 pareja.
+
+El álbum de los peques es de fútbol de verdad y va de menos a más: la **cantera** del
+Castilla en el nivel de entrada —los que todavía se están haciendo, que es donde están
+ellos—, los **mejores de esta temporada** de LaLiga y de la Premier en el intermedio, y
+las **leyendas** de la historia sólo con un reto de máximo esfuerzo. La plantilla del
+filial es la que se conocía al escribir el catálogo: cambia con cada mercado, así que
+está pensada para repasarla contra la oficial de la temporada y corregirla en
+`lib/rewards.ts` sin tocar nada más.
 
 #### Los cromos de casa
 
@@ -591,6 +604,30 @@ el del hermano; los dos comparten una técnica combinada, el **Muro de Hermanos*
 la cabecera de la pestaña de retos se ve el premio antes de ganarlo —«🔒 Técnica de la
 semana: se desbloquea al superar los 5 retos»— y, una vez cerrada la semana, con qué
 técnica se pagó.
+
+#### El campograma
+
+Los cromos no se quedan en el álbum: con ellos se monta un equipo. En la pestaña de
+retos, debajo de la colección, cada peque tiene su **campograma**: elige el dibujo
+(4-3-3, 4-4-2, 4-2-3-1 o 3-5-2), le pone nombre a su equipo, coloca a cada cromo en su
+puesto, deja al resto en el banquillo y reparte el brazalete de capitán.
+
+Dos reglas, y las dos son de `lib/lineup.ts`:
+
+- **Un cromo, un sitio.** Si entra al once, sale del banquillo; si entra en un puesto
+  ocupado, el que estaba baja al banquillo en vez de desaparecer.
+- **Cada uno en su línea.** El cromo lleva anotada su línea (`por`, `def`, `med`,
+  `del`) y sólo cabe en las ranuras de esa línea: un portero no juega de extremo. Los
+  cromos que no son jugadores —las técnicas de la semana, los de casa— no llevan línea,
+  y por eso no aparecen en el campo. Al cambiar de formación cada uno se queda si su
+  nueva ranura admite su línea, y si no baja al banquillo: cambiar de dibujo no cuesta
+  volver a montar el equipo entero.
+
+Se toca, no se arrastra: en un móvil arrastrar falla la mitad de las veces, así que se
+toca la posición y se elige de una lista. Y es lo único de la colección que **sí se
+guarda** (`localStorage` + tabla `lineups`, con la misma regla de siempre: gana la
+última alineación), porque el álbum se recalcula del historial pero dónde ha decidido
+cada uno colocar a los suyos no se puede deducir de nada.
 
 El premio se **anuncia antes** («🎁 En juego: Frase de oro + cromo de leyenda de
 casa») y se entrega al superar el reto, visible en la propia tarjeta y guardado

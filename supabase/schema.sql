@@ -190,6 +190,36 @@ create policy "ajustes propios" on public.settings
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
+-- ------------------------------------------------------- campogramas
+--  El equipo que cada uno monta con sus cromos: la formación elegida, quién
+--  ocupa cada puesto del once, quién espera en el banquillo y cómo se llama
+--  el equipo. Una fila por perfil que haya montado alguno.
+--
+--  El álbum de cromos no está aquí porque no hace falta: se deduce del
+--  historial de retos. Esto sí, porque es una decisión y no un cálculo.
+
+create table if not exists public.lineups (
+  id          text primary key,          -- `${owner}:${profileId}`
+  owner       uuid not null references auth.users (id) on delete cascade,
+  profile_id  text not null,
+  team_name   text not null default '',
+  formation   text not null default '4-3-3',
+  eleven      jsonb not null default '{}'::jsonb,  -- ranura -> cromo
+  bench       jsonb not null default '[]'::jsonb,  -- cromos del banquillo
+  captain     text,                      -- cromo con el brazalete
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists lineups_owner_idx on public.lineups (owner, profile_id);
+
+alter table public.lineups enable row level security;
+
+drop policy if exists "campogramas propios" on public.lineups;
+create policy "campogramas propios" on public.lineups
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
 -- ---------------------------------------------------------- tiempo real
 --  Sin esto, un aparato sólo se entera de lo que escriben los demás cuando
 --  vuelve a mirar (al arrancar o en su repaso periódico). Añadiendo las

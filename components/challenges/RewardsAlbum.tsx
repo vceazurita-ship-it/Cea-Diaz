@@ -9,8 +9,11 @@ import type { CromoReward, FraseReward, ProfileId, RewardKind, UnlockedReward } 
  * ----------------------------------------------------------------------- */
 
 const RARITY_STYLE: Record<string, string> = {
+  // Los tres mazos de fútbol: la cantera en violeta, LaLiga en azul, la
+  // Premier en fucsia y las leyendas en oro.
+  castilla: 'from-violet-400/25 to-indigo-500/20 border-violet-300/35',
   liga: 'from-sky-400/25 to-indigo-500/20 border-sky-300/30',
-  estrella: 'from-fuchsia-400/25 to-rose-500/20 border-fuchsia-300/30',
+  premier: 'from-fuchsia-400/25 to-rose-500/20 border-fuchsia-300/30',
   leyenda: 'from-amber-300/35 to-orange-500/25 border-amber-300/45',
   chispa: 'from-rose-300/25 to-orange-300/20 border-rose-300/35',
   fuerza: 'from-fuchsia-400/25 to-violet-500/20 border-fuchsia-300/35',

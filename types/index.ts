@@ -388,13 +388,15 @@ export interface ChallengeWeek {
 export type RewardKind = 'cromo' | 'frase';
 
 /**
- * Rareza del cromo, ligada al nivel del reto que lo entrega. Las tres
- * primeras son las del mazo de fútbol de los peques; las tres últimas, las
- * del mazo de la casa que se lleva María.
+ * Rareza del cromo, ligada al nivel del reto que lo entrega. Las cuatro
+ * primeras son las del mazo de fútbol de los peques —cantera, las dos ligas
+ * grandes de ahora y la historia—; las tres siguientes, las del mazo de la
+ * casa que se lleva María.
  */
 export type CromoRarity =
+  | 'castilla'
   | 'liga'
-  | 'estrella'
+  | 'premier'
   | 'leyenda'
   | 'casa'
   | 'equipo'
@@ -405,13 +407,23 @@ export type CromoRarity =
 /** Rareza de la frase, ligada al nivel del reto que la entrega. */
 export type FraseRarity = 'chispa' | 'fuerza' | 'oro';
 
+/**
+ * Línea del campo en la que juega el cromo. Es lo que permite colocarlo en el
+ * campograma: un portero no cabe en la ranura de un extremo. Los cromos que
+ * no son jugadores —las técnicas, los de la casa— no la llevan, y por eso
+ * quedan fuera del campo sin necesidad de ninguna otra marca.
+ */
+export type CromoLine = 'por' | 'def' | 'med' | 'del';
+
 export interface CromoReward {
   kind: 'cromo';
   id: string;
   name: string;
-  /** Club, selección o equipo del anime. */
+  /** Club o selección. */
   team: string;
   position: string;
+  /** Ausente en los cromos que no son jugadores. */
+  line?: CromoLine;
   /** Emoji del cromo. */
   emblem: string;
   /** Por qué se le recuerda. */
@@ -442,6 +454,51 @@ export interface UnlockedReward {
   week: DateKey;
   challengeId: string;
   challengeTitle: string;
+}
+
+/* -------------------------------- Campograma ---------------------------- */
+
+/**
+ * Una ranura del campo: dónde se pinta y qué línea admite. Las coordenadas
+ * van en tanto por ciento del campo, no en píxeles, para que el mismo dibujo
+ * valga en el móvil y en la tableta.
+ */
+export interface FormationSlot {
+  id: string;
+  line: CromoLine;
+  /** Rótulo corto del puesto: POR, LD, DFC, MC… */
+  label: string;
+  /** 0 es la banda izquierda, 100 la derecha. */
+  x: number;
+  /** 0 es la línea de gol propia, 100 la portería rival. */
+  y: number;
+}
+
+export interface Formation {
+  id: string;
+  /** Como se dice en voz alta: «4-3-3». */
+  name: string;
+  detail: string;
+  slots: FormationSlot[];
+}
+
+/**
+ * El equipo que ha montado un perfil con sus cromos. Es lo único de la
+ * colección que se guarda: los cromos ganados se deducen del historial, pero
+ * dónde ha decidido colocarlos es una elección suya y se perdería.
+ */
+export interface Lineup {
+  /** Nombre que le ha puesto a su equipo. */
+  teamName: string;
+  /** Identificador de la formación elegida. */
+  formation: string;
+  /** Cromo de cada ranura del once: `slotId -> cromoId`. */
+  eleven: Record<string, string>;
+  /** El resto de la plantilla, en el orden en que la ha ordenado. */
+  bench: string[];
+  /** Cromo con el brazalete, si ha elegido uno. */
+  captain?: string;
+  updatedAt: string;
 }
 
 /* -------------------------- Bonus de aprendizaje ------------------------ */

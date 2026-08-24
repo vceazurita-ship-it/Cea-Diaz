@@ -3,6 +3,7 @@ import type {
   DayEntry,
   HabitDatabase,
   HouseSettings,
+  Lineup,
   MetricValue,
   ProfileId,
   Task,
@@ -418,6 +419,73 @@ export async function pushSettings(settings: HouseSettings, owner: string): Prom
     pin_hash: settings.pin?.hash ?? null,
     pin_rounds: settings.pin?.rounds ?? null,
     updated_at: settings.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+/* ---------------------------------------------------------------------------
+ * Campogramas
+ *
+ * Una fila por perfil que haya montado equipo. Como los ajustes, no pasan por
+ * `db` —no son registros del día— y se reconcilian por fecha: gana la última
+ * alineación guardada, la haya hecho el móvil que sea.
+ * ------------------------------------------------------------------------- */
+
+interface LineupRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  team_name: string;
+  formation: string;
+  eleven: Record<string, string> | null;
+  bench: string[] | null;
+  captain: string | null;
+  updated_at: string;
+}
+
+/** Los equipos de la cuenta, indexados por perfil. */
+export async function pullLineups(): Promise<Record<string, Lineup>> {
+  const client = supabase();
+  if (!client) return {};
+
+  const { data, error } = await client.from('lineups').select('*');
+  if (error) throw new Error(error.message);
+
+  const out: Record<string, Lineup> = {};
+
+  for (const row of (data ?? []) as LineupRow[]) {
+    out[row.profile_id] = {
+      teamName: row.team_name ?? '',
+      formation: row.formation,
+      eleven: row.eleven ?? {},
+      bench: row.bench ?? [],
+      captain: row.captain ?? undefined,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  return out;
+}
+
+export async function pushLineup(
+  profileId: string,
+  lineup: Lineup,
+  owner: string,
+): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('lineups').upsert({
+    id: `${owner}:${profileId}`,
+    owner,
+    profile_id: profileId,
+    team_name: lineup.teamName,
+    formation: lineup.formation,
+    eleven: lineup.eleven,
+    bench: lineup.bench,
+    captain: lineup.captain ?? null,
+    updated_at: lineup.updatedAt,
   });
 
   if (error) throw new Error(error.message);

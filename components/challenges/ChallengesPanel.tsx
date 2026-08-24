@@ -2,9 +2,11 @@
 
 import { useMemo } from 'react';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
+import { Campograma } from '@/components/team/Campograma';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { NoteField } from '@/components/ui/NoteField';
+import { useLineup } from '@/hooks/useLineup';
 import { buildChallengeWeek, challengeHistory, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import {
@@ -205,6 +207,9 @@ export function ChallengesPanel({
 
   // Premios: sólo los tienen quienes coleccionan algo (los peques y María).
   const rewardKind = rewardKindOf(profile.id);
+
+  /** El equipo montado con los cromos; sólo tiene sentido con mazo de cromos. */
+  const lineup = useLineup(profile.id);
   const rewards = useMemo(
     () => (rewardKind ? collectRewards(profile, entries, date) : []),
     [rewardKind, profile, entries, date],
@@ -315,6 +320,18 @@ export function ChallengesPanel({
           hint={`Se guarda en ${friendlyDateLabel(date).toLowerCase()}, junto con lo demás del día.`}
         />
       </div>
+
+      {/* El equipo que se monta con los cromos. Sólo para quien colecciona
+          cromos de fútbol: las frases de María no se alinean en un campo. */}
+      {rewardKind === 'cromo' && (
+        <Campograma
+          profileId={profile.id}
+          rewards={rewards}
+          kid={kid}
+          headingClass={headingClass}
+          lineup={lineup}
+        />
+      )}
 
       {/* Álbum de premios */}
       {rewardKind && (
