@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Photo } from '@/components/ui/Photo';
 import { Modal } from '@/components/ui/Modal';
+import { PhotoCropper } from '@/components/ui/PhotoCropper';
 import { useToast } from '@/components/ui/Toast';
 import { useAppearance } from '@/hooks/useAppearance';
 import type { EntryMap, HabitStore, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
-import { APP_OWNER } from '@/lib/appearance';
+import { APP_OWNER, photoMaxSide } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
 import {
   DEFAULT_PIN,
@@ -138,6 +139,8 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const { appCover, appCoverCustom, setPhoto, reset: resetSlot } = useAppearance();
   const coverInput = useRef<HTMLInputElement>(null);
   const [coverBusy, setCoverBusy] = useState(false);
+  /** Portada recién elegida, a la espera de decidir qué trozo se ve. */
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   const MODES: Array<{ value: ThemePreference; label: string; icon: string }> = [
     { value: 'auto', label: 'Automático', icon: '📱' },
@@ -145,8 +148,8 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     { value: 'dark', label: 'Noche', icon: '🌙' },
   ];
 
-  const changeCover = async (file: File | undefined) => {
-    if (!file) return;
+  /** Se llama ya con el recorte hecho: lo elegido en el marco es lo que se ve. */
+  const changeCover = async (file: File) => {
     setCoverBusy(true);
     try {
       await setPhoto(APP_OWNER, 'cover', file);
@@ -358,7 +361,12 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                onChange={(event) => void changeCover(event.target.files?.[0])}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // Se vacía para poder volver a elegir el mismo archivo.
+                  event.target.value = '';
+                  if (file) setCoverFile(file);
+                }}
               />
               <button
                 type="button"
@@ -591,6 +599,23 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
           )}
         </section>
       </div>
+
+      {coverFile && (
+        <PhotoCropper
+          file={coverFile}
+          // La portada se ve más ancha que alta, y bastante más en el
+          // portátil que en el móvil: este marco es el término medio.
+          ratio={2.4}
+          maxSide={photoMaxSide('cover')}
+          title="Portada de la casa"
+          hint="La foto grande de la pantalla de inicio. Lo que quede dentro del marco es lo que se verá."
+          onCancel={() => setCoverFile(null)}
+          onConfirm={(cropped) => {
+            setCoverFile(null);
+            void changeCover(cropped);
+          }}
+        />
+      )}
     </Modal>
   );
 }

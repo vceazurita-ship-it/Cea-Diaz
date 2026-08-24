@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { MarksTracker } from '@/components/challenges/MarksTracker';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { DailyGameCard } from '@/components/games/DailyGameCard';
 import { Campograma } from '@/components/team/Campograma';
@@ -8,7 +9,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { NoteField } from '@/components/ui/NoteField';
 import { useLineup } from '@/hooks/useLineup';
-import { buildChallengeWeek, challengeHistory, TIER_LABEL } from '@/lib/challenges';
+import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
 import {
@@ -211,6 +212,10 @@ export function ChallengesPanel({
     [profile, date, entries],
   );
 
+  // De dónde viene cada marca del reparto de gimnasio. Vacío para quien no
+  // tiene reparto, y entonces la tarjeta no se pinta.
+  const tracks = useMemo(() => markTracks(profile.id, date, entries), [profile.id, date, entries]);
+
   // Premios: sólo los tienen quienes coleccionan algo (los peques y María).
   const rewardKind = rewardKindOf(profile.id);
 
@@ -324,6 +329,10 @@ export function ChallengesPanel({
           ))}
         </ul>
       )}
+
+      {/* De dónde viene cada marca: el reto dice adónde hay que llegar, esto
+          dice si se está subiendo o llevamos un mes en la misma cifra. */}
+      <MarksTracker tracks={tracks} headingClass={headingClass} />
 
       {/* Cómo van los retos, apuntado a mano */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>

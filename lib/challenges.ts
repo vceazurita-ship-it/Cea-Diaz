@@ -1,4 +1,4 @@
-import { addDays, parseDateKey, weekKeys } from '@/lib/dates';
+import { addDays, formatShort, parseDateKey, weekKeys } from '@/lib/dates';
 import { guidanceFor } from '@/lib/experts';
 import { VICTOR_SPLIT, findMetric, getCategories } from '@/lib/habits';
 import { computeCategoryScore, computeDayScore, isCeiling, metricRatio } from '@/lib/scoring';
@@ -13,6 +13,7 @@ import type {
   HabitCategory,
   HabitPriority,
   Metric,
+  MetricHint,
   MetricValue,
   Profile,
   ProfileId,
@@ -631,7 +632,7 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
  * Leo y Hugo llevan dos escaleras, la del balón y la de gimnasio, que sí piden
  * una marca y suben un peldaño cada vez que se superan.
  */
-const VICTOR_ROUTINE: Challenge[] = VICTOR_SPLIT.map(({ id, label, icon, why }) =>
+const VICTOR_SESSIONS: Challenge[] = VICTOR_SPLIT.map(({ id, label, icon, why }) =>
   make(
     'base',
     `rutina:${id}`,
@@ -642,6 +643,211 @@ const VICTOR_ROUTINE: Challenge[] = VICTOR_SPLIT.map(({ id, label, icon, why }) 
     { type: 'metricDays', metricId: `split.${id}`, threshold: 1, days: 1 },
   ),
 );
+
+/* ---------------------------------------------------------------------------
+ * Marcas: el reparto deja de preguntar «¿la has hecho?» y pregunta «¿cuánto?»
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Lunes a partir del cual el reparto de Víctor pide marca además de sesión.
+ *
+ * Las semanas anteriores se siguen evaluando con la regla de entonces —basta
+ * con haber entrenado—, porque en aquellos días no había dónde apuntar una
+ * cifra: con la regla nueva, el medallero perdería medallas ya ganadas.
+ */
+const VICTOR_MARKS_SINCE: DateKey = '2026-08-24';
+
+/**
+ * Cuántas semanas atrás se busca la marca que hay que superar. Es un tope de
+ * coste: cuatro meses sin tocar un ejercicio son de sobra para que el listón
+ * de entonces ya no signifique nada.
+ */
+const MARK_WEEKS = 16;
+
+/** Mejor marca anotada antes de `before`, con el día en que se hizo. */
+function bestMarkBefore(
+  profileId: ProfileId,
+  metric: Metric,
+  before: DateKey,
+  entries: Record<string, DayEntry>,
+): { value: number; date: DateKey | null } {
+  let value = 0;
+  let date: DateKey | null = null;
+
+  for (let back = MARK_WEEKS * 7; back >= 1; back -= 1) {
+    const day = addDays(before, -back);
+    const n = numericValue(metric, entries[`${profileId}:${day}`]?.values[metric.id]);
+    if (n !== null && n > value) {
+      value = n;
+      date = day;
+    }
+  }
+
+  return { value, date };
+}
+
+/**
+ * El reparto de Víctor, sesión a sesión: cada una pide superar la mejor marca
+ * anterior, no repetirla. El listón se congela el lunes con lo que hubiera
+ * hasta el domingo, así que la semana entera se corre contra la misma cifra
+ * aunque se entrene ese grupo dos veces.
+ */
+function victorRoutine({ profileId, start, entries }: RoutineContext): Challenge[] {
+  if (start < VICTOR_MARKS_SINCE) return VICTOR_SESSIONS;
+
+  return VICTOR_SPLIT.map(({ id, label, icon, why, mark }) => {
+    const metric = findMetric(profileId, `marca.${id}`);
+    if (!metric) return VICTOR_SESSIONS.find((c) => c.id === `base:rutina:${id}`)!;
+
+    const previous = bestMarkBefore(profileId, metric, start, entries);
+
+    // Sin nada anterior, el reto es estrenar la marca: cualquier cifra vale y
+    // se convierte en el listón de la semana que viene.
+    if (previous.value <= 0) {
+      return make(
+        'base',
+        `rutina:${id}`,
+        icon,
+        `${label} · estrena la marca`,
+        `Haz la sesión y apunta lo que salga en «${lower(mark.label)}». Esa primera cifra es la que habrá que superar a partir de ahora.`,
+        `${why} Aún no hay marca anotada: la de esta semana es la que pone el listón.`,
+        // Un día con marca, no una cifra: el marcador dice «0 / 1 día» en vez
+        // de un objetivo de una dominada que nadie se ha propuesto.
+        { type: 'metricDays', metricId: metric.id, threshold: mark.step, days: 1 },
+      );
+    }
+
+    const target = toStep(previous.value + mark.step, mark.step, 'ceil');
+
+    return make(
+      'base',
+      `rutina:${id}`,
+      icon,
+      `${label} · supera ${amount(metric, previous.value)}`,
+      `Llega a ${amount(metric, target)} en «${lower(mark.label)}» cualquier día de la semana. Se apunta en Movimiento y Fuerza, al marcar la sesión.`,
+      `${why} Tu mejor marca son ${amount(metric, previous.value)}${
+        previous.date ? ` del ${formatShort(previous.date)}` : ''
+      }: el listón sube de ${amount(metric, mark.step)} en cada vez que lo pasas, y se queda donde está la semana que no salga.`,
+      { type: 'metricBest', metricId: metric.id, target },
+    );
+  });
+}
+
+/**
+ * Lo que hay que batir hoy en cada marca, para poder decirlo donde se apunta.
+ *
+ * A diferencia del reto —que congela el listón el lunes—, esto mira lo mejor
+ * de todos los días anteriores a `date`: si el martes se hizo pierna y el
+ * viernes vuelve a tocar, el viernes ya hay que pasar de lo del martes. Es lo
+ * que convierte el reparto en una escalera de verdad.
+ */
+export function markHints(
+  profileId: ProfileId,
+  date: DateKey,
+  entries: Record<string, DayEntry>,
+): Record<string, MetricHint> {
+  const out: Record<string, MetricHint> = {};
+  if (profileId !== 'victor') return out;
+
+  for (const { id, mark } of VICTOR_SPLIT) {
+    const metric = findMetric(profileId, `marca.${id}`);
+    if (!metric) continue;
+
+    const previous = bestMarkBefore(profileId, metric, date, entries);
+    const today = numericValue(metric, entries[`${profileId}:${date}`]?.values[metric.id]);
+
+    if (previous.value <= 0) {
+      out[metric.id] =
+        today && today > 0
+          ? { text: `Primera marca anotada: ${amount(metric, today)}. Desde aquí, sólo hacia arriba.`, record: true }
+          : { text: 'Aún no hay marca: la que apuntes hoy será el listón.', record: false };
+      continue;
+    }
+
+    if (today !== null && today > previous.value + 1e-9) {
+      out[metric.id] = {
+        text: `¡Récord! ${amount(metric, today)}, ${amount(metric, today - previous.value)} más que el ${formatShort(previous.date!)}.`,
+        record: true,
+      };
+      continue;
+    }
+
+    out[metric.id] = {
+      text: `Marca a batir: ${amount(metric, previous.value)} del ${formatShort(previous.date!)}. Hoy hay que pasar de ahí.`,
+      record: false,
+    };
+  }
+
+  return out;
+}
+
+/**
+ * El historial de una marca: la mejor de todas y las últimas anotadas, para
+ * poder ver de un vistazo si la cosa sube o lleva un mes plana. Sin esto, el
+ * seguimiento se quedaría en la cifra de esta semana.
+ */
+export interface MarkTrack {
+  id: string;
+  /** Cómo se llama la sesión: Pierna, Pecho… */
+  label: string;
+  icon: string;
+  /** Qué se mide exactamente: «Sentadilla · mejor serie». */
+  markLabel: string;
+  /** Mejor marca de la ventana, ya con unidad. */
+  best: string;
+  bestOn: DateKey | null;
+  /** Las últimas anotadas, de la más reciente a la más antigua. */
+  recent: Array<{ date: DateKey; text: string; record: boolean }>;
+}
+
+export function markTracks(
+  profileId: ProfileId,
+  date: DateKey,
+  entries: Record<string, DayEntry>,
+  count = 5,
+): MarkTrack[] {
+  if (profileId !== 'victor') return [];
+
+  const tracks: MarkTrack[] = [];
+
+  for (const { id, label, icon, mark } of VICTOR_SPLIT) {
+    const metric = findMetric(profileId, `marca.${id}`);
+    if (!metric) continue;
+
+    // Se recorre hacia delante para saber cuáles fueron récord el día que se
+    // hicieron: hacia atrás no se sabe qué había antes.
+    let best = 0;
+    let bestOn: DateKey | null = null;
+    const log: Array<{ date: DateKey; text: string; record: boolean }> = [];
+
+    for (let back = MARK_WEEKS * 7; back >= 0; back -= 1) {
+      const day = addDays(date, -back);
+      const value = numericValue(metric, entries[`${profileId}:${day}`]?.values[metric.id]);
+      if (value === null || value <= 0) continue;
+
+      const record = value > best + 1e-9;
+      if (record) {
+        best = value;
+        bestOn = day;
+      }
+      log.push({ date: day, text: amount(metric, value), record });
+    }
+
+    if (log.length === 0) continue;
+
+    tracks.push({
+      id,
+      label,
+      icon,
+      markLabel: mark.label,
+      best: amount(metric, best),
+      bestOn,
+      recent: log.slice(-count).reverse(),
+    });
+  }
+
+  return tracks;
+}
 
 /* ---------------------------------------------------------------------------
  * Escaleras: el reto que sube un peldaño cada vez que se supera
@@ -827,7 +1033,7 @@ interface RoutineContext {
 }
 
 const ROUTINE: Partial<Record<ProfileId, (ctx: RoutineContext) => Challenge[]>> = {
-  victor: () => VICTOR_ROUTINE,
+  victor: victorRoutine,
   leo: kidLadders,
   hugo: kidLadders,
 };

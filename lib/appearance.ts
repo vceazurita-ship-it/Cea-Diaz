@@ -39,6 +39,11 @@ const MAX_SIDE: Record<PhotoSlot, number> = {
   card: 900, // cromo
 };
 
+/** A cuánto se reduce cada ranura. Lo usa también el recorte previo. */
+export function photoMaxSide(slot: PhotoSlot): number {
+  return MAX_SIDE[slot];
+}
+
 /** Una canción de más de 8 MB no cabe en un móvil con dignidad. */
 export const MAX_ANTHEM_BYTES = 8 * 1024 * 1024;
 

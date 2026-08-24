@@ -12,7 +12,7 @@ import { SummaryView } from '@/components/summary/SummaryView';
 import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
-import { buildChallengeWeek } from '@/lib/challenges';
+import { buildChallengeWeek, markHints } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
 import {
   GAME_META,
@@ -86,6 +86,13 @@ export function Dashboard({
   const challengeWeek = useMemo(
     () => buildChallengeWeek(profile, date, store.entries),
     [profile, date, store.entries],
+  );
+
+  // La marca que hay que batir hoy en cada sesión de gimnasio. Se dice donde se
+  // apunta, no en la pestaña de retos: cuando ya está el peso puesto es tarde.
+  const marks = useMemo(
+    () => markHints(profile.id, date, store.entries),
+    [profile.id, date, store.entries],
   );
 
   const filled = dayScore.categories.reduce((sum, category) => sum + category.filled, 0);
@@ -343,6 +350,7 @@ export function Dashboard({
                 variant={kid ? 'kid' : 'adult'}
                 skin={skin}
                 defaultOpen={kid ? index === 0 : true}
+                hints={marks}
                 note={notes[category.id] ?? ''}
                 onNoteChange={(text) => writeNote(category.id, text)}
               />

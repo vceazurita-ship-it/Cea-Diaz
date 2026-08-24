@@ -9,7 +9,15 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
 import { computeCategoryScore, percent } from '@/lib/scoring';
-import type { HabitCategory, HabitGuidance, Metric, MetricValue, ProfileId, ProfileSkin } from '@/types';
+import type {
+  HabitCategory,
+  HabitGuidance,
+  Metric,
+  MetricHint,
+  MetricValue,
+  ProfileId,
+  ProfileSkin,
+} from '@/types';
 
 interface CategoryCardProps {
   category: HabitCategory;
@@ -24,6 +32,11 @@ interface CategoryCardProps {
   note?: string;
   /** Sin este manejador la tarjeta no ofrece nota: es opcional a propósito. */
   onNoteChange?: (text: string) => void;
+  /**
+   * Apuntes por métrica —la marca que hay que batir hoy—, calculados con el
+   * historial. La tarjeta sólo los pinta: quien sabe de días es quien la usa.
+   */
+  hints?: Record<string, MetricHint>;
 }
 
 export function CategoryCard({
@@ -36,6 +49,7 @@ export function CategoryCard({
   defaultOpen = true,
   note = '',
   onNoteChange,
+  hints,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showWhy, setShowWhy] = useState(false);
@@ -143,6 +157,7 @@ export function CategoryCard({
                 onChange={onChange}
                 variant={variant}
                 skin={skin}
+                hints={hints}
               />
             ) : (
               category.metrics.map((metric) => (

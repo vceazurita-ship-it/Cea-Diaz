@@ -2,7 +2,7 @@
 
 import { MetricControl } from '@/components/controls/MetricControl';
 import type { ControlVariant } from '@/components/controls/types';
-import type { HabitCategory, MetricValue, ProfileSkin } from '@/types';
+import type { HabitCategory, MetricHint, MetricValue, ProfileSkin } from '@/types';
 
 interface SportsPanelProps {
   category: HabitCategory;
@@ -10,12 +10,15 @@ interface SportsPanelProps {
   onChange: (metricId: string, value: MetricValue | undefined) => void;
   variant: ControlVariant;
   skin?: ProfileSkin;
+  /** Apunte al pie de una casilla: la marca que hay que batir hoy. */
+  hints?: Record<string, MetricHint>;
 }
 
 /**
- * Layout específico del desglose deportivo: una tarjeta por actividad.
- * El detalle (esfuerzo y sensaciones) sólo aparece si se ha asistido,
- * para que el registro diario siga siendo de dos toques.
+ * Layout de tarjeta por grupo. Nació para el desglose deportivo de los peques
+ * —una tarjeta por actividad— y lo usa igual el reparto de gimnasio de Víctor:
+ * el detalle (esfuerzo, sensaciones, la marca del día) sólo aparece si la
+ * casilla está marcada, para que el registro diario siga siendo de dos toques.
  *
  * En la piel de fútbol la tarjeta se convierte en una casilla de alineación:
  * el fútbol ocupa toda la fila y las demás actividades quedan en el banquillo.
@@ -26,6 +29,7 @@ export function SportsPanel({
   onChange,
   variant,
   skin = 'night',
+  hints,
 }: SportsPanelProps) {
   const groups = category.groups ?? [];
   const pitch = skin === 'pitch';
@@ -38,7 +42,11 @@ export function SportsPanel({
     <div className="grid gap-3 sm:grid-cols-2">
       {groups.map((sport) => {
         const metrics = category.metrics.filter((m) => m.group === sport.id);
-        const attendance = metrics.find((m) => m.id.endsWith('.asistencia'));
+        // La casilla que abre la tarjeta: la asistencia en los deportes y, en
+        // el reparto de gimnasio, el interruptor de «sesión hecha».
+        const attendance =
+          metrics.find((m) => m.id.endsWith('.asistencia')) ??
+          metrics.find((m) => m.type === 'toggle');
         const details = metrics.filter((m) => m !== attendance);
         const attended = attendance ? values[attendance.id] === true : false;
         // El fútbol es la actividad principal de los peques: fila completa.
@@ -77,12 +85,8 @@ export function SportsPanel({
                 </span>
                 <span className="block text-xs t-3">
                   {attended
-                    ? pitch
-                      ? 'Convocado y jugado'
-                      : 'Asistencia registrada'
-                    : pitch
-                      ? 'Toca para alinearte hoy'
-                      : 'Toca si has entrenado hoy'}
+                    ? (sport.on ?? (pitch ? 'Convocado y jugado' : 'Asistencia registrada'))
+                    : (sport.off ?? (pitch ? 'Toca para alinearte hoy' : 'Toca si has entrenado hoy'))}
                 </span>
               </span>
 
@@ -97,15 +101,32 @@ export function SportsPanel({
 
             {attended && (
               <div className="animate-floatUp space-y-2 border-t px-3 pb-3 pt-2 hairline">
-                {details.map((metric) => (
-                  <MetricControl
-                    key={metric.id}
-                    metric={metric}
-                    value={values[metric.id]}
-                    onChange={(value) => onChange(metric.id, value)}
-                    variant={variant}
-                  />
-                ))}
+                {details.map((metric) => {
+                  const hint = hints?.[metric.id];
+
+                  return (
+                    <div key={metric.id}>
+                      <MetricControl
+                        metric={metric}
+                        value={values[metric.id]}
+                        onChange={(value) => onChange(metric.id, value)}
+                        variant={variant}
+                      />
+                      {/* La marca a batir se dice justo aquí, que es donde se
+                          apunta: en la pestaña de retos ya sería tarde. */}
+                      {hint && (
+                        <p
+                          className={`mt-1 text-[11px] font-semibold leading-snug ${
+                            hint.record ? 't-accent' : 't-3'
+                          }`}
+                          aria-live="polite"
+                        >
+                          {hint.record ? '🏆' : '🎯'} {hint.text}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

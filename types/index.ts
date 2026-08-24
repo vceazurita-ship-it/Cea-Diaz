@@ -204,6 +204,24 @@ export interface MetricGroup {
   icon: string;
   /** Clases Tailwind del degradado de la tarjeta de actividad. */
   gradient: string;
+  /**
+   * Qué dice la tarjeta marcada y sin marcar. Sin esto habla de asistencia a
+   * un entrenamiento, que es de donde viene el diseño; el reparto de gimnasio
+   * usa el mismo bloque para decir otra cosa.
+   */
+  on?: string;
+  off?: string;
+}
+
+/**
+ * Apunte que acompaña a una casilla en el registro del día: lo que hay que
+ * batir hoy, o que ya se ha batido. Lo calcula quien conoce el historial, no
+ * el control, que sólo sabe pintar el valor de un día.
+ */
+export interface MetricHint {
+  text: string;
+  /** `true` cuando lo apuntado hoy ya es un récord. */
+  record: boolean;
 }
 
 export interface HabitCategory {
@@ -215,7 +233,11 @@ export interface HabitCategory {
   gradient: string;
   metrics: Metric[];
   layout?: CategoryLayout;
-  /** Sólo para layout 'sports': tarjetas por actividad. */
+  /**
+   * Sólo para layout 'sports': una tarjeta por grupo. Las usan los deportes de
+   * los peques y el reparto de gimnasio de Víctor, que se registran igual: se
+   * marca la casilla y sólo entonces aparece el detalle.
+   */
   groups?: MetricGroup[];
 }
 

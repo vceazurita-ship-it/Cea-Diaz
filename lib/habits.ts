@@ -485,6 +485,8 @@ function adultMovementCategory(
   main: Metric,
   extra: Metric[] = [],
   weeklyStrength = false,
+  /** Con grupos, las sesiones se registran en tarjetas en vez de en lista. */
+  groups?: MetricGroup[],
 ): HabitCategory {
   return {
     id: 'movimiento_fuerza',
@@ -492,6 +494,8 @@ function adultMovementCategory(
     icon: '🏋️',
     description: 'Lo que se entrena y lo que se mueve el resto del día.',
     gradient: 'from-amber-400 to-orange-600',
+    layout: groups ? 'sports' : undefined,
+    groups,
     metrics: [
       main,
       {
@@ -643,6 +647,28 @@ export const VICTOR_SPLIT: Array<{
   help: string;
   /** Por qué esa sesión está en la semana; lo cuenta la tarjeta del reto. */
   why: string;
+  /** Degradado de la tarjeta de la sesión en el registro del día. */
+  gradient: string;
+  /**
+   * La marca con la que se mide esa sesión: un solo número comparable de un
+   * día para otro. Es lo que convierte «he entrenado pierna» en «he subido de
+   * 100 a 102,5 kg», y de ahí sale el listón del reto de la semana siguiente.
+   *
+   * El ejercicio de referencia se fija aquí a propósito: si un día se cambia
+   * de movimiento, la cifra deja de ser comparable y el listón mentiría.
+   */
+  mark: {
+    label: string;
+    icon: string;
+    unit: string;
+    /** Cuánto sube el listón cada vez que se supera. */
+    step: number;
+    /** Tope del deslizador. */
+    max: number;
+    /** Referencia que se pinta al lado de la cifra mientras no haya marca. */
+    reference: number;
+    help: string;
+  };
 }> = [
   {
     id: 'pierna',
@@ -650,6 +676,16 @@ export const VICTOR_SPLIT: Array<{
     icon: '🦵',
     help: 'Sentadilla, peso muerto, zancadas: la sesión de tren inferior de la semana.',
     why: 'El tren inferior sostiene todo lo demás: rodilla, cadera y espalda aguantan lo que la pierna sea capaz de aguantar.',
+    gradient: 'from-amber-400 to-orange-600',
+    mark: {
+      label: 'Sentadilla · mejor serie',
+      icon: '🏋️',
+      unit: 'kg',
+      step: 2.5,
+      max: 220,
+      reference: 60,
+      help: 'Kilos de la serie más pesada que hayas completado con buena técnica.',
+    },
   },
   {
     id: 'pecho',
@@ -657,6 +693,16 @@ export const VICTOR_SPLIT: Array<{
     icon: '🏋️',
     help: 'Press de banca, fondos, empujes: la sesión de empuje de la semana.',
     why: 'Empujar es la mitad del trabajo de tren superior, y la que primero se abandona cuando la semana aprieta.',
+    gradient: 'from-rose-400 to-red-600',
+    mark: {
+      label: 'Press de banca · mejor serie',
+      icon: '🛗',
+      unit: 'kg',
+      step: 2.5,
+      max: 180,
+      reference: 40,
+      help: 'Kilos de la serie más pesada completada, sin rebote y con el recorrido entero.',
+    },
   },
   {
     id: 'dorsal',
@@ -664,6 +710,16 @@ export const VICTOR_SPLIT: Array<{
     icon: '🧗',
     help: 'Dominadas, remo, jalón: la sesión de tirón de la semana.',
     why: 'Tirar compensa lo que se empuja y endereza la postura que dejan las horas de vídeo y de banquillo.',
+    gradient: 'from-sky-400 to-blue-600',
+    mark: {
+      label: 'Dominadas seguidas',
+      icon: '🧗',
+      unit: 'dominadas',
+      step: 1,
+      max: 40,
+      reference: 6,
+      help: 'Las de la mejor serie, seguidas y con la barbilla por encima de la barra.',
+    },
   },
   {
     id: 'series',
@@ -671,6 +727,16 @@ export const VICTOR_SPLIT: Array<{
     icon: '🏃',
     help: 'Series, cuestas o cambios de ritmo. El rodaje suave no cuenta aquí.',
     why: 'Las series dan el estímulo que no da el trote: obligan al pulso a subir y a bajar, que es donde se gana el fondo.',
+    gradient: 'from-lime-400 to-emerald-600',
+    mark: {
+      label: 'Series completadas',
+      icon: '⏱️',
+      unit: 'series',
+      step: 1,
+      max: 20,
+      reference: 6,
+      help: 'Series completas al ritmo previsto. La que se corta a mitad no cuenta.',
+    },
   },
   {
     id: 'core',
@@ -678,25 +744,70 @@ export const VICTOR_SPLIT: Array<{
     icon: '🌀',
     help: 'Plancha, antirrotación, lumbares: diez minutos bien hechos valen.',
     why: 'El core es la bisagra entre lo que empuja y lo que corre: sin él, la espalda acaba pagando por las dos cosas.',
+    gradient: 'from-violet-400 to-purple-600',
+    mark: {
+      label: 'Plancha aguantada',
+      icon: '⏳',
+      unit: 's',
+      step: 5,
+      max: 300,
+      reference: 60,
+      help: 'Segundos de la plancha más larga, con la cadera arriba y sin arquear la espalda.',
+    },
   },
 ];
 
+/** Una tarjeta por sesión en el registro del día, como las de los deportes. */
+export const VICTOR_SPLIT_GROUPS: MetricGroup[] = VICTOR_SPLIT.map(
+  ({ id, label, icon, gradient }) => ({
+    id,
+    label,
+    icon,
+    gradient,
+    on: 'Sesión hecha · apunta la marca',
+    off: 'Toca si hoy toca esta sesión',
+  }),
+);
+
 /**
- * Las cinco casillas del reparto, tal y como se marcan en Movimiento y Fuerza.
+ * Las casillas del reparto, tal y como se marcan en Movimiento y Fuerza: por
+ * cada sesión, el interruptor de «hecha» y la marca que ha salido.
  *
  * Van con `weight: 0` a propósito: son contexto, no cumplimiento. Si contaran,
  * un martes de pierna saldría suspendido por las cuatro sesiones que ese día no
  * tocaban, que es justo lo contrario de lo que hay que medir. El generador de
- * retos sí las lee: no necesita el peso para saber qué día se entrenó.
+ * retos sí las lee: no necesita el peso para saber qué día se entrenó ni con
+ * qué marca.
  */
-const victorSplitMetrics: Metric[] = VICTOR_SPLIT.map(({ id, label, icon, help }) => ({
-  id: `split.${id}`,
-  label,
-  icon,
-  type: 'toggle',
-  weight: 0,
-  help,
-}));
+const victorSplitMetrics: Metric[] = VICTOR_SPLIT.flatMap(
+  ({ id, label, icon, help, mark }): Metric[] => [
+    {
+      id: `split.${id}`,
+      label,
+      icon,
+      type: 'toggle',
+      weight: 0,
+      group: id,
+      help,
+    },
+    {
+      id: `marca.${id}`,
+      label: mark.label,
+      icon: mark.icon,
+      // Deslizador y no contador: 102,5 kg se apunta de un gesto, y ciento dos
+      // fichas tocables no son una casilla.
+      type: 'duration',
+      target: mark.reference,
+      min: 0,
+      max: mark.max,
+      step: mark.step,
+      unit: mark.unit,
+      weight: 0,
+      group: id,
+      help: mark.help,
+    },
+  ],
+);
 
 const victorCategories: HabitCategory[] = [
   adultSleepCategory([
@@ -739,6 +850,7 @@ const victorCategories: HabitCategory[] = [
       ...victorSplitMetrics,
     ],
     true,
+    VICTOR_SPLIT_GROUPS,
   ),
   {
     id: 'desarrollo',
