@@ -226,9 +226,10 @@ export type DateKey = string;
 
 /**
  * Clave de una nota suelta del día. Son los identificadores de categoría
- * (`nutricion`, `deporte`, `sueno`…) más `retos`, reservada para lo que se
- * apunta desde el panel de retos. El catálogo de categorías no usa ese
- * nombre, así que no hay colisión posible.
+ * (`nutricion`, `deporte`, `sueno`…) más dos reservadas: `retos`, para lo
+ * que se apunta desde el panel de retos, y `juego`, donde queda anotada la
+ * partida del día de los peques. El catálogo de categorías no usa esos
+ * nombres, así que no hay colisión posible.
  */
 export type NoteKey = string;
 
@@ -454,6 +455,62 @@ export interface UnlockedReward {
   week: DateKey;
   challengeId: string;
   challengeTitle: string;
+}
+
+/* ------------------------------ Juego del día ---------------------------- */
+
+/**
+ * Los dos juegos de los peques. Cada día toca uno y sólo uno, alternándose:
+ * un día se piensa con números y al siguiente con el campo delante.
+ */
+export type GameId = 'logica' | 'tactica';
+
+/** Una respuesta posible. Lo que se compara es el `id`, no el texto. */
+export interface GameOption {
+  id: string;
+  text: string;
+}
+
+export interface GameQuestion {
+  id: string;
+  /** El enunciado, tal cual se lee. */
+  prompt: string;
+  options: GameOption[];
+  /** `id` de la opción buena. */
+  answer: string;
+  /** Por qué esa es la buena; se enseña al contestar, se acierte o no. */
+  explain: string;
+  icon: string;
+}
+
+/** La partida de un día: las mismas preguntas siempre para ese día y perfil. */
+export interface GameRound {
+  game: GameId;
+  date: DateKey;
+  title: string;
+  icon: string;
+  /** De qué va la partida, en una línea. */
+  tagline: string;
+  questions: GameQuestion[];
+}
+
+/**
+ * Lo que queda escrito de la partida del día. Es lo único que se guarda del
+ * juego —una línea en las notas del día—: las preguntas y el premio se
+ * recalculan a partir de aquí, como todo lo demás en la casa.
+ *
+ * `answered` permite retomar una partida que se cerró a medias sin poder
+ * empezarla otra vez: se sigue por la pregunta en la que se dejó.
+ */
+export interface GameResult {
+  game: GameId;
+  /** Aciertos hasta ahora. */
+  correct: number;
+  /** Preguntas ya contestadas. */
+  answered: number;
+  total: number;
+  /** Momento de la última respuesta (ISO). */
+  at: string;
 }
 
 /* -------------------------------- Campograma ---------------------------- */

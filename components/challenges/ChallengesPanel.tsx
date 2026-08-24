@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
+import { DailyGameCard } from '@/components/games/DailyGameCard';
 import { Campograma } from '@/components/team/Campograma';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -9,6 +10,7 @@ import { NoteField } from '@/components/ui/NoteField';
 import { useLineup } from '@/hooks/useLineup';
 import { buildChallengeWeek, challengeHistory, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
+import { gameEnabledFor } from '@/lib/games';
 import {
   WEEKLY_CHALLENGE_ID,
   collectRewards,
@@ -21,6 +23,7 @@ import type {
   ChallengeWeek,
   DateKey,
   DayEntry,
+  GameResult,
   Profile,
   ProfileId,
   ProfileSkin,
@@ -39,6 +42,8 @@ interface ChallengesPanelProps {
   /** Lo apuntado sobre los retos en el día que se está viendo. */
   note: string;
   onNoteChange: (text: string) => void;
+  /** Anota la partida del juego del día; sólo la tienen los peques. */
+  onGameResult?: (result: GameResult) => void;
 }
 
 /* -------------------------------------------------------------------------
@@ -193,6 +198,7 @@ export function ChallengesPanel({
   skin,
   note,
   onNoteChange,
+  onGameResult,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
   const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
@@ -240,6 +246,20 @@ export function ChallengesPanel({
 
   return (
     <div className="space-y-4">
+      {/* El juego del día: la partida de hoy, antes que nada, porque es lo que
+          se puede ganar hoy mismo. Los retos van a semana vista. */}
+      {onGameResult && gameEnabledFor(profile) && (
+        <DailyGameCard
+          profile={profile}
+          date={date}
+          entries={entries}
+          rewards={rewards}
+          kid={kid}
+          headingClass={headingClass}
+          onResult={onGameResult}
+        />
+      )}
+
       {/* Cabecera: cuántos van y cuántos puntos hay en juego */}
       <div className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5`}>
         <ProgressRing ratio={total ? week.done / total : 0} size={kid ? 116 : 96}>

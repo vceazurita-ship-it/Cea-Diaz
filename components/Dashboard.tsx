@@ -14,6 +14,15 @@ import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
+import {
+  GAME_META,
+  GAME_NOTE_KEY,
+  encodeGameResult,
+  gameEnabledFor,
+  gameForDate,
+  gameResultFor,
+  isGameDone,
+} from '@/lib/games';
 import { getCategories } from '@/lib/habits';
 import { learningFor } from '@/lib/learning';
 import { skinOf } from '@/lib/profiles';
@@ -147,6 +156,16 @@ export function Dashboard({
   /** Recados que urgen hoy; se acusan en la propia pestaña. */
   const tasksDue = dueCount(store.getTasks(profile.id));
 
+  /**
+   * El juego del día vive en la pestaña de retos, junto al álbum que llena.
+   * Aquí sólo se anuncia: si está sin jugar, es lo primero que quiere saber
+   * un peque al abrir la app.
+   */
+  const gamePlays = gameEnabledFor(profile) && isToday(date);
+  const gameResult = gamePlays ? gameResultFor(store.entries, profile.id, date) : null;
+  const gameDone = gameResult ? isGameDone(gameResult) : false;
+  const gameMeta = GAME_META[gameForDate(date)];
+
   /** El bonus del día, sacado de donde este perfil pone el interés. */
   const learning = useMemo(
     () => learningFor(profile, store.entries, date),
@@ -265,6 +284,23 @@ export function Dashboard({
               🎯 Retos {challengeWeek.done}/{challengeWeek.challenges.length}
             </button>
 
+            {gamePlays && (
+              <button
+                type="button"
+                onClick={() => setTab('challenges')}
+                className={`btn px-3 py-1.5 text-xs font-semibold border
+                  ${gameDone ? 'hairline surf-1 t-2 hover-soft' : 'bg-accent-soft border-accent t-1'}`}
+                title={`${gameMeta.title}: se juega una vez al día y deja cromo`}
+              >
+                {gameMeta.icon}{' '}
+                {gameDone
+                  ? `Juego ${gameResult?.correct}/${gameResult?.total}`
+                  : gameResult
+                    ? 'Juego a medias'
+                    : 'Juego del día'}
+              </button>
+            )}
+
             <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
               {pending > 0
                 ? `${filled}/${total} · ${pending === 1 ? 'queda 1' : `quedan ${pending}`}`
@@ -334,6 +370,9 @@ export function Dashboard({
             skin={skin}
             note={notes[CHALLENGE_NOTE_KEY] ?? ''}
             onNoteChange={(text) => writeNote(CHALLENGE_NOTE_KEY, text)}
+            onGameResult={(result) =>
+              store.setEntryNote(profile.id, date, GAME_NOTE_KEY, encodeGameResult(result))
+            }
           />
         </div>
       ) : tab === 'tasks' ? (

@@ -18,6 +18,7 @@ import {
   versionIndex,
   type CloudTable,
 } from '@/lib/cloud';
+import { GAME_NOTE_KEY } from '@/lib/games';
 import {
   applyRemoteLineups,
   loadLineups,
@@ -712,10 +713,29 @@ export function useHabitStore(): HabitStore {
     [],
   );
 
+  /**
+   * Borra el día entero. Con una excepción: la partida del juego del día se
+   * queda. Es lo único del registro que no se puede volver a hacer, y borrar
+   * el día sería la manera fácil de jugar dos veces; en ese caso, en vez de
+   * quitar la fila, se deja con la partida y nada más.
+   */
   const clearDay = useCallback((profileId: ProfileId, date: DateKey) => {
     setDb((prev) => {
       const key = entryKey(profileId, date);
       const entries = { ...prev.entries };
+      const played = prev.entries[key]?.notes?.[GAME_NOTE_KEY];
+
+      if (played) {
+        entries[key] = {
+          date,
+          profileId,
+          values: {},
+          notes: { [GAME_NOTE_KEY]: played },
+          updatedAt: new Date().toISOString(),
+        };
+        return { ...prev, entries };
+      }
+
       delete entries[key];
       return { ...prev, entries, tombstones: grave(prev.tombstones, 'entries', key) };
     });

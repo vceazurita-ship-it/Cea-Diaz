@@ -68,6 +68,8 @@ components/
   challenges/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
+  games/
+    DailyGameCard.tsx    El juego del día de los peques: la partida y su cromo
   team/
     Campograma.tsx       El equipo montado con los cromos: formación, once y banquillo
   learning/
@@ -105,7 +107,8 @@ lib/
   experts.ts           Criterio experto de cada hábito: prioridad, cifra y quién la sostiene
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
-  rewards.ts           Mazos de cromos y frases, y su reparto por reto superado
+  rewards.ts           Mazos de cromos y frases, y su reparto por reto y por partida
+  games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición y etiquetas
@@ -455,7 +458,9 @@ comporta igual en los tres:
 
 Las notas de las categorías y la de los retos se guardan en el registro del día
 (`notes` en `DayEntry`, columna `notes` en la tabla `entries`). No cuentan para el
-cumplimiento: son contexto, no una métrica más.
+cumplimiento: son contexto, no una métrica más. En ese mismo sitio, bajo la clave
+reservada `juego`, se anota la partida del [juego del día](#el-juego-del-día) de los
+peques: una línea que no se enseña como nota porque no la escribe nadie.
 
 Se escriben a mano y ya está: **la app no tiene entrada por voz**. La tuvo —dictado
 con la Web Speech API del propio navegador— y se retiró por innecesaria.
@@ -648,6 +653,68 @@ Los retos se generan con los datos anteriores al lunes, así que el listón no s
 mientras la semana corre, y la rotación entre candidatos usa una semilla estable por
 perfil y semana: durante siete días son siempre los mismos tres. A ellos se suman los
 fijos —el reparto de Víctor y las escaleras de los peques—, que no se sortean.
+
+## El juego del día
+
+Leo y Hugo tienen, además de los retos, **una partida al día**. Vive en la pestaña de
+retos, arriba del todo, y se anuncia también desde la barra de acciones del día. Sólo
+la tienen los peques (`kind: 'kid'`).
+
+Son **dos juegos que se van alternando**, uno cada día:
+
+| | 🧠 Duelo de lógica | ⚽ Pizarra táctica |
+| - | --- | --- |
+| Va de | Cinco problemas para resolver de cabeza | Cinco jugadas para decidir como un jugador listo |
+| De dónde salen | 14 generadores que inventan los números de cada día | Catálogo de 42 jugadas reales |
+| Ejemplos | Series con dos saltos, reparto de cromos, balanzas, marcadores, relojes, deducción de dorsales, palillos, combinaciones | Fuera de juego, la pared, temporizar, cobertura, bascular, cambio de orientación, salida del portero, presión tras pérdida |
+
+Los problemas de lógica **hablan de ellos**: salen sus nombres, el del hermano, cromos,
+petos y entrenamientos. Y suben de nivel con la edad: los mismos generadores dan
+números más grandes o un paso más para Hugo (9) que para Leo (8), así que nadie
+resuelve el del hermano por habérselo visto hacer.
+
+En la táctica, las respuestas falsas no son tonterías: son los errores que de verdad se
+cometen a esa edad —mirar sólo el balón, correr todos al bulto, chutar siempre—. Se
+conteste bien o mal, **siempre se explica por qué**, que es la mitad de lo que se
+aprende. Y se ve marcada la buena aunque se haya fallado.
+
+### El premio
+
+| Aciertos | Qué cae |
+| -------- | ------- |
+| 5 de 5, tercer pleno seguido | 🌟 Cromo de **leyenda** |
+| 5 de 5 | Cromo de **LaLiga o la Premier** |
+| 3 ó 4 | Cromo de **cantera** (Castilla) |
+| 2 o menos | Nada, y mañana otra oportunidad |
+
+Es el mismo álbum de los retos, con dos matices: el juego reparte de su **propia
+baraja** —así una partida ganada no adelanta el turno de los cromos de los retos ni al
+revés— y los cromos que deja **también se alinean en el campograma**, como cualquier
+otro.
+
+### Una vez al día, y de verdad
+
+- **Cada respuesta se anota en cuanto se toca.** No es un detalle técnico, es la regla:
+  cerrar la app en mitad de una pregunta fallada no regala otro intento.
+- **La partida se puede retomar, no repetir.** Queda apuntado por dónde iba, así que se
+  puede volver más tarde y seguir por la pregunta en la que se dejó.
+- **Sólo se juega el día que es.** Retroceder al día de ayer enseña cómo quedó aquella
+  partida, pero no deja jugarla.
+- **Las preguntas del día son siempre las mismas.** Salen de una semilla hecha con el
+  perfil y la fecha, así que recargar, cambiar de móvil o mirar la partida más tarde da
+  exactamente lo mismo: no hay manera de barajar de nuevo hasta que salgan fáciles.
+
+Del juego **se guarda una sola línea** en las notas del día
+(`juego|aciertos|contestadas|total|momento`), que es lo único que no se puede deducir.
+Como cabe en lo que ya viaja a la nube, el juego no necesitó ninguna tabla nueva ni
+ningún cambio en el esquema: sincroniza entre móviles con el resto del día. Todo lo
+demás —las preguntas, el premio, la racha de plenos— se recalcula.
+
+Los dos catálogos de `lib/games.ts` son editables igual que los mazos: añadir una
+jugada de táctica es añadir un objeto a la lista, y añadir un tipo de problema es
+añadir un generador. Con 42 jugadas y 5 por partida, una jugada no se repite hasta
+pasadas ocho partidas de táctica —unas dos semanas y media—, y en la vuelta siguiente
+el mazo se baraja otra vez.
 
 ## Tareas y Google Calendar
 

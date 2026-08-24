@@ -1,11 +1,13 @@
 import { buildChallengeWeek, hashSeed } from '@/lib/challenges';
 import { addDays, startOfWeek, weekKeys } from '@/lib/dates';
+import { GAME_META, gameResultFor, gameTier, isGameDone, isGamePerfect } from '@/lib/games';
 import type {
   ChallengeTier,
   CromoReward,
   DateKey,
   DayEntry,
   FraseReward,
+  GameId,
   Profile,
   ProfileId,
   Reward,
@@ -40,6 +42,15 @@ const MAX_WEEKS = 26;
  * reto de verdad, así que no cuelga de ninguna tarjeta: se enseña aparte.
  */
 export const WEEKLY_CHALLENGE_ID = 'semana-completa';
+
+/**
+ * Identificador con el que se anota el cromo que deja una partida del juego
+ * del día. Lleva la fecha dentro porque hay una partida por jornada, y sirve
+ * para reconocer en el álbum el cromo que se acaba de ganar.
+ */
+export function gameRewardId(game: GameId, date: DateKey): string {
+  return `juego:${game}:${date}`;
+}
 
 /* ---------------------------------------------------------------------------
  * Cromos · nivel «cimiento»: Real Madrid Castilla 26/27
@@ -2367,6 +2378,14 @@ export function collectRewards(
   const weeklyPile = deck.weekly ? shuffle(deck.weekly, hashSeed(`${profile.id}:weekly`)) : null;
   let weeksWon = 0;
 
+  // Y el juego del día, otro tanto: mismos mazos, baraja aparte. Así una
+  // partida ganada no adelanta el turno de los cromos de los retos ni al
+  // revés, y los dos caminos reparten cromos distintos el mismo día.
+  const gamePiles = pilesOf(deck.cards, 'juego:');
+  const gameDealt: Record<ChallengeTier, number> = { base: 0, reto: 0, maximo: 0 };
+  /** Plenos seguidos; al tercero cae leyenda. */
+  let perfectRun = 0;
+
   const unlocked: UnlockedReward[] = [];
 
   for (let week = startWeek; week <= currentWeek; week = addDays(week, 7)) {
@@ -2410,6 +2429,36 @@ export function collectRewards(
         challengeTitle: 'Semana completa',
       });
       weeksWon += 1;
+    }
+
+    // El juego del día. Se recorren los siete días en orden —y nunca más allá
+    // del día que se está mirando— porque la racha de plenos, que es la que
+    // desbloquea la leyenda, sólo se cuenta bien en orden.
+    for (let i = 0; i < 7; i += 1) {
+      const day = addDays(week, i);
+      if (day > date) break;
+
+      const result = gameResultFor(entries, profile.id, day);
+      if (!result || !isGameDone(result)) continue;
+
+      perfectRun = isGamePerfect(result) ? perfectRun + 1 : 0;
+
+      const tier = gameTier(result, perfectRun);
+      if (!tier) continue;
+
+      const pile = gamePiles[tier];
+      if (pile.length === 0) continue;
+
+      const turn = gameDealt[tier];
+
+      unlocked.push({
+        reward: pile[turn % pile.length],
+        week: day,
+        challengeId: gameRewardId(result.game, day),
+        challengeTitle: `${GAME_META[result.game].title} · ${result.correct}/${result.total}`,
+      });
+
+      gameDealt[tier] = turn + 1;
     }
   }
 
