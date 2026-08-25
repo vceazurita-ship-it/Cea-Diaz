@@ -8,6 +8,7 @@ import {
   INDIVIDUAL_PROFILES,
   PROFILES,
   accentFor,
+  accentStyle,
   paletteStyle,
 } from '@/lib/profiles';
 import { percent } from '@/lib/scoring';
@@ -176,6 +177,97 @@ function ProfileCard({
   );
 }
 
+/**
+ * Situación de cada uno, dentro de la portada.
+ *
+ * Las tarjetas de más abajo cuentan lo mismo con detalle, pero obligan a
+ * recorrer cuatro bloques y a compararlos de memoria. Arriba interesa el parte
+ * de la casa de una ojeada: quién lleva el día registrado, por dónde va y
+ * quién arrastra racha. Tocar abre ese perfil, así que la fila es además un
+ * atajo para quien ya sabe a lo que viene.
+ */
+function CoverStatus({
+  glances,
+  hydrated,
+  onSelect,
+}: {
+  glances: Record<ProfileId, ProfileGlance>;
+  hydrated: boolean;
+  onSelect: (id: ProfileId) => void;
+}) {
+  const { dress } = useAppearance();
+  const { mode } = useTheme();
+
+  return (
+    <ul className="mx-auto mt-5 grid max-w-2xl grid-cols-2 gap-2 text-left sm:grid-cols-4">
+      {INDIVIDUAL_PROFILES.map((base) => {
+        const profile = dress(base);
+        const glance = glances[profile.id];
+        const pct = Math.round((glance?.today ?? 0) * 100);
+        const ready = hydrated && glance;
+
+        return (
+          <li key={profile.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(profile.id)}
+              // Sólo el acento, no el tinte: estos botones viven dentro de la
+              // tarjeta de portada y han de seguir usando su superficie.
+              style={accentStyle(accentFor(profile, mode))}
+              aria-label={`Abrir el perfil de ${profile.name}${
+                ready
+                  ? glance.tracked
+                    ? `, ${pct} % registrado hoy`
+                    : ', sin registrar hoy'
+                  : ''
+              }`}
+              className="flex w-full flex-col gap-2 rounded-xl border p-2.5 text-left
+                transition-colors hairline surf-1 hover-soft"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Avatar profile={profile} size={32} shape="circle" ring />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold t-1">{profile.name}</span>
+                  {ready ? (
+                    <span className="flex items-center gap-1">
+                      <span
+                        className={`truncate text-[11px] font-semibold ${
+                          glance.tracked ? 't-accent' : 't-3'
+                        }`}
+                      >
+                        {glance.tracked ? `${percent(glance.today)} hoy` : 'Sin registrar'}
+                      </span>
+                      {glance.streak > 0 && (
+                        <span
+                          className="text-[11px] font-semibold t-3"
+                          title="Días seguidos por encima del 60 %"
+                        >
+                          🔥{glance.streak}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="skeleton mt-1 block h-3 w-16 rounded-full" />
+                  )}
+                </span>
+              </span>
+
+              <span className="block h-1 w-full overflow-hidden rounded-full track">
+                {ready && (
+                  <span
+                    className="block h-full rounded-full bg-accent transition-[width] duration-700"
+                    style={{ width: `${pct}%` }}
+                  />
+                )}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function ProfileSelector({
   onSelect,
   glances,
@@ -236,6 +328,9 @@ export function ProfileSelector({
                   ? '¡Todos los perfiles tienen registro hoy! 🎉'
                   : `Hoy han registrado ${tracked} de ${PROFILES.length} perfiles.`}
           </p>
+
+          {/* El parte por persona, debajo del titular y encima de las tarjetas. */}
+          <CoverStatus glances={glances} hydrated={hydrated} onSelect={onSelect} />
         </div>
       </header>
 
