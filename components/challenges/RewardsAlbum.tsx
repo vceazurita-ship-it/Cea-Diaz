@@ -1,5 +1,6 @@
 'use client';
 
+import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { formatShort } from '@/lib/dates';
 import { albumCopyOf, rarityLabel } from '@/lib/rewards';
 import type { CromoReward, FraseReward, ProfileId, RewardKind, UnlockedReward } from '@/types';
@@ -15,6 +16,12 @@ const RARITY_STYLE: Record<string, string> = {
   liga: 'from-sky-400/25 to-indigo-500/20 border-sky-300/30',
   premier: 'from-fuchsia-400/25 to-rose-500/20 border-fuchsia-300/30',
   leyenda: 'from-amber-300/35 to-orange-500/25 border-amber-300/45',
+  // El álbum de música de María: la radio de diario en rosa, los 90 en
+  // violeta, los 2000 en turquesa y las leyendas en oro, como en el de ellos.
+  radio: 'from-pink-400/25 to-rose-500/20 border-pink-300/35',
+  noventa: 'from-violet-400/25 to-purple-600/20 border-violet-300/35',
+  dosmil: 'from-cyan-400/25 to-sky-600/20 border-cyan-300/30',
+  leyenda_pop: 'from-amber-300/35 to-yellow-600/25 border-amber-300/45',
   chispa: 'from-rose-300/25 to-orange-300/20 border-rose-300/35',
   fuerza: 'from-fuchsia-400/25 to-violet-500/20 border-fuchsia-300/35',
   oro: 'from-amber-300/35 to-rose-400/25 border-amber-300/45',
@@ -47,9 +54,7 @@ function CromoCard({ cromo, label, footer }: { cromo: CromoReward; label: string
     >
       <span className="text-[9px] font-black uppercase tracking-[0.12em] t-3">{label}</span>
 
-      <span className="text-3xl leading-none" aria-hidden>
-        {cromo.emblem}
-      </span>
+      <CromoPortrait cromo={cromo} size="lg" className="mx-auto" />
 
       <p className="font-display text-sm font-black leading-tight t-1">{cromo.name}</p>
       <p className="text-[11px] font-semibold t-2">{cromo.team}</p>

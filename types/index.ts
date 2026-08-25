@@ -427,6 +427,11 @@ export type CromoRarity =
   | 'liga'
   | 'premier'
   | 'leyenda'
+  /** Las cuatro del mazo de música de María: su álbum, como el de fútbol de ellos. */
+  | 'radio'
+  | 'noventa'
+  | 'dosmil'
+  | 'leyenda_pop'
   | 'casa'
   | 'equipo'
   | 'leyenda_casa'
@@ -444,6 +449,36 @@ export type FraseRarity = 'chispa' | 'fuerza' | 'oro';
  */
 export type CromoLine = 'por' | 'def' | 'med' | 'del';
 
+/** Corte de pelo del retrato. El rapado también es un corte. */
+export type CromoHair =
+  | 'corto'
+  | 'rizado'
+  | 'afro'
+  | 'largo'
+  | 'rapado'
+  | 'cresta'
+  | 'moño'
+  | 'trenzas';
+
+export type CromoBeard = 'no' | 'corta' | 'cerrada';
+
+/**
+ * Cómo es el jugador, cuando se sabe. Los cromos de la cantera no lo llevan:
+ * a esos se les sortea la cara y nadie nota la diferencia. Pero a Vinícius o
+ * a Haaland los peques los reconocen de vista, así que a los conocidos se les
+ * apunta aquí el aspecto y el dibujo deja de sortear.
+ *
+ * Lo que no se diga se sigue sorteando, así que se puede fijar sólo el pelo y
+ * dejar el resto al azar.
+ */
+export interface CromoLook {
+  /** Tono de piel: 1 el más claro, 6 el más oscuro. */
+  skin?: 1 | 2 | 3 | 4 | 5 | 6;
+  hairColor?: 'negro' | 'castaño' | 'castaño claro' | 'rubio' | 'pelirrojo' | 'cano';
+  hair?: CromoHair;
+  beard?: CromoBeard;
+}
+
 export interface CromoReward {
   kind: 'cromo';
   id: string;
@@ -453,7 +488,29 @@ export interface CromoReward {
   position: string;
   /** Ausente en los cromos que no son jugadores. */
   line?: CromoLine;
-  /** Emoji del cromo. */
+  /** Dorsal con el que juega, si se sabe. Va impreso en el retrato. */
+  number?: number;
+  /**
+   * Foto de verdad, si algún día la hay (`/photos/cromos/<id>.jpg`). Cuando
+   * falta —que es lo normal— el cromo se dibuja: retrato ilustrado con los
+   * colores de su equipo. Ver `lib/cromoArt.ts`.
+   */
+  photo?: string;
+  /**
+   * El cromo es de una persona aunque no juegue al fútbol —una cantante, uno
+   * de la casa—, así que se le dibuja la cara. Los jugadores no necesitan
+   * decirlo: se deduce de que tienen línea de campo.
+   */
+  persona?: boolean;
+  /**
+   * De quién de la casa es el cromo. Su imagen sale entonces de la foto de
+   * ese perfil, de modo que si la cambiáis desde la app —ajustes de aspecto—
+   * el cromo cambia con ella y no se queda con la de fábrica.
+   */
+  profile?: ProfileId;
+  /** Cómo es de cara, si se sabe. Ver `CromoLook`. */
+  look?: CromoLook;
+  /** Emoji del cromo. Es la imagen de los que no son jugadores. */
   emblem: string;
   /** Por qué se le recuerda. */
   dato: string;

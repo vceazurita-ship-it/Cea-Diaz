@@ -91,7 +91,7 @@ components/
   SettingsPanel.tsx    Modo día/noche, portada, ejemplo, copias, PIN y borrado
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
-  ui/                  Avatar, ProgressBar, ProgressRing, Stars, Modal, Toast, NoteField, ThemeToggle
+  ui/                  Avatar, CromoPortrait, ProgressBar, ProgressRing, Stars, Modal, Toast, NoteField, ThemeToggle
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
@@ -108,6 +108,7 @@ lib/
   scoring.ts           Cumplimiento, estrellas, rachas, logros
   challenges.ts        Generador de retos semanales a partir del historial
   rewards.ts           Mazos de cromos y frases, y su reparto por reto y por partida
+  cromoArt.ts          Equipaciones y rasgos con los que se dibuja el retrato de cada cromo
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   learning.ts          Catálogo del bonus del día y elección según el interés
@@ -601,30 +602,72 @@ Cada reto superado entrega un regalo, y el nivel del reto decide la rareza:
 | Perfil          | Colección                | Cimiento         | Reto                                        | Máximo esfuerzo                          |
 | --------------- | ------------------------ | ---------------- | ------------------------------------------- | ---------------------------------------- |
 | **Leo · Hugo**  | Álbum de cromos **+ técnicas** | Real Madrid Castilla | Los mejores de ahora: LaLiga + Premier League | Leyendas de la historia del fútbol |
-| **María**       | Frases **+ cromos de casa** | Frase del día + cromo de casa | Frase de fuerza + cromo de la plantilla | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) + cromo de leyenda de casa |
+| **María**       | Frases **+ álbum de música + cromos de casa** | Frase del día + cromo de la radio + cromo de casa | Frase de fuerza + cromo de los 90 o los 2000 + cromo de la plantilla | Frase de oro (Machado, Mistral, Sor Juana, Cervantes, Concepción Arenal…) + cromo de leyenda de la canción + cromo de leyenda de casa |
 | **Víctor**      | Aforismos **+ cromos de casa** | Aforismo + cromo de casa | Aforismo de fuerza + cromo de la plantilla | Aforismo de oro (Séneca, Marco Aurelio, Will Durant…) + cromo de leyenda de casa |
 | **Familia**     | Aforismos de la casa     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Tolstói, Pitágoras…)    |
 | **Pareja**      | Aforismos de los dos     | Aforismo         | Aforismo de fuerza                          | Aforismo de oro (Saint-Exupéry…)         |
 
-Cada cromo lleva su equipo, su demarcación, aquello por lo que se le recuerda y un
-**lema** que traduce esa historia a esfuerzo («Presentarse cada día es un talento poco
-valorado», del cromo de Iñaki Williams). Las frases y los aforismos van marcados por
-tema: 🏡 familia · 🌿 para ti · 💻 aula · 👨‍👦 paternidad · ⚽ oficio · 💞 pareja.
+Cada cromo lleva su **imagen**, su equipo, su dorsal, su demarcación, aquello por lo que
+se le recuerda y un **lema** que traduce esa historia a esfuerzo («Estar siempre
+disponible es un talento», del cromo de Iñaki Williams). Las frases y los aforismos van
+marcados por tema: 🏡 familia · 🌿 para ti · 💻 aula · 👨‍👦 paternidad · ⚽ oficio · 💞 pareja.
 
 El álbum de los peques es de fútbol de verdad y va de menos a más: la **cantera** del
 Castilla en el nivel de entrada —los que todavía se están haciendo, que es donde están
 ellos—, los **mejores de esta temporada** de LaLiga y de la Premier en el intermedio, y
-las **leyendas** de la historia sólo con un reto de máximo esfuerzo. La plantilla del
-filial es la que se conocía al escribir el catálogo: cambia con cada mercado, así que
-está pensada para repasarla contra la oficial de la temporada y corregirla en
-`lib/rewards.ts` sin tocar nada más.
+las **leyendas** de la historia sólo con un reto de máximo esfuerzo. Las tres plantillas
+son las de la 26/27 con el mercado de verano cerrado: cambian cada temporada, así que
+están pensadas para repasarlas contra la oficial y corregirlas en `lib/rewards.ts` sin
+tocar nada más.
+
+#### La imagen del cromo
+
+No hay foto de ninguno: son ciento y pico jugadores, buena parte son chavales de la
+cantera sin foto pública y ninguna de esas fotos es nuestra. Así que el cromo se
+**dibuja** en SVG, sin pedir nada a la red (`lib/cromoArt.ts` y
+`components/ui/CromoPortrait.tsx`):
+
+- La **camiseta** lleva los colores y el dibujo reales de su equipo —rayas del Atleti,
+  mitades del Barça, mangas del Arsenal, banda del Villa—, sacados de la tabla `KITS`.
+  Dar de alta un equipo nuevo es añadir una fila.
+- La **cara** de los conocidos está apuntada a mano en el campo `look` del cromo (piel,
+  color y corte de pelo, barba), para que Vinícius no salga rubio. Los de la cantera no
+  lo llevan: a esos se les sortea la cara a partir de su identificador, así que **no son
+  un retrato de nadie** —siempre igual para el mismo cromo, eso sí—. Si algún día
+  quieres que uno se parezca, se le añade su `look` y deja de sortearse.
+- Las **cantantes de María** se dibujan igual, con la ropa de su mazo en lugar de una
+  camiseta, y los **cuatro de la casa** llevan directamente su foto de perfil.
+- Los cromos que **no son nadie** —la mesa de la cena, las técnicas de la semana— siguen
+  llevando su emoji: una cara inventada ahí no diría nada.
+- Si algún día hay foto de verdad, se deja en `public/photos/cromos/` y se apunta en el
+  campo `photo`: la foto manda y el dibujo se aparta.
+
+#### El álbum de música de María
+
+Lo que el fútbol es para Leo y Hugo, la música de los 90 y los 2000 es para María: lo
+que sonaba cuando la de ocho y nueve años era ella. Así que tiene **su propio álbum**,
+con la misma forma que el de ellos y todo en español:
+
+| Nivel | Rareza | Quiénes |
+| ----- | ------ | ------- |
+| Cimiento | Cromo de la radio | Los de diario, los que sonaban sin que nadie los pusiera: Ella Baila Sola, OBK, Los del Río, Celtas Cortos, Fangoria… |
+| Reto | Cromo de los 90 · Cromo de los 2000 | Los grandes de cada década, que caen del mismo montón igual que LaLiga y la Premier: Mecano, Héroes, Sanz, Rosana, Luz Casal, Shakira… y Amaral, Estopa, La Oreja, Bisbal, Manu Chao, Juanes… |
+| Máximo | Cromo de leyenda | Las voces que ya no se discuten: Sabina, Serrat, Rocío Jurado, Camarón, Paco de Lucía, Lola Flores, Celia Cruz, Mercedes Sosa… |
+
+En estos cromos el `team` es de dónde salieron y la `position`, qué hacían y cuándo. No
+llevan camiseta de ningún equipo, así que se visten por mazo (`ATUENDOS` en
+`lib/cromoArt.ts`): rosa la radio, morado los 90, turquesa los 2000, negro y oro las
+leyendas. Se reconoce el nivel de un vistazo, igual que se reconoce una camiseta a
+rayas.
 
 #### Los cromos de casa
 
-María y Víctor tienen **dos regalos por reto**: su frase o su aforismo y, además, un
-cromo de la familia. Es el mismo formato de los de fútbol, pero la plantilla es la de
-casa —los cuatro, los ratos que se repiten y las cosas que sólo pasan aquí—, escrita
-para esta casa en concreto:
+María y Víctor tienen otro regalo más por reto: un cromo de la familia. Los cuatro
+—Leo, Hugo, María y Víctor— más la pareja y la plantilla al completo **llevan la foto
+de su perfil**, la que tengan puesta en ese momento: si la cambiáis desde los ajustes de
+aspecto, el cromo cambia con ella. Es el mismo formato de los de fútbol, pero la
+plantilla es la de casa —los cuatro, los ratos que se repiten y las cosas que sólo pasan
+aquí—, escrita para esta casa en concreto:
 
 | Nivel | Rareza | De qué van |
 | ----- | ------ | ---------- |
@@ -632,9 +675,11 @@ para esta casa en concreto:
 | Reto | Cromo de la plantilla | Uno por cabeza: Leo, Hugo, María, Víctor, los hermanos, la pareja |
 | Máximo | Cromo de leyenda de casa | Las grandes: los Cea Díaz al completo, la semana entera, el finde que no se descuadró |
 
-En el código es un mazo aparte (`bonus` en el `Deck` de `lib/rewards.ts`), barajado
-con otra semilla para que la frase y el cromo no vayan siempre emparejados igual.
-Cualquier otro perfil puede recibir un segundo mazo con sólo declarárselo.
+En el código cada regalo de más es un mazo aparte del `Deck` de `lib/rewards.ts`
+—`bonus` y `extra`—, y cada uno se baraja con su propia semilla para que los tres
+premios de un mismo reto no vayan siempre emparejados igual. María usa los dos: `bonus`
+para su música y `extra` para la casa. Cualquier otro perfil puede recibir mazos de más
+con sólo declarárselos.
 
 #### Las técnicas de la semana
 

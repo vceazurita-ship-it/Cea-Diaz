@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
 import { addDays, friendlyDateLabel, isToday } from '@/lib/dates';
 import {
@@ -379,9 +380,7 @@ function Scoreboard({ correct, total, icon, won, profileId, tomorrow, onClose }:
           <p className="text-[10px] font-black uppercase tracking-[0.12em] t-3">Premio</p>
           {won.kind === 'cromo' ? (
             <>
-              <p className="mt-1 text-4xl" aria-hidden>
-                {won.emblem}
-              </p>
+              <CromoPortrait cromo={won} size="lg" className="mt-1" />
               <p className="font-display text-lg font-black leading-tight t-1">{won.name}</p>
               <p className="text-xs font-semibold t-2">
                 {won.team} · {won.position}

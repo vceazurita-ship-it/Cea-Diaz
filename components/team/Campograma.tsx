@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
 import {
   FORMATIONS,
@@ -75,18 +76,23 @@ function Spot({ slot, cromo, captain, onPick }: SpotProps) {
                  items-center gap-0.5 text-center transition-transform hover:scale-105
                  focus-visible:scale-105"
     >
-      <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full border-2
-          text-lg leading-none shadow-md sm:h-12 sm:w-12 sm:text-xl
-          ${
-            cromo
-              ? `bg-gradient-to-br ${chipStyle(cromo.rarity)}`
-              : 'border-dashed chalk bg-black/25 t-3'
-          }`}
-        aria-hidden
-      >
-        {cromo ? cromo.emblem : '+'}
-      </span>
+      {cromo ? (
+        <CromoPortrait
+          cromo={cromo}
+          size="sm"
+          round
+          className={`border-2 shadow-md ${chipStyle(cromo.rarity)}`}
+        />
+      ) : (
+        <span
+          className="flex h-11 w-11 items-center justify-center rounded-full border-2
+                     border-dashed chalk bg-black/25 text-lg leading-none shadow-md t-3
+                     sm:h-12 sm:w-12 sm:text-xl"
+          aria-hidden
+        >
+          +
+        </span>
+      )}
 
       <span className="rounded-full bg-black/45 px-1.5 text-[9px] font-black uppercase
                        tracking-wider text-white/80">
@@ -125,9 +131,7 @@ function Tag({
       className={`flex min-h-10 items-center gap-1.5 rounded-xl border bg-gradient-to-br px-2 py-1.5
         text-left transition-transform hover:scale-[1.03] ${chipStyle(cromo.rarity)}`}
     >
-      <span className="text-base leading-none" aria-hidden>
-        {cromo.emblem}
-      </span>
+      <CromoPortrait cromo={cromo} size="xs" round />
       <span className="min-w-0">
         <span className="block truncate text-[11px] font-bold leading-tight t-1">{cromo.name}</span>
         <span className="block truncate text-[9px] uppercase tracking-wide t-3">
@@ -410,9 +414,7 @@ export function Campograma({
                       className={`flex w-full min-h-11 items-center gap-2 rounded-xl border
                         bg-gradient-to-br px-2.5 py-2 text-left ${chipStyle(cromo.rarity)}`}
                     >
-                      <span className="text-xl leading-none" aria-hidden>
-                        {cromo.emblem}
-                      </span>
+                      <CromoPortrait cromo={cromo} size="xs" round />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-bold t-1">{cromo.name}</span>
                         <span className="block truncate text-[10px] t-2">
