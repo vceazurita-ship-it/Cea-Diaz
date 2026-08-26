@@ -458,9 +458,17 @@ export type CromoHair =
   | 'rapado'
   | 'cresta'
   | 'moño'
-  | 'trenzas';
+  | 'trenzas'
+  /** Tupé peinado hacia arriba: el de Hugo y el de media Premier. */
+  | 'tupé';
 
 export type CromoBeard = 'no' | 'corta' | 'cerrada';
+
+/**
+ * Color de ojos. En un retrato de anime los ojos ocupan media cara, así que
+ * aquí sí se nota: los mismos rasgos con los ojos verdes son otro cromo.
+ */
+export type CromoEyes = 'marrón' | 'miel' | 'verde' | 'azul' | 'gris' | 'negro';
 
 /**
  * Cómo es el jugador, cuando se sabe. Los cromos de la cantera no lo llevan:
@@ -477,6 +485,7 @@ export interface CromoLook {
   hairColor?: 'negro' | 'castaño' | 'castaño claro' | 'rubio' | 'pelirrojo' | 'cano';
   hair?: CromoHair;
   beard?: CromoBeard;
+  eyes?: CromoEyes;
 }
 
 export interface CromoReward {

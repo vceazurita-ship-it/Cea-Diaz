@@ -1,5 +1,5 @@
 import { hashSeed } from '@/lib/challenges';
-import type { CromoBeard, CromoHair, CromoLook, CromoReward } from '@/types';
+import type { CromoBeard, CromoEyes, CromoHair, CromoLook, CromoReward } from '@/types';
 
 /* =========================================================================
  *  Retrato del cromo — de dónde salen la camiseta y la cara.
@@ -150,6 +150,23 @@ const PELOS: Record<NonNullable<CromoLook['hairColor']>, string> = {
  */
 const PELOS_AL_AZAR = [PELOS.negro, PELOS.castaño, PELOS['castaño claro'], PELOS.rubio, PELOS.pelirrojo];
 
+/**
+ * Colores de iris. Son los del anime, no los de un carné: un punto más vivos
+ * de lo que serían en una foto, porque en el dibujo el iris es una mancha de
+ * cuatro píxeles y si se apaga se pierde.
+ */
+const OJOS: Record<CromoEyes, string> = {
+  marrón: '#6b3f22',
+  miel: '#a9761f',
+  verde: '#3f7d4b',
+  azul: '#2f6ea8',
+  gris: '#5d6b73',
+  negro: '#2a1d16',
+};
+
+/** Los que salen en el sorteo cuando el cromo no dice de qué color los tiene. */
+const OJOS_AL_AZAR: CromoEyes[] = ['marrón', 'marrón', 'marrón', 'miel', 'verde', 'azul'];
+
 export type HairStyle = CromoHair;
 export type Beard = CromoBeard;
 
@@ -162,6 +179,7 @@ const CORTES: HairStyle[] = [
   'cresta',
   'moño',
   'trenzas',
+  'tupé',
 ];
 
 export interface Face {
@@ -169,6 +187,8 @@ export interface Face {
   hair: string;
   style: HairStyle;
   beard: Beard;
+  /** Color del iris. */
+  eyes: string;
 }
 
 /**
@@ -178,17 +198,63 @@ export interface Face {
  */
 export function faceOf(id: string, look?: CromoLook): Face {
   const barba = hashSeed(`${id}:barba`) % 10;
+  const piel = look?.skin ?? (hashSeed(`${id}:piel`) % PIELES.length) + 1;
 
   return {
-    skin: look?.skin ? PIELES[look.skin - 1] : PIELES[hashSeed(`${id}:piel`) % PIELES.length],
+    skin: PIELES[piel - 1],
     hair: look?.hairColor
       ? PELOS[look.hairColor]
       : PELOS_AL_AZAR[hashSeed(`${id}:pelo`) % PELOS_AL_AZAR.length],
     style: look?.hair ?? CORTES[hashSeed(`${id}:corte`) % CORTES.length],
     // Algo más de la mitad sin barba: en la cantera casi nadie la lleva.
     beard: look?.beard ?? (barba < 6 ? 'no' : barba < 9 ? 'corta' : 'cerrada'),
+    // Los ojos claros son cosa de las pieles claras: con piel oscura el
+    // sorteo se queda en marrón, que es lo que se ve en un campo de verdad.
+    eyes: OJOS[
+      look?.eyes ?? (piel >= 4 ? 'marrón' : OJOS_AL_AZAR[hashSeed(`${id}:ojos`) % OJOS_AL_AZAR.length])
+    ],
   };
 }
+
+/* ---------------------------------------------------------------------------
+ * La familia
+ *
+ * Los cuatro de casa no se sortean: se les ha copiado la cara de las fotos de
+ * los perfiles, rasgo a rasgo, para que el dibujo se parezca. De aquí beben
+ * tanto su cromo como las escenas de casa —la mesa de la cena, el paseo—, de
+ * modo que Hugo es el mismo Hugo en las catorce ilustraciones.
+ * ------------------------------------------------------------------------- */
+
+/** Quién de la casa se está dibujando. */
+export type Casero = 'leo' | 'hugo' | 'maria' | 'victor';
+
+export const LOOK_FAMILIA: Record<Casero, CromoLook> = {
+  // Moreno, flequillo levantado y ojos claros: el de la foto del castillo.
+  leo: { skin: 1, hairColor: 'castaño', hair: 'corto', beard: 'no', eyes: 'verde' },
+  // Rubio oscuro con el tupé de punta, que ya es de por sí de Oliver y Benji.
+  hugo: { skin: 1, hairColor: 'rubio', hair: 'tupé', beard: 'no', eyes: 'miel' },
+  // Melena larga y oscura, ojos marrones.
+  maria: { skin: 2, hairColor: 'castaño', hair: 'largo', beard: 'no', eyes: 'marrón' },
+  // Pelo corto y rizado y barba cerrada.
+  victor: { skin: 2, hairColor: 'castaño', hair: 'rizado', beard: 'cerrada', eyes: 'marrón' },
+};
+
+/** La cara de uno de la casa, ya resuelta. */
+export function caraDe(quien: Casero): Face {
+  return faceOf(`casa:${quien}`, LOOK_FAMILIA[quien]);
+}
+
+/**
+ * Color de la ropa con la que sale cada uno en las escenas. Es el `tint` de
+ * su perfil, para que en la mesa de la cena se sepa quién es quién por el
+ * color, igual que en el resto de la aplicación.
+ */
+export const ROPA_FAMILIA: Record<Casero, string> = {
+  leo: '#16a34a',
+  hugo: '#dc2626',
+  maria: '#db2777',
+  victor: '#2563eb',
+};
 
 /* ---------------------------------------------------------------------------
  * Quién se dibuja y quién no
