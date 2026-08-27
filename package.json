@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "comprobar:nube": "node scripts/comprobar-nube.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

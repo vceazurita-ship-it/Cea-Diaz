@@ -323,6 +323,30 @@ registrado sube solo en cuanto vuelve la conexión.
    (o desactiva *Confirm email* en **Authentication → Providers → Email**).
 6. En cada móvil de casa se entra **una sola vez**: la sesión queda guardada.
 
+### Comprobar que ha quedado bien
+
+```bash
+npm run comprobar:nube
+```
+
+Lee las variables de `.env.local` y dice, una por una, si las ocho tablas del
+`schema.sql` están de verdad, si la clave es la pública y no la de servicio, y
+—si además pones `COMPROBAR_EMAIL` y `COMPROBAR_PASSWORD`— si la cuenta de casa
+puede leer y si el cubo de las fotos responde. No escribe nada en ninguna parte:
+en particular no toca `replicas`, porque dejar ahí una marca les diría a los
+demás móviles que se pusieran a copiar.
+
+Sirve para separar los dos fallos que se confunden siempre:
+
+| Lo que ves | Lo que pasa de verdad |
+|---|---|
+| «Sin nube configurada» en Ajustes → Nube | Faltan las **variables**. El SQL no tiene nada que ver: puede estar perfecto. |
+| Entra pero la subida falla | Faltan **tablas**. Relanza `schema.sql` entero. |
+
+Ojo: comprueba **el ordenador donde se lanza**. Que aquí salga todo en verde no
+dice nada del móvil: para eso las dos variables tienen que estar en Vercel y hay
+que volver a desplegar después de añadirlas.
+
 > **Si ya tenías Supabase montado de antes:** vuelve a pegar
 > `supabase/schema.sql` entero y dale a *Run*. Es idempotente —no borra nada— y añade
 > lo que falte: la columna de las notas por categoría (`entries.notes`) y las tablas
