@@ -89,9 +89,23 @@ if (!url || !anon) {
   process.exit(1);
 }
 
-if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/.test(url)) {
+/* La URL va a pelo, sin ninguna ruta detrás. La página de Supabase la
+   enseña como «…supabase.co/rest/v1/» y es muy fácil copiarla con la cola
+   puesta; entonces la librería le añade la suya encima y todo —entrar con
+   la cuenta incluido— responde 404. Esto es un fallo, no un aviso: antes
+   salía en verde una casa que no abría. */
+const conCola = /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/.+/.test(url);
+
+if (conCola) {
+  const limpia = url.replace(/^(https:\/\/[a-z0-9-]+\.supabase\.(co|in)).*$/, '$1');
+  mal(`A la URL le sobra lo que va detrás del dominio: ${url}`);
+  nota(`Debe quedar exactamente en: ${limpia}`);
+  nota('Con la cola puesta, la librería pide /rest/v1/rest/v1/… y todo da 404.');
+  console.log('');
+  process.exit(1);
+} else if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/.test(url)) {
   ojo(`La URL tiene una forma rara: ${url}`);
-  nota('Se espera algo como https://abcdefghijklm.supabase.co, sin barra final.');
+  nota('Se espera algo como https://abcdefghijklm.supabase.co');
 } else {
   ok(`URL: ${url}`);
 }
