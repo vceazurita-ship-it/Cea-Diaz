@@ -76,6 +76,24 @@ interface TaskRow {
  * Traducción entre el modelo local y las filas
  * ------------------------------------------------------------------------- */
 
+/**
+ * Pone una fecha de Postgres en la misma forma que usa el navegador.
+ *
+ * Hace falta porque el mismo instante no se escribe igual en los dos sitios:
+ * `toISOString()` termina en `Z` y siempre con tres decimales, mientras que
+ * PostgREST devuelve `+00:00` y recorta los ceros sobrantes. Comparadas como
+ * texto, dos escrituras idénticas parecían distintas: cada repaso daba por
+ * cambiada toda la base de este móvil y la volvía a subir entera —miles de
+ * filas cada tres cuartos de hora— sin que nadie hubiera tocado nada.
+ *
+ * Con todo escrito igual, comparar cadenas vuelve a ser comparar instantes,
+ * que es de lo que vive la regla de «gana la escritura más reciente».
+ */
+function isoOf(value: string): string {
+  const instant = Date.parse(value);
+  return Number.isNaN(instant) ? value : new Date(instant).toISOString();
+}
+
 const toEntryRow = (entry: DayEntry, owner: string): EntryRow => ({
   id: `${entry.profileId}:${entry.date}`,
   owner,
@@ -96,7 +114,7 @@ const fromEntryRow = (row: EntryRow): DayEntry => {
     note: row.note ?? undefined,
     // Sin notas se deja el campo fuera, como cuando el registro nace aquí.
     notes: Object.keys(notes).length > 0 ? notes : undefined,
-    updatedAt: row.updated_at,
+    updatedAt: isoOf(row.updated_at),
   };
 };
 
@@ -136,8 +154,8 @@ const fromTaskRow = (row: TaskRow): Task => ({
   doneAt: row.done_at ?? undefined,
   calendar: row.calendar ?? undefined,
   calendarPending: row.calendar_pending === true ? true : undefined,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
+  createdAt: isoOf(row.created_at),
+  updatedAt: isoOf(row.updated_at),
 });
 
 /* ---------------------------------------------------------------------------
@@ -299,13 +317,22 @@ export async function pullAppearance(): Promise<AppearanceRow[]> {
 
   const { data, error } = await client.from('appearance').select('*');
   if (error) throw new Error(error.message);
-  return (data ?? []) as AppearanceRow[];
+
+  return ((data ?? []) as AppearanceRow[]).map((row) => ({
+    ...row,
+    updated_at: isoOf(row.updated_at),
+  }));
 }
 
 /**
  * Sube el archivo de una ranura y anota la fila. Devuelve la ruta dentro del
- * cubo, o `null` si no hay sesión: la personalización se queda en este móvil
- * y se volverá a intentar en la próxima sincronización.
+ * cubo, o `null` si todavía no hay cuenta: eso no es un fallo, es que la
+ * personalización se queda en este móvil hasta que alguien entre.
+ *
+ * Lo que sí es un fallo —el cubo sin crear, un permiso mal puesto, la red
+ * caída— sale como excepción con lo que haya dicho la nube. Antes se
+ * devolvía `null` también en esos casos, y una casa cuyas fotos no viajaban
+ * no tenía manera de enterarse de por qué.
  */
 export async function pushAppearance(
   profileId: string,
@@ -329,7 +356,7 @@ export async function pushAppearance(
   const { error: uploadError } = await client.storage
     .from(APPEARANCE_BUCKET)
     .upload(path, blob, { contentType: blob.type, upsert: true });
-  if (uploadError) return null;
+  if (uploadError) throw new Error(uploadError.message);
 
   const { error } = await client.from('appearance').upsert({
     id,
@@ -342,18 +369,19 @@ export async function pushAppearance(
     size: blob.size,
     updated_at: meta.savedAt,
   });
-  if (error) return null;
+  if (error) throw new Error(error.message);
 
   return path;
 }
 
+/** Baja el archivo de una ranura. Si la nube se queja, se dice por qué. */
 export async function downloadAppearance(path: string): Promise<Blob | null> {
   const client = supabase();
   if (!client) return null;
 
   const { data, error } = await client.storage.from(APPEARANCE_BUCKET).download(path);
-  if (error || !data) return null;
-  return data;
+  if (error) throw new Error(error.message);
+  return data ?? null;
 }
 
 /** Quita la personalización de la nube: fila y archivo. */
@@ -394,7 +422,7 @@ function fromSettingsRow(row: SettingsRow): HouseSettings {
       row.pin_salt && row.pin_hash && row.pin_rounds
         ? { salt: row.pin_salt, hash: row.pin_hash, rounds: row.pin_rounds }
         : null,
-    updatedAt: row.updated_at,
+    updatedAt: isoOf(row.updated_at),
   };
 }
 
@@ -463,7 +491,7 @@ export async function pullLineups(): Promise<Record<string, Lineup>> {
       eleven: row.eleven ?? {},
       bench: row.bench ?? [],
       captain: row.captain ?? undefined,
-      updatedAt: row.updated_at,
+      updatedAt: isoOf(row.updated_at),
     };
   }
 
@@ -524,7 +552,7 @@ export async function pullPlans(): Promise<Record<string, WeekPlan>> {
   for (const row of (data ?? []) as PlanRow[]) {
     out[row.profile_id] = {
       blocks: row.blocks ?? [],
-      updatedAt: row.updated_at,
+      updatedAt: isoOf(row.updated_at),
     };
   }
 

@@ -325,6 +325,14 @@ registrado sube solo en cuanto vuelve la conexión.
 > lo que falte: la columna de las notas por categoría (`entries.notes`) y las tablas
 > `tasks`, `calendar_links` y `lineups` (los equipos del campograma). Hasta que se
 > ejecute, este móvil guarda igual pero la subida a la nube falla y lo avisa en Ajustes.
+>
+> **Vuelve a lanzarlo también tras esta versión**, aunque ya lo tuvieras todo creado.
+> Cambian dos cosas que no se ven pero se notan: el permiso del cubo de fotos pasa a
+> decidirse por la carpeta del archivo en lugar de por `storage.objects.owner` —una
+> columna que Supabase está retirando y que en los proyectos nuevos puede llegar vacía,
+> lo que hacía que las fotos se subieran en un móvil y no en el resto—, y se añaden a la
+> publicación de tiempo real las cuatro tablas que faltaban (`appearance`, `settings`,
+> `lineups` y `agendas`), que son las de las fotos, el modo, los equipos y las agendas.
 
 ### Qué sube y qué no
 
@@ -367,14 +375,25 @@ Bajar lo que han escrito los demás ocurre en cuatro momentos:
 Los ajustes de la casa —modo, sintonías y PIN— no pasan por la base local, así que se
 suben aparte medio segundo después de tocarlos y se recogen en cada sincronización.
 
+**Las fotos y las sintonías van por su cuenta**, con el mismo calendario pero más
+espaciado (repaso cada dos minutos en vez de cada cuarenta y cinco segundos): son
+archivos, no filas, y bajar una canción cuesta bastante más que bajar un registro. El
+aviso en tiempo real las cubre igual, así que una foto cambiada en el móvil aparece en
+el portátil en un par de segundos. Se enteran de la cuenta por sí mismas: antes iban
+enganchadas a la sincronización de los hábitos, y en un móvil recién estrenado bastaba
+con que aquélla fallara una vez —una tabla sin crear, un instante sin cobertura— para
+que las fotos no bajaran nunca.
+
 El repaso periódico no es un adorno: el navegador **no avisa** de que se ha pasado del
 móvil al portátil —`visibilitychange` sólo salta al minimizar o al cambiar de pestaña—,
 así que sin él un portátil con la app abierta se quedaba enseñando lo que bajó al
 arrancar hasta que alguien recargaba la página.
 
 El canal de tiempo real necesita que las tablas estén en la publicación
-`supabase_realtime`; de eso se encarga el bloque final de `supabase/schema.sql`. Si no
-está, no se rompe nada: se nota sólo en que el refresco tarda hasta 45 segundos.
+`supabase_realtime`; de eso se encarga el bloque final de `supabase/schema.sql`, que
+mete las seis: `entries`, `tasks`, `appearance`, `settings`, `lineups` y `agendas`. Si
+no está, no se rompe nada: se nota sólo en que el refresco tarda hasta el siguiente
+repaso.
 
 ### Cómo resuelve los conflictos
 

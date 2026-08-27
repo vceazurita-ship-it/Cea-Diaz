@@ -67,17 +67,33 @@ create policy "aspecto propio" on public.appearance
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
---  Cubo privado: las fotos sólo se sirven con una URL firmada.
+--  Cubo privado: las fotos sólo se sirven a quien ha entrado en la cuenta.
 
 insert into storage.buckets (id, name, public)
 values ('aspecto', 'aspecto', false)
 on conflict (id) do nothing;
 
+--  El permiso se decide por la carpeta, que es la cuenta: la app guarda
+--  siempre en `<uid>/<perfil>-<ranura>.<ext>`, así que la primera carpeta del
+--  nombre dice de quién es el archivo.
+--
+--  Antes se miraba `storage.objects.owner`. Esa columna está en retirada
+--  —Supabase la ha sustituido por `owner_id`, de tipo texto— y en los
+--  proyectos nuevos puede llegar vacía: la subida se rechazaba, la app se
+--  callaba el motivo y la casa veía sus fotos en un móvil y no en los demás.
+--  La carpeta no depende de ninguna columna interna y no envejece.
+
 drop policy if exists "aspecto propio" on storage.objects;
 create policy "aspecto propio" on storage.objects
   for all to authenticated
-  using (bucket_id = 'aspecto' and owner = auth.uid())
-  with check (bucket_id = 'aspecto' and owner = auth.uid());
+  using (
+    bucket_id = 'aspecto'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'aspecto'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 -- --------------------------------------------------------------- tareas
 --  Recados y citas de cada uno: la revisión del dentista, la reunión del
@@ -254,6 +270,11 @@ create policy "agendas propias" on public.agendas
 --  tablas a la publicación, Postgres avisa en el momento y lo registrado en
 --  el móvil aparece en el portátil en un par de segundos, sin recargar.
 --
+--  Van las seis, no sólo los registros y las tareas: una foto nueva, el modo
+--  noche, un once recolocado o el entreno del jueves movido de hora son
+--  exactamente lo que uno espera ver aparecer solo en el otro aparato. Con
+--  las cuatro que faltaban, eso tardaba hasta tres cuartos de hora.
+--
 --  Se comprueba antes de añadir para que relanzar el archivo no falle.
 
 do $$
@@ -263,7 +284,7 @@ begin
     return;
   end if;
 
-  foreach t in array array['entries', 'tasks'] loop
+  foreach t in array array['entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

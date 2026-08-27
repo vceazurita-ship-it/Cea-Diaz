@@ -196,11 +196,26 @@ interface CloudRow {
 }
 
 /**
+ * Tablas que avisan en el momento. Además de los registros y las tareas,
+ * están las tres que viajan aparte: sin ellas, mover el entreno del jueves o
+ * apagar las sintonías tardaba hasta tres cuartos de hora en verse en el
+ * otro móvil, que es justo lo contrario de lo que espera quien lo hace.
+ */
+const LIVE_TABLES = ['entries', 'tasks', 'settings', 'lineups', 'agendas'] as const;
+
+/**
+ * Apunta lo que este mismo navegador acaba de subir, para reconocer su propio
+ * eco cuando Postgres lo anuncie. Sin esto, subir un ajuste provocaría una
+ * sincronización completa por cada toque del interruptor.
+ */
+type Remember = (table: string, id: string, updatedAt: string) => void;
+
+/**
  * El modo, las sintonías y el PIN. No pasan por `db` —no son registros, sino
  * cómo se ve y cómo se abre la app—, así que se reconcilian aparte y con la
  * misma regla: gana la última elección, la haya hecho el aparato que sea.
  */
-async function reconcileSettings(owner: string): Promise<void> {
+async function reconcileSettings(owner: string, remember: Remember): Promise<void> {
   const local = loadSettings();
   const remote = await pullSettings();
 
@@ -211,6 +226,7 @@ async function reconcileSettings(owner: string): Promise<void> {
 
   if (!remote || Date.parse(local.updatedAt) > Date.parse(remote.updatedAt)) {
     await pushSettings(local, owner);
+    remember('settings', owner, local.updatedAt);
   }
 }
 
@@ -219,7 +235,7 @@ async function reconcileSettings(owner: string): Promise<void> {
  * un registro del día. Se comparan perfil a perfil y gana la última
  * alineación guardada, como en todo lo demás.
  */
-async function reconcileLineups(owner: string): Promise<void> {
+async function reconcileLineups(owner: string, remember: Remember): Promise<void> {
   const remote = await pullLineups();
   applyRemoteLineups(remote);
 
@@ -228,6 +244,7 @@ async function reconcileLineups(owner: string): Promise<void> {
     const theirs = remote[profileId];
     if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
     await pushLineup(profileId, local, owner);
+    remember('lineups', `${owner}:${profileId}`, local.updatedAt);
   }
 }
 
@@ -236,7 +253,7 @@ async function reconcileLineups(owner: string): Promise<void> {
  * uno ha decidido no es un registro del día, así que viaja aparte y gana la
  * última guardada. Es lo que permite que la semana se monte entre dos móviles.
  */
-async function reconcilePlans(owner: string): Promise<void> {
+async function reconcilePlans(owner: string, remember: Remember): Promise<void> {
   const remote = await pullPlans();
   applyRemotePlans(remote);
 
@@ -244,6 +261,7 @@ async function reconcilePlans(owner: string): Promise<void> {
     const theirs = remote[profileId];
     if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
     await pushPlan(profileId, local, owner);
+    remember('agendas', `${owner}:${profileId}`, local.updatedAt);
   }
 }
 
@@ -256,7 +274,7 @@ async function reconcilePlans(owner: string): Promise<void> {
 const PIECES: Array<{
   id: CloudPart['id'];
   label: string;
-  reconcile: (owner: string) => Promise<void>;
+  reconcile: (owner: string, remember: Remember) => Promise<void>;
 }> = [
   { id: 'settings', label: 'Ajustes de la casa', reconcile: reconcileSettings },
   { id: 'lineups', label: 'Campogramas', reconcile: reconcileLineups },
@@ -335,6 +353,17 @@ export function useHabitStore(): HabitStore {
   /** Sincronización en curso: el repaso, el aviso y la vuelta pueden coincidir. */
   const syncing = useRef(false);
 
+  /**
+   * Última versión que ha subido este navegador de lo que no pasa por `db`,
+   * por `${tabla}:${id}`. Es lo que deja distinguir «alguien ha cambiado el
+   * modo en la tableta» de «acabo de subir yo el mismo modo».
+   */
+  const echoes = useRef<Record<string, string>>({});
+
+  const remember = useCallback<Remember>((table, id, updatedAt) => {
+    echoes.current[`${table}:${id}`] = updatedAt;
+  }, []);
+
   useEffect(() => {
     setLocalOnlyState(window.localStorage.getItem(LOCAL_ONLY_KEY) === '1');
   }, []);
@@ -405,7 +434,7 @@ export function useHabitStore(): HabitStore {
 
       for (const piece of PIECES) {
         try {
-          await piece.reconcile(uid);
+          await piece.reconcile(uid, remember);
           report.push({ id: piece.id, label: piece.label, ok: true });
         } catch (error) {
           report.push({
@@ -456,7 +485,7 @@ export function useHabitStore(): HabitStore {
     } finally {
       syncing.current = false;
     }
-  }, [session]);
+  }, [session, remember]);
 
   /** Empujón incremental: sólo lo tocado desde la última subida. */
   const pushLocalChanges = useCallback(async () => {
@@ -557,7 +586,9 @@ export function useHabitStore(): HabitStore {
     // funciones que usa la app al tocarlos, así que lo que sube es exactamente
     // lo que queda guardado aquí.
     try {
-      await pushSettings(updateSettings({}), uid);
+      const settings = updateSettings({});
+      await pushSettings(settings, uid);
+      remember('settings', uid, settings.updatedAt);
       report.push({ id: 'settings', label: 'Ajustes de la casa', ok: true });
     } catch (error) {
       report.push({
@@ -571,7 +602,9 @@ export function useHabitStore(): HabitStore {
     try {
       const ids = Object.keys(loadLineups()) as ProfileId[];
       for (const profileId of ids) {
-        await pushLineup(profileId, updateLineup(profileId, {}), uid);
+        const lineup = updateLineup(profileId, {});
+        await pushLineup(profileId, lineup, uid);
+        remember('lineups', `${uid}:${profileId}`, lineup.updatedAt);
       }
       report.push({ id: 'lineups', label: 'Campogramas', ok: true, sent: ids.length });
     } catch (error) {
@@ -586,7 +619,9 @@ export function useHabitStore(): HabitStore {
     try {
       const plans = Object.entries(loadPlans());
       for (const [profileId, plan] of plans) {
-        await pushPlan(profileId, updatePlan(profileId as ProfileId, plan.blocks), uid);
+        const saved = updatePlan(profileId as ProfileId, plan.blocks);
+        await pushPlan(profileId, saved, uid);
+        remember('agendas', `${uid}:${profileId}`, saved.updatedAt);
       }
       report.push({ id: 'plans', label: 'Agendas semanales', ok: true, sent: plans.length });
     } catch (error) {
@@ -607,7 +642,7 @@ export function useHabitStore(): HabitStore {
     lastSyncAt.current = Date.now();
 
     return report;
-  }, [session]);
+  }, [session, remember]);
 
   // Primera sincronización al entrar, y luego al volver a la app.
   useEffect(() => {
@@ -674,8 +709,15 @@ export function useHabitStore(): HabitStore {
     };
 
     const onChange = (payload: RealtimePostgresChangesPayload<CloudRow>) => {
-      const row = payload.new as Partial<CloudRow> | null;
-      const known = row?.id ? synced.current[payload.table as CloudTable]?.[row.id] : undefined;
+      const row = payload.new as Partial<CloudRow & { owner: string }> | null;
+      const table = payload.table;
+
+      // Los ajustes no tienen `id`: su clave es la cuenta.
+      const id = row?.id ?? row?.owner;
+
+      const known = id
+        ? (synced.current[table as CloudTable]?.[id] ?? echoes.current[`${table}:${id}`])
+        : undefined;
 
       // El eco de lo que este mismo navegador acaba de subir se descarta. Se
       // compara como fecha y no como texto porque el mismo instante no se
@@ -685,11 +727,11 @@ export function useHabitStore(): HabitStore {
       soon();
     };
 
-    const channel = client
-      .channel('casa')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, onChange)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, onChange)
-      .subscribe();
+    const channel = LIVE_TABLES.reduce(
+      (built, table) =>
+        built.on('postgres_changes', { event: '*', schema: 'public', table }, onChange),
+      client.channel('casa'),
+    ).subscribe();
 
     return () => {
       window.clearTimeout(timer);
@@ -708,8 +750,17 @@ export function useHabitStore(): HabitStore {
     const unsubscribe = subscribeSettings(() => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
+        const local = loadSettings();
+
+        // Adoptar lo que venía de la nube también avisa a los oyentes, así
+        // que sin esta comprobación cada bajada devolvería la misma fila a
+        // la nube y las dos puntas se estarían dando la razón sin parar.
+        if (echoes.current[`settings:${uid}`] === local.updatedAt) return;
+
         // Un ajuste que no sube no rompe nada: el repaso lo recoge luego.
-        void pushSettings(loadSettings(), uid).catch(() => undefined);
+        void pushSettings(local, uid)
+          .then(() => remember('settings', uid, local.updatedAt))
+          .catch(() => undefined);
       }, SETTINGS_PUSH_MS);
     });
 
@@ -717,7 +768,7 @@ export function useHabitStore(): HabitStore {
       window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [session]);
+  }, [session, remember]);
 
   // Y lo mismo con los campogramas: mover un cromo de sitio en la tableta
   // tiene que verse en el móvil sin esperar al repaso.
@@ -730,7 +781,12 @@ export function useHabitStore(): HabitStore {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         for (const [profileId, lineup] of Object.entries(loadLineups())) {
-          void pushLineup(profileId, lineup, uid).catch(() => undefined);
+          const id = `${uid}:${profileId}`;
+          if (echoes.current[`lineups:${id}`] === lineup.updatedAt) continue;
+
+          void pushLineup(profileId, lineup, uid)
+            .then(() => remember('lineups', id, lineup.updatedAt))
+            .catch(() => undefined);
         }
       }, LINEUP_PUSH_MS);
     });
@@ -739,7 +795,7 @@ export function useHabitStore(): HabitStore {
       window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [session]);
+  }, [session, remember]);
 
   // Las agendas, igual: si uno mueve el entreno del jueves, el otro tiene que
   // verlo movido sin esperar al repaso de los tres cuartos de hora.
@@ -752,7 +808,12 @@ export function useHabitStore(): HabitStore {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         for (const [profileId, plan] of Object.entries(loadPlans())) {
-          void pushPlan(profileId, plan, uid).catch(() => undefined);
+          const id = `${uid}:${profileId}`;
+          if (echoes.current[`agendas:${id}`] === plan.updatedAt) continue;
+
+          void pushPlan(profileId, plan, uid)
+            .then(() => remember('agendas', id, plan.updatedAt))
+            .catch(() => undefined);
         }
       }, LINEUP_PUSH_MS);
     });
@@ -761,7 +822,7 @@ export function useHabitStore(): HabitStore {
       window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [session]);
+  }, [session, remember]);
 
   /* ------------------------------------------------ sesión */
 

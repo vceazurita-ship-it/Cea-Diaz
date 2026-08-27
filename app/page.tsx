@@ -41,7 +41,7 @@ export default function HomePage() {
 
 function Home() {
   const store = useHabitStore();
-  const { dress, sync: syncAppearance } = useAppearance();
+  const { dress } = useAppearance();
   const { mode } = useTheme();
 
   const [activeProfile, setActiveProfile] = useState<ProfileId | null>(null);
@@ -166,18 +166,6 @@ function Home() {
     // La barra se limpia: recargar no debe repetir el aviso ni el viaje.
     window.history.replaceState({}, '', window.location.pathname);
   }, []);
-
-  // El aspecto viaja por su cuenta: son archivos, no filas, y no tiene
-  // sentido retrasar los hábitos esperando a que baje una canción. Se
-  // reconcilia en cuanto la cuenta está lista.
-  //
-  // El disparo es la fecha de la última sincronización y no el estado: una
-  // pieza que no ha viajado —la tabla de las agendas sin crear, pongamos—
-  // deja el estado en «error», y las fotos no tienen por qué pagarlo.
-  useEffect(() => {
-    if (!store.cloud.lastSync) return;
-    void syncAppearance();
-  }, [store.cloud.lastSync, syncAppearance]);
 
   // Volver al selector con Escape: la salida siempre está a una tecla.
   useEffect(() => {

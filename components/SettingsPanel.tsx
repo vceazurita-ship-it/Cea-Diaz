@@ -162,6 +162,8 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     setPhoto,
     reset: resetSlot,
     pushAll: pushAppearanceAll,
+    error: appearanceError,
+    lastSync: appearanceSync,
   } = useAppearance();
   const coverInput = useRef<HTMLInputElement>(null);
   const [coverBusy, setCoverBusy] = useState(false);
@@ -203,6 +205,21 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   };
 
   const entryCount = Object.keys(store.entries).length;
+
+  /**
+   * Cómo va el aspecto. Manda lo que dijo el último «mandar lo de este
+   * móvil»; mientras no haya ninguno, se cuenta cómo fue la reconciliación
+   * de por sí. Las fotos viajan por su cuenta —son archivos, no filas— y sin
+   * esta línea una casa cuyo cubo está mal configurado seguiría leyendo
+   * «al día» mientras sus fotos no salen de un solo aparato.
+   */
+  const photoLine: PartLine | null =
+    photoPart ??
+    (appearanceError
+      ? { id: 'photos', label: 'Fotos y sintonías', ok: false, error: appearanceError }
+      : appearanceSync
+        ? { id: 'photos', label: 'Fotos y sintonías', ok: true }
+        : null);
 
   /** Estado de la nube en una línea. */
   const cloudSummary = (() => {
@@ -259,17 +276,18 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       const report = await store.pushAll();
       const photos = await pushAppearanceAll();
 
-      const photoLine: PartLine = {
+      setPhotoPart({
         id: 'photos',
         label: 'Fotos y sintonías',
         ok: photos.failed === 0,
         sent: photos.sent,
+        // Se dice cuántas y, sobre todo, qué contestó la nube: «2 no han
+        // subido» no le sirve de nada a quien tiene que arreglarlo.
         error:
           photos.failed > 0
-            ? `${photos.failed} ${photos.failed === 1 ? 'no ha subido' : 'no han subido'}`
+            ? `${photos.failed} sin subir${photos.error ? `: ${photos.error}` : ''}`
             : undefined,
-      };
-      setPhotoPart(photoLine);
+      });
 
       const failed = report.filter((part) => !part.ok).length + (photos.failed > 0 ? 1 : 0);
 
@@ -547,9 +565,9 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
 
             {/* Qué ha viajado y qué no. Sin esto, una tabla que falta se leía
                 como «al día» y la casa creía tener la agenda en todas partes. */}
-            {(store.cloud.parts.length > 0 || photoPart) && (
+            {(store.cloud.parts.length > 0 || photoLine) && (
               <ul className="mt-3 space-y-1 border-t pt-2 hairline">
-                {([...store.cloud.parts, ...(photoPart ? [photoPart] : [])] as PartLine[]).map(
+                {([...store.cloud.parts, ...(photoLine ? [photoLine] : [])] as PartLine[]).map(
                   (part) => (
                     <li key={part.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
                       <span aria-hidden>{part.ok ? '✅' : '⚠️'}</span>
