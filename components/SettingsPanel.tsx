@@ -110,6 +110,19 @@ function parseEntries(raw: unknown): EntryMap | null {
   return Object.keys(entries).length > 0 ? entries : null;
 }
 
+/**
+ * Una línea del parte de la nube. Es la forma de `CloudPart`, ensanchada para
+ * que quepan las fotos y sintonías: no pasan por el store —son archivos, no
+ * filas— pero en esta lista tienen que salir como una pieza más.
+ */
+interface PartLine {
+  id: string;
+  label: string;
+  ok: boolean;
+  sent?: number;
+  error?: string;
+}
+
 export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const [pin, setPin] = useState('');
   /** `true` mientras siga valiendo el de fábrica; sólo entonces se puede decir. */
@@ -120,6 +133,13 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const [sound, setSound] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const notify = useToast();
+  /** Mandando lo de este móvil a la nube. */
+  const [pushing, setPushing] = useState(false);
+  /** Se pregunta antes: hace que esta versión gane en el resto de aparatos. */
+  const [confirmPush, setConfirmPush] = useState(false);
+  /** Cómo les fue a las fotos y sintonías, que viajan por su cuenta. */
+  const [photoPart, setPhotoPart] = useState<PartLine | null>(null);
+
 
   // Se leen tras montar y se siguen escuchando: pueden cambiarlos desde
   // otro aparato mientras esta pantalla está abierta.
@@ -136,7 +156,13 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   /* ---------------------------------------------------- aspecto de la app */
 
   const { preference, mode, setPreference } = useTheme();
-  const { appCover, appCoverCustom, setPhoto, reset: resetSlot } = useAppearance();
+  const {
+    appCover,
+    appCoverCustom,
+    setPhoto,
+    reset: resetSlot,
+    pushAll: pushAppearanceAll,
+  } = useAppearance();
   const coverInput = useRef<HTMLInputElement>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   /** Portada recién elegida, a la espera de decidir qué trozo se ve. */
@@ -195,7 +221,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       case 'synced':
         return `${store.cloud.email} · al día${when ? ` desde las ${when}` : ''}.`;
       case 'error':
-        return 'La última sincronización falló. Los datos siguen guardados en el móvil.';
+        return 'La última sincronización no llegó entera. Lo de este móvil sigue guardado aquí.';
       default:
         return 'Sólo este navegador.';
     }
@@ -217,6 +243,56 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
         icon: '⚠️',
         tone: 'danger',
       });
+    }
+  };
+
+  /**
+   * «Mandar lo de este móvil»: sube todo lo de aquí —registros, tareas,
+   * ajustes, campogramas, agendas, fotos y sintonías— con fecha de ahora,
+   * para que el resto de aparatos adopten esta versión en cuanto abran.
+   */
+  const sendThisDevice = async () => {
+    setConfirmPush(false);
+    setPushing(true);
+
+    try {
+      const report = await store.pushAll();
+      const photos = await pushAppearanceAll();
+
+      const photoLine: PartLine = {
+        id: 'photos',
+        label: 'Fotos y sintonías',
+        ok: photos.failed === 0,
+        sent: photos.sent,
+        error:
+          photos.failed > 0
+            ? `${photos.failed} ${photos.failed === 1 ? 'no ha subido' : 'no han subido'}`
+            : undefined,
+      };
+      setPhotoPart(photoLine);
+
+      const failed = report.filter((part) => !part.ok).length + (photos.failed > 0 ? 1 : 0);
+
+      notify(
+        failed > 0
+          ? {
+              message: 'No ha subido todo. Abajo, en Nube, se dice qué falta.',
+              icon: '⚠️',
+              tone: 'danger',
+            }
+          : {
+              message: 'Mandado. El resto de móviles adoptará esta versión al abrir la app.',
+              icon: '⬆️',
+            },
+      );
+    } catch (error) {
+      notify({
+        message: error instanceof Error ? error.message : 'No se ha podido mandar.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -411,11 +487,45 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
                   <button
                     type="button"
                     onClick={() => void store.syncNow()}
-                    disabled={store.cloud.status === 'syncing'}
+                    disabled={store.cloud.status === 'syncing' || pushing}
                     className="btn-ghost px-3 py-1.5 text-xs"
                   >
                     🔄 Sincronizar ahora
                   </button>
+
+                  {/* La sincronización de siempre mueve sólo lo que aquí es
+                      más reciente. Esto decide que aquí todo lo es: es lo que
+                      hace falta cuando la app se ha montado en un móvil y el
+                      resto todavía está en blanco. */}
+                  {confirmPush ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void sendThisDevice()}
+                        disabled={pushing}
+                        className="btn-primary px-3 py-1.5 text-xs"
+                      >
+                        {pushing ? '⏳ Mandando…' : 'Sí, que mande este móvil'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmPush(false)}
+                        className="btn-ghost px-3 py-1.5 text-xs t-3"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmPush(true)}
+                      disabled={pushing || store.cloud.status === 'syncing'}
+                      className="btn-ghost px-3 py-1.5 text-xs"
+                    >
+                      ⬆️ Mandar lo de este móvil
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => void store.signOut()}
@@ -426,6 +536,35 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
                 </>
               )}
             </div>
+
+            {confirmPush && (
+              <p className="mt-2 rounded-xl border p-2.5 text-[11px] leading-relaxed hairline surf-2 t-2">
+                Sube todo lo de este aparato —registros, tareas, ajustes, campogramas, agendas,
+                fotos y sintonías— con fecha de ahora, así que en el resto de móviles ganará esta
+                versión. No se borra nada de nadie: lo que exista sólo allí se queda como está.
+              </p>
+            )}
+
+            {/* Qué ha viajado y qué no. Sin esto, una tabla que falta se leía
+                como «al día» y la casa creía tener la agenda en todas partes. */}
+            {(store.cloud.parts.length > 0 || photoPart) && (
+              <ul className="mt-3 space-y-1 border-t pt-2 hairline">
+                {([...store.cloud.parts, ...(photoPart ? [photoPart] : [])] as PartLine[]).map(
+                  (part) => (
+                    <li key={part.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
+                      <span aria-hidden>{part.ok ? '✅' : '⚠️'}</span>
+                      <span className={part.ok ? 't-2' : 't-danger'}>{part.label}</span>
+                      {part.sent !== undefined && (
+                        <span className="tabular-nums t-3">
+                          {part.sent} {part.sent === 1 ? 'enviado' : 'enviados'}
+                        </span>
+                      )}
+                      {!part.ok && part.error && <span className="t-3">— {part.error}</span>}
+                    </li>
+                  ),
+                )}
+              </ul>
+            )}
 
             {store.cloud.error && (
               <p className="mt-2 text-[11px] t-danger">⚠️ {store.cloud.error}</p>

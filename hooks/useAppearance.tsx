@@ -56,6 +56,12 @@ interface AppearanceValue {
   reset: (owner: AppearanceOwner, slot: Slot) => Promise<void>;
   /** Reconcilia con la nube. No hace nada sin sesión. */
   sync: () => Promise<void>;
+  /**
+   * Manda a la nube todas las ranuras de este móvil, refechadas, para que
+   * ganen en el resto. Devuelve cuántas han subido y cuántas se han quedado.
+   */
+  pushAll: () => Promise<{ sent: number; failed: number }>;
+
   syncing: boolean;
 }
 
@@ -287,6 +293,40 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     }
   }, [publish, withdraw, annotate]);
 
+  /**
+   * La mitad de fotos y sintonías de «mandar lo de este móvil»: sube todas
+   * las ranuras de aquí con fecha de ahora, de modo que el resto de aparatos
+   * se las bajen aunque allí tuvieran otra cosa puesta.
+   *
+   * No toca lo que en la nube exista y aquí no: quitar una foto sigue siendo
+   * cosa de «restaurar la original», que sí la borra de los dos sitios.
+   */
+  const pushAll = useCallback(async (): Promise<{ sent: number; failed: number }> => {
+    const local = await loadAllSlots();
+    let sent = 0;
+    let failed = 0;
+
+    for (const [id, mine] of Object.entries(local)) {
+      const [owner, slot] = id.split(':') as [AppearanceOwner, Slot];
+      const meta: SlotMeta = { ...mine.meta, savedAt: new Date().toISOString() };
+      const path = await pushAppearance(owner, slot, mine.blob, meta);
+
+      if (!path) {
+        failed += 1;
+        continue;
+      }
+
+      // La fecha nueva se guarda también aquí: si no, la próxima
+      // reconciliación creería que la nube va por delante y se bajaría el
+      // mismo archivo que acaba de subir.
+      await putRemoteSlot(owner, slot, mine.blob, { ...meta, remotePath: path });
+      annotate(id, { ...meta, remotePath: path });
+      sent += 1;
+    }
+
+    return { sent, failed };
+  }, [annotate]);
+
   /** Sustituye en el perfil sólo lo que se haya personalizado. */
   const dress = useCallback(
     (profile: Profile): Profile => {
@@ -325,9 +365,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       setAnthem: setAnthemFile,
       reset,
       sync,
+      pushAll,
       syncing,
     }),
-    [ready, slots, dress, chosenCover, setPhoto, setAnthemFile, reset, sync, syncing],
+    [ready, slots, dress, chosenCover, setPhoto, setAnthemFile, reset, sync, pushAll, syncing],
   );
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;

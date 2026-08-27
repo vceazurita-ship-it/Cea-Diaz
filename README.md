@@ -338,6 +338,10 @@ registrado sube solo en cuanto vuelve la conexión.
 | Las agendas semanales: los ratos de cada perfil, con su hábito y con quién está | |
 | | El permiso de Google (vive cifrado en el servidor) |
 
+Todo eso sube solo. Cuando lo que hace falta es que **este** aparato mande sobre los
+demás —la app montada en un móvil y el resto en blanco—, está el envío forzado que se
+explica más abajo.
+
 **El PIN no viaja en claro.** Lo que sube es su huella —PBKDF2-SHA256 con sal, calculada
 en el navegador—, así que ni la base ni la pantalla de Ajustes pueden enseñar el número:
 si se olvida, se pone otro. Sigue siendo una barrera doméstica y no un cerrojo: cuatro
@@ -385,6 +389,45 @@ móvil no serviría de nada: volvería en la siguiente sincronización.
 La mezcla se rehace siempre contra el estado del instante en que termina, no contra
 la foto de cuando empezó, de modo que lo que alguien escriba mientras sincroniza no
 se pisa.
+
+### Cuando un móvil es el que manda
+
+La regla de la última escritura reparte bien el día a día, pero no sirve para la
+situación en la que se monta la app: **un móvil con todo puesto** —las fotos, las
+agendas, los equipos, los primeros días rellenos— y el resto de aparatos todavía en
+blanco o a medias. Ahí no hace falta mezclar: hace falta que mande uno.
+
+En **Ajustes → Nube**, con la sesión iniciada, está **⬆️ Mandar lo de este móvil**. Pide
+confirmación —lo que hace no es inocente— y sube todo lo de este aparato *refechado*:
+registros, tareas, ajustes de la casa, campogramas, agendas y las fotos y sintonías. Al
+llevar fecha de ahora, gana en todos los demás, que la adoptan en cuanto abren la app.
+
+No borra nada de nadie: lo que exista en otro aparato y aquí no —un día registrado desde
+el móvil de María— sigue existiendo. Lo que esté en los dos sitios pasa a ser el de aquí.
+
+### El parte: qué ha viajado y qué no
+
+Los registros y las tareas viajan en la misma tabla, pero los ajustes, los campogramas y
+las agendas tienen cada uno la suya, y pueden llegar unos sí y otros no —lo típico es un
+esquema sin actualizar: la tabla que falta—. Antes, esas tres se intentaban, se guardaba
+el primer fallo en una línea y la sincronización se daba por buena igualmente: la casa
+leía «al día» y creía tener la agenda en todas partes.
+
+Ahora cada pieza se apunta por separado y se enseña debajo del estado de la nube, con lo
+que ha subido de cada una y, cuando algo no llega, lo que dijo la nube:
+
+```
+✅ Registros 42 enviados
+✅ Tareas 7 enviados
+✅ Ajustes de la casa
+⚠️ Campogramas — relation "public.lineups" does not exist
+✅ Agendas semanales
+✅ Fotos y sintonías 5 enviados
+```
+
+Con cualquier pieza sin llegar, el estado deja de ser «al día» y lo dice. Los registros
+del día siguen viajando igual: que falte una tabla nunca puede impedirlo. Y las fotos se
+reconcilian aunque otra pieza haya fallado, porque no tienen la culpa.
 
 ### Seguridad
 

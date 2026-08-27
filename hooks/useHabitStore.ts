@@ -25,14 +25,16 @@ import {
   applyRemoteLineups,
   loadLineups,
   subscribeLineups,
+  updateLineup,
 } from '@/lib/lineup';
-import { applyRemotePlans, loadPlans, subscribePlans } from '@/lib/planner';
+import { applyRemotePlans, loadPlans, subscribePlans, updatePlan } from '@/lib/planner';
 import { buildSeedDatabase } from '@/lib/seed';
 import {
   applyRemoteSettings,
   loadSettings,
   migrateLegacyPin,
   subscribeSettings,
+  updateSettings,
 } from '@/lib/settings';
 import { cloudConfigured, supabase } from '@/lib/supabase';
 import {
@@ -105,6 +107,12 @@ export interface HabitStore {
   signOut: () => Promise<void>;
   /** Fuerza una sincronización completa. */
   syncNow: () => Promise<void>;
+  /**
+   * Manda a la nube todo lo de este aparato, refechado, para que gane en el
+   * resto. Devuelve cómo le fue a cada pieza.
+   */
+  pushAll: () => Promise<CloudPart[]>;
+
   /** Deja de pedir la cuenta en este móvil (o vuelve a pedirla). */
   setLocalOnly: (value: boolean) => void;
 }
@@ -126,6 +134,23 @@ export interface StoreSnapshot {
  */
 export type CloudStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error';
 
+/**
+ * Cada cosa que viaja por su cuenta. Los registros y las tareas van en `db`;
+ * los ajustes, los campogramas y las agendas tienen su propia tabla y su
+ * propia reconciliación, así que pueden llegar unos sí y otros no —lo típico
+ * es un esquema sin actualizar: la tabla que falta— y hay que poder decirlo
+ * pieza a pieza en vez de dar la sincronización entera por buena.
+ */
+export interface CloudPart {
+  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans';
+  label: string;
+  ok: boolean;
+  /** Lo que dijo la nube cuando no llegó. */
+  error?: string;
+  /** Cuántas filas se han mandado, cuando se sabe. */
+  sent?: number;
+}
+
 export interface CloudState {
   configured: boolean;
   status: CloudStatus;
@@ -133,6 +158,8 @@ export interface CloudState {
   email: string | null;
   lastSync: string | null;
   error: string | null;
+  /** Cómo le fue a cada pieza en la última sincronización. */
+  parts: CloudPart[];
 }
 
 /** Clave que recuerda que en este móvil se ha elegido trabajar sin nube. */
@@ -220,6 +247,32 @@ async function reconcilePlans(owner: string): Promise<void> {
   }
 }
 
+/**
+ * Lo que no pasa por `db` y se reconcilia aparte. Va en una lista para poder
+ * recorrerlo y contar pieza a pieza cómo le fue: que falte la tabla de las
+ * agendas no puede impedir que lleguen los registros, pero tampoco puede
+ * pasar por «al día».
+ */
+const PIECES: Array<{
+  id: CloudPart['id'];
+  label: string;
+  reconcile: (owner: string) => Promise<void>;
+}> = [
+  { id: 'settings', label: 'Ajustes de la casa', reconcile: reconcileSettings },
+  { id: 'lineups', label: 'Campogramas', reconcile: reconcileLineups },
+  { id: 'plans', label: 'Agendas semanales', reconcile: reconcilePlans },
+];
+
+/** Cómo se cuenta lo que no ha llegado, sin repetir la lista de piezas. */
+function failureNote(report: CloudPart[]): string | null {
+  const failed = report.filter((part) => !part.ok);
+  if (failed.length === 0) return null;
+
+  return `No ha viajado todo: ${failed
+    .map((part) => `${part.label.toLowerCase()}${part.error ? ` (${part.error})` : ''}`)
+    .join('; ')}.`;
+}
+
 /** Anota un borrado para que la nube lo repita en la próxima subida. */
 function grave(
   tombstones: Record<string, string>,
@@ -264,6 +317,7 @@ export function useHabitStore(): HabitStore {
   );
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [parts, setParts] = useState<CloudPart[]>([]);
   const [localOnly, setLocalOnlyState] = useState(false);
 
   // Espejo del estado para poder sincronizar sin re-crear los callbacks en
@@ -335,46 +389,31 @@ export function useHabitStore(): HabitStore {
         tasks: versionIndex(remote.tasks),
       };
 
-      await pushEntries(dirtyRows(merged.entries, remoteIndex.entries), uid);
-      await pushTasks(dirtyRows(merged.tasks, remoteIndex.tasks), uid);
-      // Los ajustes no deben tumbar la sincronización de los registros: si
-      // la tabla todavía no está —esquema sin actualizar—, se dice al final y
-      // se sigue como si nada.
-      let settingsError: string | null = null;
-      try {
-        await reconcileSettings(uid);
-      } catch (error) {
-        settingsError =
-          error instanceof Error
-            ? `Los ajustes de la casa no han viajado: ${error.message}`
-            : 'Los ajustes de la casa no han viajado.';
-      }
+      const freshEntries = dirtyRows(merged.entries, remoteIndex.entries);
+      const freshTasks = dirtyRows(merged.tasks, remoteIndex.tasks);
 
-      // Los campogramas, igual: si la tabla todavía no está, el equipo se
-      // queda en este aparato y se avisa, pero los registros ya han viajado.
-      try {
-        await reconcileLineups(uid);
-      } catch (error) {
-        // Si los ajustes ya han fallado, se cuenta ése: dos avisos seguidos
-        // sobre lo mismo —la tabla que falta— no informan más que uno.
-        if (!settingsError) {
-          settingsError =
-            error instanceof Error
-              ? `Los equipos del campograma no han viajado: ${error.message}`
-              : 'Los equipos del campograma no han viajado.';
-        }
-      }
+      await pushEntries(freshEntries, uid);
+      await pushTasks(freshTasks, uid);
 
-      // Y las agendas semanales, con el mismo criterio: que falte su tabla no
-      // puede impedir que los registros del día lleguen a la nube.
-      try {
-        await reconcilePlans(uid);
-      } catch (error) {
-        if (!settingsError) {
-          settingsError =
-            error instanceof Error
-              ? `Las agendas semanales no han viajado: ${error.message}`
-              : 'Las agendas semanales no han viajado.';
+      // Y ahora lo que viaja aparte. Cada pieza se apunta por separado: si la
+      // tabla todavía no está —esquema sin actualizar—, esa se queda en este
+      // aparato y se dice cuál, pero los registros ya han llegado.
+      const report: CloudPart[] = [
+        { id: 'entries', label: 'Registros', ok: true, sent: freshEntries.length },
+        { id: 'tasks', label: 'Tareas', ok: true, sent: freshTasks.length },
+      ];
+
+      for (const piece of PIECES) {
+        try {
+          await piece.reconcile(uid);
+          report.push({ id: piece.id, label: piece.label, ok: true });
+        } catch (error) {
+          report.push({
+            id: piece.id,
+            label: piece.label,
+            ok: false,
+            error: error instanceof Error ? error.message : 'No ha viajado.',
+          });
         }
       }
 
@@ -393,12 +432,26 @@ export function useHabitStore(): HabitStore {
         tombstones: forget(prev.tombstones, propagated),
       }));
 
-      if (settingsError) setCloudError(settingsError);
+      // Si algo se ha quedado por el camino, esto no está «al día»: decirlo
+      // es la diferencia entre una casa que sabe que le falta la agenda y una
+      // que cree que la tiene en todas partes.
+      const note = failureNote(report);
+
+      setParts(report);
+      setCloudError(note);
       setLastSync(new Date().toISOString());
-      setCloudStatus('synced');
+      setCloudStatus(note ? 'error' : 'synced');
       lastSyncAt.current = Date.now();
     } catch (error) {
-      setCloudError(error instanceof Error ? error.message : 'No se ha podido sincronizar.');
+      const message = error instanceof Error ? error.message : 'No se ha podido sincronizar.';
+
+      // Aquí ha fallado lo primero: sin bajada no hay nada que contar pieza a
+      // pieza, así que lo que se dice es que no ha viajado ni lo básico.
+      setParts([
+        { id: 'entries', label: 'Registros', ok: false, error: message },
+        { id: 'tasks', label: 'Tareas', ok: false, error: message },
+      ]);
+      setCloudError(message);
       setCloudStatus('error');
     } finally {
       syncing.current = false;
@@ -446,6 +499,114 @@ export function useHabitStore(): HabitStore {
       setCloudError(error instanceof Error ? error.message : 'No se ha podido guardar en la nube.');
       setCloudStatus('error');
     }
+  }, [session]);
+
+  /**
+   * «Manda lo de este móvil»: sube todo lo de aquí refechado, para que en el
+   * resto de aparatos gane esta versión.
+   *
+   * Hace falta cuando una casa ha montado la app en un móvil —fotos, agendas,
+   * equipos, días rellenos— y quiere que los demás se pongan al día de golpe.
+   * La regla de siempre —gana la última escritura— sólo mueve lo que aquí es
+   * más reciente; esto decide que aquí todo lo es.
+   *
+   * No borra nada de nadie: lo que exista en otro aparato y no aquí sigue
+   * existiendo. Lo que esté en los dos sitios pasa a ser el de aquí.
+   */
+  const pushAll = useCallback(async (): Promise<CloudPart[]> => {
+    const uid = session?.user.id;
+    if (!uid) return [];
+
+    setCloudStatus('syncing');
+    setCloudError(null);
+
+    const now = new Date().toISOString();
+    const current = dbRef.current;
+    const report: CloudPart[] = [];
+
+    const entries = Object.fromEntries(
+      Object.entries(current.entries).map(([id, entry]) => [id, { ...entry, updatedAt: now }]),
+    ) as EntryMap;
+    const tasks = Object.fromEntries(
+      Object.entries(current.tasks).map(([id, task]) => [id, { ...task, updatedAt: now }]),
+    ) as TaskMap;
+
+    try {
+      await pushEntries(Object.values(entries), uid);
+      await pushTasks(Object.values(tasks), uid);
+
+      // Lo refechado pasa a ser lo que hay aquí: si no, la fecha de la nube y
+      // la de este móvil dirían cosas distintas del mismo día.
+      setDb((prev) => ({ ...prev, entries, tasks }));
+      synced.current = { entries: versionIndex(entries), tasks: versionIndex(tasks) };
+
+      report.push({
+        id: 'entries',
+        label: 'Registros',
+        ok: true,
+        sent: Object.keys(entries).length,
+      });
+      report.push({ id: 'tasks', label: 'Tareas', ok: true, sent: Object.keys(tasks).length });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No ha viajado.';
+      report.push({ id: 'entries', label: 'Registros', ok: false, error: message });
+      report.push({ id: 'tasks', label: 'Tareas', ok: false, error: message });
+    }
+
+    // Los ajustes, los campogramas y las agendas se refechan con las mismas
+    // funciones que usa la app al tocarlos, así que lo que sube es exactamente
+    // lo que queda guardado aquí.
+    try {
+      await pushSettings(updateSettings({}), uid);
+      report.push({ id: 'settings', label: 'Ajustes de la casa', ok: true });
+    } catch (error) {
+      report.push({
+        id: 'settings',
+        label: 'Ajustes de la casa',
+        ok: false,
+        error: error instanceof Error ? error.message : 'No ha viajado.',
+      });
+    }
+
+    try {
+      const ids = Object.keys(loadLineups()) as ProfileId[];
+      for (const profileId of ids) {
+        await pushLineup(profileId, updateLineup(profileId, {}), uid);
+      }
+      report.push({ id: 'lineups', label: 'Campogramas', ok: true, sent: ids.length });
+    } catch (error) {
+      report.push({
+        id: 'lineups',
+        label: 'Campogramas',
+        ok: false,
+        error: error instanceof Error ? error.message : 'No ha viajado.',
+      });
+    }
+
+    try {
+      const plans = Object.entries(loadPlans());
+      for (const [profileId, plan] of plans) {
+        await pushPlan(profileId, updatePlan(profileId as ProfileId, plan.blocks), uid);
+      }
+      report.push({ id: 'plans', label: 'Agendas semanales', ok: true, sent: plans.length });
+    } catch (error) {
+      report.push({
+        id: 'plans',
+        label: 'Agendas semanales',
+        ok: false,
+        error: error instanceof Error ? error.message : 'No ha viajado.',
+      });
+    }
+
+    const note = failureNote(report);
+
+    setParts(report);
+    setCloudError(note);
+    setLastSync(new Date().toISOString());
+    setCloudStatus(note ? 'error' : 'synced');
+    lastSyncAt.current = Date.now();
+
+    return report;
   }, [session]);
 
   // Primera sincronización al entrar, y luego al volver a la app.
@@ -946,12 +1107,14 @@ export function useHabitStore(): HabitStore {
         email: session?.user.email ?? null,
         lastSync,
         error: cloudError,
+        parts,
       },
       localOnly,
       signIn,
       signUp,
       signOut,
       syncNow,
+      pushAll,
       setLocalOnly,
     }),
     [
@@ -978,12 +1141,14 @@ export function useHabitStore(): HabitStore {
       cloudStatus,
       cloudError,
       lastSync,
+      parts,
       localOnly,
       session,
       signIn,
       signUp,
       signOut,
       syncNow,
+      pushAll,
       setLocalOnly,
     ],
   );
