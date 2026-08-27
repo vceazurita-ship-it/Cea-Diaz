@@ -77,7 +77,8 @@ components/
   notes/
     DayNoteCard.tsx    Observaciones del día y borrado del día
   planner/
-    WeekPlanner.tsx    La semana tipo: cuadrícula de lunes a domingo y avisos de coherencia
+    WeekPlanner.tsx    La semana tipo: horario completo, tarjetas de día y avisos de coherencia
+    WeekTimetable.tsx  La semana tipo entera: siete columnas sobre la misma regla de horas
     BlockEditor.tsx    Alta y edición de un rato: cuándo, con quién y a qué hábito va atado
     PlanAlerts.tsx     Carencias, excesos y avisos de la semana
     TodayPlanCard.tsx  Lo previsto para hoy, dentro de la pantalla de registro
@@ -976,6 +977,30 @@ Es una **rutina, no una cita**. Un rato vive en un día de la semana y vuelve to
 semanas hasta que se cambie; lo que ocurre una sola vez sigue viviendo en Tareas, que
 tiene fecha y se tacha.
 
+### No es un calendario: se define una vez
+
+La pestaña **no se rehace cada lunes**. Se monta la semana tipo —de lunes a domingo, sin
+fechas— y esa es la semana de la casa hasta que alguien la cambie. Por eso la pantalla no
+rotula «semana del 3 al 9»: rotula **semana tipo**, y los días son *lunes*, *martes*…, no
+*lun 3*, *mar 4*.
+
+Se mira de dos maneras, con el mismo contenido detrás:
+
+| Vista | Para qué |
+| ----- | -------- |
+| **🗓️ La semana entera** | El horario completo: siete columnas sobre la misma regla de horas, de lo más temprano a lo más tardío que haya apartado. Se ven de un vistazo los huecos, los solapes y las tardes cargadas. Picar en un rato lo abre; picar en un hueco aparta uno nuevo a esa hora, redondeada a la media |
+| **✏️ Día a día** | Las siete tarjetas, que es donde se aparta, se copia un día en otro y se vacía |
+
+Se abre por la entera en cuanto hay algo definido; con la agenda en blanco se entra
+directamente por las tarjetas, que es lo que hace falta entonces. Dos ratos a la misma
+hora se pintan uno al lado del otro, en carriles, para que el solape se vea en vez de
+esconderse.
+
+Las fechas entran en un solo sitio: el **contraste**. Debajo del resumen, la semana tipo
+se compara con la semana real que se esté mirando en el navegador de días —«contra la
+semana del 3 al 9: ✓ 12 cumplidos · ✕ 3 fallidos»—. La semana tipo no se toca; lo que
+cambia es contra qué se mide.
+
 ### Lo que hace que no sea una lista más
 
 Cada rato puede ir **atado a una casilla del registro** (`metricId`) y declarar **cuánto
@@ -1055,8 +1080,9 @@ puede deshacer. Y para lo de cada día están los **ratos de un toque**: una fil
 que rellena el formulario completo, atadura incluida, para no tener que buscar a mano el
 identificador de ninguna métrica.
 
-Cada día tiene además dos atajos: **⧉** copia el día anterior encima y **🧹** lo vacía.
-Las dos cosas se deshacen desde el aviso.
+Cada día tiene además dos atajos, en la vista **día a día**: **⧉** copia el día anterior
+encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo o se vacía desde la
+barra de abajo. Todo se deshace desde el aviso.
 
 ### Dónde se guarda
 

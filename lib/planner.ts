@@ -794,6 +794,61 @@ export function busyMinutes(blocks: PlanBlock[]): number {
   );
 }
 
+/** Días de la semana con algo apartado. Mide cuánto hay definido ya. */
+export function daysFilled(plan: WeekPlan): number {
+  return new Set(plan.blocks.map((block) => block.day)).size;
+}
+
+/**
+ * Franja del día que hay que pintar para que la semana tipo se vea entera:
+ * de la hora a la que empieza lo más temprano a la hora a la que acaba lo más
+ * tardío, redondeada a horas justas. Lo que cruza la medianoche se corta ahí,
+ * que es hasta donde llega la cuadrícula. Sin nada apartado se devuelve la
+ * franja de mañana a noche, que es donde acaba cayendo casi todo.
+ */
+export function weekSpan(blocks: PlanBlock[]): { from: number; to: number } {
+  if (blocks.length === 0) return { from: 8 * 60, to: 22 * 60 };
+
+  let from = 24 * 60;
+  let to = 0;
+
+  for (const block of blocks) {
+    const start = minutesOf(block.start);
+    from = Math.min(from, start);
+    to = Math.max(to, Math.min(24 * 60, start + block.duration));
+  }
+
+  from = Math.floor(from / 60) * 60;
+  to = Math.ceil(to / 60) * 60;
+
+  // Una semana de un solo rato no se lee en una franja de una hora.
+  if (to - from < 4 * 60) to = Math.min(24 * 60, from + 4 * 60);
+  return { from, to };
+}
+
+/**
+ * Reparte en carriles los ratos de un día para que dos cosas a la misma hora
+ * se pinten una al lado de la otra y no una encima de la otra. Devuelve cada
+ * rato con su carril y cuántos carriles hacen falta ese día.
+ */
+export function laneLayout(blocks: PlanBlock[]): {
+  lanes: number;
+  placed: Array<{ block: PlanBlock; lane: number }>;
+} {
+  /** Hasta qué minuto está pillado cada carril. */
+  const busyUntil: number[] = [];
+
+  const placed = sortBlocks(blocks).map((block) => {
+    const start = minutesOf(block.start);
+    let lane = busyUntil.findIndex((end) => end <= start);
+    if (lane === -1) lane = busyUntil.length;
+    busyUntil[lane] = start + block.duration;
+    return { block, lane };
+  });
+
+  return { lanes: Math.max(1, busyUntil.length), placed };
+}
+
 /* ---------------------------------------------------------------------------
  * Altas
  * ------------------------------------------------------------------------- */
