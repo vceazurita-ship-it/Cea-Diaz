@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { BlockEditor } from '@/components/planner/BlockEditor';
+import { CopyWeekPicker } from '@/components/planner/CopyWeekPicker';
 import { PlanAlerts } from '@/components/planner/PlanAlerts';
 import { WeekTimetable } from '@/components/planner/WeekTimetable';
 import { Modal } from '@/components/ui/Modal';
@@ -19,6 +20,8 @@ import {
   blocksOfDay,
   clearDayPlan,
   copyDayPlan,
+  copyWeekFrom,
+  copyableWeeks,
   daysFilled,
   durationLabel,
   emptyBlock,
@@ -30,7 +33,9 @@ import {
   themeOf,
   updatePlan,
 } from '@/lib/planner';
-import type { DateKey, PlanBlock, PlanStatus, Profile, ProfileSkin } from '@/types';
+import type { WeekSource } from '@/lib/planner';
+import { PROFILES } from '@/lib/profiles';
+import type { DateKey, PlanBlock, PlanStatus, Profile, ProfileId, ProfileSkin } from '@/types';
 
 /* =========================================================================
  *  Agenda semanal del perfil.
@@ -77,6 +82,8 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   const notify = useToast();
   const [editing, setEditing] = useState<{ block: PlanBlock; isNew: boolean } | null>(null);
   const [view, setView] = useState<PlanView>('completa');
+  /** Semanas ajenas ofrecidas para copiar, o `null` con el diálogo cerrado. */
+  const [copying, setCopying] = useState<WeekSource[] | null>(null);
 
   const kid = profile.kind === 'kid';
   const theme = themeOf(profile.id);
@@ -172,6 +179,40 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
     notify({
       message: 'Semana de ejemplo puesta. Edítala a tu gusto.',
       icon: '✨',
+      action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+  };
+
+  /**
+   * De quién copiar. Se mira al picar y no al pintar: en el servidor no hay
+   * agendas, y adivinar aquí cuáles existen desajustaría la hidratación.
+   */
+  const openCopy = () => {
+    const sources = copyableWeeks(profile.id);
+
+    if (sources.length === 0) {
+      notify({ message: 'Nadie más tiene todavía una semana que copiar.', icon: '🤷' });
+      return;
+    }
+
+    setCopying(sources);
+  };
+
+  /** La semana de otro, traída entera y lista para matizarla aquí. */
+  const copyWeek = (from: ProfileId) => {
+    const before = planOf(profile.id).blocks;
+    const { copied, unlinked } = copyWeekFrom(from, profile.id);
+    const name = PROFILES.find((item) => item.id === from)?.name ?? 'otro perfil';
+
+    setCopying(null);
+    setView('completa');
+
+    notify({
+      message:
+        unlinked > 0
+          ? `Semana de ${name} copiada: ${copied} ratos, ${unlinked} sin hábito atado. Cámbiala a tu gusto.`
+          : `Semana de ${name} copiada: ${copied} ratos. Cámbiala a tu gusto.`,
+      icon: '⧉',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
   };
@@ -453,6 +494,10 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
           ✨ {defined ? 'Rehacer con la de ejemplo' : 'Empezar con una de ejemplo'}
         </button>
 
+        <button type="button" onClick={openCopy} className="btn-ghost px-3 py-1.5 text-xs">
+          ⧉ Copiar la semana de otro
+        </button>
+
         {defined && (
           <button type="button" onClick={clearWeek} className="btn-ghost px-3 py-1.5 text-xs">
             🧹 Vaciar la semana
@@ -483,6 +528,18 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             ),
           )}
         </div>
+      )}
+
+      {copying && (
+        <Modal title="Copiar la semana de otro" onClose={() => setCopying(null)}>
+          <CopyWeekPicker
+            profile={profile}
+            sources={copying}
+            hasWeek={defined}
+            onPick={copyWeek}
+            onCancel={() => setCopying(null)}
+          />
+        </Modal>
       )}
 
       {editing && (

@@ -1,4 +1,5 @@
 import { findMetric, getCategories } from '@/lib/habits';
+import { PROFILES } from '@/lib/profiles';
 import type {
   Companion,
   Metric,
@@ -1183,6 +1184,97 @@ export function clearDayPlan(profileId: ProfileId, day: number): number {
     );
   }
   return removed;
+}
+
+/* ---------------------------------------------------------------------------
+ * Copiar la semana de otro
+ *
+ * Leo y Hugo hacen casi la misma semana: el mismo cole, el mismo campo, la
+ * misma hora de cenar, y luego cada uno lo suyo —la natación de uno, el
+ * kárate del otro—. Montarla dos veces a mano es trabajo tirado, así que se
+ * copia entera de un perfil a otro y se matiza encima, que es como se hace
+ * de verdad.
+ *
+ * Lo que viaja es la semana tipo, no el registro: ratos, horas, duraciones y
+ * con quién. El enganche al hábito viaja sólo si el que recibe tiene ese
+ * hábito —entre los peques los tienen todos, entre un peque y un adulto casi
+ * ninguno—, y lo que no encaja llega suelto en vez de llegar roto.
+ * ------------------------------------------------------------------------- */
+
+/** Una semana ajena que se puede traer, ya medida contra la de aquí. */
+export interface WeekSource {
+  profileId: ProfileId;
+  /** Ratos que tiene apartados. */
+  blocks: number;
+  /** Días de los siete con algo. */
+  days: number;
+  /** De esos ratos, los que llegarían sin su hábito atado. */
+  unlinked: number;
+  updatedAt: string;
+}
+
+/**
+ * Semanas de los demás que valdría la pena copiar en la de `profileId`: las
+ * que tienen algo, en el orden de siempre de los perfiles. La propia no está,
+ * claro.
+ */
+export function copyableWeeks(profileId: ProfileId): WeekSource[] {
+  const plans = loadPlans();
+  const sources: WeekSource[] = [];
+
+  for (const profile of PROFILES) {
+    if (profile.id === profileId) continue;
+
+    const plan = plans[profile.id];
+    if (!plan || plan.blocks.length === 0) continue;
+
+    sources.push({
+      profileId: profile.id,
+      blocks: plan.blocks.length,
+      days: daysFilled(plan),
+      unlinked: plan.blocks.filter(
+        (block) => block.metricId && !findMetric(profileId, block.metricId),
+      ).length,
+      updatedAt: plan.updatedAt,
+    });
+  }
+
+  return sources;
+}
+
+export interface CopyWeekResult {
+  /** Ratos que se han traído. */
+  copied: number;
+  /** De ellos, los que han llegado sin hábito atado. */
+  unlinked: number;
+}
+
+/**
+ * Trae la semana de `from` a la de `to`, reemplazando lo que hubiera. Los
+ * ratos son nuevos —identificador propio— para que editar uno aquí no toque
+ * el del otro: a partir de la copia son dos semanas distintas.
+ */
+export function copyWeekFrom(from: ProfileId, to: ProfileId): CopyWeekResult {
+  const source = planOf(from).blocks;
+  if (source.length === 0) return { copied: 0, unlinked: 0 };
+
+  let unlinked = 0;
+
+  const blocks = source.slice(0, MAX_BLOCKS).map((block) => {
+    const keeps = !block.metricId || Boolean(findMetric(to, block.metricId));
+    if (!keeps) unlinked += 1;
+
+    return {
+      ...block,
+      id: newId(),
+      metricId: keeps ? block.metricId : undefined,
+      // Sin hábito al que aportar, la cantidad no significa nada.
+      amount: keeps ? block.amount : undefined,
+    };
+  });
+
+  updatePlan(to, blocks);
+  return { copied: blocks.length, unlinked };
 }
 
 /** Adopta lo que venía de la nube. No se refecha: la decisión es de quien la tomó. */

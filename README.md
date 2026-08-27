@@ -1081,8 +1081,22 @@ que rellena el formulario completo, atadura incluida, para no tener que buscar a
 identificador de ninguna métrica.
 
 Cada día tiene además dos atajos, en la vista **día a día**: **⧉** copia el día anterior
-encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo o se vacía desde la
-barra de abajo. Todo se deshace desde el aviso.
+encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo, se copia de otro
+perfil o se vacía desde la barra de abajo. Todo se deshace desde el aviso.
+
+### La semana de uno en la de otro
+
+Leo y Hugo hacen casi la misma semana —el mismo cole, el mismo campo, la misma hora de
+cenar— y luego cada uno lo suyo: la natación de uno, el kárate del otro. Montarla dos
+veces a mano es trabajo tirado, así que en la barra de abajo está **⧉ Copiar la semana de
+otro**: se elige de quién traerla y se matiza encima.
+
+Lo que viaja es la semana tipo entera —ratos, horas, duraciones y con quién— y llega como
+copia suelta, cada rato con identificador propio, de modo que mover el entreno de Hugo no
+mueve el de Leo. El enganche al hábito viaja sólo si el que recibe tiene ese hábito: entre
+los dos peques los tienen todos, entre un peque y un adulto casi ninguno, así que el
+diálogo dice de antemano cuántos ratos llegarían sueltos. Sustituye lo que hubiera, y se
+deshace desde el aviso como todo lo demás.
 
 ### Dónde se guarda
 
