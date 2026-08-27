@@ -5,11 +5,13 @@ import type {
   HouseSettings,
   Lineup,
   MetricValue,
+  PlanBlock,
   ProfileId,
   Task,
   TaskCalendarLink,
   TaskKind,
   TaskRepeat,
+  WeekPlan,
 } from '@/types';
 
 /* =========================================================================
@@ -486,6 +488,63 @@ export async function pushLineup(
     bench: lineup.bench,
     captain: lineup.captain ?? null,
     updated_at: lineup.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+/* ---------------------------------------------------------------------------
+ * Agendas semanales
+ *
+ * Una fila por perfil que tenga semana montada. Como los campogramas, no
+ * pasan por `db` —no son registros del día, sino la rutina que se ha decidido—
+ * y se reconcilian por fecha: gana la última agenda guardada. Es lo que hace
+ * que María pueda mover el entreno del jueves desde su móvil y Víctor lo vea
+ * movido en el suyo.
+ * ------------------------------------------------------------------------- */
+
+interface PlanRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  blocks: PlanBlock[] | null;
+  updated_at: string;
+}
+
+/** Las agendas de la cuenta, indexadas por perfil. */
+export async function pullPlans(): Promise<Record<string, WeekPlan>> {
+  const client = supabase();
+  if (!client) return {};
+
+  const { data, error } = await client.from('agendas').select('*');
+  if (error) throw new Error(error.message);
+
+  const out: Record<string, WeekPlan> = {};
+
+  for (const row of (data ?? []) as PlanRow[]) {
+    out[row.profile_id] = {
+      blocks: row.blocks ?? [],
+      updatedAt: row.updated_at,
+    };
+  }
+
+  return out;
+}
+
+export async function pushPlan(
+  profileId: string,
+  plan: WeekPlan,
+  owner: string,
+): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('agendas').upsert({
+    id: `${owner}:${profileId}`,
+    owner,
+    profile_id: profileId,
+    blocks: plan.blocks,
+    updated_at: plan.updatedAt,
   });
 
   if (error) throw new Error(error.message);

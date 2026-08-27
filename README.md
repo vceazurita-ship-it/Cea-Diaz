@@ -60,7 +60,7 @@ components/
   Ambient.tsx          Decoración de fondo, teñida con el color del perfil
   ProfileSelector.tsx  Pantalla inicial con los 6 perfiles, su foto y su estado
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
-  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Retos / Tareas / Resúmenes
+  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes
   profile/
     ProfileHeader.tsx  Las tres cabeceras de perfil (fútbol, editorial, grupo)
   cloud/
@@ -76,6 +76,11 @@ components/
     LearningBonusCard.tsx  El bonus de aprendizaje del día, en su idioma
   notes/
     DayNoteCard.tsx    Observaciones del día y borrado del día
+  planner/
+    WeekPlanner.tsx    La semana tipo: cuadrícula de lunes a domingo y avisos de coherencia
+    BlockEditor.tsx    Alta y edición de un rato: cuándo, con quién y a qué hábito va atado
+    PlanAlerts.tsx     Carencias, excesos y avisos de la semana
+    TodayPlanCard.tsx  Lo previsto para hoy, dentro de la pantalla de registro
   tasks/
     TasksPanel.tsx     Recados y citas del perfil, agrupados por urgencia
     TaskComposer.tsx   Alta y edición: qué, cuándo, aviso y repetición
@@ -97,6 +102,7 @@ hooks/
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
   useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
   useLineup.ts         El equipo guardado de un perfil, atento a lo que llegue de otro móvil
+  useWeekPlan.ts       La agenda semanal de un perfil, atenta a lo que llegue de otro móvil
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
   audio/               Sintonías de perfil (las pone cada casa)
@@ -111,6 +117,8 @@ lib/
   cromoArt.ts          Equipaciones y rasgos con los que se dibuja el retrato de cada cromo
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
+  planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
+  planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
   learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
@@ -326,6 +334,7 @@ registrado sube solo en cuanto vuelve la conexión.
 | Fotos y sintonías de los perfiles | |
 | Ajustes de la casa: modo día/noche, sintonías y PIN | |
 | Los equipos del campograma: formación, once, banquillo y capitán | |
+| Las agendas semanales: los ratos de cada perfil, con su hábito y con quién está | |
 | | El permiso de Google (vive cifrado en el servidor) |
 
 **El PIN no viaja en claro.** Lo que sube es su huella —PBKDF2-SHA256 con sal, calculada
@@ -955,6 +964,108 @@ resto de la app.
 > hace falta para un uso doméstico, con el tope de 100 cuentas de sobra— la primera vez
 > aparece un aviso de «app no verificada»: se entra por *Configuración avanzada → Ir
 > a…*, y sólo la primera vez por cuenta.
+
+## La semana: agenda y coherencia
+
+Los hábitos cuentan **lo que pasó**. La pestaña **Semana** aparta **el rato en el que
+debería pasar**: el entreno del martes, la lectura antes de dormir, la clase de las once,
+la cena de los cuatro. Cada perfil tiene la suya —los seis, incluidos Familia y Pareja— y
+se edita a toques desde el móvil.
+
+Es una **rutina, no una cita**. Un rato vive en un día de la semana y vuelve todas las
+semanas hasta que se cambie; lo que ocurre una sola vez sigue viviendo en Tareas, que
+tiene fecha y se tacha.
+
+### Lo que hace que no sea una lista más
+
+Cada rato puede ir **atado a una casilla del registro** (`metricId`) y declarar **cuánto
+pretende aportar** (`amount`): «lectura, 20 min», «entreno de fútbol», «pantallas, 60 min».
+De ahí sale todo lo demás.
+
+Con eso, la app compara el plan con lo registrado y marca cada rato:
+
+| Marca | Qué significa |
+| ----- | ------------- |
+| ✓ **Cumplido** | Lo registrado cubre lo previsto |
+| ↓ **Corto** | Se registró, pero por debajo de lo que el plan reservaba |
+| ↑ **Pasado** | La casilla era un techo (pantallas, dulces…) y se ha rebasado |
+| ? **Sin apuntar** | El día ya pasó y la casilla sigue vacía |
+| ○ **Por venir** | Todavía no ha llegado el día: no se juzga |
+
+Dos reglas de fondo, para no dar la lata: **un día futuro nunca se juzga** —que el jueves
+que viene no esté registrado no es un fallo— y **un rato sin hábito atado tampoco** —la
+merienda no tiene casilla y no por eso está mal planificada.
+
+### Carencias y excesos
+
+Encima de la cuadrícula, la semana se repasa entera y dice lo que ve. Los avisos salen
+ordenados por lo que urge: primero lo que se ha pasado de la raya, luego lo que falta,
+luego lo que conviene mirar.
+
+| Aviso | Cuándo salta |
+| ----- | ------------ |
+| **Exceso planificado** | El plan de un día ya reserva más de lo que el techo admite (dos horas de pantallas contra un máximo de una) |
+| **Exceso registrado** | Un rato con techo acabó por encima |
+| **Día sobrecargado** | Más de 10 h de cole, deporte, estudio y trabajo en un mismo día |
+| **Carencia clave** | Un hábito que los expertos dan por innegociable no tiene ni un rato en toda la semana |
+| **Plan corto** | Lo reservado ese día no llega a la meta diaria del hábito |
+| **Previsto sin registrar** | Había entreno y la casilla está vacía: o no se fue, o no se apuntó |
+| **Dos cosas a la vez** | Dos ratos del mismo día se pisan: uno no va a pasar |
+| **Sin decir quién está** | Sólo en Leo y Hugo: ratos sin acompañante asignado |
+
+Cuando no hay nada de eso, lo dice también: una semana bien montada merece respuesta.
+
+### Quién está con Leo y con Hugo
+
+En los dos peques, cada rato lleva **con quién están**: mamá, papá, los dos, los abuelos,
+solos, o en el cole o el club. Se ve en la propia casilla, se resume arriba en minutos por
+persona —«Abuelos 4 h, Papá 3 h 30 min»— y la app avisa de los ratos que nadie ha
+asignado. Es la pregunta que de verdad se hace en casa al mirar la semana: el jueves a las
+cinco, ¿quién los lleva?
+
+### En la pantalla de registro
+
+Debajo de la cabecera del día aparece **lo que la semana tenía previsto para hoy**, ya
+contrastado con lo apuntado. Marcar la casilla deja de ser un trámite: se ve al lado lo
+que se había apartado y si se ha cumplido, se ha quedado corto o se ha pasado. Si la
+agenda está sin estrenar, no se pinta nada.
+
+### Cada casa, la suya
+
+La mecánica es la misma para los seis; lo que cambia es el rótulo y el adorno.
+
+| Perfil | Se llama | Adorno |
+| ------ | -------- | ------ |
+| **Leo y Hugo** | Alineación de la semana | Césped y línea de cal, banda blanca y dorada del Madrid, dorsal en el aro de oro y una frase de Oliver y Benji distinta cada día |
+| **María** | Mi semana | Filete dorado, serif de revista y frase en cursiva |
+| **Víctor** | Plan semanal | Regla de acero, versalitas espaciadas, cifras tabulares |
+| **Familia** | Semana en familia | Halo cálido del tinte naranja |
+| **Pareja** | Nuestra semana | Halo rosado, tono íntimo |
+
+Los peques llaman «jugadas» a sus ratos, María y la pareja los llaman «momentos», Víctor
+«bloques» y Familia «planes». Sale de `PLANNER_THEMES`, en `lib/planner.ts`: cambiar el
+rótulo o la frase de un perfil es tocar un objeto.
+
+### Cómo se empieza
+
+Cada perfil trae una **semana de ejemplo** verosímil y ya atada a sus hábitos —el cole y
+los cinco deportes de los peques, las clases de María, el reparto de Víctor, las comidas
+de Familia, el check-in de Pareja—. Un toque la pone entera, se edita encima y siempre se
+puede deshacer. Y para lo de cada día están los **ratos de un toque**: una fila de botones
+que rellena el formulario completo, atadura incluida, para no tener que buscar a mano el
+identificador de ninguna métrica.
+
+Cada día tiene además dos atajos: **⧉** copia el día anterior encima y **🧹** lo vacía.
+Las dos cosas se deshacen desde el aviso.
+
+### Dónde se guarda
+
+Como los campogramas y los ajustes: una clave de `localStorage`
+(`habitos-familia:agenda`), fechada, que la nube reconcilia con la regla de siempre —gana
+la última escritura—. Con cuenta de casa, la tabla `agendas` la reparte entre los móviles:
+si uno mueve el entreno del jueves, el otro lo ve movido en un par de segundos. Si la
+tabla todavía no existe, la agenda se queda en ese aparato y se avisa, pero los registros
+del día viajan igual.
 
 ## Color: modo, tinte y piel
 

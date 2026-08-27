@@ -220,6 +220,34 @@ create policy "campogramas propios" on public.lineups
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
+-- --------------------------------------------------------- agendas
+--  La semana tipo de cada uno: los ratos apartados de lunes a domingo, con
+--  el hábito al que va atado cada uno y —en los peques— quién está con ellos.
+--  Una fila por perfil que tenga semana montada.
+--
+--  Es rutina, no cita: lo que ocurre una sola vez sigue viviendo en `tasks`,
+--  que tiene fecha y se tacha. Por eso los ratos van en un `jsonb` y no en
+--  una tabla de filas: se leen y se escriben siempre juntos, como el
+--  campograma, y gana la agenda guardada más tarde.
+
+create table if not exists public.agendas (
+  id          text primary key,          -- `${owner}:${profileId}`
+  owner       uuid not null references auth.users (id) on delete cascade,
+  profile_id  text not null,
+  blocks      jsonb not null default '[]'::jsonb,  -- los ratos de la semana
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists agendas_owner_idx on public.agendas (owner, profile_id);
+
+alter table public.agendas enable row level security;
+
+drop policy if exists "agendas propias" on public.agendas;
+create policy "agendas propias" on public.agendas
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
 -- ---------------------------------------------------------- tiempo real
 --  Sin esto, un aparato sólo se entera de lo que escriben los demás cuando
 --  vuelve a mirar (al arrancar o en su repaso periódico). Añadiendo las

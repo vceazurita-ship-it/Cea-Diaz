@@ -9,9 +9,11 @@ import {
   mergeById,
   pullAll,
   pullLineups,
+  pullPlans,
   pullSettings,
   pushEntries,
   pushLineup,
+  pushPlan,
   pushSettings,
   pushTasks,
   tombstonesByTable,
@@ -24,6 +26,7 @@ import {
   loadLineups,
   subscribeLineups,
 } from '@/lib/lineup';
+import { applyRemotePlans, loadPlans, subscribePlans } from '@/lib/planner';
 import { buildSeedDatabase } from '@/lib/seed';
 import {
   applyRemoteSettings,
@@ -201,6 +204,22 @@ async function reconcileLineups(owner: string): Promise<void> {
   }
 }
 
+/**
+ * Las agendas semanales. Mismo trato que los campogramas: la rutina que cada
+ * uno ha decidido no es un registro del día, así que viaja aparte y gana la
+ * última guardada. Es lo que permite que la semana se monte entre dos móviles.
+ */
+async function reconcilePlans(owner: string): Promise<void> {
+  const remote = await pullPlans();
+  applyRemotePlans(remote);
+
+  for (const [profileId, local] of Object.entries(loadPlans())) {
+    const theirs = remote[profileId];
+    if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
+    await pushPlan(profileId, local, owner);
+  }
+}
+
 /** Anota un borrado para que la nube lo repita en la próxima subida. */
 function grave(
   tombstones: Record<string, string>,
@@ -343,6 +362,19 @@ export function useHabitStore(): HabitStore {
             error instanceof Error
               ? `Los equipos del campograma no han viajado: ${error.message}`
               : 'Los equipos del campograma no han viajado.';
+        }
+      }
+
+      // Y las agendas semanales, con el mismo criterio: que falte su tabla no
+      // puede impedir que los registros del día lleguen a la nube.
+      try {
+        await reconcilePlans(uid);
+      } catch (error) {
+        if (!settingsError) {
+          settingsError =
+            error instanceof Error
+              ? `Las agendas semanales no han viajado: ${error.message}`
+              : 'Las agendas semanales no han viajado.';
         }
       }
 
@@ -538,6 +570,28 @@ export function useHabitStore(): HabitStore {
       timer = window.setTimeout(() => {
         for (const [profileId, lineup] of Object.entries(loadLineups())) {
           void pushLineup(profileId, lineup, uid).catch(() => undefined);
+        }
+      }, LINEUP_PUSH_MS);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [session]);
+
+  // Las agendas, igual: si uno mueve el entreno del jueves, el otro tiene que
+  // verlo movido sin esperar al repaso de los tres cuartos de hora.
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    let timer = 0;
+    const unsubscribe = subscribePlans(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        for (const [profileId, plan] of Object.entries(loadPlans())) {
+          void pushPlan(profileId, plan, uid).catch(() => undefined);
         }
       }, LINEUP_PUSH_MS);
     });

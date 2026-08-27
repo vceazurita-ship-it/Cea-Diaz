@@ -7,6 +7,8 @@ import { DateNavigator } from '@/components/DateNavigator';
 import { AttentionCard } from '@/components/experts/AttentionCard';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
 import { DayNoteCard } from '@/components/notes/DayNoteCard';
+import { TodayPlanCard } from '@/components/planner/TodayPlanCard';
+import { WeekPlanner } from '@/components/planner/WeekPlanner';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { SummaryView } from '@/components/summary/SummaryView';
 import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
@@ -183,12 +185,14 @@ export function Dashboard({
     skin === 'pitch'
       ? [
           { id: 'today', label: 'Partido', icon: '⚽' },
+          { id: 'plan', label: 'Semana', icon: '🗓️' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
-          { id: 'tasks', label: 'Agenda', icon: '📋' },
+          { id: 'tasks', label: 'Recados', icon: '📋' },
           { id: 'summary', label: 'Estadísticas', icon: '📊' },
         ]
       : [
           { id: 'today', label: 'Registro', icon: '📝' },
+          { id: 'plan', label: 'Semana', icon: '🗓️' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
           { id: 'tasks', label: 'Tareas', icon: '📋' },
           { id: 'summary', label: 'Resúmenes', icon: '📊' },
@@ -315,6 +319,16 @@ export function Dashboard({
             </span>
           </div>
 
+          {/* Lo que la semana tenía apartado para hoy, ya contrastado con lo
+              registrado: es lo que ata la agenda a estas casillas. */}
+          <TodayPlanCard
+            profile={profile}
+            date={date}
+            store={store}
+            kid={kid}
+            onOpenPlan={() => setTab('plan')}
+          />
+
           {/* Antes de la lista de casillas, lo que de verdad hay que mirar hoy. */}
           <AttentionCard profile={profile} values={values} kid={kid} />
 
@@ -368,6 +382,10 @@ export function Dashboard({
             <kbd className="font-mono font-bold">H</kbd> vuelve a hoy ·{' '}
             <kbd className="font-mono font-bold">Esc</kbd> vuelve a los perfiles
           </p>
+        </div>
+      ) : tab === 'plan' ? (
+        <div role="tabpanel" id="panel-plan" aria-labelledby="tab-plan">
+          <WeekPlanner profile={profile} date={date} store={store} skin={skin} />
         </div>
       ) : tab === 'challenges' ? (
         <div role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">

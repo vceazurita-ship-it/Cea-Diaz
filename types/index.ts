@@ -887,4 +887,126 @@ export interface HouseSettings {
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';
-export type DashboardTab = 'today' | 'challenges' | 'tasks' | 'summary';
+export type DashboardTab = 'today' | 'plan' | 'challenges' | 'tasks' | 'summary';
+
+/* ---------------------------- Agenda semanal ----------------------------- */
+
+/**
+ * De qué va el rato apartado en la semana. No cambia ningún cálculo: le pone
+ * icono y color, agrupa de un vistazo y decide qué avisos tienen sentido
+ * (a nadie hay que decirle que ha planificado demasiado sueño).
+ */
+export type PlanKind =
+  | 'cole'
+  | 'deporte'
+  | 'estudio'
+  | 'comida'
+  | 'sueno'
+  | 'ocio'
+  | 'trabajo'
+  | 'casa'
+  | 'juntos'
+  | 'pareja'
+  | 'cuidado'
+  | 'otro';
+
+/**
+ * Quién está con los peques en ese rato. Es la pregunta que de verdad se hace
+ * en casa al mirar la semana —«el jueves a las cinco, ¿quién los lleva?»— y
+ * por eso vive dentro del bloque y no en una nota suelta.
+ */
+export type Companion = 'mama' | 'papa' | 'ambos' | 'abuelos' | 'solos' | 'cole' | 'otro';
+
+/**
+ * Un rato apartado en la semana. Es rutina, no cita: vive en un día de la
+ * semana (lunes…domingo) y vuelve todas las semanas. Lo que ocurre una sola
+ * vez son las tareas, que ya tienen su sección y su fecha.
+ */
+export interface PlanBlock {
+  id: string;
+  /** 0 = lunes … 6 = domingo. */
+  day: number;
+  /** Hora de inicio, `HH:MM`. */
+  start: string;
+  /** Minutos que ocupa. */
+  duration: number;
+  title: string;
+  icon: string;
+  kind: PlanKind;
+  /**
+   * Métrica del registro con la que se corresponde este rato. Es lo que ata
+   * la agenda a los hábitos: sin ella el bloque es sólo un plan; con ella la
+   * app puede decir si lo previsto se cumplió, se quedó corto o se pasó.
+   */
+  metricId?: string;
+  /** Cuánto aporta a esa métrica (minutos, vasos, sesiones…). */
+  amount?: number;
+  /** Con quién está el peque en ese rato. */
+  companion?: Companion;
+  note?: string;
+}
+
+/** La semana tipo de un perfil. Una por perfil, fechada para poder viajar. */
+export interface WeekPlan {
+  blocks: PlanBlock[];
+  updatedAt: string;
+}
+
+/**
+ * Qué ha pasado con un rato planificado, mirado contra lo registrado ese día:
+ *  - `sinMetrica`   no está atado a ningún hábito: no hay nada que comprobar.
+ *  - `futuro`       todavía no ha llegado el día.
+ *  - `sinRegistrar` el día ya pasó y la casilla sigue vacía.
+ *  - `cumplido`     lo registrado cubre lo previsto.
+ *  - `flojo`        se registró, pero por debajo de lo previsto.
+ *  - `excedido`     la métrica era un techo y se ha pasado.
+ */
+export type PlanStatus =
+  | 'sinMetrica'
+  | 'futuro'
+  | 'sinRegistrar'
+  | 'cumplido'
+  | 'flojo'
+  | 'excedido';
+
+export interface PlanBlockCheck {
+  block: PlanBlock;
+  date: DateKey;
+  /** Métrica atada, si la hay y sigue existiendo en el catálogo. */
+  metric?: Metric;
+  status: PlanStatus;
+  /** Cumplimiento de esa métrica ese día, o `null` si no hay dato. */
+  ratio: number | null;
+  /** Lo registrado ese día, ya legible («35 min», «Sí»). */
+  reading: string;
+  /** Qué decir del bloque en una línea. */
+  text: string;
+}
+
+/** Tono del aviso: falta algo, sobra algo, ojo con esto, o todo en orden. */
+export type PlanAlertTone = 'carencia' | 'exceso' | 'aviso' | 'bien';
+
+export interface PlanAlert {
+  id: string;
+  tone: PlanAlertTone;
+  icon: string;
+  title: string;
+  detail: string;
+  /** Día de la semana al que se refiere, cuando es de uno solo. */
+  day?: number;
+}
+
+/** Lo que la agenda de una semana sabe decir de sí misma. */
+export interface PlanReview {
+  /** Desenlace de cada rato de la semana, día a día. */
+  checks: PlanBlockCheck[];
+  alerts: PlanAlert[];
+  /** Ratos planificados en la semana. */
+  blocks: number;
+  /** De ésos, los que están atados a un hábito. */
+  linked: number;
+  /** Ratos ya vividos cuyo hábito quedó registrado a la altura. */
+  kept: number;
+  /** Ratos ya vividos que fallaron: sin registrar, flojos o excedidos. */
+  missed: number;
+}
