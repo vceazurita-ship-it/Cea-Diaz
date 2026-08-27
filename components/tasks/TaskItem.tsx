@@ -33,6 +33,8 @@ interface TaskItemProps {
   onDelete: () => void;
   onPush: () => void;
   onUnlink: () => void;
+  /** Repartir este mismo recado por otros días. */
+  onSpread: () => void;
 }
 
 export function TaskItem({
@@ -45,6 +47,7 @@ export function TaskItem({
   onDelete,
   onPush,
   onUnlink,
+  onSpread,
 }: TaskItemProps) {
   const kind = kindInfo(task.kind);
   const late = overdueLabel(task);
@@ -144,6 +147,14 @@ export function TaskItem({
         <button type="button" onClick={onEdit} className="btn-ghost px-2.5 py-1.5 text-[11px]">
           ✏️ Editar
         </button>
+
+        {/* Lo mismo, otros días. No tiene sentido en lo ya tachado: se
+            repartiría un recado que nadie va a hacer. */}
+        {!task.done && (
+          <button type="button" onClick={onSpread} className="btn-ghost px-2.5 py-1.5 text-[11px]">
+            ⧉ Copiar a días
+          </button>
+        )}
 
         <button
           type="button"

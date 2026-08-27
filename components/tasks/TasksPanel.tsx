@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarAccount } from '@/components/tasks/CalendarAccount';
+import { MonthGrid } from '@/components/tasks/MonthGrid';
+import { SpreadTasks } from '@/components/tasks/SpreadTasks';
 import { TaskComposer } from '@/components/tasks/TaskComposer';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import * as calendar from '@/lib/calendar';
+import { capitalize, friendlyDateLabel, todayKey } from '@/lib/dates';
 import {
   awaitingCalendar,
   canGoToCalendar,
@@ -16,9 +19,11 @@ import {
   dueCount,
   editTask,
   groupTasks,
+  loadByDay,
+  spreadTask,
   type TaskDraft,
 } from '@/lib/tasks';
-import type { CalendarLink, Profile, ProfileSkin, Task } from '@/types';
+import type { CalendarLink, DateKey, Profile, ProfileSkin, Task } from '@/types';
 
 /* =========================================================================
  *  Tareas del perfil.
@@ -61,6 +66,16 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
   const [showDone, setShowDone] = useState(false);
   const notify = useToast();
 
+  /* --------------------------------------------------- lista o calendario */
+
+  /** La lista de siempre, o el mes con lo que cae cada día. */
+  const [view, setView] = useState<'lista' | 'calendario'>('lista');
+  const [month, setMonth] = useState<DateKey>(() => todayKey());
+  const [focusDay, setFocusDay] = useState<DateKey>(() => todayKey());
+
+  /** Lo que se está repartiendo por otros días. */
+  const [spreading, setSpreading] = useState<Task[] | null>(null);
+
   const refreshStatus = useCallback(async () => {
     const state = await calendar.status();
     setAvailable(state.configured);
@@ -84,6 +99,18 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
   }, [tasks, showDone]);
 
   const doneCount = tasks.filter((task) => task.done).length;
+
+  /** Cuánto hay cada día, para los puntos del calendario. */
+  const load = useMemo(() => loadByDay(tasks), [tasks]);
+
+  /** Lo del día que se está mirando en el calendario, ya ordenado. */
+  const dayTasks = useMemo(
+    () =>
+      tasks
+        .filter((task) => task.due === focusDay && (showDone || !task.done))
+        .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')),
+    [tasks, focusDay, showDone],
+  );
 
   /* ------------------------------------------------------- calendario */
 
@@ -253,7 +280,104 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
     });
   };
 
+  /* -------------------------------------------------------- repartir */
+
+  /**
+   * Copia lo elegido a los días marcados. Las copias entran de golpe —lo que
+   * importa es que queden apuntadas— y sólo después salen hacia Google, en
+   * fila y sin ruido; a la primera negativa se para y el resto queda
+   * pendiente, que es lo que la app reintenta sola al volver a abrirse.
+   *
+   * Deshacer las quita de aquí *y* de Google: si el aviso ofrece marcha
+   * atrás, doce eventos huérfanos en el calendario de la casa no son marcha
+   * atrás.
+   */
+  const spread = async (days: DateKey[], toCalendar: boolean) => {
+    if (!spreading) return;
+
+    const copies = spreading.flatMap((task) => spreadTask(task, days));
+    if (copies.length === 0) {
+      setSpreading(null);
+      return;
+    }
+
+    const before = store.snapshot();
+    const send = toCalendar && linked;
+
+    for (const copy of copies) {
+      store.saveTask(send && canGoToCalendar(copy) ? { ...copy, calendarPending: true } : copy);
+    }
+    setSpreading(null);
+
+    /** Las que ya han llegado a Google: hay que poder retirarlas. */
+    const inGoogle: Task[] = [];
+    let undone = false;
+
+    notify({
+      message: `${copies.length} ${copies.length === 1 ? 'copia creada' : 'copias creadas'}${
+        send ? '. Van al calendario…' : '.'
+      }`,
+      icon: '⧉',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          undone = true;
+          store.restore(before);
+          for (const task of inGoogle) void calendar.dropTask(task).catch(() => undefined);
+        },
+      },
+    });
+
+    if (!send) return;
+
+    for (const copy of copies) {
+      if (undone) break;
+      if (!canGoToCalendar(copy)) continue;
+
+      mark(copy.id, true);
+      try {
+        const { calendar: linkInfo } = await calendar.pushTask(copy);
+        const posted: Task = {
+          ...copy,
+          calendar: linkInfo,
+          calendarPending: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Si mientras tanto se ha deshecho, el evento se retira en vez de
+        // guardarse: una tarea que ya no existe no puede tener cita.
+        if (undone) void calendar.dropTask(posted).catch(() => undefined);
+        else {
+          inGoogle.push(posted);
+          store.saveTask(posted);
+        }
+      } catch {
+        // Se queda pendiente y se reintenta solo. Si ha caducado el permiso
+        // fallarán todas igual, así que no se insiste.
+        break;
+      } finally {
+        mark(copy.id, false);
+      }
+    }
+  };
+
   /* ---------------------------------------------------------- pintura */
+
+  const renderTask = (task: Task) => (
+    <TaskItem
+      key={task.id}
+      task={task}
+      kid={kid}
+      linked={linked}
+      busy={busyIds.includes(task.id)}
+      onToggle={() => void toggle(task)}
+      onEdit={() => setEditing(task)}
+      onDelete={() => remove(task)}
+      onPush={() => void push(task)}
+      onUnlink={() => void unlink(task)}
+      onSpread={() => setSpreading([task])}
+    />
+  );
 
   const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
 
@@ -308,9 +432,82 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
         )}
       </div>
 
+      {/* Lista o mes. La lista dice *qué urge*; el mes, *cómo viene la
+          semana* y, sobre todo, permite repartir de un día a varios. */}
+      <div className="flex rounded-2xl border p-1 hairline surf-1" role="group" aria-label="Cómo ver las tareas">
+        {(
+          [
+            { id: 'lista', label: 'Lista', icon: '📋' },
+            { id: 'calendario', label: 'Calendario', icon: '🗓️' },
+          ] as const
+        ).map((option) => {
+          const active = view === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setView(option.id)}
+              aria-pressed={active}
+              className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-colors
+                ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
+            >
+              <span aria-hidden>{option.icon}</span> {option.label}
+            </button>
+          );
+        })}
+      </div>
+
       <TaskComposer kid={kid} onSubmit={add} />
 
-      {groups.length === 0 ? (
+      {view === 'calendario' ? (
+        <div className="space-y-3">
+          <MonthGrid
+            month={month}
+            onMonthChange={setMonth}
+            onPick={(day) => {
+              setFocusDay(day);
+              setMonth(day);
+            }}
+            focus={focusDay}
+            load={load}
+            label={`Tareas de ${profile.name} por día`}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-bold t-1">{capitalize(friendlyDateLabel(focusDay))}</h3>
+            <span className="text-xs tabular-nums t-3">
+              {dayTasks.length === 0
+                ? 'sin nada apuntado'
+                : `${dayTasks.length} ${dayTasks.length === 1 ? 'tarea' : 'tareas'}`}
+            </span>
+
+            {/* De un día a los que hagan falta: la semana de campamento se
+                monta una vez y se reparte por los cinco días. */}
+            {dayTasks.some((task) => !task.done) && (
+              <button
+                type="button"
+                onClick={() => setSpreading(dayTasks.filter((task) => !task.done))}
+                className="btn-ghost ml-auto px-3 py-1.5 text-xs"
+              >
+                ⧉ Copiar el día
+              </button>
+            )}
+          </div>
+
+          {dayTasks.length === 0 ? (
+            <div className={`${kid ? 'card-kid' : 'card'} p-6 text-center`}>
+              <p className="text-3xl" aria-hidden>
+                🗓️
+              </p>
+              <p className="mt-2 text-sm t-3">
+                Nada este día. Lo que se apunte arriba con esta fecha aparecerá aquí.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-2">{dayTasks.map(renderTask)}</ul>
+          )}
+        </div>
+      ) : groups.length === 0 ? (
         <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
           <p className="text-4xl" aria-hidden>
             🌤️
@@ -328,22 +525,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
               <span className="ml-1.5 tabular-nums font-normal">({group.tasks.length})</span>
             </p>
 
-            <ul className="space-y-2">
-              {group.tasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  kid={kid}
-                  linked={linked}
-                  busy={busyIds.includes(task.id)}
-                  onToggle={() => void toggle(task)}
-                  onEdit={() => setEditing(task)}
-                  onDelete={() => remove(task)}
-                  onPush={() => void push(task)}
-                  onUnlink={() => void unlink(task)}
-                />
-              ))}
-            </ul>
+            <ul className="space-y-2">{group.tasks.map(renderTask)}</ul>
           </section>
         ))
       )}
@@ -366,6 +548,16 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
             onCancel={() => setEditing(null)}
           />
         </Modal>
+      )}
+
+      {spreading && (
+        <SpreadTasks
+          tasks={spreading}
+          all={tasks}
+          linked={linked}
+          onClose={() => setSpreading(null)}
+          onConfirm={(days, toCalendar) => void spread(days, toCalendar)}
+        />
       )}
     </div>
   );

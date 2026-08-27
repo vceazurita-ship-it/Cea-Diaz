@@ -17,7 +17,7 @@ npm run dev
 ```
 
 Abre <http://localhost:3000>. Para probar los resúmenes sin registrar nada a mano:
-**⚙️ Ajustes → 🎲 Cargar datos de ejemplo** (genera 28 días simulados para todos los perfiles).
+**⚙️ Ajustes → 💾 Datos → 🎲 Datos de ejemplo** (genera 28 días simulados para todos los perfiles).
 
 Otros comandos:
 
@@ -83,9 +83,11 @@ components/
     PlanAlerts.tsx     Carencias, excesos y avisos de la semana
     TodayPlanCard.tsx  Lo previsto para hoy, dentro de la pantalla de registro
   tasks/
-    TasksPanel.tsx     Recados y citas del perfil, agrupados por urgencia
+    TasksPanel.tsx     Recados y citas del perfil: lista por urgencia o mes
     TaskComposer.tsx   Alta y edición: qué, cuándo, aviso y repetición
-    TaskItem.tsx       Una tarea: tachar, editar, mandar al calendario
+    TaskItem.tsx       Una tarea: tachar, editar, copiar a días, mandar al calendario
+    MonthGrid.tsx      El mes en una rejilla: carga de cada día y días marcados
+    SpreadTasks.tsx    Copiar un recado —o el día entero— a varios días de golpe
     CalendarAccount.tsx Cuenta de Google enlazada y calendario de destino
   DateNavigator.tsx    Navegación por días con tira semanal
   CategoryCard.tsx     Categoría plegable con su cumplimiento, su nota y su criterio
@@ -94,10 +96,10 @@ components/
     AttentionCard.tsx  Lo que hoy pide atención, por prioridad
     CriteriaSheet.tsx  Ficha completa del criterio y de las referencias citadas
   PinLock.tsx          Bloqueo del módulo privado de pareja
-  SettingsPanel.tsx    Modo día/noche, portada, ejemplo, copias, PIN y borrado
+  SettingsPanel.tsx    Ajustes en cinco apartados: aspecto, nube, sonido, datos y seguridad
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
-  ui/                  Avatar, CromoPortrait, ProgressBar, ProgressRing, Stars, Modal, Toast, NoteField, ThemeToggle
+  ui/                  Avatar, CromoPortrait, ProgressBar, ProgressRing, Stars, Modal, Switch, Toast, NoteField, ThemeToggle
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
@@ -121,7 +123,7 @@ lib/
   planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
   planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
   learning.ts          Catálogo del bonus del día y elección según el interés
-  tasks.ts             Recados: montones por urgencia, repetición y etiquetas
+  tasks.ts             Recados: montones por urgencia, repetición, copias en serie y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
   googleCalendar.ts    Google Calendar desde el servidor: permisos, tokens y eventos
   calendarLinks.ts     Los permisos guardados, uno por perfil, con el token cifrado
@@ -265,7 +267,7 @@ Los que faltaban y el consenso considera de primer orden:
 Al entrar en un perfil suena su música: Leo y Hugo reciben la sintonía de *Oliver y
 Benji* y María, *A Thousand Years*. Suena **veinte segundos**, entra y sale con un
 desvanecido, y se corta con el botón que aparece abajo a la derecha. Se apaga del todo
-en **⚙️ Ajustes → Sonido**.
+en **⚙️ Ajustes → 🔊 Sonido**.
 
 Tres detalles de comportamiento, para que sea una alegría y no un incordio:
 
@@ -416,7 +418,7 @@ situación en la que se monta la app: **un móvil con todo puesto** —las fotos
 agendas, los equipos, los primeros días rellenos— y el resto de aparatos todavía en
 blanco o a medias. Ahí no hace falta mezclar: hace falta que mande uno.
 
-En **Ajustes → Nube**, con la sesión iniciada, está **⬆️ Mandar lo de este móvil**. Pide
+En **Ajustes → ☁️ Nube**, con la sesión iniciada, está **⬆️ Mandar lo de este móvil**. Pide
 confirmación —lo que hace no es inocente— y sube todo lo de este aparato *refechado*:
 registros, tareas, ajustes de la casa, campogramas, agendas y las fotos y sintonías. Al
 llevar fecha de ahora, gana en todos los demás, que la adoptan en cuanto abren la app.
@@ -905,6 +907,54 @@ vuelve a estar pendiente, que es lo que se espera de «sacar la basura». El sal
 se recorta al último día real, así que un «cada mes» nacido un 31 cae en el 28 de
 febrero y no se desliza al 3 de marzo.
 
+### Las dos vistas: lista y mes
+
+Arriba de la lista hay un par de botones, **📋 Lista** y **🗓️ Calendario**, que enseñan
+lo mismo de dos maneras:
+
+- **Lista** es la de siempre: los montones por urgencia, que dicen *qué corre prisa*.
+- **Calendario** es el mes entero, con un punto por tarea debajo de cada número —llenos
+  los pendientes, apagados los hechos—. Dice *cómo viene la semana*, que es lo que no
+  se ve en una lista ordenada por urgencia: dos días vacíos y un jueves imposible.
+
+Al picar un día se abre debajo lo que hay ese día, con las mismas filas de siempre
+—tachar, editar, borrar— y un **⧉ Copiar el día** para llevárselo entero a otros.
+
+### Copiar un recado a varios días
+
+Repetir «cada semana» sirve cuando algo no se acaba nunca. Pero la mayoría de las
+tandas de casa tienen principio y fin —los cinco días del campamento, los martes de
+piscina del trimestre, la medicación de una semana— y no son una serie: son recados
+concretos, cada uno con su día, que se tachan por separado y que a veces se cambian de
+hora uno solo.
+
+Para eso está **⧉ Copiar a días**, en cualquier tarea sin tachar y en el día entero
+desde la vista de calendario. Se abre un mes en el que **lo marcado es lo que se copia**,
+y se llega ahí por tres caminos que se pueden mezclar:
+
+- **Los atajos**: mañana, los próximos siete días, cada martes (el día que sea el de la
+  tarea), de lunes a viernes, o los fines de semana.
+- **El patrón**: se eligen los días de la semana —L M X J V S D— y cuántas semanas
+  alcanza, de una a doce (un trimestre escolar).
+- **A mano**, picando en el propio calendario.
+
+Los atajos y el patrón **añaden** a lo marcado, nunca lo sustituyen, y después se quita
+lo que no toque picándolo otra vez: las tandas de la vida real casi siempre tienen una
+excepción, y el martes de la excursión no hay piscina. Antes de confirmar se dice
+cuántas copias van a salir y en cuántos días, y el mes avisa de lo que ya hay: los
+puntos de cada día y un **✓** en los que ya tienen ese mismo recado, para no acabar con
+la piscina apuntada dos veces.
+
+Cada copia lleva la hora, el aviso, el tipo y el detalle de la original, pero es un
+recado suelto: **la repetición no viaja**. Conservarla convertiría cinco copias en cinco
+series abiertas y llenaría el calendario de eventos que nadie ha pedido.
+
+Con la cuenta de Google enlazada se puede pedir que las copias vayan también al
+calendario; salen en fila y sin ruido, y lo que no llegue queda pendiente y se reintenta
+solo, como cualquier tarea apuntada sin cobertura. El **Deshacer** del aviso las quita
+de la lista *y* de Google: doce eventos huérfanos en el calendario de la casa no serían
+marcha atrás.
+
 ### Que aparezca en el calendario del móvil
 
 La app no escribe en el móvil: escribe en **la cuenta de Google**, y el móvil enseña
@@ -1266,7 +1316,7 @@ lo que de verdad usa la casa.
 ### La portada de la app
 
 La foto grande de la pantalla de inicio no es de ningún perfil: es de la casa. Se
-cambia desde **⚙️ Ajustes → Aspecto de la app → Portada**, o tocando el botón
+cambia desde **⚙️ Ajustes → 🎨 Aspecto → Portada**, o tocando el botón
 **🖼️ Cambiar portada** que hay sobre la propia foto.
 
 Por dentro es una ranura más del almacén de aspecto, sólo que su dueño no es un
@@ -1368,6 +1418,41 @@ en el aparato desde el que más se consulta.
   acento como texto y los dos velos de acento. El mapa de calor del mes rellena
   entre el 16 % y el 40 % de acento por el mismo motivo: llenar la casilla del
   todo no dejaba contraste para el número de encima.
+
+## Ajustes
+
+**⚙️ Ajustes** está en el pie de la pantalla de inicio y dentro de cada perfil. Era una
+tira única que había que recorrer entera para llegar al PIN; ahora son **cinco
+apartados** que se cambian con un toque —o con las flechas del teclado— y cada uno cabe
+en la pantalla del móvil sin desplazarse:
+
+| Apartado | Qué hay |
+| -------- | ------- |
+| 🎨 Aspecto | Modo día/noche/automático y la portada de la casa |
+| ☁️ Nube | Estado de la sesión, sincronizar, mandar lo de este móvil y el parte de qué ha viajado |
+| 🔊 Sonido | Las sintonías de perfil, encendidas o silenciadas |
+| 💾 Datos | Cuánto hay guardado, exportar, importar y datos de ejemplo |
+| 🔐 Seguridad | El PIN del módulo de pareja y la zona peligrosa |
+
+Lo que hay que mirar **se ve desde fuera**: la pestaña lleva un punto rojo cuando la
+última sincronización falló o cuando el PIN sigue siendo el de fábrica, así que no hay
+que entrar apartado por apartado a comprobar que todo está en orden.
+
+Además de la nueva estructura:
+
+- **La nube se lee de un vistazo.** Un punto de color y un titular —«Al día», «No llegó
+  entera», «Sin sesión»— en vez de un párrafo, y la hora de la última sincronización
+  dicha como se mira de verdad: *hace 3 min*.
+- **Los datos se cuentan antes de tocarlos.** Días registrados, tareas y pendientes en
+  tres cifras, y lo que ocuparía la copia de seguridad antes de descargarla. La zona
+  peligrosa dice cuántos días y cuántas tareas va a borrar, no «todos los registros».
+- **El PIN se escribe dos veces** y se puede ver mientras se teclea. Sólo se guarda su
+  huella: si se pone uno con un dedazo, no hay forma de averiguar cuál fue, así que más
+  vale pedirlo repetido. Si el elegido es `1111` o `1234` se dice —vale igual, pero no
+  protege de nadie de la casa.
+- **Los interruptores son interruptores.** Un botón cuyo texto cambia obliga a leer para
+  saber si lo que pone es lo que está puesto o lo que va a pasar al picarlo; el carril de
+  `ui/Switch.tsx` se ve de lejos y toda la fila es el objetivo táctil.
 
 ## Instalación en el móvil
 

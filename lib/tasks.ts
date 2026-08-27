@@ -1,4 +1,12 @@
-import { addDays, capitalize, formatShort, isToday, parseDateKey, todayKey } from '@/lib/dates';
+import {
+  addDays,
+  capitalize,
+  formatShort,
+  isToday,
+  parseDateKey,
+  startOfWeek,
+  todayKey,
+} from '@/lib/dates';
 import type { DateKey, ProfileId, Task, TaskBucket, TaskKind, TaskRepeat } from '@/types';
 
 /* =========================================================================
@@ -358,3 +366,115 @@ export function reminderLabel(minutes: number | undefined, hasTime: boolean): st
 
 /** Para resaltar la fila de lo que toca hoy. */
 export const isDueToday = (task: Task): boolean => Boolean(task.due && isToday(task.due));
+
+/* --------------------------- Copias en varios días ------------------------ */
+
+/**
+ * La misma tarea, otro día. Es una copia suelta: identificador propio, sin
+ * el vínculo con Google —el evento creado pertenece al día de origen— y sin
+ * tachar, aunque la original ya lo estuviera.
+ *
+ * La repetición no viaja. Quien reparte «piscina» por cinco martes quiere
+ * cinco recados concretos; conservar el «cada semana» de la original
+ * convertiría esos cinco en cinco series abiertas y llenaría el calendario
+ * de eventos que nadie ha pedido.
+ */
+export function copyTaskTo(task: Task, due: DateKey): Task {
+  const now = new Date().toISOString();
+
+  return {
+    ...task,
+    id: newTaskId(task.profileId),
+    due,
+    repeat: 'none',
+    done: false,
+    doneAt: undefined,
+    calendar: undefined,
+    calendarPending: undefined,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
+ * Reparte una tarea por los días pedidos. Se descarta su propio día —copiar
+ * algo encima de sí mismo deja dos filas idénticas— y los repetidos.
+ */
+export function spreadTask(task: Task, days: DateKey[]): Task[] {
+  const seen = new Set<DateKey>(task.due ? [task.due] : []);
+  const copies: Task[] = [];
+
+  for (const day of days) {
+    if (seen.has(day)) continue;
+    seen.add(day);
+    copies.push(copyTaskTo(task, day));
+  }
+
+  return copies;
+}
+
+/** Mismo texto, sin distinguir mayúsculas ni espacios de sobra. */
+function sameTitle(a: string, b: string): boolean {
+  const tidy = (text: string) => text.trim().toLocaleLowerCase('es-ES').replace(/\s+/g, ' ');
+  return tidy(a) === tidy(b);
+}
+
+/**
+ * Los días en que ya hay una tarea con ese título. Sirve para marcarlos en
+ * el calendario de la copia: repartir «piscina» por todos los martes del
+ * mes cuando tres ya la tienen apuntada es la forma más fácil de acabar con
+ * duplicados que luego hay que borrar a mano.
+ */
+export function daysWithTitle(tasks: Task[], title: string): Set<DateKey> {
+  const days = new Set<DateKey>();
+  for (const task of tasks) {
+    if (task.due && sameTitle(task.title, title)) days.add(task.due);
+  }
+  return days;
+}
+
+/** Los `count` días siguientes a `from`, sin incluirlo. */
+export function nextDays(from: DateKey, count: number): DateKey[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => addDays(from, index + 1));
+}
+
+/**
+ * Los días de la semana pedidos (0 = lunes … 6 = domingo) a lo largo de
+ * `weeks` semanas, contando desde la semana de `from`. Lo anterior a `from`
+ * se queda fuera: nadie reparte recados hacia atrás.
+ */
+export function weekdayRun(from: DateKey, weekdays: number[], weeks: number): DateKey[] {
+  if (weekdays.length === 0 || weeks <= 0) return [];
+
+  const monday = startOfWeek(from);
+  const days: DateKey[] = [];
+
+  for (let week = 0; week < weeks; week += 1) {
+    for (const weekday of [...weekdays].sort((a, b) => a - b)) {
+      const day = addDays(monday, week * 7 + weekday);
+      if (day >= from) days.push(day);
+    }
+  }
+
+  return days;
+}
+
+/** Cuántas tareas caen cada día, para pintarlo en el calendario. */
+export interface DayLoad {
+  total: number;
+  pending: number;
+}
+
+export function loadByDay(tasks: Task[]): Map<DateKey, DayLoad> {
+  const load = new Map<DateKey, DayLoad>();
+
+  for (const task of tasks) {
+    if (!task.due) continue;
+    const day = load.get(task.due) ?? { total: 0, pending: 0 };
+    day.total += 1;
+    if (!task.done) day.pending += 1;
+    load.set(task.due, day);
+  }
+
+  return load;
+}

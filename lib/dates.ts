@@ -101,3 +101,9 @@ export function friendlyDateLabel(key: DateKey): string {
   if (key === addDays(todayKey(), 1)) return 'Mañana';
   return capitalize(formatLong(key));
 }
+
+/** Primer día del mes desplazado `amount` meses respecto al de `key`. */
+export function addMonths(key: DateKey, amount: number): DateKey {
+  const date = parseDateKey(key);
+  return toDateKey(new Date(date.getFullYear(), date.getMonth() + amount, 1));
+}
