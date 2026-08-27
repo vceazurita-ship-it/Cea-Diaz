@@ -19,11 +19,14 @@ import {
 } from '@/lib/appearance';
 import {
   deleteAppearance,
+  deleteAppearanceRows,
   downloadAppearance,
   pullAppearance,
+  pullReplica,
   pushAppearance,
   type AppearanceRow,
 } from '@/lib/cloud';
+import { rememberReplica, replicaAction, type ReplicaMark } from '@/lib/replica';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 
@@ -71,6 +74,12 @@ interface AppearanceValue {
    * —si alguna se quedó— por qué.
    */
   pushAll: () => Promise<{ sent: number; failed: number; error?: string }>;
+  /**
+   * La mitad de fotos y sintonías de la réplica: como `pushAll`, pero además
+   * quita de la nube lo que aquí ya no está. Devuelve también cuántas se han
+   * quitado, que es lo que distingue una copia de una subida.
+   */
+  replicateAll: () => Promise<{ sent: number; failed: number; removed: number; error?: string }>;
 
   syncing: boolean;
   /** Lo que dijo la nube la última vez que el aspecto no llegó entero. */
@@ -257,8 +266,32 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
    * permiso mal puesto— no deje sin reconciliar a las demás.
    */
   const reconcileSlot = useCallback(
-    async (id: string, row: AppearanceRow | undefined, mine: LocalSlot | undefined) => {
+    async (
+      id: string,
+      row: AppearanceRow | undefined,
+      mine: LocalSlot | undefined,
+      /** Copiando la nube tal cual: no se compara, se obedece. */
+      copying = false,
+    ) => {
       const [owner, slot] = id.split(':') as [AppearanceOwner, Slot];
+
+      // Réplica en marcha: manda lo que hay arriba. Lo de aquí que no esté
+      // allí se quita —aunque no hubiera llegado a subir nunca— y lo que esté
+      // allí se baja aunque aquí hubiera algo más reciente.
+      if (copying) {
+        if (!row) {
+          if (mine) {
+            await clearSlot(owner, slot);
+            withdraw(id);
+          }
+          return;
+        }
+
+        // Ya es el mismo archivo: bajarlo otra vez sólo gastaría datos.
+        if (mine && mine.meta.remotePath === row.path && mine.meta.savedAt === row.updated_at) {
+          return;
+        }
+      }
 
       // Sólo aquí: o es nuevo de este móvil, o lo han quitado en otro.
       if (!row) {
@@ -281,7 +314,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       // En ambos sitios: gana la marca más reciente. Se comparan como fechas
       // y no como texto por si alguna quedó guardada con el formato que
       // devolvía Postgres antes de que `lib/cloud.ts` las igualara.
-      if (mine) {
+      //
+      // En una copia no se compara nada: lo de arriba ya ha ganado.
+      if (mine && !copying) {
         const here = Date.parse(mine.meta.savedAt);
         const there = Date.parse(row.updated_at);
 
@@ -342,6 +377,24 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     };
 
     try {
+      // ¿Ha dicho otro aparato «que todos queden igual que este»? Entonces
+      // esto no es una reconciliación: es una copia, y lo de aquí que no esté
+      // allí se va. La marca la escribe el aparato de origen al terminar su
+      // réplica, así que si se ve, sus fotos ya están arriba.
+      let mark: ReplicaMark | null = null;
+      try {
+        mark = await pullReplica();
+      } catch {
+        // Tabla sin crear: se reconcilia como siempre, mezclando.
+      }
+
+      const action = replicaAction(mark, 'aspecto');
+      const copying = action === 'adoptar';
+
+      // La primera marca que ve este aparato sólo se apunta: un móvil recién
+      // estrenado no puede perder sus fotos por una réplica anterior a él.
+      if (mark && action === 'anotar') rememberReplica('aspecto', mark.stamp);
+
       const [remote, local] = await Promise.all([pullAppearance(), loadAllSlots()]);
       const byId = new Map(remote.map((row) => [row.id, row]));
       const ids = new Set([...byId.keys(), ...Object.keys(local)]);
@@ -349,11 +402,15 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       for (const id of ids) {
         const mine = local[id];
         try {
-          await reconcileSlot(id, byId.get(id), mine);
+          await reconcileSlot(id, byId.get(id), mine, copying);
         } catch (cause) {
           note(cause);
         }
       }
+
+      // Sólo si ha bajado entera: si una canción se quedó por el camino, la
+      // copia se vuelve a intentar en el próximo repaso.
+      if (copying && mark && !failure) rememberReplica('aspecto', mark.stamp);
 
       setLastSync(new Date().toISOString());
     } catch (cause) {
@@ -415,6 +472,38 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     setError(failure ?? null);
     return { sent, failed, error: failure };
   }, [annotate]);
+
+  /**
+   * La mitad de fotos y sintonías de «dejar todos igual que este». Primero
+   * quita de la nube lo que aquí ya no está —una portada retirada, la
+   * sintonía de un perfil que se quedó sin ella— y después sube todo lo de
+   * aquí refechado, que es lo que `pushAll` ya sabe hacer.
+   *
+   * Ese primer paso es toda la diferencia: sin él, el móvil que adopte la
+   * copia se bajaría de vuelta las fotos que aquí se habían quitado.
+   */
+  const replicateAll = useCallback(async () => {
+    let removed = 0;
+    let failure: string | undefined;
+
+    try {
+      const [local, remote] = await Promise.all([loadAllSlots(), pullAppearance()]);
+      const extra = remote.filter((row) => !local[row.id]);
+
+      if (extra.length > 0) {
+        await deleteAppearanceRows(extra.map((row) => ({ id: row.id, path: row.path })));
+        removed = extra.length;
+      }
+    } catch (cause) {
+      failure = cause instanceof Error ? cause.message : 'No se ha podido limpiar la nube.';
+    }
+
+    const uploaded = await pushAll();
+    const error = failure ?? uploaded.error;
+
+    setError(error ?? null);
+    return { ...uploaded, removed, error };
+  }, [pushAll]);
 
   /* ------------------------------------------------- cuándo se reconcilia
    *
@@ -482,12 +571,18 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     if (!client || !session) return;
 
     let timer = 0;
+    const wake = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void sync(), REALTIME_DEBOUNCE_MS);
+    };
+
+    // También la marca de réplica: es lo último que escribe el aparato que
+    // copia, y sin escucharla las fotos tardarían hasta dos minutos en
+    // ponerse al día cuando todo lo demás ya habría cambiado.
     const channel = client
       .channel('aspecto')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appearance' }, () => {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => void sync(), REALTIME_DEBOUNCE_MS);
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appearance' }, wake)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'replicas' }, wake)
       .subscribe();
 
     return () => {
@@ -535,6 +630,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       reset,
       sync,
       pushAll,
+      replicateAll,
       syncing,
       error,
       lastSync,
@@ -549,6 +645,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       reset,
       sync,
       pushAll,
+      replicateAll,
       syncing,
       error,
       lastSync,

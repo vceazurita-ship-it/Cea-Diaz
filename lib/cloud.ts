@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { ReplicaMark } from '@/lib/replica';
 import type {
   DayEntry,
   HabitDatabase,
@@ -216,13 +217,31 @@ export async function pushTasks(tasks: Task[], owner: string): Promise<void> {
   await upsertAll('tasks', tasks.map((task) => toTaskRow(task, owner)));
 }
 
-/** Propaga los borrados anotados como lápidas. */
-export async function deleteRows(table: CloudTable, ids: string[]): Promise<void> {
+/**
+ * Todas las tablas cuya clave es una columna `id`. Las lápidas sólo hablan
+ * de dos, pero la réplica tiene que poder quitar filas de cualquiera.
+ */
+export type IdTable = CloudTable | 'lineups' | 'agendas' | 'appearance';
+
+/**
+ * Borra por identificador, en tandas. El troceo no es un lujo: la lista
+ * viaja dentro de la URL, y dejar un aparato como copia exacta de otro puede
+ * suponer quitar varios miles de filas de una vez.
+ */
+export async function deleteFrom(table: IdTable, ids: string[]): Promise<void> {
   const client = supabase();
   if (!client || ids.length === 0) return;
 
-  const { error } = await client.from(table).delete().in('id', ids);
-  if (error) throw new Error(error.message);
+  const CHUNK = 200;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { error } = await client.from(table).delete().in('id', ids.slice(i, i + CHUNK));
+    if (error) throw new Error(error.message);
+  }
+}
+
+/** Propaga los borrados anotados como lápidas. */
+export async function deleteRows(table: CloudTable, ids: string[]): Promise<void> {
+  await deleteFrom(table, ids);
 }
 
 /* ---------------------------------------------------------------------------
@@ -391,6 +410,27 @@ export async function deleteAppearance(id: string, path: string): Promise<void> 
 
   await client.storage.from(APPEARANCE_BUCKET).remove([path]);
   await client.from('appearance').delete().eq('id', id);
+}
+
+/**
+ * Quita varias personalizaciones de golpe: es lo que hace la réplica con lo
+ * que hay en la nube y no en el aparato que manda. Primero los archivos y
+ * después las filas: si algo se tuerce a mitad, lo que queda es una fila
+ * apuntando a un archivo que ya no está —y esa la retira la siguiente
+ * reconciliación— y no un archivo huérfano que nadie volvería a nombrar.
+ */
+export async function deleteAppearanceRows(
+  rows: Array<{ id: string; path: string }>,
+): Promise<void> {
+  const client = supabase();
+  if (!client || rows.length === 0) return;
+
+  const { error } = await client.storage
+    .from(APPEARANCE_BUCKET)
+    .remove(rows.map((row) => row.path));
+  if (error) throw new Error(error.message);
+
+  await deleteFrom('appearance', rows.map((row) => row.id));
 }
 
 /* ---------------------------------------------------------------------------
@@ -573,6 +613,54 @@ export async function pushPlan(
     profile_id: profileId,
     blocks: plan.blocks,
     updated_at: plan.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Marca de réplica
+ *
+ * Una sola fila por cuenta que dice «lo que hay aquí arriba es la copia
+ * exacta de tal aparato, declarada tal día». No lleva datos: es el aviso que
+ * el resto necesita para dejar de mezclar y ponerse a copiar.
+ *
+ * Se escribe la última, cuando todo lo demás ya ha subido. Al revés, un
+ * móvil que estuviera mirando en ese momento se llevaría media copia.
+ * ------------------------------------------------------------------------- */
+
+interface ReplicaRow {
+  owner: string;
+  stamp: string;
+  origin: string;
+  device: string;
+  updated_at: string;
+}
+
+/** La marca que haya en la nube, o `null` si nadie ha replicado nunca. */
+export async function pullReplica(): Promise<ReplicaMark | null> {
+  const client = supabase();
+  if (!client) return null;
+
+  const { data, error } = await client.from('replicas').select('*').maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as ReplicaRow;
+  return { stamp: isoOf(row.stamp), origin: row.origin ?? '', device: row.device ?? 'un aparato' };
+}
+
+export async function pushReplica(mark: ReplicaMark, owner: string): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('replicas').upsert({
+    owner,
+    stamp: mark.stamp,
+    origin: mark.origin,
+    device: mark.device,
+    updated_at: mark.stamp,
   });
 
   if (error) throw new Error(error.message);

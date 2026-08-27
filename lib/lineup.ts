@@ -251,6 +251,17 @@ export function applyRemoteLineups(remote: Record<string, Lineup>): void {
   if (changed) commit(merged);
 }
 
+/**
+ * Se queda exactamente con los equipos que venían de la nube: los que aquí
+ * había de más desaparecen. Es lo que hace la réplica, y por eso no compara
+ * fechas —no es una mezcla, es una copia— ni refecha nada.
+ */
+export function replaceLineups(remote: Record<string, Lineup>): void {
+  const next: Record<string, Lineup> = {};
+  for (const [profileId, lineup] of Object.entries(remote)) next[profileId] = normalize(lineup);
+  commit(next);
+}
+
 /** Avisa cuando cambia un equipo, venga de este aparato o de otro. */
 export function subscribeLineups(listener: () => void): () => void {
   listeners.add(listener);

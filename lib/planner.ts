@@ -1293,6 +1293,17 @@ export function applyRemotePlans(remote: Record<string, WeekPlan>): void {
   if (changed) commit(merged);
 }
 
+/**
+ * Se queda exactamente con las agendas que venían de la nube: las que aquí
+ * había de más desaparecen. Es lo que hace la réplica, y por eso no compara
+ * fechas —no es una mezcla, es una copia— ni refecha nada.
+ */
+export function replacePlans(remote: Record<string, WeekPlan>): void {
+  const next: Record<string, WeekPlan> = {};
+  for (const [profileId, plan] of Object.entries(remote)) next[profileId] = normalize(plan);
+  commit(next);
+}
+
 /** Avisa cuando cambia una agenda, venga de este aparato o de otro. */
 export function subscribePlans(listener: () => void): () => void {
   listeners.add(listener);

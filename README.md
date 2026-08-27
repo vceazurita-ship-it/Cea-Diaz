@@ -132,6 +132,7 @@ lib/
   sound.ts             Sintonía al entrar en un perfil, con desvanecido
   supabase.ts          Cliente de la nube (opcional: sin claves, no se usa)
   cloud.ts             Sincronización: mezcla por fecha y lápidas
+  replica.ts           La copia exacta: identidad del aparato y marca de réplica
   dates.ts             Utilidades de fecha en es-ES
   storage.ts           Lectura/escritura en localStorage
   appearance.ts        Ranuras de aspecto (fotos y sintonía) en IndexedDB
@@ -335,6 +336,10 @@ registrado sube solo en cuanto vuelve la conexión.
 > lo que hacía que las fotos se subieran en un móvil y no en el resto—, y se añaden a la
 > publicación de tiempo real las cuatro tablas que faltaban (`appearance`, `settings`,
 > `lineups` y `agendas`), que son las de las fotos, el modo, los equipos y las agendas.
+>
+> Y ahora también la tabla `replicas`, de una sola fila, que es la que hace posible
+> «dejar todos igual que este». Sin ella la app funciona igual que siempre: ese botón
+> avisa de que no ha podido dar el aviso, y todo lo demás sigue subiendo y bajando.
 
 ### Qué sube y qué no
 
@@ -393,9 +398,9 @@ arrancar hasta que alguien recargaba la página.
 
 El canal de tiempo real necesita que las tablas estén en la publicación
 `supabase_realtime`; de eso se encarga el bloque final de `supabase/schema.sql`, que
-mete las seis: `entries`, `tasks`, `appearance`, `settings`, `lineups` y `agendas`. Si
-no está, no se rompe nada: se nota sólo en que el refresco tarda hasta el siguiente
-repaso.
+mete las siete: `entries`, `tasks`, `appearance`, `settings`, `lineups`, `agendas` y
+`replicas`. Si no está, no se rompe nada: se nota sólo en que el refresco tarda hasta
+el siguiente repaso.
 
 ### Cómo resuelve los conflictos
 
@@ -426,6 +431,49 @@ llevar fecha de ahora, gana en todos los demás, que la adoptan en cuanto abren 
 No borra nada de nadie: lo que exista en otro aparato y aquí no —un día registrado desde
 el móvil de María— sigue existiendo. Lo que esté en los dos sitios pasa a ser el de aquí.
 
+### Cuando todos tienen que quedar igual
+
+Mandar sube, pero **no borra**. Y hay una situación en la que eso no basta: la app se ha
+estado montando durante semanas y los otros aparatos arrastran lo suyo —días de prueba,
+una portada vieja, un equipo a medio hacer, tareas que ya no existen—. Mezclar no lo
+arregla nunca, porque lo que sobra allí no está aquí para ganarle la fecha.
+
+Para eso está, en la misma pestaña, **🧬 Dejar todos igual que este**. Hace la copia
+exacta:
+
+1. Deja la nube idéntica a este aparato: sube todo lo de aquí refechado y **quita de
+   ella lo que aquí ya no está** —registros, tareas, campogramas, agendas, fotos y
+   sintonías incluidas—.
+2. Escribe una **marca de réplica** (la tabla `replicas`): quién la declaró y cuándo.
+3. El resto de aparatos ve esa marca —en un par de segundos por el canal de tiempo
+   real— y en lugar de mezclar **adopta la copia entera**, tirando lo que sólo tuviera
+   él.
+
+Es lo único destructivo que viaja entre aparatos, así que se pregunta antes y el aviso
+dice exactamente lo que va a pasar. Tres cautelas lo acompañan:
+
+- **La marca se escribe la última**, cuando todo lo demás ya ha subido, y sólo si ha
+  subido todo. Media copia anunciada como copia entera dejaría a los demás borrando lo
+  suyo para adoptar algo que no está. Si algo falla, el parte lo dice y no se avisa a
+  nadie.
+- **Un aparato no adopta su propia réplica.** La marca lleva un identificador que cada
+  navegador se inventa para sí mismo; no dice de quién es el móvil ni dónde está.
+- **Un aparato que ve una marca por primera vez tampoco la adopta**: la apunta y sigue
+  como siempre. Si no, un móvil recién estrenado —o uno que llevaba un mes sin entrar en
+  la cuenta— perdería lo que hubiera registrado mientras tanto por una réplica antigua.
+  «Todos los siguientes» son los aparatos que ya estaban en casa cuando se pulsó el
+  botón; a los que llegan después les basta la sincronización normal, que se lo baja
+  todo sin quitarles nada.
+
+En el aparato que copia no se toca nada: la réplica sólo cambia la nube y, a través de
+ella, a los demás.
+
+| | ⬆️ Mandar lo de este móvil | 🧬 Dejar todos igual que este |
+| --- | --- | --- |
+| Lo de aquí | Sube y gana en todos | Sube y gana en todos |
+| Lo que sólo existe en otro aparato | Se queda | **Desaparece** |
+| Cuándo usarlo | Los demás están en blanco o a medias | Los demás arrastran cosas que ya no valen |
+
 ### El parte: qué ha viajado y qué no
 
 Los registros y las tareas viajan en la misma tabla, pero los ajustes, los campogramas y
@@ -449,6 +497,27 @@ que ha subido de cada una y, cuando algo no llega, lo que dijo la nube:
 Con cualquier pieza sin llegar, el estado deja de ser «al día» y lo dice. Los registros
 del día siguen viajando igual: que falte una tabla nunca puede impedirlo. Y las fotos se
 reconcilian aunque otra pieza haya fallado, porque no tienen la culpa.
+
+El mismo parte cuenta la réplica, que además de enviar borra, y por eso dice también qué
+ha quitado de la nube:
+
+```
+✅ Registros 42 enviados 3 borrados allí
+✅ Tareas 7 enviados
+✅ Ajustes de la casa
+✅ Campogramas 2 enviados
+✅ Agendas semanales 2 enviados 1 borrado allí
+✅ Fotos y sintonías 5 enviados 2 borrados allí
+✅ Aviso al resto de aparatos
+```
+
+Y en el móvil que recibe la copia, lo que se lee es de dónde vino y cuánto ha bajado:
+
+```
+✅ Copia de un Android
+✅ Registros 42 recibidos
+✅ Tareas 7 recibidos
+```
 
 ### Seguridad
 

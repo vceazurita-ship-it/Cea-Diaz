@@ -264,16 +264,52 @@ create policy "agendas propias" on public.agendas
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
+-- ------------------------------------------------------------- réplicas
+--  Una sola fila por cuenta que dice «lo que hay aquí arriba es la copia
+--  exacta de tal aparato, declarada tal día». No lleva datos: es el aviso
+--  que el resto de móviles necesita para dejar de mezclar y ponerse a
+--  copiar, tirando lo que sólo tuvieran ellos.
+--
+--  Es lo que hace «dejar todos igual que este» en los ajustes, y es la
+--  única cosa destructiva que viaja entre aparatos: por eso se pregunta dos
+--  veces antes y por eso la marca se escribe la última, cuando el resto ya
+--  ha subido. Media copia anunciada como copia entera dejaría a los demás
+--  borrando lo suyo para adoptar algo que no está.
+--
+--  `origin` es un identificador que cada navegador se inventa para sí
+--  mismo: sólo sirve para que quien declara la réplica no se la aplique a
+--  sí mismo. No dice de quién es el aparato ni dónde está.
+
+create table if not exists public.replicas (
+  owner       uuid primary key references auth.users (id) on delete cascade,
+  stamp       timestamptz not null default now(),  -- cuándo se declaró
+  origin      text not null default '',            -- aparato que la declaró
+  device      text not null default '',            -- cómo llamarlo en alto
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.replicas enable row level security;
+
+drop policy if exists "replicas propias" on public.replicas;
+create policy "replicas propias" on public.replicas
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
 -- ---------------------------------------------------------- tiempo real
 --  Sin esto, un aparato sólo se entera de lo que escriben los demás cuando
 --  vuelve a mirar (al arrancar o en su repaso periódico). Añadiendo las
 --  tablas a la publicación, Postgres avisa en el momento y lo registrado en
 --  el móvil aparece en el portátil en un par de segundos, sin recargar.
 --
---  Van las seis, no sólo los registros y las tareas: una foto nueva, el modo
---  noche, un once recolocado o el entreno del jueves movido de hora son
+--  Van las siete, no sólo los registros y las tareas: una foto nueva, el
+--  modo noche, un once recolocado o el entreno del jueves movido de hora son
 --  exactamente lo que uno espera ver aparecer solo en el otro aparato. Con
 --  las cuatro que faltaban, eso tardaba hasta tres cuartos de hora.
+--
+--  Y la séptima, `replicas`, porque una copia que tarda tres cuartos de hora
+--  en llegar es una casa con dos móviles distintos durante tres cuartos de
+--  hora, justo después de haber pedido que fueran idénticos.
 --
 --  Se comprueba antes de añadir para que relanzar el archivo no falle.
 
@@ -284,7 +320,9 @@ begin
     return;
   end if;
 
-  foreach t in array array['entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas'] loop
+  foreach t in array array[
+    'entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas', 'replicas'
+  ] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

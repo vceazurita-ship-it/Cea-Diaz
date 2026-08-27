@@ -121,6 +121,10 @@ interface PartLine {
   label: string;
   ok: boolean;
   sent?: number;
+  /** Cuántas se han bajado, cuando lo que ha pasado es una copia. */
+  received?: number;
+  /** Cuántas se han quitado de la nube por no existir ya aquí. */
+  removed?: number;
   error?: string;
 }
 
@@ -200,6 +204,10 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   const [confirmPush, setConfirmPush] = useState(false);
   /** Cómo les fue a las fotos y sintonías, que viajan por su cuenta. */
   const [photoPart, setPhotoPart] = useState<PartLine | null>(null);
+  /** Dejando el resto de aparatos igual que este. */
+  const [replicating, setReplicating] = useState(false);
+  /** Se pregunta aparte: esto sí borra, y borra en los otros móviles. */
+  const [confirmReplica, setConfirmReplica] = useState(false);
 
   // Se leen tras montar y se siguen escuchando: pueden cambiarlos desde
   // otro aparato mientras esta pantalla está abierta.
@@ -222,6 +230,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
     setPhoto,
     reset: resetSlot,
     pushAll: pushAppearanceAll,
+    replicateAll: replicateAppearance,
     error: appearanceError,
     lastSync: appearanceSync,
   } = useAppearance();
@@ -295,6 +304,14 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       : appearanceSync
         ? { id: 'photos', label: 'Fotos y sintonías', ok: true }
         : null);
+
+  /**
+   * El parte completo. La línea de las fotos sale del propio parte cuando
+   * viene en él —la réplica las lleva dentro— y sólo se añade por fuera
+   * cuando no está, que es lo que pasa tras un «mandar lo de este móvil».
+   */
+  const partLines: PartLine[] = [...(store.cloud.parts as PartLine[])];
+  if (photoLine && !partLines.some((part) => part.id === 'photos')) partLines.push(photoLine);
 
   /** Estado de la nube en una línea, con su color. */
   const cloud = (() => {
@@ -411,6 +428,65 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       });
     } finally {
       setPushing(false);
+    }
+  };
+
+  /**
+   * «Dejar todos igual que este»: la réplica.
+   *
+   * Lo de arriba sube; esto además borra. Deja la nube como copia exacta de
+   * este aparato y avisa al resto, que adoptarán la copia entera —y tirarán
+   * lo que sólo tuvieran ellos— en cuanto abran la app.
+   *
+   * El orden importa: primero los registros y lo que viaja aparte, después
+   * las fotos, y sólo al final la marca. Es `store.replicateAll` quien la
+   * escribe, y por eso las fotos entran como el paso que se le pasa: si se
+   * anunciara antes, otro móvil podría copiar media casa.
+   */
+  const replicateEverywhere = async () => {
+    setConfirmReplica(false);
+    setReplicating(true);
+    // Las fotos vienen dentro del parte de la nube: sin esto se vería dos
+    // veces la misma línea, la de ahora y la del último «mandar».
+    setPhotoPart(null);
+
+    try {
+      const report = await store.replicateAll(async () => {
+        const photos = await replicateAppearance();
+        return {
+          id: 'photos',
+          label: 'Fotos y sintonías',
+          ok: photos.failed === 0 && !photos.error,
+          sent: photos.sent,
+          removed: photos.removed,
+          error: photos.error
+            ? `${photos.failed > 0 ? `${photos.failed} sin subir: ` : ''}${photos.error}`
+            : undefined,
+        };
+      });
+
+      const failed = report.filter((part) => !part.ok).length;
+
+      notify(
+        failed > 0
+          ? {
+              message: 'No se ha copiado todo, así que no se ha avisado a nadie.',
+              icon: '⚠️',
+              tone: 'danger',
+            }
+          : {
+              message: 'Copiado. El resto de aparatos quedará igual que este al abrir la app.',
+              icon: '🧬',
+            },
+      );
+    } catch (error) {
+      notify({
+        message: error instanceof Error ? error.message : 'No se ha podido copiar.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+    } finally {
+      setReplicating(false);
     }
   };
 
@@ -682,7 +758,7 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
                   <button
                     type="button"
                     onClick={() => void store.syncNow()}
-                    disabled={store.cloud.status === 'syncing' || pushing}
+                    disabled={store.cloud.status === 'syncing' || pushing || replicating}
                     className="btn-ghost px-3 py-1.5 text-xs"
                   >
                     🔄 Sincronizar ahora
@@ -713,17 +789,58 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setConfirmPush(true)}
-                      disabled={pushing || store.cloud.status === 'syncing'}
+                      onClick={() => {
+                        setConfirmReplica(false);
+                        setConfirmPush(true);
+                      }}
+                      disabled={pushing || replicating || store.cloud.status === 'syncing'}
                       className="btn-ghost px-3 py-1.5 text-xs"
                     >
                       ⬆️ Mandar lo de este móvil
                     </button>
                   )}
 
+                  {/* Y el hermano destructivo: mandar deja lo que sólo exista
+                      en otro aparato; esto lo quita. Es lo que hace falta
+                      cuando los demás móviles arrastran pruebas de cuando se
+                      estaba montando la app y lo que se quiere es que todos
+                      queden exactamente igual que este. */}
+                  {confirmReplica ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void replicateEverywhere()}
+                        disabled={replicating}
+                        className="btn-danger px-3 py-1.5 text-xs"
+                      >
+                        {replicating ? '⏳ Copiando…' : 'Sí, que todos queden igual'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmReplica(false)}
+                        className="btn-ghost px-3 py-1.5 text-xs t-3"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmPush(false);
+                        setConfirmReplica(true);
+                      }}
+                      disabled={pushing || replicating || store.cloud.status === 'syncing'}
+                      className="btn-ghost px-3 py-1.5 text-xs"
+                    >
+                      🧬 Dejar todos igual que este
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => void store.signOut()}
+                    disabled={pushing || replicating}
                     className="btn-ghost px-3 py-1.5 text-xs t-3"
                   >
                     Cerrar sesión
@@ -740,24 +857,46 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
               </p>
             )}
 
+            {confirmReplica && (
+              <p
+                className="mt-2 rounded-xl border p-2.5 text-[11px] leading-relaxed surf-2 t-2"
+                style={{ borderColor: 'var(--danger)' }}
+              >
+                <span className="font-bold t-danger">Esto sí borra.</span> El resto de aparatos
+                quedará exactamente igual que este: mismos registros, tareas, ajustes,
+                campogramas, agendas, fotos y sintonías. Lo que allí exista y aquí no —un día
+                registrado sólo en la tableta, una foto que aquí se quitó— desaparece de todas
+                partes. En este móvil no se toca nada, y quien entre por primera vez después no
+                pierde lo suyo: sólo copian los aparatos que ya estaban en la cuenta.
+              </p>
+            )}
+
             {/* Qué ha viajado y qué no. Sin esto, una tabla que falta se leía
                 como «al día» y la casa creía tener la agenda en todas partes. */}
-            {(store.cloud.parts.length > 0 || photoLine) && (
+            {partLines.length > 0 && (
               <ul className="mt-3 space-y-1 border-t pt-2 hairline">
-                {([...store.cloud.parts, ...(photoLine ? [photoLine] : [])] as PartLine[]).map(
-                  (part) => (
-                    <li key={part.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
-                      <span aria-hidden>{part.ok ? '✅' : '⚠️'}</span>
-                      <span className={part.ok ? 't-2' : 't-danger'}>{part.label}</span>
-                      {part.sent !== undefined && (
-                        <span className="tabular-nums t-3">
-                          {part.sent} {part.sent === 1 ? 'enviado' : 'enviados'}
-                        </span>
-                      )}
-                      {!part.ok && part.error && <span className="t-3">— {part.error}</span>}
-                    </li>
-                  ),
-                )}
+                {partLines.map((part) => (
+                  <li key={part.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
+                    <span aria-hidden>{part.ok ? '✅' : '⚠️'}</span>
+                    <span className={part.ok ? 't-2' : 't-danger'}>{part.label}</span>
+                    {part.sent !== undefined && (
+                      <span className="tabular-nums t-3">
+                        {part.sent} {part.sent === 1 ? 'enviado' : 'enviados'}
+                      </span>
+                    )}
+                    {part.received !== undefined && (
+                      <span className="tabular-nums t-3">
+                        {part.received} {part.received === 1 ? 'recibido' : 'recibidos'}
+                      </span>
+                    )}
+                    {part.removed !== undefined && part.removed > 0 && (
+                      <span className="tabular-nums t-3">
+                        {part.removed} {part.removed === 1 ? 'borrado allí' : 'borrados allí'}
+                      </span>
+                    )}
+                    {!part.ok && part.error && <span className="t-3">— {part.error}</span>}
+                  </li>
+                ))}
               </ul>
             )}
 

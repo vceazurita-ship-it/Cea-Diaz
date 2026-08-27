@@ -4,16 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimePostgresChangesPayload, Session } from '@supabase/supabase-js';
 
 import {
+  deleteFrom,
   deleteRows,
   dirtyRows,
   mergeById,
   pullAll,
   pullLineups,
   pullPlans,
+  pullReplica,
   pullSettings,
   pushEntries,
   pushLineup,
   pushPlan,
+  pushReplica,
   pushSettings,
   pushTasks,
   tombstonesByTable,
@@ -24,10 +27,24 @@ import { GAME_NOTE_KEY } from '@/lib/games';
 import {
   applyRemoteLineups,
   loadLineups,
+  replaceLineups,
   subscribeLineups,
   updateLineup,
 } from '@/lib/lineup';
-import { applyRemotePlans, loadPlans, subscribePlans, updatePlan } from '@/lib/planner';
+import {
+  applyRemotePlans,
+  loadPlans,
+  replacePlans,
+  subscribePlans,
+  updatePlan,
+} from '@/lib/planner';
+import {
+  deviceId,
+  deviceLabel,
+  rememberReplica,
+  replicaAction,
+  type ReplicaMark,
+} from '@/lib/replica';
 import { buildSeedDatabase } from '@/lib/seed';
 import {
   applyRemoteSettings,
@@ -112,6 +129,14 @@ export interface HabitStore {
    * resto. Devuelve cómo le fue a cada pieza.
    */
   pushAll: () => Promise<CloudPart[]>;
+  /**
+   * Deja el resto de aparatos exactamente igual que este: sube lo de aquí y
+   * quita de la nube lo que aquí ya no existe. Las fotos y las sintonías no
+   * pasan por este archivo, así que se entregan como un paso más —el que se
+   * pasa en `uploadAppearance`— para que la marca de réplica se escriba
+   * cuando de verdad ha subido todo.
+   */
+  replicateAll: (uploadAppearance: () => Promise<CloudPart>) => Promise<CloudPart[]>;
 
   /** Deja de pedir la cuenta en este móvil (o vuelve a pedirla). */
   setLocalOnly: (value: boolean) => void;
@@ -142,13 +167,24 @@ export type CloudStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error';
  * pieza a pieza en vez de dar la sincronización entera por buena.
  */
 export interface CloudPart {
-  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans';
+  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans' | 'photos' | 'replica';
   label: string;
   ok: boolean;
   /** Lo que dijo la nube cuando no llegó. */
   error?: string;
   /** Cuántas filas se han mandado, cuando se sabe. */
   sent?: number;
+  /** Cuántas se han bajado, cuando lo que ha pasado es una copia. */
+  received?: number;
+  /** Cuántas se han quitado de la nube por no existir ya aquí. */
+  removed?: number;
+}
+
+/** Lo que hay que contar tras adoptar la copia declarada por otro aparato. */
+interface Adopted {
+  device: string;
+  entries: number;
+  tasks: number;
 }
 
 export interface CloudState {
@@ -201,7 +237,7 @@ interface CloudRow {
  * apagar las sintonías tardaba hasta tres cuartos de hora en verse en el
  * otro móvil, que es justo lo contrario de lo que espera quien lo hace.
  */
-const LIVE_TABLES = ['entries', 'tasks', 'settings', 'lineups', 'agendas'] as const;
+const LIVE_TABLES = ['entries', 'tasks', 'settings', 'lineups', 'agendas', 'replicas'] as const;
 
 /**
  * Apunta lo que este mismo navegador acaba de subir, para reconocer su propio
@@ -382,6 +418,59 @@ export function useHabitStore(): HabitStore {
   /* ------------------------------------------- subida y bajada */
 
   /**
+   * Adopta la copia que otro aparato haya declarado, si la hay y es nueva.
+   *
+   * Esto no es la mezcla de siempre: se sustituye lo de aquí por lo que haya
+   * arriba, y lo que sólo existiera en este móvil desaparece. Es exactamente
+   * lo que se pidió al pulsar «dejar todos igual que este» en el otro, y por
+   * eso allí se pregunta dos veces antes.
+   *
+   * Devuelve lo que hay que contar, o `null` si no había nada que adoptar.
+   */
+  const adoptReplica = useCallback(async (): Promise<Adopted | null> => {
+    const mark = await pullReplica();
+    const action = replicaAction(mark, 'datos');
+    if (!mark || action === 'nada') return null;
+
+    // Primera marca que ve este aparato: se apunta y no se toca nada. Un
+    // móvil recién estrenado no puede perder lo que lleve registrado por una
+    // réplica que se declaró antes de que existiera.
+    if (action === 'anotar') {
+      rememberReplica('datos', mark.stamp);
+      return null;
+    }
+
+    const [remote, settings, lineups, plans] = await Promise.all([
+      pullAll(),
+      pullSettings(),
+      pullLineups(),
+      pullPlans(),
+    ]);
+
+    if (settings) applyRemoteSettings(settings);
+    replaceLineups(lineups);
+    replacePlans(plans);
+
+    // Las lápidas se tiran: lo borrado aquí ya no tiene por qué borrarse
+    // allí, porque lo de allí es justamente lo que ahora manda.
+    setDb((prev) => ({ ...prev, entries: remote.entries, tasks: remote.tasks, tombstones: {} }));
+    synced.current = {
+      entries: versionIndex(remote.entries),
+      tasks: versionIndex(remote.tasks),
+    };
+
+    // Sólo al final: si algo de lo de arriba hubiera fallado, la copia se
+    // vuelve a intentar en el próximo repaso en vez de darse por hecha.
+    rememberReplica('datos', mark.stamp);
+
+    return {
+      device: mark.device,
+      entries: Object.keys(remote.entries).length,
+      tasks: Object.keys(remote.tasks).length,
+    };
+  }, []);
+
+  /**
    * Sincronización completa: propaga borrados, baja lo que hayan escrito los
    * demás móviles, mezcla por fecha de edición y sube lo que aquí es nuevo.
    */
@@ -394,6 +483,30 @@ export function useHabitStore(): HabitStore {
     setCloudError(null);
 
     try {
+      // 0. ¿Ha dicho alguien «que todos queden igual que este»? Entonces esto
+      //    no es una mezcla, es una copia, y no hay nada más que hacer.
+      let adopted: Adopted | null = null;
+      try {
+        adopted = await adoptReplica();
+      } catch {
+        // La tabla puede no existir todavía —esquema sin actualizar— o la
+        // copia puede no haber bajado entera. En los dos casos se sigue con
+        // la sincronización de siempre, que no le borra nada a nadie.
+      }
+
+      if (adopted) {
+        setParts([
+          { id: 'replica', label: `Copia de ${adopted.device}`, ok: true },
+          { id: 'entries', label: 'Registros', ok: true, received: adopted.entries },
+          { id: 'tasks', label: 'Tareas', ok: true, received: adopted.tasks },
+        ]);
+        setCloudError(null);
+        setLastSync(new Date().toISOString());
+        setCloudStatus('synced');
+        lastSyncAt.current = Date.now();
+        return;
+      }
+
       const current = dbRef.current;
 
       // 1. Lo borrado aquí deja de existir también allí.
@@ -485,7 +598,7 @@ export function useHabitStore(): HabitStore {
     } finally {
       syncing.current = false;
     }
-  }, [session, remember]);
+  }, [session, remember, adoptReplica]);
 
   /** Empujón incremental: sólo lo tocado desde la última subida. */
   const pushLocalChanges = useCallback(async () => {
@@ -643,6 +756,220 @@ export function useHabitStore(): HabitStore {
 
     return report;
   }, [session, remember]);
+
+  /**
+   * «Dejar todos los aparatos igual que este»: la réplica.
+   *
+   * Es el hermano destructivo del anterior. «Mandar lo de este móvil» sube lo
+   * de aquí pero respeta lo que sólo exista allí; esto no: deja la nube como
+   * una copia exacta de este aparato —quitando de ella lo que aquí ya no
+   * está— y anota una marca para que el resto de móviles adopten esa copia
+   * entera en vez de mezclarla.
+   *
+   * Sirve para lo que la mezcla no puede arreglar: un móvil con la casa
+   * montada como debe estar y otros tres arrastrando pruebas, días sueltos y
+   * fotos de cuando se estaba probando la app.
+   *
+   * La marca se escribe la última y sólo si todo lo demás ha subido. Media
+   * copia declarada como copia entera dejaría a los demás borrando lo suyo
+   * para adoptar algo que no está.
+   */
+  const replicateAll = useCallback(
+    async (uploadAppearance: () => Promise<CloudPart>): Promise<CloudPart[]> => {
+      const uid = session?.user.id;
+      if (!uid) return [];
+
+      setCloudStatus('syncing');
+      setCloudError(null);
+
+      const now = new Date().toISOString();
+      const current = dbRef.current;
+      const report: CloudPart[] = [];
+
+      const entries = Object.fromEntries(
+        Object.entries(current.entries).map(([id, entry]) => [id, { ...entry, updatedAt: now }]),
+      ) as EntryMap;
+      const tasks = Object.fromEntries(
+        Object.entries(current.tasks).map(([id, task]) => [id, { ...task, updatedAt: now }]),
+      ) as TaskMap;
+
+      try {
+        // Lo que hay arriba y aquí no, sobra: eso es lo que distingue la
+        // réplica de una subida a secas.
+        const remote = await pullAll();
+        const goneEntries = Object.keys(remote.entries).filter((id) => !entries[id]);
+        const goneTasks = Object.keys(remote.tasks).filter((id) => !tasks[id]);
+
+        await deleteFrom('entries', goneEntries);
+        await deleteFrom('tasks', goneTasks);
+
+        await pushEntries(Object.values(entries), uid);
+        await pushTasks(Object.values(tasks), uid);
+
+        setDb((prev) => ({ ...prev, entries, tasks, tombstones: {} }));
+        synced.current = { entries: versionIndex(entries), tasks: versionIndex(tasks) };
+
+        report.push({
+          id: 'entries',
+          label: 'Registros',
+          ok: true,
+          sent: Object.keys(entries).length,
+          removed: goneEntries.length,
+        });
+        report.push({
+          id: 'tasks',
+          label: 'Tareas',
+          ok: true,
+          sent: Object.keys(tasks).length,
+          removed: goneTasks.length,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No ha viajado.';
+        report.push({ id: 'entries', label: 'Registros', ok: false, error: message });
+        report.push({ id: 'tasks', label: 'Tareas', ok: false, error: message });
+      }
+
+      // Los ajustes son una sola fila por cuenta: subir la de aquí ya la deja
+      // como copia exacta, sin nada que quitar.
+      try {
+        const settings = updateSettings({});
+        await pushSettings(settings, uid);
+        remember('settings', uid, settings.updatedAt);
+        report.push({ id: 'settings', label: 'Ajustes de la casa', ok: true });
+      } catch (error) {
+        report.push({
+          id: 'settings',
+          label: 'Ajustes de la casa',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      try {
+        const mine = loadLineups();
+        const there = await pullLineups();
+        const gone = Object.keys(there)
+          .filter((profileId) => !mine[profileId])
+          .map((profileId) => `${uid}:${profileId}`);
+
+        await deleteFrom('lineups', gone);
+
+        const ids = Object.keys(mine) as ProfileId[];
+        for (const profileId of ids) {
+          const lineup = updateLineup(profileId, {});
+          await pushLineup(profileId, lineup, uid);
+          remember('lineups', `${uid}:${profileId}`, lineup.updatedAt);
+        }
+
+        report.push({
+          id: 'lineups',
+          label: 'Campogramas',
+          ok: true,
+          sent: ids.length,
+          removed: gone.length,
+        });
+      } catch (error) {
+        report.push({
+          id: 'lineups',
+          label: 'Campogramas',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      try {
+        const mine = loadPlans();
+        const there = await pullPlans();
+        const gone = Object.keys(there)
+          .filter((profileId) => !mine[profileId])
+          .map((profileId) => `${uid}:${profileId}`);
+
+        await deleteFrom('agendas', gone);
+
+        const ids = Object.entries(mine);
+        for (const [profileId, plan] of ids) {
+          const saved = updatePlan(profileId as ProfileId, plan.blocks);
+          await pushPlan(profileId, saved, uid);
+          remember('agendas', `${uid}:${profileId}`, saved.updatedAt);
+        }
+
+        report.push({
+          id: 'plans',
+          label: 'Agendas semanales',
+          ok: true,
+          sent: ids.length,
+          removed: gone.length,
+        });
+      } catch (error) {
+        report.push({
+          id: 'plans',
+          label: 'Agendas semanales',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      // Las fotos y las sintonías las lleva `useAppearance`: viven en
+      // IndexedDB y en un cubo, no en estas tablas. Entran aquí como una
+      // pieza más para que la marca no se escriba antes de que hayan subido.
+      try {
+        report.push(await uploadAppearance());
+      } catch (error) {
+        report.push({
+          id: 'photos',
+          label: 'Fotos y sintonías',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      const broken = report.filter((part) => !part.ok);
+
+      if (broken.length > 0) {
+        report.push({
+          id: 'replica',
+          label: 'Aviso al resto de aparatos',
+          ok: false,
+          error: 'no se ha dado, porque no ha subido todo',
+        });
+      } else {
+        try {
+          const mark: ReplicaMark = {
+            stamp: new Date().toISOString(),
+            origin: deviceId(),
+            device: deviceLabel(),
+          };
+
+          await pushReplica(mark, uid);
+
+          // Este aparato ya es la copia: se apunta como aplicada para no
+          // adoptarse a sí mismo aunque su identificador cambiara.
+          rememberReplica('datos', mark.stamp);
+          rememberReplica('aspecto', mark.stamp);
+
+          report.push({ id: 'replica', label: 'Aviso al resto de aparatos', ok: true });
+        } catch (error) {
+          report.push({
+            id: 'replica',
+            label: 'Aviso al resto de aparatos',
+            ok: false,
+            error: error instanceof Error ? error.message : 'No ha viajado.',
+          });
+        }
+      }
+
+      const note = failureNote(report);
+
+      setParts(report);
+      setCloudError(note);
+      setLastSync(new Date().toISOString());
+      setCloudStatus(note ? 'error' : 'synced');
+      lastSyncAt.current = Date.now();
+
+      return report;
+    },
+    [session, remember],
+  );
 
   // Primera sincronización al entrar, y luego al volver a la app.
   useEffect(() => {
@@ -1176,6 +1503,7 @@ export function useHabitStore(): HabitStore {
       signOut,
       syncNow,
       pushAll,
+      replicateAll,
       setLocalOnly,
     }),
     [
@@ -1210,6 +1538,7 @@ export function useHabitStore(): HabitStore {
       signOut,
       syncNow,
       pushAll,
+      replicateAll,
       setLocalOnly,
     ],
   );
