@@ -76,7 +76,26 @@ export function CounterControl({
         </div>
 
         <ProgressBar ratio={ratio} chunky />
-        {metric.help && <p className="mt-2 text-xs t-2">{metric.help}</p>}
+
+        <div className="mt-2 flex items-start gap-3">
+          {metric.help && <p className="min-w-0 flex-1 text-xs t-2">{metric.help}</p>}
+
+          {/* Un toque de más no puede ser definitivo. Bajar hasta cero deja
+              un cero registrado —que es una respuesta—, así que para dejarlo
+              otra vez sin contestar hace falta esto, igual que la ✕ de la
+              versión de mayores. */}
+          {registered && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(undefined)}
+              className="btn-ghost ml-auto shrink-0 px-2.5 py-1 text-[11px]"
+              aria-label={`Borrar el registro de ${metric.label}`}
+            >
+              ↩️ Borrar
+            </button>
+          )}
+        </div>
       </div>
     );
   }

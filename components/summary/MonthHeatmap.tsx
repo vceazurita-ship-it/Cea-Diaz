@@ -1,6 +1,6 @@
 'use client';
 
-import { formatShort, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
+import { formatShort, isFuture, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
 import { percent } from '@/lib/scoring';
 import type { DayScore } from '@/types';
 
@@ -46,23 +46,34 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
           <span key={`pad-${i}`} />
         ))}
 
-        {days.map((day) => (
-          <button
-            key={day.date}
-            type="button"
-            onClick={() => onSelectDay?.(day.date)}
-            title={`${formatShort(day.date)} · ${day.empty ? 'sin registro' : percent(day.ratio)}`}
-            aria-label={`${formatShort(day.date)}, ${
-              day.empty ? 'sin registro' : percent(day.ratio)
-            }`}
-            className={`flex aspect-square items-center justify-center rounded-lg text-[11px]
-                       font-semibold tabular-nums transition-transform hover:scale-110
-                       ${day.empty ? 'surf-2 t-3' : 't-1'}`}
-            style={day.empty ? undefined : { backgroundColor: fillFor(day.ratio) }}
-          >
-            {Number(day.date.slice(-2))}
-          </button>
-        ))}
+        {days.map((day) => {
+          // Igual que en la tira de la semana: los días que aún no han
+          // llegado se ven, para que el mes esté completo, pero no se abren.
+          const future = isFuture(day.date);
+          const state = future
+            ? 'todavía no ha llegado'
+            : day.empty
+              ? 'sin registro'
+              : percent(day.ratio);
+
+          return (
+            <button
+              key={day.date}
+              type="button"
+              disabled={future}
+              onClick={() => onSelectDay?.(day.date)}
+              title={`${formatShort(day.date)} · ${state}`}
+              aria-label={`${formatShort(day.date)}, ${state}`}
+              className={`flex aspect-square items-center justify-center rounded-lg text-[11px]
+                         font-semibold tabular-nums transition-transform
+                         ${future ? 'cursor-not-allowed opacity-40' : 'hover:scale-110'}
+                         ${day.empty ? 'surf-2 t-3' : 't-1'}`}
+              style={day.empty ? undefined : { backgroundColor: fillFor(day.ratio) }}
+            >
+              {Number(day.date.slice(-2))}
+            </button>
+          );
+        })}
       </div>
 
       <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] t-3">

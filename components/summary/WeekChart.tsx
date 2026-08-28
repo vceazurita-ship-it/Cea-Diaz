@@ -1,7 +1,7 @@
 'use client';
 
 import { percent } from '@/lib/scoring';
-import { formatShort, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
+import { formatShort, isFuture, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
 import type { DayScore } from '@/types';
 
 interface WeekChartProps {
@@ -14,16 +14,24 @@ export function WeekChart({ days, onSelectDay }: WeekChartProps) {
     <div className="flex h-44 items-end gap-2">
       {days.map((day) => {
         const height = Math.max(4, Math.round(day.ratio * 100));
+        // Un día que aún no ha llegado no se abre: el registro no acepta el
+        // futuro, así que ofrecerlo aquí sólo llevaba a una pantalla en la
+        // que no se puede apuntar nada.
+        const future = isFuture(day.date);
         return (
           <button
             key={day.date}
             type="button"
+            disabled={future}
             onClick={() => onSelectDay?.(day.date)}
-            title={`${formatShort(day.date)} · ${day.empty ? 'sin registro' : percent(day.ratio)}`}
-            aria-label={`${formatShort(day.date)}, ${
-              day.empty ? 'sin registro' : percent(day.ratio)
+            title={`${formatShort(day.date)} · ${
+              future ? 'todavía no ha llegado' : day.empty ? 'sin registro' : percent(day.ratio)
             }`}
-            className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+            aria-label={`${formatShort(day.date)}, ${
+              future ? 'todavía no ha llegado' : day.empty ? 'sin registro' : percent(day.ratio)
+            }`}
+            className={`group flex h-full flex-1 flex-col items-center justify-end gap-1.5
+              ${future ? 'cursor-not-allowed opacity-45' : ''}`}
           >
             {/* El valor va siempre visible: en un móvil no existe «posar el
                 ratón encima», así que esconderlo tras un :hover lo dejaba

@@ -122,6 +122,10 @@ export interface HabitStore {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Cambia la contraseña de la cuenta de casa. Requiere sesión abierta. */
+  changePassword: (password: string) => Promise<void>;
+  /** Manda el correo con el enlace para volver a entrar sin la contraseña. */
+  sendPasswordReset: (email: string) => Promise<void>;
   /** Fuerza una sincronización completa. */
   syncNow: () => Promise<void>;
   /**
@@ -196,6 +200,12 @@ export interface CloudState {
   error: string | null;
   /** Cómo le fue a cada pieza en la última sincronización. */
   parts: CloudPart[];
+  /**
+   * Se ha llegado desde el enlace de recuperación del correo. La sesión está
+   * abierta, pero la contraseña sigue siendo la que no se recuerda: hasta que
+   * se ponga otra, la app lo dice y lleva a donde se cambia.
+   */
+  recovering: boolean;
 }
 
 /** Clave que recuerda que en este móvil se ha elegido trabajar sin nube. */
@@ -336,6 +346,39 @@ function grave(
   return { ...tombstones, [`${table}:${id}`]: new Date().toISOString() };
 }
 
+/**
+ * Rehace las lápidas después de sustituir la base de golpe: importar una
+ * copia con «reemplazar todo», o poner los datos de ejemplo.
+ *
+ * Sin esto, «reemplazar todo» no reemplazaba nada en una casa con nube. Los
+ * días que la copia no traía desaparecían de este móvil, pero nadie los daba
+ * por borrados, así que seguían en la nube y la siguiente sincronización los
+ * devolvía tal cual: la copia importada quedaba mezclada con lo que se
+ * suponía que había sustituido.
+ *
+ * Y al revés: un día que se hubiera borrado aquí y que la copia sí trae
+ * vuelve a existir, así que su lápida sobra —de lo contrario lo importado se
+ * borraría solo en cuanto la lápida viajara—.
+ */
+function regrave(
+  tombstones: Record<string, string>,
+  before: { entries: EntryMap; tasks: TaskMap },
+  after: { entries: EntryMap; tasks: TaskMap },
+): Record<string, string> {
+  const next = { ...tombstones };
+  const stamp = new Date().toISOString();
+
+  const settle = (table: CloudTable, was: Record<string, unknown>, is: Record<string, unknown>) => {
+    for (const id of Object.keys(was)) if (!(id in is)) next[`${table}:${id}`] = stamp;
+    for (const id of Object.keys(is)) delete next[`${table}:${id}`];
+  };
+
+  settle('entries', before.entries, after.entries);
+  settle('tasks', before.tasks, after.tasks);
+
+  return next;
+}
+
 /** Quita sólo las lápidas ya propagadas; las nuevas siguen esperando su turno. */
 function forget(
   tombstones: Record<string, string>,
@@ -373,6 +416,7 @@ export function useHabitStore(): HabitStore {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [parts, setParts] = useState<CloudPart[]>([]);
   const [localOnly, setLocalOnlyState] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   // Espejo del estado para poder sincronizar sin re-crear los callbacks en
   // cada tecla: `db` cambia constantemente, la sesión casi nunca.
@@ -411,7 +455,13 @@ export function useHabitStore(): HabitStore {
 
     client.auth.getSession().then(({ data }) => setSession(data.session));
 
-    const { data } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = client.auth.onAuthStateChange((event, next) => {
+      setSession(next);
+      // Supabase avisa así de que la sesión viene del enlace del correo. No
+      // basta con dejar entrar: quien llega por ahí es porque no se acuerda
+      // de la contraseña, y sin cambiarla volverá a quedarse fuera mañana.
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -1177,6 +1227,30 @@ export function useHabitStore(): HabitStore {
     // Se olvida lo sincronizado, no lo guardado: los datos siguen en el móvil.
     synced.current = { entries: {}, tasks: {} };
     setCloudStatus('signed-out');
+    setRecovering(false);
+  }, []);
+
+  const changePassword = useCallback(async (password: string) => {
+    const client = supabase();
+    if (!client) throw new Error('La nube no está configurada.');
+
+    const { error } = await client.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+
+    // Ya hay contraseña nueva: se deja de avisar de que hay que ponerla.
+    setRecovering(false);
+  }, []);
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    const client = supabase();
+    if (!client) throw new Error('La nube no está configurada.');
+
+    // El enlace devuelve a esta misma app, sea el móvil, el portátil o
+    // Vercel: la dirección se toma de donde se esté pidiendo.
+    const { error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) throw new Error(error.message);
   }, []);
 
   const setLocalOnly = useCallback((value: boolean) => {
@@ -1407,10 +1481,21 @@ export function useHabitStore(): HabitStore {
   const loadDemoData = useCallback(() => {
     // Los datos de ejemplo no traen recados: las citas del dentista son de
     // cada casa, no de un ejemplo.
-    setDb((prev) => ({
-      ...buildSeedDatabase(),
-      tasks: prev.tasks,
-    }));
+    synced.current = { entries: {}, tasks: {} };
+
+    setDb((prev) => {
+      const seed = buildSeedDatabase();
+      const after = { entries: seed.entries, tasks: prev.tasks };
+
+      return {
+        ...prev,
+        version: seed.version,
+        ...after,
+        // Los días que había aquí y el ejemplo no trae quedan marcados como
+        // borrados: si no, la nube los devolvería mezclados con el ejemplo.
+        tombstones: regrave(prev.tombstones, prev, after),
+      };
+    });
   }, []);
 
   const resetAll = useCallback(() => {
@@ -1429,11 +1514,25 @@ export function useHabitStore(): HabitStore {
       mode: 'merge' | 'replace',
     ) => {
       const tasks = data.tasks ?? {};
-      setDb((prev) => ({
-        ...prev,
-        entries: mode === 'replace' ? data.entries : { ...prev.entries, ...data.entries },
-        tasks: mode === 'replace' ? tasks : { ...prev.tasks, ...tasks },
-      }));
+
+      // Lo importado tiene que volver a viajar entero: se olvida qué versión
+      // se había subido de cada fila, porque las de la copia son otras.
+      synced.current = { entries: {}, tasks: {} };
+
+      setDb((prev) => {
+        const after = {
+          entries: mode === 'replace' ? data.entries : { ...prev.entries, ...data.entries },
+          tasks: mode === 'replace' ? tasks : { ...prev.tasks, ...tasks },
+        };
+
+        return {
+          ...prev,
+          ...after,
+          // Reemplazar tiene que reemplazar también en la nube; y lo que la
+          // copia devuelve deja de estar borrado.
+          tombstones: regrave(prev.tombstones, prev, after),
+        };
+      });
     },
     [],
   );
@@ -1496,11 +1595,14 @@ export function useHabitStore(): HabitStore {
         lastSync,
         error: cloudError,
         parts,
+        recovering,
       },
       localOnly,
       signIn,
       signUp,
       signOut,
+      changePassword,
+      sendPasswordReset,
       syncNow,
       pushAll,
       replicateAll,
@@ -1531,11 +1633,14 @@ export function useHabitStore(): HabitStore {
       cloudError,
       lastSync,
       parts,
+      recovering,
       localOnly,
       session,
       signIn,
       signUp,
       signOut,
+      changePassword,
+      sendPasswordReset,
       syncNow,
       pushAll,
       replicateAll,

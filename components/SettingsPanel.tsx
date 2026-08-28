@@ -22,6 +22,8 @@ import type { DayEntry, Task, ThemePreference } from '@/types';
 interface SettingsPanelProps {
   store: HabitStore;
   onClose: () => void;
+  /** Apartado por el que se abre. Se usa al volver del enlace del correo. */
+  initialSection?: 'aspecto' | 'nube' | 'sonido' | 'datos' | 'seguridad';
 }
 
 /** Registros pendientes de confirmar tras elegir un archivo. */
@@ -181,8 +183,8 @@ function weakPin(pin: string): boolean {
   return up || down;
 }
 
-export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
-  const [section, setSection] = useState<Section>('aspecto');
+export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelProps) {
+  const [section, setSection] = useState<Section>(initialSection ?? 'aspecto');
 
   const [pin, setPin] = useState('');
   const [pinAgain, setPinAgain] = useState('');
@@ -191,6 +193,11 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   /** `true` mientras siga valiendo el de fábrica; sólo entonces se puede decir. */
   const [defaultPin, setDefaultPin] = useState(false);
   const [savingPin, setSavingPin] = useState(false);
+
+  /** Contraseña de la cuenta de casa, que es lo que de verdad guarda todo. */
+  const [pass, setPass] = useState('');
+  const [passAgain, setPassAgain] = useState('');
+  const [savingPass, setSavingPass] = useState(false);
 
   const [confirmReset, setConfirmReset] = useState(false);
   const [staged, setStaged] = useState<StagedImport | null>(null);
@@ -346,7 +353,9 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
   /** Lo que hay que mirar, marcado en la propia pestaña. */
   const alerts: Partial<Record<Section, boolean>> = {
     nube: store.cloud.configured && store.cloud.status === 'error',
-    seguridad: defaultPin,
+    // Venir del enlace del correo deja la contraseña vieja en pie: hasta que
+    // se cambie, el apartado pide atención igual que el PIN de fábrica.
+    seguridad: defaultPin || store.cloud.recovering,
   };
 
   const changePin = async () => {
@@ -377,6 +386,46 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
       });
     } finally {
       setSavingPin(false);
+    }
+  };
+
+  /**
+   * Cambia la contraseña de la cuenta de casa. Es lo que hacía falta para
+   * cerrar el círculo del «no me acuerdo»: el enlace del correo devuelve a la
+   * app con la sesión abierta, y aquí es donde se pone la nueva.
+   */
+  const changePassword = async () => {
+    if (pass.length < 6) {
+      notify({
+        message: 'La contraseña debe tener al menos 6 caracteres.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+      return;
+    }
+
+    if (pass !== passAgain) {
+      notify({ message: 'Las dos contraseñas no coinciden.', icon: '⚠️', tone: 'danger' });
+      return;
+    }
+
+    setSavingPass(true);
+    try {
+      await store.changePassword(pass);
+      setPass('');
+      setPassAgain('');
+      notify({
+        message: 'Contraseña cambiada. La siguiente vez que entréis, usad esta.',
+        icon: '🔑',
+      });
+    } catch (error) {
+      notify({
+        message: error instanceof Error ? error.message : 'No se ha podido cambiar.',
+        icon: '⚠️',
+        tone: 'danger',
+      });
+    } finally {
+      setSavingPass(false);
     }
   };
 
@@ -1042,6 +1091,72 @@ export function SettingsPanel({ store, onClose }: SettingsPanelProps) {
         {/* --------------------------------------------------- seguridad */}
         {section === 'seguridad' && (
           <>
+            {/* La contraseña de la cuenta va antes que el PIN a propósito: el
+                PIN tapa un módulo, esta abre la casa entera en cualquier
+                aparato. Sin sesión no se puede cambiar, así que no se ofrece. */}
+            {store.cloud.email && (
+              <section
+                className={`rounded-2xl border p-3 ${
+                  store.cloud.recovering ? 'border-accent bg-accent-faint' : 'hairline surf-1'
+                }`}
+              >
+                <h3 className="mb-1 font-bold t-1">Contraseña de la cuenta de casa</h3>
+
+                <p className="mb-3 text-xs leading-relaxed t-3">
+                  {store.cloud.recovering ? (
+                    <>
+                      Has entrado desde el enlace del correo. Pon aquí una contraseña nueva:
+                      hasta que lo hagas, la que vale sigue siendo la que no recordáis.
+                    </>
+                  ) : (
+                    <>
+                      La de <span className="font-semibold t-2">{store.cloud.email}</span>. Es la
+                      que abre los registros de toda la casa en cualquier móvil; el PIN de aquí
+                      abajo sólo tapa el módulo de pareja.
+                    </>
+                  )}
+                </p>
+
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={pass}
+                    onChange={(e) => setPass(e.target.value)}
+                    placeholder="Contraseña nueva (mínimo 6)"
+                    aria-label="Contraseña nueva"
+                    className="field w-full"
+                  />
+
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={passAgain}
+                    onChange={(e) => setPassAgain(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && void changePassword()}
+                    placeholder="Repítela"
+                    aria-label="Repetir la contraseña"
+                    className="field w-full"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => void changePassword()}
+                    disabled={pass.length < 6 || savingPass}
+                    className="btn-primary px-3 py-2 text-xs"
+                  >
+                    {savingPass ? '⏳ Cambiando…' : '🔑 Cambiar la contraseña'}
+                  </button>
+
+                  {/* Igual que con el PIN: lo que va mal se dice mientras se
+                      teclea, no al pulsar guardar. */}
+                  {pass.length >= 6 && passAgain.length > 0 && pass !== passAgain && (
+                    <p className="text-[11px] t-danger">Las dos contraseñas no coinciden todavía.</p>
+                  )}
+                </div>
+              </section>
+            )}
+
             <section className="rounded-2xl border hairline surf-1 p-3">
               <h3 className="mb-1 font-bold t-1">PIN del módulo de pareja</h3>
               <p className="mb-3 text-xs leading-relaxed t-3">

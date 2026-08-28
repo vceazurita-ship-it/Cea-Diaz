@@ -423,6 +423,9 @@ export function Dashboard({
             onDateChange(selected);
             setTab('today');
           }}
+          // Cambiar de semana o de mes mueve el día visible sin sacar a nadie
+          // de los resúmenes: sólo tocar un día concreto lleva al registro.
+          onDateChange={onDateChange}
           />
         </div>
       )}

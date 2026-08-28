@@ -102,6 +102,7 @@ components/
   ui/                  Avatar, CromoPortrait, ProgressBar, ProgressRing, Stars, Modal, Switch, Toast, NoteField, ThemeToggle
 hooks/
   useHabitStore.ts     Estado global + persistencia en localStorage
+  useToday.ts          El día de hoy, y que siga siéndolo al cruzar la medianoche
   useTheme.tsx         Modo día o noche, guardado en este dispositivo
   useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
   useLineup.ts         El equipo guardado de un perfil, atento a lo que llegue de otro móvil
@@ -558,6 +559,14 @@ rutas de `app/api/calendario` pueden tocarla.
 La cuenta es **compartida por la casa**: quien entra ve los seis perfiles, igual que
 antes. El módulo de pareja sigue protegido por su PIN, que es una barrera doméstica,
 no un muro.
+
+La contraseña de esa cuenta se cambia en **Ajustes → Seguridad**, encima del PIN y a
+propósito: el PIN tapa un módulo, la contraseña abre la casa entera en cualquier
+aparato. Y si nadie la recuerda, la pantalla de entrada tiene **«No me acuerdo de la
+contraseña»**: manda el correo de Supabase, el enlace devuelve a la app con la sesión
+puesta y la app avisa —arriba del todo, y con un punto en el apartado de Seguridad— de
+que falta poner una nueva. Hasta que se cambie sigue valiendo la vieja, así que el aviso
+no se va solo.
 
 ## Bonus de aprendizaje del día
 
@@ -1427,13 +1436,13 @@ Original** deshace la personalización y devuelve lo que trae el código.
 
 ## Interfaz
 
-- **Niños**: tarjetas grandes, emojis tocables, barras gruesas, estrellas y mensajes de ánimo.
+- **Niños**: tarjetas grandes, emojis tocables, barras gruesas, estrellas y mensajes de ánimo. Un toque de más se deshace: los contadores y los deslizadores llevan **Borrar**, que devuelve la métrica a «sin contestar» —que no es lo mismo que un cero registrado—, igual que la ✕ de la versión de mayores.
 - **Adultos y grupos**: filas compactas, segmentados Sí/No, deslizadores y anillos de progreso.
 - **Retos**: tres objetivos de la semana con su porqué, puntos y medallero de las anteriores.
 - **Bonus del día**: una cosa útil, sacada de donde cada uno registra más; en inglés para los peques y Víctor.
 - **Sonido**: cada perfil puede recibirte con su sintonía, silenciable desde Ajustes.
 - **Notas**: lo que ninguna casilla recoge, en el día, en cada categoría y en los retos.
-- **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros.
+- **Resúmenes**: barras de la semana, mapa de calor del mes, desglose por categoría, rachas y logros. Se navega **semana a semana y mes a mes** con `←` `→`, sin salir de la pestaña ni retroceder día a día desde el registro; los días que aún no han llegado se ven, para que el periodo esté completo, pero no se abren.
 
 ## Usabilidad
 
@@ -1455,9 +1464,29 @@ previa. El estado del guardado (`⏳ Guardando…` / `✓ Guardado`) se acusa ju
 la nota del día; la escritura en `localStorage` va diferida 350 ms para no
 serializar la base entera en cada tecla, y se vuelca si la pestaña se oculta.
 
+Las notas —la del día, la de cada categoría y la de los retos— esperan además
+**500 ms desde la última tecla** antes de bajar al registro. Guardar cada
+pulsación parecía lo más seguro y era lo contrario: cada tecla rehacía el
+resumen de la semana, los retos, las marcas del gimnasio y el bonus del día
+—todos ellos repasan meses de historial— y encima mandaba una escritura a la
+nube. Nada se pierde por esperar: lo pendiente se vuelca al salir del campo y
+también si el campo desaparece antes, y toda navegación (cambiar de día, de
+pestaña o de perfil) es un toque que primero quita el foco.
+
+La app **no se queda anclada al día en que se abrió**. La tableta de la cocina
+o el portátil que nadie cierra cruzan la medianoche con la app delante: al
+cambiar el día, «Hoy» pasa a señalar el día nuevo, y quien estuviera mirando
+hoy se va con él —quien estuviera repasando un día atrás se queda donde
+estaba—. Sin eso, lo que se registrara de madrugada acababa en la víspera.
+Como suspender el portátil congela los temporizadores, la fecha se vuelve a
+mirar cada vez que la pestaña se pone delante.
+
 Los ajustes permiten **exportar e importar** el JSON: una copia de seguridad que
 no se puede restaurar no es una copia. Al importar se elige entre fusionar con
-lo actual o reemplazarlo.
+lo actual o reemplazarlo. **Reemplazar reemplaza también en la nube**: los días
+que la copia no trae se marcan como borrados, porque si no seguirían arriba y
+la siguiente sincronización los devolvería mezclados con lo importado. Lo mismo
+al cargar los datos de ejemplo.
 
 ### En el móvil
 

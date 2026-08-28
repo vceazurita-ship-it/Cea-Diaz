@@ -19,9 +19,6 @@ import type { DateKey, Task, TaskKind, TaskRepeat } from '@/types';
  *  La forma corta es una línea: qué hay que hacer y cuándo. Todo lo demás
  *  —hora, tipo, aviso, repetición, detalle— vive plegado, porque la mayoría
  *  de las veces «comprar leche, mañana» es la tarea entera.
- *
- *  El título se puede dictar: escribir con el pulgar mientras se sale de la
- *  consulta del pediatra es justo cuando peor se hace.
  * ========================================================================= */
 
 interface TaskComposerProps {
@@ -127,18 +124,15 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
   return (
     <form onSubmit={submit} className={`${kid ? 'card-kid' : 'card'} p-4`}>
       {/* Qué hay que hacer */}
-      <div className="flex items-center gap-2">
-        <input
-          ref={field}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder={kid ? '¿Qué hay que hacer?' : 'Cita en el dentista, comprar leche…'}
-          aria-label="Qué hay que hacer"
-          maxLength={300}
-          className="field min-h-[2.75rem] flex-1 p-3"
-        />
-
-      </div>
+      <input
+        ref={field}
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        placeholder={kid ? '¿Qué hay que hacer?' : 'Cita en el dentista, comprar leche…'}
+        aria-label="Qué hay que hacer"
+        maxLength={300}
+        className="field min-h-[2.75rem] w-full p-3"
+      />
 
       {/* Cuándo */}
       <div className="mt-3 flex flex-wrap gap-1.5">

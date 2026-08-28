@@ -23,6 +23,33 @@ export function SignIn({ store }: SignInProps) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  /**
+   * Volver a entrar sin la contraseña. Es la única puerta de la casa, así que
+   * tiene que haber una forma de abrirla desde el correo; el enlace devuelve
+   * aquí con la sesión puesta y la app pide entonces una contraseña nueva.
+   */
+  const recover = async () => {
+    setError(null);
+    setNotice(null);
+
+    if (!email.trim()) {
+      setError('Escribe primero el correo de la cuenta de casa.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await store.sendPasswordReset(email.trim());
+      setNotice(
+        `Enviado a ${email.trim()}. Abre el enlace desde este mismo aparato y la app te pedirá una contraseña nueva.`,
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se ha podido enviar el correo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -121,6 +148,19 @@ export function SignIn({ store }: SignInProps) {
             Trabajar sólo en este móvil
           </button>
         </div>
+
+        {/* Sólo al entrar: quien está creando la cuenta no tiene nada que
+            recuperar todavía. */}
+        {!creating && (
+          <button
+            type="button"
+            onClick={() => void recover()}
+            disabled={busy}
+            className="mt-3 text-xs t-3 underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            No me acuerdo de la contraseña
+          </button>
+        )}
       </div>
 
       <p className="mt-4 px-2 text-center text-[11px] leading-relaxed t-3">

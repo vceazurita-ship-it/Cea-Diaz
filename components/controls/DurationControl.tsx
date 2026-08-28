@@ -78,6 +78,22 @@ export function DurationControl({
         </div>
 
         <ProgressBar ratio={registered ? ratio : 0} chunky />
+
+        {/* Como en el contador de los peques: se puede volver a dejarlo sin
+            contestar, que no es lo mismo que dejarlo en el mínimo. */}
+        {registered && (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(undefined)}
+              className="btn-ghost px-2.5 py-1 text-[11px]"
+              aria-label={`Borrar el registro de ${metric.label}`}
+            >
+              ↩️ Borrar
+            </button>
+          </div>
+        )}
       </div>
     );
   }

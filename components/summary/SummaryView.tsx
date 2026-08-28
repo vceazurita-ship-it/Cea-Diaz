@@ -7,7 +7,17 @@ import { WeekChart } from '@/components/summary/WeekChart';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { Stars } from '@/components/ui/Stars';
-import { capitalize, formatMonth, formatShort, monthKeys, weekKeys } from '@/lib/dates';
+import {
+  addDays,
+  addMonths,
+  capitalize,
+  formatMonth,
+  formatShort,
+  monthKeys,
+  startOfWeek,
+  todayKey,
+  weekKeys,
+} from '@/lib/dates';
 import { computeAchievements, percent, summarizePeriod } from '@/lib/scoring';
 import type { DateKey, DayEntry, Profile, ProfileSkin, SummaryRange } from '@/types';
 
@@ -17,6 +27,12 @@ interface SummaryViewProps {
   entries: Record<string, DayEntry>;
   skin: ProfileSkin;
   onSelectDay: (date: DateKey) => void;
+  /**
+   * Mueve el día visible sin salir de aquí. Es lo que permite repasar la
+   * semana pasada o el mes anterior: antes había que volver al registro y
+   * retroceder día a día hasta caer en el periodo que se quería mirar.
+   */
+  onDateChange: (date: DateKey) => void;
 }
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -29,9 +45,17 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
   );
 }
 
-export function SummaryView({ profile, date, entries, skin, onSelectDay }: SummaryViewProps) {
+export function SummaryView({
+  profile,
+  date,
+  entries,
+  skin,
+  onSelectDay,
+  onDateChange,
+}: SummaryViewProps) {
   const [range, setRange] = useState<SummaryRange>('week');
   const kid = profile.kind === 'kid';
+  const today = todayKey();
   // En la piel de fútbol los rótulos van con la tipografía de marcador.
   const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
     skin === 'pitch' ? ' font-display tracking-[0.14em]' : ''
@@ -62,11 +86,63 @@ export function SummaryView({ profile, date, entries, skin, onSelectDay }: Summa
 
   const empty = summary.trackedDays === 0;
 
+  /** ¿Cae ese día dentro del periodo que se está viviendo ahora mismo? */
+  const isCurrentPeriod = (key: DateKey) =>
+    range === 'week'
+      ? startOfWeek(key) === startOfWeek(today)
+      : key.slice(0, 7) === today.slice(0, 7);
+
+  const atCurrent = isCurrentPeriod(date);
+
+  /**
+   * Un periodo atrás o adelante. Al volver al periodo en curso se cae en hoy
+   * y no en su lunes o en su día 1: es lo que espera quien pulsa «→» hasta
+   * el final, y además deja el registro abierto por el día que toca.
+   */
+  const shift = (amount: number) => {
+    if (amount > 0 && atCurrent) return;
+    const next = range === 'week' ? addDays(date, 7 * amount) : addMonths(date, amount);
+    onDateChange(isCurrentPeriod(next) ? today : next);
+  };
+
   return (
     <div className="space-y-4">
       {/* Conmutador de periodo */}
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold t-2">{periodLabel}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => shift(-1)}
+            className="btn-ghost h-10 w-10 shrink-0 p-0 text-base"
+            aria-label={range === 'week' ? 'Semana anterior' : 'Mes anterior'}
+          >
+            ←
+          </button>
+          <p className="min-w-0 truncate text-sm font-semibold t-2" aria-live="polite">
+            {periodLabel}
+          </p>
+          <button
+            type="button"
+            onClick={() => shift(1)}
+            disabled={atCurrent}
+            className="btn-ghost h-10 w-10 shrink-0 p-0 text-base"
+            aria-label={range === 'week' ? 'Semana siguiente' : 'Mes siguiente'}
+          >
+            →
+          </button>
+          {/* Sólo aparece cuando se ha viajado: en el periodo de siempre
+              sería un botón que no hace nada. */}
+          {!atCurrent && (
+            <button
+              type="button"
+              onClick={() => onDateChange(today)}
+              className="btn-ghost h-10 shrink-0 px-3 text-xs"
+            >
+              {range === 'week' ? 'Esta semana' : 'Este mes'}
+            </button>
+          )}
+        </div>
+
         <div className="flex rounded-xl border hairline surf-1 p-0.5" role="group" aria-label="Periodo">
           {(['week', 'month'] as SummaryRange[]).map((option) => {
             const active = range === option;

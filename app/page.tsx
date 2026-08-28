@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ambient } from '@/components/Ambient';
 import { SignIn } from '@/components/cloud/SignIn';
 import { Dashboard } from '@/components/Dashboard';
@@ -15,6 +15,7 @@ import { AppearanceEditor } from '@/components/appearance/AppearanceEditor';
 import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
+import { useToday } from '@/hooks/useToday';
 import { todayKey, weekKeys } from '@/lib/dates';
 import { playAnthem, stopAnthem } from '@/lib/sound';
 import {
@@ -43,11 +44,17 @@ function Home() {
   const store = useHabitStore();
   const { dress } = useAppearance();
   const { mode } = useTheme();
+  // El día de hoy, vigilado. Cuando cambia se repinta todo el árbol, y con él
+  // cada `todayKey()` suelto: es lo que mantiene honesta una app que se queda
+  // abierta en la cocina de un día para otro.
+  const today = useToday();
 
   const [activeProfile, setActiveProfile] = useState<ProfileId | null>(null);
   const [date, setDate] = useState<DateKey>(todayKey);
   const [unlocked, setUnlocked] = useState<ProfileId[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Apartado por el que abrir los ajustes; sólo lo fija quien los abre. */
+  const [settingsSection, setSettingsSection] = useState<'seguridad' | undefined>();
   /** Perfil cuyo aspecto se está editando. */
   const [editing, setEditing] = useState<Profile | null>(null);
   /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
@@ -59,7 +66,6 @@ function Home() {
 
   /** Resumen de un vistazo para las tarjetas del selector. */
   const glances = useMemo(() => {
-    const today = todayKey();
     return PROFILES.reduce(
       (acc, profile) => {
         const entry = store.getEntry(profile.id, today);
@@ -76,7 +82,17 @@ function Home() {
       },
       {} as Record<ProfileId, ProfileGlance>,
     );
-  }, [store]);
+  }, [store, today]);
+
+  // Medianoche con la app abierta: quien estuviera mirando «hoy» pasa al día
+  // nuevo, y quien estuviera repasando un día atrás se queda donde estaba.
+  // Sin esto lo que se registrara de madrugada iría a parar a la víspera.
+  const wasToday = useRef(today);
+  useEffect(() => {
+    if (wasToday.current === today) return;
+    setDate((current) => (current === wasToday.current ? today : current));
+    wasToday.current = today;
+  }, [today]);
 
   const lockedIds = useMemo(
     () => PROFILES.filter((p) => p.isPrivate && !unlocked.includes(p.id)).map((p) => p.id),
@@ -215,6 +231,33 @@ function Home() {
           Saltar al contenido
         </a>
 
+        {/* Vuelta del enlace de recuperación. La sesión ya está abierta, así
+            que sin esto no habría ni rastro de que falta lo importante: poner
+            la contraseña nueva antes de olvidarse otra vez. */}
+        {store.cloud.recovering && (
+          <div
+            role="alert"
+            className="mx-auto mt-4 flex max-w-5xl flex-wrap items-center gap-3 rounded-2xl border
+                       border-accent bg-accent-faint px-4 py-3"
+          >
+            <span aria-hidden>🔑</span>
+            <p className="min-w-0 flex-1 text-sm t-1">
+              <strong>Falta poner una contraseña nueva.</strong> Has entrado con el enlace del
+              correo; hasta que la cambies, sigue valiendo la que no recordáis.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsSection('seguridad');
+                setSettingsOpen(true);
+              }}
+              className="btn-primary px-3 py-1.5 text-xs"
+            >
+              Cambiarla
+            </button>
+          </div>
+        )}
+
         {profile && (
           <TopBar
             activeId={profile.id}
@@ -310,7 +353,16 @@ function Home() {
           </button>
         )}
 
-        {settingsOpen && <SettingsPanel store={store} onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsPanel
+            store={store}
+            initialSection={settingsSection}
+            onClose={() => {
+              setSettingsOpen(false);
+              setSettingsSection(undefined);
+            }}
+          />
+        )}
 
         {editing && <AppearanceEditor profile={editing} onClose={() => setEditing(null)} />}
       </main>
