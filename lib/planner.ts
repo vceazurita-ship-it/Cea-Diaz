@@ -238,10 +238,37 @@ export function themeOf(profileId: ProfileId): PlannerTheme {
  * el identificador de una métrica para atárselo a un bloque.
  * ------------------------------------------------------------------------- */
 
+/**
+ * Las áreas en las que se reparten los ratos de un toque.
+ *
+ * El `kind` dice de qué va el rato para pintarlo en la cuadrícula —trabajo,
+ * deporte, comida—; esto dice de qué **tema** es, que no es lo mismo: el
+ * análisis del rival y la reunión de staff son los dos «trabajo», y aun así
+ * quien monta la semana los busca en sitios distintos. Con doce ratos daba
+ * igual y bastaba una fila; con cincuenta hay que poder ir al tema y elegir
+ * dentro. Es opcional: quien no lo declare sigue teniendo su fila de siempre.
+ */
+export const PRESET_GROUPS = {
+  profesional: { label: 'Profesional', icon: '📋' },
+  master: { label: 'Máster', icon: '🎓' },
+  desarrollo: { label: 'Desarrollo personal', icon: '✨' },
+  deporte: { label: 'Deporte', icon: '🏃' },
+  familia: { label: 'Familia', icon: '🏡' },
+  casa: { label: 'Casa y tareas', icon: '🧹' },
+  economia: { label: 'Economía', icon: '💶' },
+  descanso: { label: 'Descanso y salud', icon: '🌙' },
+} as const;
+
+export type PresetGroupId = keyof typeof PRESET_GROUPS;
+
+export const PRESET_GROUP_LIST = Object.keys(PRESET_GROUPS) as PresetGroupId[];
+
 export interface PlanPreset {
   title: string;
   icon: string;
   kind: PlanKind;
+  /** Tema en el que se busca este rato. Sin él va en la lista corrida. */
+  group?: PresetGroupId;
   /** Hora habitual; sólo es la propuesta de partida. */
   start: string;
   duration: number;
@@ -483,107 +510,507 @@ const mariaPresets: PlanPreset[] = [
 ];
 
 const victorPresets: PlanPreset[] = [
+  /* --- Profesional: el oficio de cuerpo técnico, tema a tema ------------- */
   {
-    title: 'Entrenamiento del equipo',
-    icon: '🏟️',
+    title: 'Preparación de la sesión',
+    icon: '📐',
     kind: 'trabajo',
-    start: '10:30',
-    duration: 120,
+    group: 'profesional',
+    start: '09:00',
+    duration: 60,
     metricId: 'prep_sesion',
     amount: 60,
   },
   {
-    title: 'Análisis táctico',
-    icon: '📊',
+    title: 'Entrenamiento del equipo',
+    icon: '🏟️',
     kind: 'trabajo',
-    start: '16:00',
-    duration: 60,
-    metricId: 'analisis_tactico',
-    amount: 60,
+    group: 'profesional',
+    start: '10:30',
+    duration: 120,
   },
   {
-    title: 'Scouting del rival',
+    title: 'Partido',
+    icon: '🏆',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '12:00',
+    duration: 120,
+  },
+  {
+    title: 'Análisis táctico · partido',
+    icon: '🎬',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '16:00',
+    duration: 90,
+    metricId: 'analisis_tactico',
+    amount: 90,
+  },
+  {
+    title: 'Análisis individual',
+    icon: '👤',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '16:00',
+    duration: 45,
+    metricId: 'analisis_tactico',
+    amount: 45,
+  },
+  {
+    title: 'Análisis rival · colectivo',
     icon: '🔍',
     kind: 'trabajo',
-    start: '17:30',
+    group: 'profesional',
+    start: '16:00',
+    duration: 60,
+    metricId: 'scouting',
+  },
+  {
+    title: 'Análisis rival · individual',
+    icon: '🕵️',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '17:15',
     duration: 45,
     metricId: 'scouting',
   },
   {
-    title: 'Reunión del cuerpo técnico',
+    title: 'Análisis ABP propio',
+    icon: '🎯',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '16:00',
+    duration: 45,
+    metricId: 'analisis_tactico',
+    amount: 45,
+  },
+  {
+    title: 'Análisis ABP rival',
+    icon: '🚩',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '17:00',
+    duration: 45,
+    metricId: 'scouting',
+  },
+  {
+    title: 'Análisis de la cultura de equipo',
+    icon: '🧭',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '16:00',
+    duration: 45,
+  },
+  {
+    title: 'Desarrollo de la cultura de equipo',
+    icon: '🌱',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '17:00',
+    duration: 45,
+  },
+  {
+    title: 'Microciclo · cultura de equipo',
+    icon: '🗓️',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '18:00',
+    duration: 60,
+  },
+  {
+    title: 'Microciclo · ABP',
+    icon: '📋',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '18:00',
+    duration: 60,
+  },
+  {
+    title: 'Reuniones individuales',
+    icon: '🗣️',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '12:45',
+    duration: 30,
+    metricId: 'charlas_jugadores',
+    amount: 1,
+  },
+  {
+    title: 'Reunión de staff',
     icon: '🤝',
     kind: 'trabajo',
+    group: 'profesional',
     start: '09:00',
     duration: 45,
     metricId: 'reunion_cuerpo',
   },
   {
-    title: 'Charla con jugadores',
-    icon: '🗣️',
+    title: 'Aprendizajes del micro',
+    icon: '💡',
     kind: 'trabajo',
-    start: '12:30',
-    duration: 20,
-    metricId: 'charlas_jugadores',
-    amount: 1,
+    group: 'profesional',
+    start: '17:45',
+    duration: 30,
   },
   {
     title: 'Control de cargas',
     icon: '📈',
     kind: 'trabajo',
-    start: '13:30',
+    group: 'profesional',
+    start: '13:00',
     duration: 30,
     metricId: 'control_cargas',
   },
   {
-    title: 'Sesión propia',
-    icon: '🏋️',
-    kind: 'cuidado',
-    start: '07:00',
+    title: 'Feedback post-sesión',
+    icon: '📝',
+    kind: 'trabajo',
+    group: 'profesional',
+    start: '13:00',
+    duration: 20,
+    metricId: 'feedback_sesion',
+  },
+  {
+    title: 'Desconexión al llegar',
+    icon: '🔕',
+    kind: 'casa',
+    group: 'profesional',
+    start: '20:00',
+    duration: 30,
+    metricId: 'desconexion',
+  },
+
+  /* --- Máster ------------------------------------------------------------- */
+  {
+    title: 'Clase del máster',
+    icon: '🎓',
+    kind: 'estudio',
+    group: 'master',
+    start: '19:00',
+    duration: 120,
+  },
+  {
+    title: 'Estudio del máster',
+    icon: '📚',
+    kind: 'estudio',
+    group: 'master',
+    start: '19:15',
     duration: 60,
-    metricId: 'entreno_propio',
-    amount: 60,
   },
   {
-    title: 'Movilidad',
-    icon: '🤸',
-    kind: 'cuidado',
-    start: '07:00',
-    duration: 20,
-    metricId: 'movilidad',
+    title: 'Trabajos y entregas',
+    icon: '🖊️',
+    kind: 'estudio',
+    group: 'master',
+    start: '18:00',
+    duration: 90,
   },
-  {
-    title: 'Siesta corta',
-    icon: '🌤️',
-    kind: 'sueno',
-    start: '15:00',
-    duration: 20,
-    metricId: 'descanso',
-    amount: 20,
-  },
+
+  /* --- Desarrollo personal ------------------------------------------------ */
   {
     title: 'Lectura',
     icon: '📖',
     kind: 'ocio',
+    group: 'desarrollo',
     start: '22:30',
     duration: 30,
     metricId: 'lectura',
     amount: 30,
   },
   {
-    title: 'Desconexión al llegar',
-    icon: '🔕',
-    kind: 'casa',
-    start: '20:00',
+    title: 'Escritura',
+    icon: '✍️',
+    kind: 'estudio',
+    group: 'desarrollo',
+    start: '07:30',
+    duration: 20,
+    metricId: 'escritura',
+    amount: 20,
+  },
+  {
+    title: 'Diario de reflexión',
+    icon: '📔',
+    kind: 'ocio',
+    group: 'desarrollo',
+    start: '22:30',
+    duration: 10,
+    metricId: 'diario',
+  },
+  {
+    title: 'Formación y podcast',
+    icon: '🎧',
+    kind: 'estudio',
+    group: 'desarrollo',
+    start: '08:00',
+    duration: 45,
+  },
+  {
+    title: 'Pausa consciente',
+    icon: '🧘',
+    kind: 'cuidado',
+    group: 'desarrollo',
+    start: '15:30',
+    duration: 10,
+    metricId: 'pausa_consciente',
+  },
+
+  /* --- Deporte propio ------------------------------------------------------ */
+  {
+    title: 'Gimnasio',
+    icon: '🏋️',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '07:00',
+    duration: 60,
+    metricId: 'entreno_propio',
+    amount: 60,
+  },
+  {
+    title: 'Correr',
+    icon: '🏃',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '07:00',
+    duration: 45,
+    metricId: 'entreno_propio',
+    amount: 45,
+  },
+  {
+    title: 'Montaña',
+    icon: '⛰️',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '09:00',
+    duration: 240,
+    metricId: 'entreno_propio',
+    amount: 150,
+  },
+  {
+    title: 'Fútbol',
+    icon: '⚽',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '21:00',
+    duration: 90,
+    metricId: 'entreno_propio',
+    amount: 90,
+  },
+  {
+    title: 'Otro deporte',
+    icon: '🚴',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
+    duration: 60,
+    metricId: 'entreno_propio',
+    amount: 60,
+  },
+  {
+    title: 'Reto de la semana',
+    icon: '🎯',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
     duration: 30,
-    metricId: 'desconexion',
+  },
+  {
+    title: 'Movilidad y prevención',
+    icon: '🤸',
+    kind: 'cuidado',
+    group: 'deporte',
+    start: '07:00',
+    duration: 20,
+    metricId: 'movilidad',
+  },
+  {
+    title: 'Paseo',
+    icon: '👟',
+    kind: 'cuidado',
+    group: 'deporte',
+    start: '14:00',
+    duration: 30,
+    metricId: 'pasos',
+    amount: 3000,
+  },
+
+  /* --- Familia -------------------------------------------------------------- */
+  {
+    title: 'Desayuno',
+    icon: '🥣',
+    kind: 'comida',
+    group: 'familia',
+    start: '08:00',
+    duration: 20,
+    metricId: 'comidas',
+    amount: 1,
+  },
+  {
+    title: 'Comida en familia',
+    icon: '🍲',
+    kind: 'comida',
+    group: 'familia',
+    start: '14:30',
+    duration: 60,
+    metricId: 'comidas',
+    amount: 1,
   },
   {
     title: 'Cena en familia',
     icon: '🍽️',
     kind: 'comida',
+    group: 'familia',
     start: '21:00',
     duration: 45,
     metricId: 'plato_sano',
+  },
+  {
+    title: 'Ocio en familia',
+    icon: '🎲',
+    kind: 'juntos',
+    group: 'familia',
+    start: '17:00',
+    duration: 90,
+  },
+  {
+    title: 'Experiencias con los hijos',
+    icon: '🧒',
+    kind: 'juntos',
+    group: 'familia',
+    start: '17:00',
+    duration: 120,
+  },
+  {
+    title: 'Tiempo con María',
+    icon: '💞',
+    kind: 'pareja',
+    group: 'familia',
+    start: '22:00',
+    duration: 30,
+  },
+  {
+    title: 'Con los padres',
+    icon: '👵',
+    kind: 'juntos',
+    group: 'familia',
+    start: '12:00',
+    duration: 90,
+  },
+  {
+    title: 'Con los amigos',
+    icon: '🍻',
+    kind: 'ocio',
+    group: 'familia',
+    start: '21:00',
+    duration: 120,
+  },
+
+  /* --- Casa y tareas -------------------------------------------------------- */
+  {
+    title: 'Responsabilidades de casa',
+    icon: '🧹',
+    kind: 'casa',
+    group: 'casa',
+    start: '12:30',
+    duration: 60,
+  },
+  {
+    title: 'Tareas y recados',
+    icon: '✅',
+    kind: 'casa',
+    group: 'casa',
+    start: '18:00',
+    duration: 45,
+  },
+  {
+    title: 'Compra',
+    icon: '🛒',
+    kind: 'casa',
+    group: 'casa',
+    start: '11:00',
+    duration: 60,
+  },
+  {
+    title: 'Papeleo y gestiones',
+    icon: '🗂️',
+    kind: 'casa',
+    group: 'casa',
+    start: '17:00',
+    duration: 45,
+  },
+  {
+    title: 'Organizar la semana',
+    icon: '📆',
+    kind: 'casa',
+    group: 'casa',
+    start: '19:00',
+    duration: 30,
+  },
+
+  /* --- Economía -------------------------------------------------------------- */
+  {
+    title: 'Cuentas del mes',
+    icon: '💶',
+    kind: 'casa',
+    group: 'economia',
+    start: '17:00',
+    duration: 45,
+  },
+  {
+    title: 'Facturas y pagos',
+    icon: '🧾',
+    kind: 'casa',
+    group: 'economia',
+    start: '17:00',
+    duration: 30,
+  },
+  {
+    title: 'Inversiones y ahorro',
+    icon: '📊',
+    kind: 'casa',
+    group: 'economia',
+    start: '18:00',
+    duration: 30,
+  },
+
+  /* --- Descanso y salud ------------------------------------------------------ */
+  {
+    title: 'Siesta corta',
+    icon: '🌤️',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '15:00',
+    duration: 20,
+    metricId: 'descanso',
+    amount: 20,
+  },
+  {
+    title: 'A dormir',
+    icon: '🌙',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '23:30',
+    duration: 450,
+    metricId: 'horas_sueno',
+    amount: 7.5,
+  },
+  {
+    title: 'Sin pantallas la última hora',
+    icon: '📵',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '22:30',
+    duration: 60,
+    metricId: 'sin_pantallas_noche',
+  },
+  {
+    title: 'Luz natural al levantarse',
+    icon: '🌅',
+    kind: 'cuidado',
+    group: 'descanso',
+    start: '08:00',
+    duration: 10,
+    metricId: 'luz_manana',
   },
 ];
 
@@ -737,6 +1164,29 @@ export const PLAN_PRESETS: Record<ProfileId, PlanPreset[]> = {
 
 export function presetsOf(profileId: ProfileId): PlanPreset[] {
   return PLAN_PRESETS[profileId] ?? [];
+}
+
+export interface PresetGroup {
+  id: PresetGroupId;
+  label: string;
+  icon: string;
+  presets: PlanPreset[];
+}
+
+/**
+ * Los ratos de un toque repartidos por tema, en el orden del catálogo y sin
+ * temas vacíos. Devuelve la lista vacía cuando el perfil no los declara: eso
+ * es lo que le dice a la pantalla que los enseñe corridos, como siempre.
+ */
+export function presetGroupsOf(profileId: ProfileId): PresetGroup[] {
+  const presets = presetsOf(profileId);
+  if (!presets.some((preset) => preset.group)) return [];
+
+  return PRESET_GROUP_LIST.map((id) => ({
+    id,
+    ...PRESET_GROUPS[id],
+    presets: presets.filter((preset) => preset.group === id),
+  })).filter((group) => group.presets.length > 0);
 }
 
 /* ---------------------------------------------------------------------------
@@ -965,19 +1415,49 @@ const MARIA_SEED: SeedRow[] = [
 ];
 
 const VICTOR_SEED: SeedRow[] = [
-  [0, 'Sesión propia'], [0, 'Reunión del cuerpo técnico'], [0, 'Entrenamiento del equipo'],
-  [0, 'Control de cargas'], [0, 'Análisis táctico'], [0, 'Desconexión al llegar'],
-  [0, 'Cena en familia'], [0, 'Lectura'],
-  [1, 'Sesión propia'], [1, 'Entrenamiento del equipo'], [1, 'Charla con jugadores'],
-  [1, 'Siesta corta'], [1, 'Scouting del rival'], [1, 'Cena en familia'], [1, 'Lectura'],
-  [2, 'Movilidad'], [2, 'Entrenamiento del equipo'], [2, 'Control de cargas'],
-  [2, 'Análisis táctico'], [2, 'Desconexión al llegar'], [2, 'Cena en familia'],
-  [3, 'Sesión propia'], [3, 'Entrenamiento del equipo'], [3, 'Charla con jugadores'],
-  [3, 'Scouting del rival'], [3, 'Cena en familia'], [3, 'Lectura'],
-  [4, 'Sesión propia'], [4, 'Entrenamiento del equipo'], [4, 'Análisis táctico'],
-  [4, 'Desconexión al llegar'], [4, 'Cena en familia'],
-  [5, 'Movilidad'], [5, 'Análisis táctico', '18:00'], [5, 'Cena en familia'], [5, 'Lectura'],
-  [6, 'Sesión propia', '09:00'], [6, 'Siesta corta'], [6, 'Cena en familia'], [6, 'Lectura'],
+  // Lunes: se recoge el partido —vídeo, individuales y aprendizajes del micro—.
+  [0, 'Gimnasio', '07:00'], [0, 'Reunión de staff', '09:00'],
+  [0, 'Entrenamiento del equipo', '10:30'], [0, 'Control de cargas', '13:00'],
+  [0, 'Comida en familia', '14:30'], [0, 'Análisis táctico · partido', '16:00'],
+  [0, 'Aprendizajes del micro', '17:45'], [0, 'Desconexión al llegar', '20:00'],
+  [0, 'Cena en familia', '21:00'], [0, 'Lectura', '22:30'],
+  // Martes: el rival, de lo colectivo a lo individual. Y clase del máster.
+  [1, 'Correr', '07:00'], [1, 'Preparación de la sesión', '09:00'],
+  [1, 'Entrenamiento del equipo', '10:30'], [1, 'Feedback post-sesión', '13:00'],
+  [1, 'Comida en familia', '14:30'], [1, 'Análisis rival · colectivo', '16:00'],
+  [1, 'Análisis rival · individual', '17:15'], [1, 'Clase del máster', '19:00'],
+  [1, 'Cena en familia', '21:15'],
+  // Miércoles: el día del balón parado, propio y del rival, y su microciclo.
+  [2, 'Movilidad y prevención', '07:00'], [2, 'Escritura', '07:30'],
+  [2, 'Preparación de la sesión', '09:00'], [2, 'Entrenamiento del equipo', '10:30'],
+  [2, 'Reuniones individuales', '12:45'], [2, 'Comida en familia', '14:30'],
+  [2, 'Análisis ABP propio', '16:00'], [2, 'Análisis ABP rival', '17:00'],
+  [2, 'Microciclo · ABP', '18:00'], [2, 'Desconexión al llegar', '20:00'],
+  [2, 'Cena en familia', '21:00'], [2, 'Lectura', '22:30'],
+  // Jueves: la cultura de equipo, que también se prepara y se planifica.
+  [3, 'Gimnasio', '07:00'], [3, 'Preparación de la sesión', '09:00'],
+  [3, 'Entrenamiento del equipo', '10:30'], [3, 'Control de cargas', '13:00'],
+  [3, 'Comida en familia', '14:30'], [3, 'Análisis de la cultura de equipo', '16:00'],
+  [3, 'Desarrollo de la cultura de equipo', '17:00'],
+  [3, 'Microciclo · cultura de equipo', '18:00'], [3, 'Estudio del máster', '19:15'],
+  [3, 'Cena en familia', '21:00'], [3, 'Tiempo con María', '22:00'],
+  // Viernes: individuales, cuentas y lo que quedó suelto de la semana.
+  [4, 'Correr', '07:00'], [4, 'Preparación de la sesión', '09:00'],
+  [4, 'Entrenamiento del equipo', '10:30'], [4, 'Feedback post-sesión', '13:00'],
+  [4, 'Comida en familia', '14:30'], [4, 'Análisis individual', '16:00'],
+  [4, 'Cuentas del mes', '17:00'], [4, 'Tareas y recados', '18:00'],
+  [4, 'Desconexión al llegar', '20:00'], [4, 'Cena en familia', '21:00'],
+  [4, 'Lectura', '22:30'],
+  // Sábado: activación, casa y la tarde entera con los peques.
+  [5, 'Movilidad y prevención', '09:00'], [5, 'Entrenamiento del equipo', '10:00'],
+  [5, 'Responsabilidades de casa', '12:30'], [5, 'Comida en familia', '14:30'],
+  [5, 'Siesta corta', '15:30'], [5, 'Experiencias con los hijos', '17:00'],
+  [5, 'Cena en familia', '21:00'], [5, 'Lectura', '22:30'],
+  // Domingo: partido, y después la semana que viene sobre la mesa.
+  [6, 'Desayuno', '09:00'], [6, 'Partido', '12:00'], [6, 'Comida en familia', '14:30'],
+  [6, 'Siesta corta', '16:00'], [6, 'Ocio en familia', '17:00'],
+  [6, 'Organizar la semana', '19:00'], [6, 'Cena en familia', '21:00'],
+  [6, 'Diario de reflexión', '22:30'],
 ];
 
 const FAMILIA_SEED: SeedRow[] = [

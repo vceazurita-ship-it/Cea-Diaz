@@ -12,8 +12,10 @@ import {
   blockFromPreset,
   durationLabel,
   linkableMetrics,
+  presetGroupsOf,
   presetsOf,
 } from '@/lib/planner';
+import type { PlanPreset, PresetGroupId } from '@/lib/planner';
 import { targetWord } from '@/lib/scoring';
 import type { Companion, Metric, PlanBlock, PlanKind, Profile } from '@/types';
 
@@ -59,7 +61,26 @@ export function BlockEditor({
   const kid = profile.kind === 'kid';
 
   const presets = presetsOf(profile.id);
+  const topics = useMemo(() => presetGroupsOf(profile.id), [profile.id]);
   const groups = useMemo(() => linkableMetrics(profile.id), [profile.id]);
+
+  // Qué tema está abierto. Sin temas —los peques, María— no se usa: la lista
+  // va corrida, como estaba.
+  const [topic, setTopic] = useState<PresetGroupId | null>(topics[0]?.id ?? null);
+  const shown = topics.length > 0 ? topics.find((item) => item.id === topic)?.presets ?? [] : presets;
+
+  /**
+   * Un toque rellena el formulario entero, atadura incluida. Respeta la hora
+   * si ya se había tocado: la que trae el rato de siempre es sólo la propuesta
+   * de partida, y quien ha abierto el editor sobre las nueve la quiere a las
+   * nueve.
+   */
+  const applyPreset = (preset: PlanPreset) =>
+    setDraft((prev) => ({
+      ...blockFromPreset(preset, prev.day),
+      id: prev.id,
+      start: prev.start === '17:00' ? preset.start : prev.start,
+    }));
 
   const metric: Metric | undefined = useMemo(() => {
     if (!draft.metricId) return undefined;
@@ -86,18 +107,35 @@ export function BlockEditor({
       {isNew && presets.length > 0 && (
         <section>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide t-3">De un toque</p>
+
+          {topics.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {topics.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTopic(item.id)}
+                  aria-pressed={topic === item.id}
+                  className={`btn border px-2.5 py-1 text-xs font-semibold
+                    ${
+                      topic === item.id
+                        ? 'bg-accent-soft border-accent t-1'
+                        : 'hairline surf-1 t-2 hover-soft'
+                    }`}
+                >
+                  <span aria-hidden>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-1.5">
-            {presets.map((preset) => (
+            {shown.map((preset) => (
               <button
                 key={preset.title}
                 type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...blockFromPreset(preset, prev.day),
-                    id: prev.id,
-                    start: prev.start === '17:00' ? preset.start : prev.start,
-                  }))
-                }
+                onClick={() => applyPreset(preset)}
                 className="btn hairline surf-1 t-2 hover-soft border px-2.5 py-1 text-xs"
               >
                 <span aria-hidden>{preset.icon}</span>

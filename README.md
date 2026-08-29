@@ -1298,6 +1298,48 @@ Cada día tiene además dos atajos, en la vista **día a día**: **⧉** copia e
 encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo, se copia de otro
 perfil o se vacía desde la barra de abajo. Todo se deshace desde el aviso.
 
+### Los temas: cincuenta y cinco ratos que caben en una pantalla
+
+Con doce ratos de un toque bastaba una fila de botones. La semana de Víctor no cabe en
+doce: el trabajo de cuerpo técnico se le va en catorce cosas distintas —preparar la
+sesión no es analizar el partido, y analizar al rival no es analizar el balón parado— y
+además están el máster, el deporte propio, la familia, la casa, las cuentas y el
+descanso. Cincuenta y cinco botones seguidos no son un catálogo: son un muro.
+
+Así que los ratos de un toque declaran de qué **tema** son (`group`), y la pantalla los
+reparte en pestañas. El tema no es lo mismo que el tipo: el análisis del rival y la
+reunión de staff son los dos «trabajo» —y se pintan los dos de gris pizarra en la
+cuadrícula—, pero quien monta la semana los busca en sitios distintos.
+
+| Tema | Qué hay dentro |
+| ---- | -------------- |
+| 📋 **Profesional** | El oficio entero, desglosado: preparación de la sesión, entrenamiento, partido, análisis táctico del partido, análisis individual, rival colectivo y rival individual, ABP propio y ABP rival, análisis y desarrollo de la cultura de equipo, los microciclos de cultura y de ABP, reuniones individuales, reunión de staff, aprendizajes del micro, control de cargas, feedback post-sesión y la desconexión al llegar a casa |
+| 🎓 **Máster** | Clase, estudio y trabajos con fecha de entrega |
+| ✨ **Desarrollo personal** | Lectura, escritura, diario, formación y pausa consciente |
+| 🏃 **Deporte** | Gimnasio, correr, montaña, fútbol, otro deporte, el reto de la semana, movilidad y paseo |
+| 🏡 **Familia** | Las tres comidas, ocio en familia, experiencias con los hijos, tiempo con María, los padres y los amigos |
+| 🧹 **Casa y tareas** | Responsabilidades, recados, compra, papeleo y organizar la semana |
+| 💶 **Economía** | Cuentas del mes, facturas y pagos, inversiones y ahorro |
+| 🌙 **Descanso y salud** | Siesta, a dormir, sin pantallas la última hora y luz natural al levantarse |
+
+El tema es **opcional**: los peques, María, Familia y Pareja no lo declaran y siguen
+teniendo su fila corrida de siempre. Sólo aparecen las pestañas cuando hay temas que
+enseñar, y sólo los temas que tienen algo dentro.
+
+Lo que se ata al registro se ata de verdad: «preparación de la sesión» son sesenta
+minutos de `prep_sesion`, «análisis táctico · partido» noventa de `analisis_tactico`,
+«reuniones individuales» una charla de `charlas_jugadores`. Lo que todavía no tiene
+casilla en el registro —los microciclos, la cultura de equipo, el máster, las cuentas—
+entra suelto: se aparta el rato igual, y la agenda no finge comprobar algo que nadie
+apunta.
+
+La semana de ejemplo de Víctor es un **microciclo de verdad**, con partido el domingo:
+el lunes se recoge el partido —vídeo, individual y aprendizajes del micro—, el martes
+va el rival, el miércoles el balón parado propio y del rival, el jueves la cultura de
+equipo, el viernes lo individual y las cuentas, el sábado la activación y la tarde con
+los peques. Sesenta y nueve ratos, sin un solo solape y sin ningún día por encima del
+aviso de sobrecarga.
+
 ### La semana de uno en la de otro
 
 Leo y Hugo hacen casi la misma semana —el mismo cole, el mismo campo, la misma hora de
