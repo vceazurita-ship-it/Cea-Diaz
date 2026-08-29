@@ -15,7 +15,7 @@ import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { buildChallengeWeek, markHints } from '@/lib/challenges';
-import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys } from '@/lib/dates';
+import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys, weekdayIndex } from '@/lib/dates';
 import {
   GAME_META,
   GAME_NOTE_KEY,
@@ -27,10 +27,11 @@ import {
 } from '@/lib/games';
 import { getCategories } from '@/lib/habits';
 import { learningFor } from '@/lib/learning';
+import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
 import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import { dueCount } from '@/lib/tasks';
-import type { DashboardTab, DateKey, Profile } from '@/types';
+import type { DashboardTab, DateKey, Metric, PlanBlock, Profile } from '@/types';
 
 interface DashboardProps {
   profile: Profile;
@@ -44,6 +45,21 @@ interface DashboardProps {
   onCalendarNoticeSeen?: () => void;
 }
 
+/**
+ * El día más despejado de la semana tipo, con el de hoy como desempate: es
+ * donde tiene sentido proponer un rato nuevo cuando algo se pide y no está.
+ */
+function freeDay(profileId: Profile['id'], today: number): number {
+  const load = [0, 0, 0, 0, 0, 0, 0];
+  for (const block of planOf(profileId).blocks) load[block.day] += block.duration;
+
+  let best = today;
+  for (let day = 0; day < 7; day += 1) {
+    if (load[day] < load[best]) best = day;
+  }
+  return best;
+}
+
 export function Dashboard({
   profile,
   date,
@@ -55,6 +71,11 @@ export function Dashboard({
 }: DashboardProps) {
   const [tab, setTab] = useState<DashboardTab>(initialTab ?? 'today');
   const [onlyPending, setOnlyPending] = useState(false);
+  /**
+   * Un rato montado en otra pestaña —desde un reto sin hueco— que espera a
+   * que la agenda lo recoja y abra su editor. Se vacía en cuanto lo hace.
+   */
+  const [planSeed, setPlanSeed] = useState<PlanBlock | null>(null);
   const notify = useToast();
 
   const kid = profile.kind === 'kid';
@@ -160,6 +181,19 @@ export function Dashboard({
           }
         : { message: 'El día anterior no tiene registros que copiar.', icon: '🤷' },
     );
+  };
+
+  /**
+   * Apartarle un rato en la semana a lo que pide un reto. Se monta aquí
+   * —conociendo el perfil y el día— y se lleva a la agenda, que lo abre ya
+   * relleno: desde el reto hasta el hueco en la semana no hay más que un
+   * toque, que es lo que hace que se llegue a apartar de verdad.
+   */
+  const reserveForMetric = (metric: Metric) => {
+    const plan = planOf(profile.id);
+    const day = freeDay(profile.id, weekdayIndex(date));
+    setPlanSeed(blockForMetric(profile.id, metric, day, bestSlot(plan, day)));
+    setTab('plan');
   };
 
   /** Recados que urgen hoy; se acusan en la propia pestaña. */
@@ -385,7 +419,14 @@ export function Dashboard({
         </div>
       ) : tab === 'plan' ? (
         <div role="tabpanel" id="panel-plan" aria-labelledby="tab-plan">
-          <WeekPlanner profile={profile} date={date} store={store} skin={skin} />
+          <WeekPlanner
+            profile={profile}
+            date={date}
+            store={store}
+            skin={skin}
+            seed={planSeed}
+            onSeedUsed={() => setPlanSeed(null)}
+          />
         </div>
       ) : tab === 'challenges' ? (
         <div role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">
@@ -399,6 +440,7 @@ export function Dashboard({
             onGameResult={(result) =>
               store.setEntryNote(profile.id, date, GAME_NOTE_KEY, encodeGameResult(result))
             }
+            onReserve={reserveForMetric}
           />
         </div>
       ) : tab === 'tasks' ? (
@@ -426,6 +468,7 @@ export function Dashboard({
           // Cambiar de semana o de mes mueve el día visible sin sacar a nadie
           // de los resúmenes: sólo tocar un día concreto lleva al registro.
           onDateChange={onDateChange}
+          onOpenPlan={() => setTab('plan')}
           />
         </div>
       )}

@@ -1535,27 +1535,209 @@ export function weekSpan(blocks: PlanBlock[]): { from: number; to: number } {
   return { from, to };
 }
 
+/** Fin del rato en minutos desde medianoche, cortado en la medianoche. */
+export function endOf(block: PlanBlock): number {
+  return Math.min(24 * 60, minutesOf(block.start) + Math.max(5, block.duration));
+}
+
+/** Un rato ya colocado en la cuadrícula: dónde cae y cuánto se ensancha. */
+export interface PlacedBlock {
+  block: PlanBlock;
+  /** Carril en el que empieza, dentro de su racimo. */
+  lane: number;
+  /** Carriles que ocupa: se ensancha a la derecha hasta topar con algo. */
+  span: number;
+  /** Carriles que tiene ese racimo. Es el divisor de la anchura. */
+  lanes: number;
+}
+
 /**
  * Reparte en carriles los ratos de un día para que dos cosas a la misma hora
- * se pinten una al lado de la otra y no una encima de la otra. Devuelve cada
- * rato con su carril y cuántos carriles hacen falta ese día.
+ * se pinten una al lado de la otra y no una encima de la otra.
+ *
+ * Lo hace **por racimos**, y ahí está la diferencia. Contar los carriles de
+ * todo el día era lo que estropeaba una semana llena: en el miércoles de
+ * Víctor bastaba que dos reuniones se pisaran a mediodía para que las otras
+ * trece cosas del día se pintaran a media anchura, con medio día en blanco al
+ * lado. Un racimo es lo que se solapa en cadena; en cuanto queda un hueco
+ * limpio se cierra y el siguiente vuelve a empezar por la anchura entera.
+ *
+ * Y dentro del racimo cada rato **se ensancha** hasta topar: si sólo dos
+ * cosas se pisan de tres carriles, ocupan lo que les corresponde y no un
+ * tercio cada una.
  */
 export function laneLayout(blocks: PlanBlock[]): {
   lanes: number;
-  placed: Array<{ block: PlanBlock; lane: number }>;
+  placed: PlacedBlock[];
 } {
-  /** Hasta qué minuto está pillado cada carril. */
-  const busyUntil: number[] = [];
+  const placed: PlacedBlock[] = [];
+  let widest = 1;
 
-  const placed = sortBlocks(blocks).map((block) => {
-    const start = minutesOf(block.start);
-    let lane = busyUntil.findIndex((end) => end <= start);
-    if (lane === -1) lane = busyUntil.length;
-    busyUntil[lane] = start + block.duration;
-    return { block, lane };
+  /** El racimo que se está formando: lo que sigue abierto a esta hora. */
+  let cluster: Array<{ block: PlanBlock; lane: number; from: number; to: number }> = [];
+  /** Hasta qué minuto llega lo más tardío del racimo. */
+  let clusterEnd = -1;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+
+    const lanes = cluster.reduce((max, item) => Math.max(max, item.lane + 1), 1);
+    widest = Math.max(widest, lanes);
+
+    for (const item of cluster) {
+      let span = 1;
+      while (
+        item.lane + span < lanes &&
+        !cluster.some(
+          (other) =>
+            other.lane === item.lane + span && other.from < item.to && item.from < other.to,
+        )
+      ) {
+        span += 1;
+      }
+      placed.push({ block: item.block, lane: item.lane, span, lanes });
+    }
+
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const block of sortBlocks(blocks)) {
+    const from = minutesOf(block.start);
+    const to = from + Math.max(5, block.duration);
+
+    // Lo que empieza cuando ya no queda nada abierto abre racimo nuevo.
+    if (from >= clusterEnd) flush();
+
+    let lane = 0;
+    while (cluster.some((item) => item.lane === lane && item.to > from)) lane += 1;
+
+    cluster.push({ block, lane, from, to });
+    clusterEnd = Math.max(clusterEnd, to);
+  }
+
+  flush();
+
+  return { lanes: widest, placed };
+}
+
+/* ---------------------------------------------------------------------------
+ * Lo que la semana dice de sí misma
+ *
+ * Tres lecturas que no salen de mirar la cuadrícula y que hacen falta en tres
+ * sitios distintos: el reparto por tipo (en el análisis), lo que se aparta
+ * para un hábito concreto (en los retos) y el hueco libre más largo del día
+ * (en los avisos). Viven aquí y no en cada pantalla para que las tres cuenten
+ * lo mismo.
+ * ------------------------------------------------------------------------- */
+
+export interface KindShare {
+  kind: PlanKind;
+  minutes: number;
+  blocks: number;
+}
+
+/** Reparto de lo apartado por tipo de rato, de más minutos a menos. */
+export function kindShare(blocks: PlanBlock[]): KindShare[] {
+  const totals = new Map<PlanKind, KindShare>();
+
+  for (const block of blocks) {
+    const entry = totals.get(block.kind) ?? { kind: block.kind, minutes: 0, blocks: 0 };
+    entry.minutes += block.duration;
+    entry.blocks += 1;
+    totals.set(block.kind, entry);
+  }
+
+  return Array.from(totals.values()).sort((a, b) => b.minutes - a.minutes);
+}
+
+export interface MetricPlan {
+  /** Ratos de la semana atados a ese hábito. */
+  blocks: PlanBlock[];
+  /** Minutos que suman. */
+  minutes: number;
+  /** Lo que declaran aportar, si lo declaran. */
+  amount: number;
+  /** Días distintos en los que cae, ordenados. */
+  days: number[];
+}
+
+const NO_METRIC_PLAN: MetricPlan = { blocks: [], minutes: 0, amount: 0, days: [] };
+
+/**
+ * Qué aparta la semana tipo para un hábito. Es lo que permite decirle a un
+ * reto si tiene hueco reservado o si se está pidiendo a base de fuerza de
+ * voluntad. Las cinco actividades deportivas cuentan como una: un reto de
+ * deporte lo cubre el entreno de fútbol o el de natación, da igual cuál.
+ */
+export function plannedForMetric(plan: WeekPlan, metricId: string): MetricPlan {
+  if (!metricId) return NO_METRIC_PLAN;
+
+  const sport = metricId.startsWith('sport.');
+  const blocks = plan.blocks.filter((block) => {
+    if (!block.metricId) return false;
+    if (block.metricId === metricId) return true;
+    return sport && block.metricId.startsWith('sport.');
   });
 
-  return { lanes: Math.max(1, busyUntil.length), placed };
+  if (blocks.length === 0) return NO_METRIC_PLAN;
+
+  return {
+    blocks: sortBlocks(blocks),
+    minutes: blocks.reduce((total, block) => total + block.duration, 0),
+    amount: blocks.reduce((total, block) => total + (block.amount ?? 0), 0),
+    days: Array.from(new Set(blocks.map((block) => block.day))).sort((a, b) => a - b),
+  };
+}
+
+/**
+ * El hueco libre más largo de un día, dentro de la franja de vigilia.
+ * Devuelve dónde empieza y cuánto dura, que es lo que hace falta para
+ * proponer un rato que de verdad quepa.
+ */
+export function longestGap(
+  blocks: PlanBlock[],
+  from = 7 * 60,
+  to = 23 * 60,
+): { start: number; minutes: number } {
+  const busy = sortBlocks(blocks)
+    .map((block) => [minutesOf(block.start), endOf(block)] as const)
+    .filter(([, end]) => end > from)
+    .sort((a, b) => a[0] - b[0]);
+
+  let cursor = from;
+  let best = { start: from, minutes: 0 };
+
+  for (const [start, end] of busy) {
+    if (start > cursor) {
+      const gap = Math.min(start, to) - cursor;
+      if (gap > best.minutes) best = { start: cursor, minutes: gap };
+    }
+    cursor = Math.max(cursor, end);
+    if (cursor >= to) break;
+  }
+
+  if (to - cursor > best.minutes) best = { start: cursor, minutes: Math.max(0, to - cursor) };
+  return best;
+}
+
+/**
+ * A qué hora apartar algo nuevo en un día concreto: en el hueco libre más
+ * largo que tenga, y si no cabe en ninguno, a la hora de siempre.
+ *
+ * Es lo que convierte «apartarle un rato» en un botón que se pulsa sin
+ * mirar. Proponer las seis de la tarde por defecto lo dejaba encima del
+ * entreno la mitad de las veces, y entonces lo primero que había que hacer
+ * con el rato recién apartado era moverlo.
+ */
+export function bestSlot(plan: WeekPlan, day: number, duration = 45): string {
+  const gap = longestGap(blocksOfDay(plan, day));
+  if (gap.minutes < duration) return '18:00';
+
+  // Pegado al principio del hueco, con un respiro de cinco minutos cuando lo
+  // hay: dos cosas seguidas se leen mejor que dos cosas pegadas.
+  const air = gap.minutes - duration >= 10 ? 5 : 0;
+  return timeOf(gap.start + air);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1592,6 +1774,44 @@ export function emptyBlock(day: number, start = '17:00'): PlanBlock {
     title: '',
     icon: '📌',
     kind: 'otro',
+  };
+}
+
+/**
+ * Un rato ya preparado para un hábito concreto, listo para abrir el editor
+ * encima. Es lo que hace que desde un reto sin hueco se pueda apartar el
+ * hueco de un toque en vez de volver a la agenda a buscarlo a mano.
+ *
+ * Si hay un rato de siempre atado a ese hábito, se usa ése entero —nombre,
+ * emoji, hora y cantidad incluidos—, que es lo que ya sabemos que encaja. Si
+ * no lo hay, se monta uno con el nombre del propio hábito.
+ */
+export function blockForMetric(
+  profileId: ProfileId,
+  metric: Metric,
+  day: number,
+  start?: string,
+): PlanBlock {
+  const preset = presetsOf(profileId).find((item) => item.metricId === metric.id);
+
+  if (preset) {
+    const block = blockFromPreset(preset, day);
+    return start ? { ...block, start } : block;
+  }
+
+  const amount =
+    metric.type === 'counter' || metric.type === 'duration' ? metric.target : undefined;
+
+  return {
+    id: newId(),
+    day,
+    start: start ?? '18:00',
+    duration: metric.type === 'duration' ? Math.max(15, Math.min(180, metric.target)) : 45,
+    title: metric.label,
+    icon: metric.icon || '🔗',
+    kind: 'otro',
+    metricId: metric.id,
+    amount,
   };
 }
 

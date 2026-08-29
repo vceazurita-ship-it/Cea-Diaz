@@ -1460,6 +1460,25 @@ export function getMetrics(profileId: ProfileId): Metric[] {
   return getCategories(profileId).flatMap((c) => c.metrics);
 }
 
+/**
+ * Índice por identificador, montado una vez por perfil.
+ *
+ * El catálogo son constantes del módulo: no cambia en toda la vida de la
+ * pestaña, así que aplanarlo y recorrerlo en cada búsqueda era trabajo
+ * tirado. Y se busca mucho más de lo que parece: contrastar la agenda de un
+ * mes contra el registro son varios miles de búsquedas seguidas —ochenta
+ * ratos por treinta y un días—, y ahí la diferencia entre recorrer ciento
+ * cincuenta métricas o mirar un mapa ya se nota en el dedo.
+ */
+const metricIndex = new Map<ProfileId, Map<string, Metric>>();
+
 export function findMetric(profileId: ProfileId, metricId: string): Metric | undefined {
-  return getMetrics(profileId).find((m) => m.id === metricId);
+  let index = metricIndex.get(profileId);
+
+  if (!index) {
+    index = new Map(getMetrics(profileId).map((metric) => [metric.id, metric]));
+    metricIndex.set(profileId, index);
+  }
+
+  return index.get(metricId);
 }

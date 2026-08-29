@@ -9,9 +9,13 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { NoteField } from '@/components/ui/NoteField';
 import { useLineup } from '@/hooks/useLineup';
+import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
+import { challengeLink } from '@/lib/planLink';
+import type { ChallengeLink } from '@/lib/planLink';
+import { DAY_SHORT } from '@/lib/planner';
 import {
   WEEKLY_CHALLENGE_ID,
   collectRewards,
@@ -25,6 +29,7 @@ import type {
   DateKey,
   DayEntry,
   GameResult,
+  Metric,
   Profile,
   ProfileId,
   ProfileSkin,
@@ -45,6 +50,11 @@ interface ChallengesPanelProps {
   onNoteChange: (text: string) => void;
   /** Anota la partida del juego del día; sólo la tienen los peques. */
   onGameResult?: (result: GameResult) => void;
+  /**
+   * Apartarle un rato en la semana a lo que pide un reto. Sin esto, los retos
+   * dicen adónde hay que llegar y nadie dice cuándo.
+   */
+  onReserve?: (metric: Metric) => void;
 }
 
 /* -------------------------------------------------------------------------
@@ -60,9 +70,21 @@ interface ChallengeCardProps {
   rewards?: Reward[];
   /** Qué se llevará si lo consigue, anunciado por adelantado. */
   prize?: string | null;
+  /** Qué aparta la semana tipo para este reto, si aparta algo. */
+  link?: ChallengeLink;
+  /** Apartarle uno cuando no lo tiene. */
+  onReserve?: (metric: Metric) => void;
 }
 
-function ChallengeCard({ profileId, challenge, kid, rewards, prize }: ChallengeCardProps) {
+function ChallengeCard({
+  profileId,
+  challenge,
+  kid,
+  rewards,
+  prize,
+  link,
+  onReserve,
+}: ChallengeCardProps) {
   const { progress } = challenge;
 
   return (
@@ -111,6 +133,45 @@ function ChallengeCard({ profileId, challenge, kid, rewards, prize }: ChallengeC
           </div>
 
           <p className="mt-2 text-[11px] leading-snug t-3">💡 {challenge.why}</p>
+
+          {/* Y el puente con la agenda: un reto con su rato apartado se
+              cumple solo; uno sin hueco depende de que alguien se acuerde. */}
+          {link && link.cover !== 'dia' && (
+            <div
+              className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-2 py-1.5
+                ${link.cover === 'reservado' ? 'hairline surf-2' : 'border-accent bg-accent-faint'}`}
+            >
+              <span className="text-[11px] font-semibold leading-snug t-2">
+                {link.cover === 'reservado' ? '🗓️ ' : '🕳️ '}
+                {link.text}
+              </span>
+
+              {link.cover === 'reservado' ? (
+                <span className="ml-auto flex shrink-0 gap-0.5" aria-hidden>
+                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                    <span
+                      key={day}
+                      className={`grid h-4 w-4 place-items-center rounded text-[8px] font-bold
+                        ${link.days.includes(day) ? 'bg-accent t-on-accent' : 'surf-3 t-3 opacity-60'}`}
+                    >
+                      {DAY_SHORT[day][0]}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                link.metric &&
+                onReserve && (
+                  <button
+                    type="button"
+                    onClick={() => onReserve(link.metric!)}
+                    className="btn-primary ml-auto min-h-0 shrink-0 px-2.5 py-1 text-[11px]"
+                  >
+                    🗓️ Apartarle un rato
+                  </button>
+                )
+              )}
+            </div>
+          )}
 
           {/* El premio: anunciado antes, entregado después. */}
           {rewards && rewards.length > 0 ? (
@@ -200,6 +261,7 @@ export function ChallengesPanel({
   note,
   onNoteChange,
   onGameResult,
+  onReserve,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
   const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
@@ -242,6 +304,29 @@ export function ChallengesPanel({
 
     return byChallenge;
   }, [rewards, week.from]);
+
+  /**
+   * La semana tipo, para poder decir de cada reto si tiene hueco. Es lo que
+   * convierte los retos en un plan: sin esto son una lista de deseos.
+   */
+  const plan = useWeekPlan(profile.id);
+
+  const links = useMemo(() => {
+    const map = new Map<string, ChallengeLink>();
+    for (const challenge of week.challenges) {
+      map.set(challenge.id, challengeLink(profile.id, plan, challenge));
+    }
+    return map;
+  }, [week.challenges, plan, profile.id]);
+
+  /** Cuántos de los que piden un rato lo tienen apartado. */
+  const coverage = useMemo(() => {
+    const needing = Array.from(links.values()).filter((link) => link.cover !== 'dia');
+    return {
+      total: needing.length,
+      covered: needing.filter((link) => link.cover === 'reservado').length,
+    };
+  }, [links]);
 
   const total = week.challenges.length;
 
@@ -287,6 +372,11 @@ export function ChallengesPanel({
             <span className="chip-soft">
               ✨ {week.xp} / {week.xpMax} puntos
             </span>
+            {coverage.total > 0 && (
+              <span className="chip-soft">
+                🗓️ {coverage.covered}/{coverage.total} con hueco en la semana
+              </span>
+            )}
           </div>
 
           {/* El premio de cerrar la semana entera, antes y después de ganarlo. */}
@@ -325,6 +415,8 @@ export function ChallengesPanel({
               kid={kid}
               rewards={wonThisWeek.get(challenge.id)}
               prize={rewardLabelFor(profile.id, challenge.tier)}
+              link={links.get(challenge.id)}
+              onReserve={onReserve}
             />
           ))}
         </ul>

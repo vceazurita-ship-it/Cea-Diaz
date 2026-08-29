@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BlockEditor } from '@/components/planner/BlockEditor';
 import { CopyWeekPicker } from '@/components/planner/CopyWeekPicker';
 import { PlanAlerts } from '@/components/planner/PlanAlerts';
+import { PlanChallengesCard } from '@/components/planner/PlanChallengesCard';
 import { PlanCopySheet } from '@/components/planner/PlanCopySheet';
 import type { CopyRequest, CopyTarget } from '@/components/planner/PlanCopySheet';
 import { WeekTimetable } from '@/components/planner/WeekTimetable';
@@ -13,6 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
+import { buildChallengeWeek } from '@/lib/challenges';
 import { formatShort, weekKeys, weekdayIndex } from '@/lib/dates';
 import { companionShare, reviewWeek, statusIcon, statusLabel, statusShort } from '@/lib/planCheck';
 import {
@@ -31,6 +33,8 @@ import {
   duplicateBlock,
   durationLabel,
   emptyBlock,
+  kindShare,
+  minutesOf,
   moveBlockTo,
   moveDayTo,
   planOf,
@@ -44,6 +48,7 @@ import {
   spreadBlock,
   swapDays,
   themeOf,
+  timeOf,
   updatePlan,
 } from '@/lib/planner';
 import type { WeekSource } from '@/lib/planner';
@@ -102,15 +107,46 @@ const ZOOMS: Array<{ id: TimetableZoom; label: string; icon: string }> = [
   { id: 'amplia', label: 'Vista amplia', icon: '⊞' },
 ];
 
+/**
+ * Cuántos días se miran a la vez.
+ *
+ * Siete columnas es la semana; en un móvil son siete rendijas de ochenta
+ * píxeles donde no cabe ni el nombre de lo que hay dentro. Con la semana casi
+ * llena —la de Víctor pasa de ochenta ratos— hasta en una pantalla grande se
+ * agradece poder quedarse en los cinco días de trabajo o en uno solo.
+ */
+type DayRange = 'semana' | 'laborables' | 'finde' | 'dia';
+
+const RANGES: Array<{ id: DayRange; label: string; days: number[] }> = [
+  { id: 'semana', label: '7 días', days: [0, 1, 2, 3, 4, 5, 6] },
+  { id: 'laborables', label: 'L–V', days: [0, 1, 2, 3, 4] },
+  { id: 'finde', label: 'Finde', days: [5, 6] },
+  { id: 'dia', label: 'Un día', days: [] },
+];
+
 interface WeekPlannerProps {
   profile: Profile;
   /** Día visible en el panel; de él sale la semana real que se contrasta. */
   date: DateKey;
   store: HabitStore;
   skin: ProfileSkin;
+  /**
+   * Un rato que llega ya montado desde otra pestaña —de un reto sin hueco,
+   * por ejemplo— para abrir el editor encima nada más entrar.
+   */
+  seed?: PlanBlock | null;
+  /** Se avisa en cuanto se ha recogido, para que no vuelva a abrirse. */
+  onSeedUsed?: () => void;
 }
 
-export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
+export function WeekPlanner({
+  profile,
+  date,
+  store,
+  skin,
+  seed,
+  onSeedUsed,
+}: WeekPlannerProps) {
   const plan = useWeekPlan(profile.id);
   const notify = useToast();
   const [editing, setEditing] = useState<{ block: PlanBlock; isNew: boolean } | null>(null);
@@ -122,11 +158,36 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   const [zoom, setZoom] = useState<TimetableZoom>('normal');
   /** Tipo resaltado en la cuadrícula; el resto se apaga. */
   const [focus, setFocus] = useState<PlanKind | null>(null);
+  /** Cuántos días se miran, y cuál cuando se mira uno solo. */
+  const [range, setRange] = useState<DayRange>('semana');
+  const [soloDay, setSoloDay] = useState<number | null>(null);
+  /** Lo tecleado en el buscador: lo que no lo lleve se apaga en la cuadrícula. */
+  const [query, setQuery] = useState('');
 
   const kid = profile.kind === 'kid';
   const theme = themeOf(profile.id);
   const dates = useMemo(() => weekKeys(date), [date]);
   const today = weekdayIndex(date);
+
+  // El rato que llega de otra pestaña se recoge una vez y se abre su editor.
+  useEffect(() => {
+    if (!seed) return;
+    setEditing({ block: seed, isNew: true });
+    setView('completa');
+    onSeedUsed?.();
+  }, [seed, onSeedUsed]);
+
+  /**
+   * En una pantalla estrecha la semana entera no se lee, así que se entra por
+   * un día. Se decide una sola vez y tras montar —en el servidor no hay
+   * ventana—, y a partir de ahí manda lo que elija quien mira.
+   */
+  const chosen = useRef(false);
+  useEffect(() => {
+    if (chosen.current) return;
+    chosen.current = true;
+    if (window.innerWidth < 700) setRange('dia');
+  }, []);
 
   const review = useMemo(
     () => reviewWeek(profile, plan, dates, store.entries),
@@ -146,6 +207,21 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   );
 
   const share = useMemo(() => (kid ? companionShare(plan) : []), [kid, plan]);
+
+  /** En qué se va la semana tipo. Es la lectura que nadie hace de cabeza. */
+  const shares = useMemo(() => kindShare(plan.blocks), [plan.blocks]);
+
+  /** Los retos de esta semana, para poder decir cuáles tienen hueco. */
+  const challengeWeek = useMemo(
+    () => buildChallengeWeek(profile, date, store.entries),
+    [profile, date, store.entries],
+  );
+
+  /** Los días que se pintan en la cuadrícula. */
+  const shownDays = useMemo(() => {
+    if (range === 'dia') return [soloDay ?? today];
+    return RANGES.find((item) => item.id === range)?.days ?? [0, 1, 2, 3, 4, 5, 6];
+  }, [range, soloDay, today]);
   const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
 
   /**
@@ -155,13 +231,6 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
    */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pending = useMemo(() => relinkPreview(profile.id), [plan, profile.id]);
-
-  /** Los tipos que de verdad hay en esta semana: no se filtra por lo que no está. */
-  const kinds = useMemo(() => {
-    const seen = new Set<PlanKind>();
-    for (const block of plan.blocks) seen.add(block.kind);
-    return Array.from(seen);
-  }, [plan.blocks]);
 
   /** La frase de la semana: la misma todo el día, distinta cada día. */
   const quote = theme.quotes[today % theme.quotes.length] ?? theme.quotes[0];
@@ -213,6 +282,42 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
       message: `«${block.title}» fuera de la semana.`,
       icon: '🗑️',
       tone: 'danger',
+      action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+  };
+
+  /**
+   * Arrastrar. El mismo rato, otro día u otra hora, sin abrir nada. Se acusa
+   * con «deshacer» porque un gesto se falla más que un formulario: el dedo
+   * resbala un cuarto de hora y hay que poder volver atrás sin pensar.
+   */
+  const move = (block: PlanBlock, day: number, start: string) => {
+    if (block.day === day && block.start === start) return;
+    const before = planOf(profile.id).blocks;
+    const title = block.title || 'El rato';
+    moveBlockTo(profile.id, block, day, start);
+
+    notify({
+      message:
+        block.day === day
+          ? `«${title}», a las ${start}.`
+          : `«${title}», al ${DAY_NAMES[day].toLowerCase()} a las ${start}.`,
+      icon: '✋',
+      action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+  };
+
+  /** Estirar por abajo: el rato dura lo que se le deje. */
+  const resize = (block: PlanBlock, duration: number) => {
+    if (duration === block.duration) return;
+    const before = planOf(profile.id).blocks;
+    savePlanBlock(profile.id, { ...block, duration });
+
+    notify({
+      message: `«${block.title || 'El rato'}»: ${durationLabel(duration)}, hasta las ${timeOf(
+        minutesOf(block.start) + duration,
+      )}.`,
+      icon: '↕️',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
   };
@@ -421,6 +526,55 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
           </div>
         )}
 
+        {/* En qué se va la semana: la barra que contesta «¿dónde está mi
+            tiempo?» sin tener que sumar ochenta ratos a mano. */}
+        {shares.length > 1 && (
+          <div className="mt-3 border-t pt-3 hairline">
+            <div className="flex h-2.5 w-full overflow-hidden rounded-full track">
+              {shares.map((item) => (
+                <span
+                  key={item.kind}
+                  title={`${PLAN_KINDS[item.kind].label}: ${durationLabel(item.minutes)}`}
+                  className={`h-full bg-gradient-to-r ${PLAN_KINDS[item.kind].gradient}`}
+                  style={{ width: `${(item.minutes / Math.max(1, total)) * 100}%` }}
+                />
+              ))}
+            </div>
+            {/* Y la leyenda es el filtro: picar en «Trabajo» apaga todo lo
+                demás en la cuadrícula. En una semana de ochenta ratos es la
+                única forma de mirar sólo una cosa. */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {focus !== null && (
+                <button
+                  type="button"
+                  onClick={() => setFocus(null)}
+                  className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 text-[11px] font-semibold t-1"
+                >
+                  ✕ Ver todo
+                </button>
+              )}
+              {shares.map((item) => (
+                <button
+                  key={item.kind}
+                  type="button"
+                  onClick={() => setFocus(focus === item.kind ? null : item.kind)}
+                  aria-pressed={focus === item.kind}
+                  title={`Resaltar sólo ${PLAN_KINDS[item.kind].label.toLowerCase()}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-1.5 text-[11px] transition
+                    ${focus === item.kind ? 'bg-accent-soft font-semibold t-1' : 't-3 hover-soft'}`}
+                >
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 rounded-full bg-gradient-to-br ${PLAN_KINDS[item.kind].gradient}`}
+                  />
+                  {PLAN_KINDS[item.kind].label}
+                  <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Con quién están los peques en la semana tipo */}
         {kid && share.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
@@ -459,7 +613,30 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
         </section>
       )}
 
-      <PlanAlerts alerts={review.alerts} skin={skin} />
+      <PlanAlerts
+        alerts={review.alerts}
+        skin={skin}
+        onDay={(day) => {
+          setView('completa');
+          setRange('dia');
+          setSoloDay(day);
+        }}
+      />
+
+      {/* Los retos de la semana contra la semana tipo: cuáles tienen su rato
+          apartado y cuáles se están pidiendo a base de acordarse. */}
+      <PlanChallengesCard
+        profileId={profile.id}
+        plan={plan}
+        challenges={challengeWeek.challenges}
+        skin={skin}
+        onReserve={(block) => setEditing({ block, isNew: true })}
+        onShow={(block) => {
+          setView('completa');
+          setRange('dia');
+          setSoloDay(block.day);
+        }}
+      />
 
       {/* Cómo mirarla: entera o día a día */}
       {defined && (
@@ -512,41 +689,68 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             </div>
           )}
 
-          <p className="text-[11px] t-3">
+          {shown === 'completa' && (
+            <div
+              className="flex gap-1 rounded-full p-1 surf-2"
+              role="group"
+              aria-label="Cuántos días se miran"
+            >
+              {RANGES.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setRange(option.id)}
+                  aria-pressed={range === option.id}
+                  className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition
+                    ${range === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {shown === 'completa' && (
+            <label className="ml-auto min-w-0 flex-1 sm:max-w-[190px]">
+              <span className="sr-only">Buscar un rato en la semana</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="🔎 Buscar en la semana…"
+                className="field w-full py-1.5 text-xs"
+              />
+            </label>
+          )}
+
+          <p className="w-full text-[11px] t-3">
             {shown === 'completa'
-              ? 'Pica en un rato para cambiarlo, en un hueco para apartar uno, o en el día para copiarlo entero.'
+              ? 'Pica en un rato para cambiarlo, arrástralo para moverlo, estíralo por abajo para que dure más, o pica en un hueco para apartar uno.'
               : 'Aquí se aparta, se copia, se mueve y se vacía.'}
           </p>
         </div>
       )}
 
-      {/* Resaltar un tipo: en una semana llena es la única manera de mirar
-          sólo el trabajo, o sólo lo de los peques. */}
-      {defined && shown === 'completa' && kinds.length > 2 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide t-3">Resaltar:</span>
-          <button
-            type="button"
-            onClick={() => setFocus(null)}
-            aria-pressed={focus === null}
-            className={`btn min-h-0 border px-2 py-0.5 text-[11px] font-semibold
-              ${focus === null ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
-          >
-            Todo
-          </button>
-          {kinds.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              onClick={() => setFocus(focus === kind ? null : kind)}
-              aria-pressed={focus === kind}
-              className={`btn min-h-0 border px-2 py-0.5 text-[11px] font-semibold
-                ${focus === kind ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
-            >
-              <span aria-hidden>{PLAN_KINDS[kind].icon}</span>
-              {PLAN_KINDS[kind].label}
-            </button>
-          ))}
+      {/* Con un solo día en pantalla hay que poder elegir cuál */}
+      {defined && shown === 'completa' && range === 'dia' && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Qué día">
+          {[0, 1, 2, 3, 4, 5, 6].map((day) => {
+            const count = blocksOfDay(plan, day).length;
+            const active = (soloDay ?? today) === day;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setSoloDay(day)}
+                aria-pressed={active}
+                className={`btn min-h-0 border px-2.5 py-1 text-[11px] font-semibold
+                  ${active ? 'bg-accent t-on-accent border-accent' : 'hairline surf-1 t-2 hover-soft'}
+                  ${day === today && !active ? 'border-accent' : ''}`}
+              >
+                {DAY_SHORT[day]}
+                {count > 0 && <span className="ml-1 tabular-nums opacity-70">{count}</span>}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -557,13 +761,28 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             plan={plan}
             statusById={judged > 0 ? statusById : undefined}
             today={today}
+            days={shownDays}
             heading={heading}
             zoom={zoom}
             focus={focus}
+            query={query}
             onSelect={(block) => setEditing({ block, isNew: false })}
             onAdd={(day, start) => setEditing({ block: emptyBlock(day, start), isNew: true })}
             onDay={(day) => setSheet({ kind: 'day', day })}
+            onMove={move}
+            onResize={resize}
           />
+
+          <p className="mt-2 hidden text-center text-[11px] t-3 sm:block">
+            Con el teclado: <kbd className="font-mono font-bold">Tab</kbd> recorre los ratos ·{' '}
+            <kbd className="font-mono font-bold">Alt</kbd> +{' '}
+            <kbd className="font-mono font-bold">←→</kbd> cambia de día ·{' '}
+            <kbd className="font-mono font-bold">Alt</kbd> +{' '}
+            <kbd className="font-mono font-bold">↑↓</kbd> corre la hora ·{' '}
+            <kbd className="font-mono font-bold">Alt</kbd> +{' '}
+            <kbd className="font-mono font-bold">Mayús</kbd> +{' '}
+            <kbd className="font-mono font-bold">↑↓</kbd> alarga o acorta
+          </p>
         </section>
       )}
 

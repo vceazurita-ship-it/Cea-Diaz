@@ -40,9 +40,15 @@ const TONE: Record<PlanAlertTone, { label: string; ring: string; text: string }>
 interface PlanAlertsProps {
   alerts: PlanAlert[];
   skin: ProfileSkin;
+  /**
+   * Ir al día del que habla el aviso. Un aviso que dice «el miércoles va muy
+   * cargado» y no lleva al miércoles obliga a buscarlo a mano, que es
+   * justamente el paso en el que se abandona.
+   */
+  onDay?: (day: number) => void;
 }
 
-export function PlanAlerts({ alerts, skin }: PlanAlertsProps) {
+export function PlanAlerts({ alerts, skin, onDay }: PlanAlertsProps) {
   const [open, setOpen] = useState(false);
   const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
 
@@ -76,6 +82,16 @@ export function PlanAlerts({ alerts, skin }: PlanAlertsProps) {
                   )}
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed t-2">{alert.detail}</p>
+
+                {alert.day !== undefined && onDay && (
+                  <button
+                    type="button"
+                    onClick={() => onDay(alert.day!)}
+                    className="btn-ghost mt-1.5 min-h-0 px-2 py-0.5 text-[11px]"
+                  >
+                    Ver el {DAY_NAMES[alert.day].toLowerCase()}
+                  </button>
+                )}
               </div>
               <span className="chip-soft shrink-0 text-[10px] uppercase">{tone.label}</span>
             </li>

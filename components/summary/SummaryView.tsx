@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AchievementsPanel } from '@/components/summary/AchievementsPanel';
 import { MonthHeatmap } from '@/components/summary/MonthHeatmap';
+import { PlanAdherence } from '@/components/summary/PlanAdherence';
 import { WeekChart } from '@/components/summary/WeekChart';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -33,6 +34,11 @@ interface SummaryViewProps {
    * retroceder día a día hasta caer en el periodo que se quería mirar.
    */
   onDateChange: (date: DateKey) => void;
+  /**
+   * Lleva a la agenda. El análisis dice qué se está cayendo; arreglarlo es
+   * mover un rato de sitio, y eso se hace allí.
+   */
+  onOpenPlan?: () => void;
 }
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -52,6 +58,7 @@ export function SummaryView({
   skin,
   onSelectDay,
   onDateChange,
+  onOpenPlan,
 }: SummaryViewProps) {
   const [range, setRange] = useState<SummaryRange>('week');
   const kid = profile.kind === 'kid';
@@ -248,6 +255,20 @@ export function SummaryView({
           </div>
         )}
       </div>
+
+      {/* La agenda contra lo vivido. Va justo detrás del desglose porque es
+          la misma pregunta desde el otro lado: no «cuánto cumplí», sino «de
+          lo que había apartado, cuánto llegó a pasar». */}
+      <PlanAdherence
+        profile={profile}
+        dates={dates}
+        entries={entries}
+        range={range}
+        skin={skin}
+        kid={kid}
+        headingClass={headingClass}
+        onOpenPlan={onOpenPlan}
+      />
 
       {/* Logros */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
