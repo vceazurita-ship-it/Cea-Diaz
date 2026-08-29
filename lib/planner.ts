@@ -689,6 +689,8 @@ const victorPresets: PlanPreset[] = [
     group: 'master',
     start: '19:00',
     duration: 120,
+    metricId: 'master',
+    amount: 120,
   },
   {
     title: 'Estudio del máster',
@@ -697,6 +699,8 @@ const victorPresets: PlanPreset[] = [
     group: 'master',
     start: '19:15',
     duration: 60,
+    metricId: 'master',
+    amount: 60,
   },
   {
     title: 'Trabajos y entregas',
@@ -705,6 +709,8 @@ const victorPresets: PlanPreset[] = [
     group: 'master',
     start: '18:00',
     duration: 90,
+    metricId: 'master',
+    amount: 90,
   },
 
   /* --- Desarrollo personal ------------------------------------------------ */
@@ -949,20 +955,33 @@ const victorPresets: PlanPreset[] = [
 
   /* --- Economía -------------------------------------------------------------- */
   {
+    title: 'Apuntar los gastos',
+    icon: '🧾',
+    kind: 'casa',
+    group: 'economia',
+    start: '21:45',
+    duration: 5,
+    metricId: 'gastos_apuntados',
+  },
+  {
     title: 'Cuentas del mes',
     icon: '💶',
     kind: 'casa',
     group: 'economia',
     start: '17:00',
     duration: 45,
+    metricId: 'cuentas',
+    amount: 45,
   },
   {
     title: 'Facturas y pagos',
-    icon: '🧾',
+    icon: '📄',
     kind: 'casa',
     group: 'economia',
     start: '17:00',
     duration: 30,
+    metricId: 'cuentas',
+    amount: 30,
   },
   {
     title: 'Inversiones y ahorro',
@@ -971,6 +990,8 @@ const victorPresets: PlanPreset[] = [
     group: 'economia',
     start: '18:00',
     duration: 30,
+    metricId: 'cuentas',
+    amount: 30,
   },
 
   /* --- Descanso y salud ------------------------------------------------------ */
@@ -1420,44 +1441,48 @@ const VICTOR_SEED: SeedRow[] = [
   [0, 'Entrenamiento del equipo', '10:30'], [0, 'Control de cargas', '13:00'],
   [0, 'Comida en familia', '14:30'], [0, 'Análisis táctico · partido', '16:00'],
   [0, 'Aprendizajes del micro', '17:45'], [0, 'Desconexión al llegar', '20:00'],
-  [0, 'Cena en familia', '21:00'], [0, 'Lectura', '22:30'],
+  [0, 'Cena en familia', '21:00'], [0, 'Apuntar los gastos', '21:45'],
+  [0, 'Lectura', '22:30'],
   // Martes: el rival, de lo colectivo a lo individual. Y clase del máster.
   [1, 'Correr', '07:00'], [1, 'Preparación de la sesión', '09:00'],
   [1, 'Entrenamiento del equipo', '10:30'], [1, 'Feedback post-sesión', '13:00'],
   [1, 'Comida en familia', '14:30'], [1, 'Análisis rival · colectivo', '16:00'],
   [1, 'Análisis rival · individual', '17:15'], [1, 'Clase del máster', '19:00'],
-  [1, 'Cena en familia', '21:15'],
+  [1, 'Cena en familia', '21:15'], [1, 'Apuntar los gastos', '22:00'],
   // Miércoles: el día del balón parado, propio y del rival, y su microciclo.
   [2, 'Movilidad y prevención', '07:00'], [2, 'Escritura', '07:30'],
   [2, 'Preparación de la sesión', '09:00'], [2, 'Entrenamiento del equipo', '10:30'],
   [2, 'Reuniones individuales', '12:45'], [2, 'Comida en familia', '14:30'],
   [2, 'Análisis ABP propio', '16:00'], [2, 'Análisis ABP rival', '17:00'],
   [2, 'Microciclo · ABP', '18:00'], [2, 'Desconexión al llegar', '20:00'],
-  [2, 'Cena en familia', '21:00'], [2, 'Lectura', '22:30'],
+  [2, 'Cena en familia', '21:00'], [2, 'Apuntar los gastos', '21:45'],
+  [2, 'Lectura', '22:30'],
   // Jueves: la cultura de equipo, que también se prepara y se planifica.
   [3, 'Gimnasio', '07:00'], [3, 'Preparación de la sesión', '09:00'],
   [3, 'Entrenamiento del equipo', '10:30'], [3, 'Control de cargas', '13:00'],
   [3, 'Comida en familia', '14:30'], [3, 'Análisis de la cultura de equipo', '16:00'],
   [3, 'Desarrollo de la cultura de equipo', '17:00'],
   [3, 'Microciclo · cultura de equipo', '18:00'], [3, 'Estudio del máster', '19:15'],
-  [3, 'Cena en familia', '21:00'], [3, 'Tiempo con María', '22:00'],
+  [3, 'Cena en familia', '21:00'], [3, 'Apuntar los gastos', '21:45'],
+  [3, 'Tiempo con María', '22:00'],
   // Viernes: individuales, cuentas y lo que quedó suelto de la semana.
   [4, 'Correr', '07:00'], [4, 'Preparación de la sesión', '09:00'],
   [4, 'Entrenamiento del equipo', '10:30'], [4, 'Feedback post-sesión', '13:00'],
   [4, 'Comida en familia', '14:30'], [4, 'Análisis individual', '16:00'],
   [4, 'Cuentas del mes', '17:00'], [4, 'Tareas y recados', '18:00'],
   [4, 'Desconexión al llegar', '20:00'], [4, 'Cena en familia', '21:00'],
-  [4, 'Lectura', '22:30'],
+  [4, 'Apuntar los gastos', '21:45'], [4, 'Lectura', '22:30'],
   // Sábado: activación, casa y la tarde entera con los peques.
   [5, 'Movilidad y prevención', '09:00'], [5, 'Entrenamiento del equipo', '10:00'],
   [5, 'Responsabilidades de casa', '12:30'], [5, 'Comida en familia', '14:30'],
   [5, 'Siesta corta', '15:30'], [5, 'Experiencias con los hijos', '17:00'],
-  [5, 'Cena en familia', '21:00'], [5, 'Lectura', '22:30'],
+  [5, 'Cena en familia', '21:00'], [5, 'Apuntar los gastos', '21:45'],
+  [5, 'Lectura', '22:30'],
   // Domingo: partido, y después la semana que viene sobre la mesa.
   [6, 'Desayuno', '09:00'], [6, 'Partido', '12:00'], [6, 'Comida en familia', '14:30'],
   [6, 'Siesta corta', '16:00'], [6, 'Ocio en familia', '17:00'],
   [6, 'Organizar la semana', '19:00'], [6, 'Cena en familia', '21:00'],
-  [6, 'Diario de reflexión', '22:30'],
+  [6, 'Apuntar los gastos', '21:45'], [6, 'Diario de reflexión', '22:30'],
 ];
 
 const FAMILIA_SEED: SeedRow[] = [

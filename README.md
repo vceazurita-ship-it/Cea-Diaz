@@ -179,7 +179,7 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 | ----------------------- | --------------------------------------------------------------------------------- |
 | **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
-| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal (lectura, escritura, máster) · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
 
@@ -1298,13 +1298,13 @@ Cada día tiene además dos atajos, en la vista **día a día**: **⧉** copia e
 encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo, se copia de otro
 perfil o se vacía desde la barra de abajo. Todo se deshace desde el aviso.
 
-### Los temas: cincuenta y cinco ratos que caben en una pantalla
+### Los temas: cincuenta y seis ratos que caben en una pantalla
 
 Con doce ratos de un toque bastaba una fila de botones. La semana de Víctor no cabe en
 doce: el trabajo de cuerpo técnico se le va en catorce cosas distintas —preparar la
 sesión no es analizar el partido, y analizar al rival no es analizar el balón parado— y
 además están el máster, el deporte propio, la familia, la casa, las cuentas y el
-descanso. Cincuenta y cinco botones seguidos no son un catálogo: son un muro.
+descanso. Cincuenta y seis botones seguidos no son un catálogo: son un muro.
 
 Así que los ratos de un toque declaran de qué **tema** son (`group`), y la pantalla los
 reparte en pestañas. El tema no es lo mismo que el tipo: el análisis del rival y la
@@ -1319,7 +1319,7 @@ cuadrícula—, pero quien monta la semana los busca en sitios distintos.
 | 🏃 **Deporte** | Gimnasio, correr, montaña, fútbol, otro deporte, el reto de la semana, movilidad y paseo |
 | 🏡 **Familia** | Las tres comidas, ocio en familia, experiencias con los hijos, tiempo con María, los padres y los amigos |
 | 🧹 **Casa y tareas** | Responsabilidades, recados, compra, papeleo y organizar la semana |
-| 💶 **Economía** | Cuentas del mes, facturas y pagos, inversiones y ahorro |
+| 💶 **Economía** | Apuntar los gastos, cuentas del mes, facturas y pagos, inversiones y ahorro |
 | 🌙 **Descanso y salud** | Siesta, a dormir, sin pantallas la última hora y luz natural al levantarse |
 
 El tema es **opcional**: los peques, María, Familia y Pareja no lo declaran y siguen
@@ -1328,17 +1328,24 @@ enseñar, y sólo los temas que tienen algo dentro.
 
 Lo que se ata al registro se ata de verdad: «preparación de la sesión» son sesenta
 minutos de `prep_sesion`, «análisis táctico · partido» noventa de `analisis_tactico`,
-«reuniones individuales» una charla de `charlas_jugadores`. Lo que todavía no tiene
-casilla en el registro —los microciclos, la cultura de equipo, el máster, las cuentas—
-entra suelto: se aparta el rato igual, y la agenda no finge comprobar algo que nadie
-apunta.
+«reuniones individuales» una charla de `charlas_jugadores`. Dos temas se quedaban sin
+casilla contra la que comprobarse y ahora la tienen: el **máster** entra en Desarrollo
+Personal —clase, estudio y entregas, los tres atados a `master`— y **Economía** es una
+categoría propia de Víctor, con el gasto del día apuntado, las compras impulsivas y la
+revisión de cuentas a la que se atan las cuentas del mes, las facturas y las
+inversiones. Las dos casillas de rato van con peso 1 y no 2, por lo mismo que el
+entreno propio: no se estudia ni se hacen cuentas todos los días, y un martes sin
+máster no es un hábito incumplido.
+
+Lo que sigue sin casilla —los microciclos, la cultura de equipo— entra suelto: se
+aparta el rato igual, y la agenda no finge comprobar algo que nadie apunta.
 
 La semana de ejemplo de Víctor es un **microciclo de verdad**, con partido el domingo:
 el lunes se recoge el partido —vídeo, individual y aprendizajes del micro—, el martes
 va el rival, el miércoles el balón parado propio y del rival, el jueves la cultura de
 equipo, el viernes lo individual y las cuentas, el sábado la activación y la tarde con
-los peques. Sesenta y nueve ratos, sin un solo solape y sin ningún día por encima del
-aviso de sobrecarga.
+los peques. Setenta y seis ratos —el gasto del día se apunta después de cenar, los
+siete—, sin un solo solape y sin ningún día por encima del aviso de sobrecarga.
 
 ### La semana de uno en la de otro
 

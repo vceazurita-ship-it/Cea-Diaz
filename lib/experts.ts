@@ -766,6 +766,35 @@ export const GUIDANCE: HabitGuidance[] = [
     experts: ['gottman', 'dweck'],
   },
   {
+    metricId: 'master',
+    priority: 'importante',
+    claim: 'El máster se aprueba en bloques cortos y repetidos, no en atracones.',
+    detail:
+      'Cuarenta y cinco minutos protegidos, sin móvil y a la misma hora rinden más ' +
+      'que la tarde entera del domingo. Y lo que de verdad fija es preguntarse en ' +
+      'voz alta lo estudiado, no releerlo.',
+    experts: ['newport', 'ericsson'],
+  },
+  {
+    metricId: 'gastos_apuntados',
+    priority: 'importante',
+    claim: 'Sin registro no hay ajuste, sólo sensación.',
+    detail:
+      'Apuntar el gasto el mismo día es lo que convierte la economía en un hábito ' +
+      'y no en un susto a fin de mes. Clear lo cuenta igual para cualquier cosa ' +
+      'que se quiera mejorar: lo que se mide, se ve.',
+    experts: ['clear', 'fogg'],
+  },
+  {
+    metricId: 'cuentas',
+    priority: 'apoyo',
+    claim: 'Un rato fijo al mes evita veinte decisiones sueltas.',
+    detail:
+      'Media hora con las cuentas delante —lo que entró, lo que salió, lo que se ' +
+      'aparta— decide mejor que revisarlas cada vez que llega un recibo.',
+    experts: ['clear'],
+  },
+  {
     metricId: 'energia_aula',
     priority: 'apoyo',
     claim: 'La energía en clase avisa del desgaste antes que el calendario.',
