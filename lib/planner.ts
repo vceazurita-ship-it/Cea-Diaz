@@ -39,8 +39,16 @@ export const PLAN_KEY = 'habitos-familia:agenda';
  */
 const NEVER = '1970-01-01T00:00:00.000Z';
 
-/** Tope de ratos por perfil. Más que esto y la semana deja de leerse. */
-export const MAX_BLOCKS = 120;
+/**
+ * Tope de ratos por perfil. Más que esto y la semana deja de leerse.
+ *
+ * Ciento veinte se quedaban cortos desde que la semana se rellena copiando:
+ * la de Víctor ya ronda los noventa ratos y copiar un lunes completo en los
+ * cuatro días siguientes sumaba cincuenta de golpe. Doscientos son
+ * veintiocho al día, que sigue siendo una semana legible y ya no se choca
+ * con el tope por rellenar rápido.
+ */
+export const MAX_BLOCKS = 200;
 
 /* ---------------------------------------------------------------------------
  * Catálogo
@@ -250,9 +258,13 @@ export function themeOf(profileId: ProfileId): PlannerTheme {
  */
 export const PRESET_GROUPS = {
   profesional: { label: 'Profesional', icon: '📋' },
+  aula: { label: 'Aula y alumnos', icon: '👩‍🏫' },
+  cole: { label: 'Cole y deberes', icon: '🎒' },
   master: { label: 'Máster', icon: '🎓' },
   desarrollo: { label: 'Desarrollo personal', icon: '✨' },
   deporte: { label: 'Deporte', icon: '🏃' },
+  rutinas: { label: 'Comidas y rutinas', icon: '🍽️' },
+  ocio: { label: 'Juego y ocio', icon: '🎮' },
   familia: { label: 'Familia', icon: '🏡' },
   casa: { label: 'Casa y tareas', icon: '🧹' },
   economia: { label: 'Economía', icon: '💶' },
@@ -278,75 +290,31 @@ export interface PlanPreset {
 }
 
 const kidPresets: PlanPreset[] = [
-  { title: 'Cole', icon: '🎒', kind: 'cole', start: '09:00', duration: 300, companion: 'cole' },
+  /* --- Cole y deberes ------------------------------------------------------ */
   {
-    title: 'Entreno de fútbol',
-    icon: '⚽',
-    kind: 'deporte',
-    start: '17:30',
-    duration: 90,
-    metricId: 'sport.futbol.asistencia',
-    companion: 'papa',
-  },
-  {
-    title: 'Partido',
-    icon: '🏆',
-    kind: 'deporte',
-    start: '11:00',
-    duration: 90,
-    metricId: 'sport.futbol.asistencia',
-    companion: 'papa',
-  },
-  {
-    title: 'Natación',
-    icon: '🏊',
-    kind: 'deporte',
-    start: '18:00',
-    duration: 60,
-    metricId: 'sport.natacion.asistencia',
+    title: 'Camino al cole',
+    icon: '🚶',
+    kind: 'cole',
+    group: 'cole',
+    start: '08:30',
+    duration: 20,
+    metricId: 'luz_manana',
     companion: 'mama',
   },
   {
-    title: 'Arte marcial',
-    icon: '🥋',
-    kind: 'deporte',
-    start: '18:00',
-    duration: 60,
-    metricId: 'sport.marcial.asistencia',
-    companion: 'mama',
-  },
-  {
-    title: 'Gimnasio',
-    icon: '🤸',
-    kind: 'deporte',
-    start: '18:00',
-    duration: 60,
-    metricId: 'sport.gimnasio.asistencia',
-    companion: 'papa',
-  },
-  {
-    title: 'Atletismo',
-    icon: '🏃',
-    kind: 'deporte',
-    start: '18:00',
-    duration: 60,
-    metricId: 'sport.atletismo.asistencia',
-    companion: 'papa',
-  },
-  {
-    title: 'Parque o bici',
-    icon: '🛴',
-    kind: 'deporte',
-    start: '17:00',
-    duration: 60,
-    metricId: 'actividad_diaria',
-    amount: 60,
-    companion: 'abuelos',
+    title: 'Cole',
+    icon: '🎒',
+    kind: 'cole',
+    group: 'cole',
+    start: '09:00',
+    duration: 300,
+    companion: 'cole',
   },
   {
     title: 'Deberes',
     icon: '✍️',
     kind: 'estudio',
+    group: 'cole',
     start: '17:00',
     duration: 30,
     metricId: 'escritura',
@@ -357,6 +325,7 @@ const kidPresets: PlanPreset[] = [
     title: 'Repaso de examen',
     icon: '📝',
     kind: 'estudio',
+    group: 'cole',
     start: '18:30',
     duration: 30,
     metricId: 'repaso_examen',
@@ -367,56 +336,196 @@ const kidPresets: PlanPreset[] = [
     title: 'Lectura',
     icon: '📖',
     kind: 'estudio',
+    group: 'cole',
     start: '21:00',
     duration: 20,
     metricId: 'lectura',
     amount: 20,
     companion: 'papa',
   },
+
+  /* --- Deporte -------------------------------------------------------------- */
+  {
+    title: 'Entreno de fútbol',
+    icon: '⚽',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '17:30',
+    duration: 90,
+    metricId: 'sport.futbol.asistencia',
+    companion: 'papa',
+  },
+  {
+    title: 'Partido',
+    icon: '🏆',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '11:00',
+    duration: 90,
+    metricId: 'sport.futbol.asistencia',
+    companion: 'papa',
+  },
+  {
+    title: 'Natación',
+    icon: '🏊',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
+    duration: 60,
+    metricId: 'sport.natacion.asistencia',
+    companion: 'mama',
+  },
+  {
+    title: 'Arte marcial',
+    icon: '🥋',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
+    duration: 60,
+    metricId: 'sport.marcial.asistencia',
+    companion: 'mama',
+  },
+  {
+    title: 'Gimnasio',
+    icon: '🤸',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
+    duration: 60,
+    metricId: 'sport.gimnasio.asistencia',
+    companion: 'papa',
+  },
+  {
+    title: 'Atletismo',
+    icon: '🏃',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '18:00',
+    duration: 60,
+    metricId: 'sport.atletismo.asistencia',
+    companion: 'papa',
+  },
+  {
+    title: 'Parque o bici',
+    icon: '🛴',
+    kind: 'deporte',
+    group: 'deporte',
+    start: '17:00',
+    duration: 60,
+    metricId: 'actividad_diaria',
+    amount: 60,
+    companion: 'abuelos',
+  },
+
+  /* --- Comidas y rutinas ----------------------------------------------------- */
+  {
+    title: 'Desayuno',
+    icon: '🥣',
+    kind: 'comida',
+    group: 'rutinas',
+    start: '07:45',
+    duration: 20,
+    metricId: 'desayuno',
+    companion: 'mama',
+  },
   {
     title: 'Merienda',
     icon: '🥪',
     kind: 'comida',
+    group: 'rutinas',
     start: '17:00',
     duration: 20,
+    // Sin cantidad a propósito: la merienda aporta fruta, pero las cinco
+    // raciones del día no salen de ella, y declarar «1» dejaría el plan
+    // marcado como corto todos los días.
+    metricId: 'fruta_verdura',
     companion: 'abuelos',
   },
   {
     title: 'Cena',
     icon: '🍽️',
     kind: 'comida',
+    group: 'rutinas',
     start: '20:30',
     duration: 40,
     metricId: 'plato_sano',
     companion: 'ambos',
   },
   {
+    title: 'Ducha y pijama',
+    icon: '🚿',
+    kind: 'casa',
+    group: 'rutinas',
+    start: '20:00',
+    duration: 20,
+    companion: 'ambos',
+  },
+
+  /* --- Juego y ocio ----------------------------------------------------------- */
+  {
     title: 'Pantallas',
     icon: '📱',
     kind: 'ocio',
+    group: 'ocio',
     start: '19:00',
     duration: 60,
     metricId: 'pantallas_ocio',
     amount: 60,
     companion: 'solos',
   },
-  { title: 'Juego libre', icon: '🧩', kind: 'ocio', start: '19:00', duration: 45, companion: 'solos' },
+  {
+    title: 'Juego libre',
+    icon: '🧩',
+    kind: 'ocio',
+    group: 'ocio',
+    start: '19:00',
+    duration: 45,
+    metricId: 'actividad_diaria',
+    amount: 45,
+    companion: 'solos',
+  },
+
+  /* --- Descanso ----------------------------------------------------------------- */
+  {
+    title: 'Sin pantallas antes de dormir',
+    icon: '📵',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '21:00',
+    duration: 60,
+    metricId: 'sin_pantallas_noche',
+    companion: 'ambos',
+  },
   {
     title: 'A la cama',
     icon: '🌙',
     kind: 'sueno',
+    group: 'descanso',
     start: '21:30',
     duration: 30,
     metricId: 'hora_cama',
     companion: 'ambos',
   },
+  {
+    title: 'A dormir',
+    icon: '🛏️',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '22:00',
+    duration: 600,
+    metricId: 'horas_sueno',
+    amount: 10,
+    companion: 'ambos',
+  },
 ];
 
 const mariaPresets: PlanPreset[] = [
+  /* --- Aula y alumnos ------------------------------------------------------ */
   {
     title: 'Clase online',
     icon: '💻',
     kind: 'trabajo',
+    group: 'aula',
     start: '10:00',
     duration: 60,
     metricId: 'clases_impartidas',
@@ -426,6 +535,7 @@ const mariaPresets: PlanPreset[] = [
     title: 'Preparar clases',
     icon: '📝',
     kind: 'trabajo',
+    group: 'aula',
     start: '09:00',
     duration: 45,
     metricId: 'prep_clases',
@@ -435,14 +545,25 @@ const mariaPresets: PlanPreset[] = [
     title: 'Corrección de tareas',
     icon: '✅',
     kind: 'trabajo',
+    group: 'aula',
     start: '16:00',
     duration: 45,
     metricId: 'correccion',
   },
   {
+    title: 'Feedback a alumnos',
+    icon: '💬',
+    kind: 'trabajo',
+    group: 'aula',
+    start: '16:45',
+    duration: 30,
+    metricId: 'feedback_alumnos',
+  },
+  {
     title: 'Material didáctico',
     icon: '🧩',
     kind: 'trabajo',
+    group: 'aula',
     start: '12:00',
     duration: 45,
     metricId: 'material',
@@ -451,61 +572,150 @@ const mariaPresets: PlanPreset[] = [
     title: 'Redes y captación',
     icon: '📣',
     kind: 'trabajo',
+    group: 'aula',
     start: '13:00',
     duration: 30,
     metricId: 'captacion',
   },
   {
+    title: 'Pausa de voz',
+    icon: '🗣️',
+    kind: 'cuidado',
+    group: 'aula',
+    start: '12:00',
+    duration: 15,
+    metricId: 'cuidado_voz',
+  },
+  {
     title: 'Cierre de jornada',
     icon: '🔕',
     kind: 'trabajo',
+    group: 'aula',
     start: '18:00',
     duration: 15,
     metricId: 'cierre_jornada',
   },
+
+  /* --- Deporte y cuidado ---------------------------------------------------- */
   {
     title: 'Pilates o paseo',
     icon: '🚴',
     kind: 'cuidado',
+    group: 'deporte',
     start: '08:00',
     duration: 45,
     metricId: 'movimiento',
     amount: 45,
   },
-  { title: 'Fuerza', icon: '💪', kind: 'cuidado', start: '08:00', duration: 40, metricId: 'fuerza' },
+  {
+    title: 'Fuerza',
+    icon: '💪',
+    kind: 'cuidado',
+    group: 'deporte',
+    start: '08:00',
+    duration: 40,
+    metricId: 'fuerza',
+  },
+  {
+    title: 'Paseo largo',
+    icon: '👟',
+    kind: 'cuidado',
+    group: 'deporte',
+    start: '19:00',
+    duration: 40,
+    metricId: 'pasos',
+  },
   {
     title: 'Pausa consciente',
     icon: '🧘',
     kind: 'cuidado',
+    group: 'deporte',
     start: '15:30',
     duration: 15,
     metricId: 'pausa_consciente',
   },
+
+  /* --- Desarrollo personal --------------------------------------------------- */
   {
     title: 'Lectura',
     icon: '📖',
     kind: 'ocio',
+    group: 'desarrollo',
     start: '22:00',
     duration: 30,
     metricId: 'lectura',
     amount: 30,
   },
-  { title: 'Diario', icon: '📔', kind: 'cuidado', start: '22:30', duration: 10, metricId: 'diario' },
+  {
+    title: 'Escritura',
+    icon: '✍️',
+    kind: 'estudio',
+    group: 'desarrollo',
+    start: '07:30',
+    duration: 20,
+    metricId: 'escritura',
+    amount: 20,
+  },
+  {
+    title: 'Diario',
+    icon: '📔',
+    kind: 'cuidado',
+    group: 'desarrollo',
+    start: '22:30',
+    duration: 10,
+    metricId: 'diario',
+  },
+
+  /* --- Comidas y familia ------------------------------------------------------ */
+  {
+    title: 'Desayuno',
+    icon: '🥣',
+    kind: 'comida',
+    group: 'rutinas',
+    start: '08:00',
+    duration: 20,
+    metricId: 'comidas',
+    amount: 1,
+  },
   {
     title: 'Comida en familia',
     icon: '🍽️',
     kind: 'comida',
+    group: 'rutinas',
     start: '14:00',
     duration: 60,
+    metricId: 'comidas',
+    amount: 1,
+  },
+  {
+    title: 'Cena en familia',
+    icon: '🌆',
+    kind: 'comida',
+    group: 'rutinas',
+    start: '21:00',
+    duration: 45,
     metricId: 'plato_sano',
   },
+
+  /* --- Descanso ---------------------------------------------------------------- */
   {
     title: 'Rutina de sueño',
     icon: '🌙',
     kind: 'sueno',
+    group: 'descanso',
     start: '23:00',
     duration: 30,
     metricId: 'sin_pantallas_noche',
+  },
+  {
+    title: 'A dormir',
+    icon: '🛏️',
+    kind: 'sueno',
+    group: 'descanso',
+    start: '23:30',
+    duration: 450,
+    metricId: 'horas_sueno',
+    amount: 7.5,
   },
 ];
 
@@ -601,6 +811,8 @@ const victorPresets: PlanPreset[] = [
     group: 'profesional',
     start: '16:00',
     duration: 45,
+    metricId: 'cultura_equipo',
+    amount: 45,
   },
   {
     title: 'Desarrollo de la cultura de equipo',
@@ -609,6 +821,8 @@ const victorPresets: PlanPreset[] = [
     group: 'profesional',
     start: '17:00',
     duration: 45,
+    metricId: 'cultura_equipo',
+    amount: 45,
   },
   {
     title: 'Microciclo · cultura de equipo',
@@ -617,6 +831,8 @@ const victorPresets: PlanPreset[] = [
     group: 'profesional',
     start: '18:00',
     duration: 60,
+    metricId: 'microciclo',
+    amount: 60,
   },
   {
     title: 'Microciclo · ABP',
@@ -625,6 +841,8 @@ const victorPresets: PlanPreset[] = [
     group: 'profesional',
     start: '18:00',
     duration: 60,
+    metricId: 'microciclo',
+    amount: 60,
   },
   {
     title: 'Reuniones individuales',
@@ -652,6 +870,8 @@ const victorPresets: PlanPreset[] = [
     group: 'profesional',
     start: '17:45',
     duration: 30,
+    metricId: 'microciclo',
+    amount: 30,
   },
   {
     title: 'Control de cargas',
@@ -750,6 +970,8 @@ const victorPresets: PlanPreset[] = [
     group: 'desarrollo',
     start: '08:00',
     duration: 45,
+    metricId: 'formacion',
+    amount: 45,
   },
   {
     title: 'Pausa consciente',
@@ -819,6 +1041,8 @@ const victorPresets: PlanPreset[] = [
     group: 'deporte',
     start: '18:00',
     duration: 30,
+    metricId: 'entreno_propio',
+    amount: 30,
   },
   {
     title: 'Movilidad y prevención',
@@ -877,6 +1101,8 @@ const victorPresets: PlanPreset[] = [
     group: 'familia',
     start: '17:00',
     duration: 90,
+    metricId: 'tiempo_hijos',
+    amount: 90,
   },
   {
     title: 'Experiencias con los hijos',
@@ -885,6 +1111,8 @@ const victorPresets: PlanPreset[] = [
     group: 'familia',
     start: '17:00',
     duration: 120,
+    metricId: 'tiempo_hijos',
+    amount: 120,
   },
   {
     title: 'Tiempo con María',
@@ -893,6 +1121,8 @@ const victorPresets: PlanPreset[] = [
     group: 'familia',
     start: '22:00',
     duration: 30,
+    metricId: 'tiempo_pareja',
+    amount: 30,
   },
   {
     title: 'Con los padres',
@@ -901,6 +1131,7 @@ const victorPresets: PlanPreset[] = [
     group: 'familia',
     start: '12:00',
     duration: 90,
+    metricId: 'gente_querida',
   },
   {
     title: 'Con los amigos',
@@ -909,6 +1140,7 @@ const victorPresets: PlanPreset[] = [
     group: 'familia',
     start: '21:00',
     duration: 120,
+    metricId: 'gente_querida',
   },
 
   /* --- Casa y tareas -------------------------------------------------------- */
@@ -919,6 +1151,7 @@ const victorPresets: PlanPreset[] = [
     group: 'casa',
     start: '12:30',
     duration: 60,
+    metricId: 'tareas_casa',
   },
   {
     title: 'Tareas y recados',
@@ -927,6 +1160,7 @@ const victorPresets: PlanPreset[] = [
     group: 'casa',
     start: '18:00',
     duration: 45,
+    metricId: 'gestiones',
   },
   {
     title: 'Compra',
@@ -935,6 +1169,7 @@ const victorPresets: PlanPreset[] = [
     group: 'casa',
     start: '11:00',
     duration: 60,
+    metricId: 'gestiones',
   },
   {
     title: 'Papeleo y gestiones',
@@ -943,6 +1178,7 @@ const victorPresets: PlanPreset[] = [
     group: 'casa',
     start: '17:00',
     duration: 45,
+    metricId: 'gestiones',
   },
   {
     title: 'Organizar la semana',
@@ -951,6 +1187,7 @@ const victorPresets: PlanPreset[] = [
     group: 'casa',
     start: '19:00',
     duration: 30,
+    metricId: 'organizar_semana',
   },
 
   /* --- Economía -------------------------------------------------------------- */
@@ -1406,59 +1643,107 @@ export function amountUnit(metric: Metric | undefined): string | null {
 type SeedRow = [number, string, string?];
 
 const KID_SEED: SeedRow[] = [
-  [0, 'Cole'], [0, 'Merienda'], [0, 'Deberes'], [0, 'Entreno de fútbol'], [0, 'Cena'],
-  [0, 'Lectura'], [0, 'A la cama'],
-  [1, 'Cole'], [1, 'Merienda'], [1, 'Deberes'], [1, 'Natación'], [1, 'Cena'], [1, 'A la cama'],
-  [2, 'Cole'], [2, 'Merienda'], [2, 'Entreno de fútbol'], [2, 'Cena'], [2, 'Lectura'],
-  [2, 'A la cama'],
-  [3, 'Cole'], [3, 'Merienda'], [3, 'Deberes'], [3, 'Arte marcial'], [3, 'Cena'], [3, 'A la cama'],
-  [4, 'Cole'], [4, 'Merienda'], [4, 'Pantallas'], [4, 'Cena'], [4, 'A la cama', '22:00'],
-  [5, 'Partido'], [5, 'Parque o bici', '17:00'], [5, 'Pantallas'], [5, 'Cena'], [5, 'Lectura'],
-  [5, 'A la cama', '22:00'],
-  [6, 'Parque o bici', '11:00'], [6, 'Juego libre'], [6, 'Deberes', '18:00'], [6, 'Cena'],
-  [6, 'Lectura'], [6, 'A la cama'],
+  // Lunes a viernes: la misma columna vertebral —desayuno, camino al cole,
+  // cole, merienda— y luego lo de cada día. Las horas van pensadas para que
+  // nada se pise: la semana de ejemplo no puede saltarse sus propios avisos.
+  [0, 'Desayuno', '07:45'], [0, 'Camino al cole', '08:30'], [0, 'Cole', '09:00'],
+  [0, 'Merienda', '17:00'], [0, 'Deberes', '17:30'], [0, 'Entreno de fútbol', '18:00'],
+  [0, 'Ducha y pijama', '19:45'], [0, 'Cena', '20:15'], [0, 'Lectura', '21:00'],
+  [0, 'A la cama', '21:30'],
+
+  [1, 'Desayuno', '07:45'], [1, 'Camino al cole', '08:30'], [1, 'Cole', '09:00'],
+  [1, 'Merienda', '17:00'], [1, 'Deberes', '17:30'], [1, 'Natación', '18:15'],
+  [1, 'Ducha y pijama', '19:45'], [1, 'Cena', '20:15'], [1, 'Lectura', '21:00'],
+  [1, 'A la cama', '21:30'],
+
+  [2, 'Desayuno', '07:45'], [2, 'Camino al cole', '08:30'], [2, 'Cole', '09:00'],
+  [2, 'Merienda', '17:00'], [2, 'Entreno de fútbol', '17:30'], [2, 'Ducha y pijama', '19:45'],
+  [2, 'Cena', '20:15'], [2, 'Lectura', '21:00'], [2, 'A la cama', '21:30'],
+
+  [3, 'Desayuno', '07:45'], [3, 'Camino al cole', '08:30'], [3, 'Cole', '09:00'],
+  [3, 'Merienda', '17:00'], [3, 'Deberes', '17:30'], [3, 'Arte marcial', '18:15'],
+  [3, 'Ducha y pijama', '19:45'], [3, 'Cena', '20:15'], [3, 'A la cama', '21:30'],
+
+  [4, 'Desayuno', '07:45'], [4, 'Camino al cole', '08:30'], [4, 'Cole', '09:00'],
+  [4, 'Merienda', '17:00'], [4, 'Pantallas', '17:30'], [4, 'Juego libre', '18:45'],
+  [4, 'Ducha y pijama', '19:45'], [4, 'Cena', '20:15'], [4, 'A la cama', '22:00'],
+
+  // Sábado: partido por la mañana y la tarde en la calle.
+  [5, 'Desayuno', '09:30'], [5, 'Partido', '11:00'], [5, 'Parque o bici', '17:00'],
+  [5, 'Merienda', '18:30'], [5, 'Pantallas', '19:00'], [5, 'Cena', '20:30'],
+  [5, 'Lectura', '21:30'], [5, 'A la cama', '22:00'],
+
+  // Domingo: aire libre, juego y los deberes que quedaban.
+  [6, 'Desayuno', '09:30'], [6, 'Parque o bici', '11:00'], [6, 'Juego libre', '17:00'],
+  [6, 'Merienda', '18:00'], [6, 'Deberes', '18:30'], [6, 'Cena', '20:15'],
+  [6, 'Lectura', '21:00'], [6, 'A la cama', '21:30'],
 ];
 
 const MARIA_SEED: SeedRow[] = [
-  [0, 'Pilates o paseo'], [0, 'Preparar clases'], [0, 'Clase online'], [0, 'Clase online', '11:30'],
-  [0, 'Comida en familia'], [0, 'Corrección de tareas'], [0, 'Cierre de jornada'], [0, 'Lectura'],
-  [1, 'Fuerza'], [1, 'Clase online'], [1, 'Material didáctico'], [1, 'Comida en familia'],
-  [1, 'Pausa consciente'], [1, 'Cierre de jornada'], [1, 'Rutina de sueño'],
-  [2, 'Pilates o paseo'], [2, 'Preparar clases'], [2, 'Clase online'], [2, 'Clase online', '11:30'],
-  [2, 'Comida en familia'], [2, 'Corrección de tareas'], [2, 'Lectura'],
-  [3, 'Fuerza'], [3, 'Clase online'], [3, 'Redes y captación'], [3, 'Comida en familia'],
-  [3, 'Pausa consciente'], [3, 'Cierre de jornada'], [3, 'Diario'],
-  [4, 'Pilates o paseo'], [4, 'Clase online'], [4, 'Cierre de jornada', '15:00'],
-  [4, 'Comida en familia'], [4, 'Lectura'],
-  [5, 'Pilates o paseo', '10:00'], [5, 'Comida en familia'], [5, 'Lectura', '17:00'],
-  [5, 'Rutina de sueño'],
-  [6, 'Preparar clases', '18:00'], [6, 'Comida en familia'], [6, 'Diario'], [6, 'Rutina de sueño'],
+  // El desayuno y la cena van los siete días: son las dos comidas que sostienen
+  // la cuenta del día, y con ellas el plan deja de salir corto en «comidas».
+  [0, 'Desayuno', '07:30'], [0, 'Pilates o paseo', '08:00'], [0, 'Preparar clases', '09:00'],
+  [0, 'Clase online', '10:00'], [0, 'Clase online', '11:30'], [0, 'Clase online', '12:45'],
+  [0, 'Comida en familia', '14:00'],
+  [0, 'Corrección de tareas', '16:00'], [0, 'Cierre de jornada', '18:00'],
+  [0, 'Cena en familia', '21:00'], [0, 'Lectura', '22:00'],
+
+  [1, 'Escritura', '07:00'], [1, 'Desayuno', '07:30'], [1, 'Fuerza', '08:00'],
+  [1, 'Clase online', '10:00'], [1, 'Clase online', '11:15'], [1, 'Pausa de voz', '12:30'],
+  [1, 'Material didáctico', '13:00'], [1, 'Comida en familia', '14:00'],
+  [1, 'Pausa consciente', '15:30'], [1, 'Clase online', '17:00'],
+  [1, 'Cierre de jornada', '18:15'], [1, 'Cena en familia', '21:00'],
+  [1, 'Rutina de sueño', '23:00'],
+
+  [2, 'Desayuno', '07:30'], [2, 'Pilates o paseo', '08:00'], [2, 'Preparar clases', '09:00'],
+  [2, 'Clase online', '10:00'], [2, 'Clase online', '11:30'], [2, 'Clase online', '12:45'],
+  [2, 'Comida en familia', '14:00'],
+  [2, 'Corrección de tareas', '16:00'], [2, 'Feedback a alumnos', '17:00'],
+  [2, 'Cena en familia', '21:00'], [2, 'Lectura', '22:00'],
+
+  [3, 'Escritura', '07:00'], [3, 'Desayuno', '07:30'], [3, 'Fuerza', '08:00'],
+  [3, 'Clase online', '10:00'], [3, 'Clase online', '11:15'], [3, 'Redes y captación', '13:00'],
+  [3, 'Comida en familia', '14:00'], [3, 'Pausa consciente', '15:30'],
+  [3, 'Clase online', '17:00'], [3, 'Cierre de jornada', '18:15'],
+  [3, 'Cena en familia', '21:00'], [3, 'Diario', '22:30'],
+
+  [4, 'Desayuno', '07:30'], [4, 'Pilates o paseo', '08:00'], [4, 'Clase online', '10:00'],
+  [4, 'Clase online', '11:30'], [4, 'Clase online', '12:45'],
+  [4, 'Comida en familia', '14:00'], [4, 'Cierre de jornada', '15:00'],
+  [4, 'Paseo largo', '19:00'], [4, 'Cena en familia', '21:00'], [4, 'Lectura', '22:00'],
+
+  [5, 'Desayuno', '09:00'], [5, 'Pilates o paseo', '10:00'], [5, 'Comida en familia', '14:00'],
+  [5, 'Lectura', '17:00'], [5, 'Cena en familia', '21:00'], [5, 'Rutina de sueño', '23:00'],
+
+  [6, 'Desayuno', '09:00'], [6, 'Comida en familia', '14:00'], [6, 'Preparar clases', '18:00'],
+  [6, 'Cena en familia', '21:00'], [6, 'Diario', '22:30'], [6, 'Rutina de sueño', '23:00'],
 ];
 
 const VICTOR_SEED: SeedRow[] = [
   // Lunes: se recoge el partido —vídeo, individuales y aprendizajes del micro—.
-  [0, 'Gimnasio', '07:00'], [0, 'Reunión de staff', '09:00'],
+  [0, 'Gimnasio', '07:00'], [0, 'Desayuno', '08:15'], [0, 'Reunión de staff', '09:00'],
   [0, 'Entrenamiento del equipo', '10:30'], [0, 'Control de cargas', '13:00'],
   [0, 'Comida en familia', '14:30'], [0, 'Análisis táctico · partido', '16:00'],
   [0, 'Aprendizajes del micro', '17:45'], [0, 'Desconexión al llegar', '20:00'],
   [0, 'Cena en familia', '21:00'], [0, 'Apuntar los gastos', '21:45'],
   [0, 'Lectura', '22:30'],
   // Martes: el rival, de lo colectivo a lo individual. Y clase del máster.
-  [1, 'Correr', '07:00'], [1, 'Preparación de la sesión', '09:00'],
+  [1, 'Correr', '07:00'], [1, 'Desayuno', '08:15'], [1, 'Preparación de la sesión', '09:00'],
   [1, 'Entrenamiento del equipo', '10:30'], [1, 'Feedback post-sesión', '13:00'],
   [1, 'Comida en familia', '14:30'], [1, 'Análisis rival · colectivo', '16:00'],
   [1, 'Análisis rival · individual', '17:15'], [1, 'Clase del máster', '19:00'],
   [1, 'Cena en familia', '21:15'], [1, 'Apuntar los gastos', '22:00'],
   // Miércoles: el día del balón parado, propio y del rival, y su microciclo.
-  [2, 'Movilidad y prevención', '07:00'], [2, 'Escritura', '07:30'],
+  [2, 'Movilidad y prevención', '07:00'], [2, 'Escritura', '07:30'], [2, 'Desayuno', '08:15'],
   [2, 'Preparación de la sesión', '09:00'], [2, 'Entrenamiento del equipo', '10:30'],
-  [2, 'Reuniones individuales', '12:45'], [2, 'Comida en familia', '14:30'],
+  [2, 'Reuniones individuales', '12:45'], [2, 'Reuniones individuales', '13:20'],
+  [2, 'Comida en familia', '14:30'],
   [2, 'Análisis ABP propio', '16:00'], [2, 'Análisis ABP rival', '17:00'],
   [2, 'Microciclo · ABP', '18:00'], [2, 'Desconexión al llegar', '20:00'],
   [2, 'Cena en familia', '21:00'], [2, 'Apuntar los gastos', '21:45'],
   [2, 'Lectura', '22:30'],
   // Jueves: la cultura de equipo, que también se prepara y se planifica.
-  [3, 'Gimnasio', '07:00'], [3, 'Preparación de la sesión', '09:00'],
+  [3, 'Gimnasio', '07:00'], [3, 'Desayuno', '08:15'], [3, 'Preparación de la sesión', '09:00'],
   [3, 'Entrenamiento del equipo', '10:30'], [3, 'Control de cargas', '13:00'],
   [3, 'Comida en familia', '14:30'], [3, 'Análisis de la cultura de equipo', '16:00'],
   [3, 'Desarrollo de la cultura de equipo', '17:00'],
@@ -1466,14 +1751,14 @@ const VICTOR_SEED: SeedRow[] = [
   [3, 'Cena en familia', '21:00'], [3, 'Apuntar los gastos', '21:45'],
   [3, 'Tiempo con María', '22:00'],
   // Viernes: individuales, cuentas y lo que quedó suelto de la semana.
-  [4, 'Correr', '07:00'], [4, 'Preparación de la sesión', '09:00'],
+  [4, 'Correr', '07:00'], [4, 'Desayuno', '08:15'], [4, 'Preparación de la sesión', '09:00'],
   [4, 'Entrenamiento del equipo', '10:30'], [4, 'Feedback post-sesión', '13:00'],
   [4, 'Comida en familia', '14:30'], [4, 'Análisis individual', '16:00'],
   [4, 'Cuentas del mes', '17:00'], [4, 'Tareas y recados', '18:00'],
   [4, 'Desconexión al llegar', '20:00'], [4, 'Cena en familia', '21:00'],
   [4, 'Apuntar los gastos', '21:45'], [4, 'Lectura', '22:30'],
   // Sábado: activación, casa y la tarde entera con los peques.
-  [5, 'Movilidad y prevención', '09:00'], [5, 'Entrenamiento del equipo', '10:00'],
+  [5, 'Desayuno', '08:15'], [5, 'Movilidad y prevención', '09:00'], [5, 'Entrenamiento del equipo', '10:00'],
   [5, 'Responsabilidades de casa', '12:30'], [5, 'Comida en familia', '14:30'],
   [5, 'Siesta corta', '15:30'], [5, 'Experiencias con los hijos', '17:00'],
   [5, 'Cena en familia', '21:00'], [5, 'Apuntar los gastos', '21:45'],
@@ -1486,15 +1771,21 @@ const VICTOR_SEED: SeedRow[] = [
 ];
 
 const FAMILIA_SEED: SeedRow[] = [
-  [0, 'Cena en familia'], [0, 'Rutina de acostarse'],
-  [1, 'Cena en familia'], [1, 'Juego juntos'], [1, 'Rutina de acostarse'],
-  [2, 'Cena en familia'], [2, 'Peli o lectura en familia'], [2, 'Rutina de acostarse'],
-  [3, 'Cena en familia'], [3, 'Juego juntos'], [3, 'Rutina de acostarse'],
-  [4, 'Cena en familia'], [4, 'Peli o lectura en familia'], [4, 'Rutina de acostarse', '22:00'],
+  // Dos comidas juntos al día, que es lo que pide la casilla, y la rutina de
+  // acostarse justo detrás de la cena: pegadas, no pisándose.
+  [0, 'Desayuno juntos', '07:45'], [0, 'Cena en familia'], [0, 'Rutina de acostarse', '21:45'],
+  [1, 'Desayuno juntos', '07:45'], [1, 'Cena en familia'], [1, 'Juego juntos'],
+  [1, 'Rutina de acostarse', '21:45'],
+  [2, 'Desayuno juntos', '07:45'], [2, 'Cena en familia'], [2, 'Peli o lectura en familia'],
+  [2, 'Rutina de acostarse', '21:45'],
+  [3, 'Desayuno juntos', '07:45'], [3, 'Cena en familia'], [3, 'Juego juntos'],
+  [3, 'Rutina de acostarse', '21:45'],
+  [4, 'Desayuno juntos', '07:45'], [4, 'Cena en familia'],
+  [4, 'Peli o lectura en familia'], [4, 'Rutina de acostarse', '22:00'],
   [5, 'Desayuno juntos', '09:30'], [5, 'Salida al aire libre'], [5, 'Comida en familia'],
   [5, 'Tareas del hogar', '17:00'], [5, 'Juego juntos'], [5, 'Cena en familia'],
   [6, 'Desayuno juntos', '09:30'], [6, 'Rutina de fin de semana'], [6, 'Comida en familia'],
-  [6, 'Consejo de familia'], [6, 'Cena en familia'], [6, 'Rutina de acostarse'],
+  [6, 'Consejo de familia'], [6, 'Cena en familia'], [6, 'Rutina de acostarse', '21:45'],
 ];
 
 const PAREJA_SEED: SeedRow[] = [
@@ -1668,15 +1959,16 @@ export function removePlanBlock(profileId: ProfileId, id: string): WeekPlan {
   );
 }
 
-/** Copia los ratos de un día en otro; es como se monta media semana. */
-export function copyDayPlan(profileId: ProfileId, from: number, to: number): number {
-  const plan = planOf(profileId);
-  const source = plan.blocks.filter((block) => block.day === from);
-  if (source.length === 0) return 0;
+/** Varios ratos de golpe: es lo que hace apartar algo en cinco días a la vez. */
+export function addPlanBlocks(profileId: ProfileId, blocks: PlanBlock[]): number {
+  if (blocks.length === 0) return 0;
 
-  const copies = source.map((block) => ({ ...block, id: newId(), day: to }));
-  updatePlan(profileId, [...plan.blocks.filter((block) => block.day !== to), ...copies]);
-  return copies.length;
+  const current = planOf(profileId).blocks;
+  const room = Math.max(0, MAX_BLOCKS - current.length);
+  const added = blocks.slice(0, room);
+
+  if (added.length > 0) updatePlan(profileId, [...current, ...added]);
+  return added.length;
 }
 
 export function clearDayPlan(profileId: ProfileId, day: number): number {
@@ -1689,6 +1981,319 @@ export function clearDayPlan(profileId: ProfileId, day: number): number {
     );
   }
   return removed;
+}
+
+/* ---------------------------------------------------------------------------
+ * Copiar, mover y repetir
+ *
+ * Una semana no se escribe: se repite. El martes se parece al jueves, la cena
+ * es la misma cinco noches y el turno de mañana cae de lunes a viernes. Quien
+ * monta su agenda a mano acaba tecleando veinte veces lo mismo, y a la tercera
+ * lo deja a medias —que es exactamente lo que le pasa a una agenda a medio
+ * rellenar: deja de servir para nada—.
+ *
+ * De ahí estas cuatro operaciones, que son las que de verdad se piden delante
+ * de una semana en blanco: repetir un rato **otra vez el mismo día**, llevarlo
+ * **a otros días**, copiar **un día entero** en los que se parezcan, y **mover
+ * o intercambiar** días cuando la semana cambia de forma.
+ *
+ * Todas devuelven cuántos ratos han salido, cuántos se han quitado y cuántos
+ * no han cabido, porque de eso vive el aviso que se enseña después —y el
+ * «deshacer» que lo acompaña, que en la pantalla es devolver los ratos de
+ * antes tal cual estaban.
+ * ------------------------------------------------------------------------- */
+
+/** Qué se hace con lo que ya hubiera en el día que recibe. */
+export type CopyMode = 'anadir' | 'sustituir';
+
+export interface CopyResult {
+  /** Ratos creados. */
+  copied: number;
+  /** Ratos que había en el destino y se han quitado. */
+  cleared: number;
+  /** Los que no han cabido: la semana tiene tope. */
+  dropped: number;
+}
+
+const NO_COPY: CopyResult = { copied: 0, cleared: 0, dropped: 0 };
+
+/** Copia suelta de un rato: identificador propio y, si se dice, otro día. */
+function copyOf(block: PlanBlock, day = block.day, start = block.start): PlanBlock {
+  return { ...block, id: newId(), day, start };
+}
+
+/**
+ * El mismo rato repartido en varios días, cada uno con identificador propio.
+ * Es lo que se guarda al apartar el cole de lunes a viernes de una sentada: no
+ * es una serie, son cinco ratos que a partir de ahí se tocan por separado.
+ */
+export function spreadBlock(block: PlanBlock, days: number[]): PlanBlock[] {
+  const targets = days.filter((day) => day >= 0 && day <= 6);
+  if (targets.length === 0) return [{ ...block }];
+
+  return targets.map((day, index) =>
+    index === 0 ? { ...block, day } : copyOf(block, day),
+  );
+}
+
+/**
+ * Mete ratos nuevos respetando el tope, quitando antes lo que hubiera en los
+ * días indicados si se pide sustituir.
+ */
+function place(
+  profileId: ProfileId,
+  incoming: PlanBlock[],
+  replaceDays: number[],
+): CopyResult {
+  if (incoming.length === 0) return NO_COPY;
+
+  const current = planOf(profileId).blocks;
+  const clear = new Set(replaceDays);
+  const kept = clear.size > 0 ? current.filter((block) => !clear.has(block.day)) : current;
+
+  const room = Math.max(0, MAX_BLOCKS - kept.length);
+  const added = incoming.slice(0, room);
+  if (added.length === 0 && kept.length === current.length) return NO_COPY;
+
+  updatePlan(profileId, [...kept, ...added]);
+
+  return {
+    copied: added.length,
+    cleared: current.length - kept.length,
+    dropped: incoming.length - added.length,
+  };
+}
+
+/** Los ratos de un día, copiados en otros. Es como se monta media semana. */
+export function copyDayTo(
+  profileId: ProfileId,
+  from: number,
+  days: number[],
+  mode: CopyMode = 'anadir',
+): CopyResult {
+  const source = blocksOfDay(planOf(profileId), from);
+  const targets = days.filter((day) => day !== from && day >= 0 && day <= 6);
+  if (source.length === 0 || targets.length === 0) return NO_COPY;
+
+  const incoming = targets.flatMap((day) => source.map((block) => copyOf(block, day)));
+  return place(profileId, incoming, mode === 'sustituir' ? targets : []);
+}
+
+/** El día entero cambiado de sitio: llega a los destinos y se vacía el origen. */
+export function moveDayTo(
+  profileId: ProfileId,
+  from: number,
+  to: number,
+  mode: CopyMode = 'anadir',
+): CopyResult {
+  if (from === to) return NO_COPY;
+
+  const plan = planOf(profileId);
+  const source = blocksOfDay(plan, from);
+  if (source.length === 0) return NO_COPY;
+
+  const rest =
+    mode === 'sustituir'
+      ? plan.blocks.filter((block) => block.day !== from && block.day !== to)
+      : plan.blocks.filter((block) => block.day !== from);
+
+  const moved = source.map((block) => ({ ...block, day: to }));
+  const room = Math.max(0, MAX_BLOCKS - rest.length);
+  const added = moved.slice(0, room);
+
+  updatePlan(profileId, [...rest, ...added]);
+
+  return {
+    copied: added.length,
+    cleared: plan.blocks.length - rest.length - source.length,
+    dropped: moved.length - added.length,
+  };
+}
+
+/** Dos días que se cambian el uno por el otro, con todo lo que llevan dentro. */
+export function swapDays(profileId: ProfileId, a: number, b: number): number {
+  if (a === b) return 0;
+
+  const plan = planOf(profileId);
+  const moved = plan.blocks.filter((block) => block.day === a || block.day === b);
+  if (moved.length === 0) return 0;
+
+  updatePlan(
+    profileId,
+    plan.blocks.map((block) =>
+      block.day === a ? { ...block, day: b } : block.day === b ? { ...block, day: a } : block,
+    ),
+  );
+
+  return moved.length;
+}
+
+/** Un rato repetido en otros días, a la misma hora. */
+export function copyBlockTo(
+  profileId: ProfileId,
+  block: PlanBlock,
+  days: number[],
+  mode: CopyMode = 'anadir',
+): CopyResult {
+  const targets = days.filter((day) => day >= 0 && day <= 6 && day !== block.day);
+  if (targets.length === 0) return NO_COPY;
+
+  return place(
+    profileId,
+    targets.map((day) => copyOf(block, day)),
+    mode === 'sustituir' ? targets : [],
+  );
+}
+
+/**
+ * Otra vez el mismo día. Sin hora, la copia se pone justo detrás del original
+ * —que es lo que se quiere el noventa por ciento de las veces: dos clases
+ * seguidas, dos bloques de análisis— y sin pasar de la medianoche.
+ */
+export function duplicateBlock(
+  profileId: ProfileId,
+  block: PlanBlock,
+  start?: string,
+): PlanBlock | null {
+  const after = timeOf(Math.min(minutesOf(block.start) + block.duration, 23 * 60 + 55));
+  const copy = copyOf(block, block.day, start ?? after);
+  return addPlanBlocks(profileId, [copy]) > 0 ? copy : null;
+}
+
+/** El mismo rato, otro día —y, si se dice, otra hora—. */
+export function moveBlockTo(
+  profileId: ProfileId,
+  block: PlanBlock,
+  day: number,
+  start?: string,
+): void {
+  savePlanBlock(profileId, { ...block, day, start: start ?? block.start });
+}
+
+/**
+ * Corre un día entero en el reloj. Sirve para el sábado que empieza una hora
+ * más tarde sin tener que tocar los diez ratos uno a uno. Lo que se saldría
+ * del día se queda pegado al borde en vez de dar la vuelta.
+ */
+export function shiftDay(profileId: ProfileId, day: number, minutes: number): number {
+  const plan = planOf(profileId);
+  const source = plan.blocks.filter((block) => block.day === day);
+  if (source.length === 0 || minutes === 0) return 0;
+
+  updatePlan(
+    profileId,
+    plan.blocks.map((block) => {
+      if (block.day !== day) return block;
+      const moved = Math.max(0, Math.min(24 * 60 - 5, minutesOf(block.start) + minutes));
+      return { ...block, start: timeOf(moved) };
+    }),
+  );
+
+  return source.length;
+}
+
+/* ---------------------------------------------------------------------------
+ * Volver a atar lo que se apartó suelto
+ *
+ * La semana de ejemplo se guarda con la atadura que tenían los ratos de
+ * siempre **el día en que se puso**. Cuando después nace la casilla que
+ * faltaba —el máster, las cuentas, el tiempo con los hijos—, la agenda ya
+ * guardada se queda como estaba: con los ratos apartados y sin nada contra lo
+ * que comprobarse.
+ *
+ * Esto lo arregla sin tocar nada más: busca cada rato suelto entre los de
+ * siempre por su nombre y le pone el hábito y la cantidad que hoy le
+ * corresponden. No inventa ataduras —si el nombre no está en el catálogo, el
+ * rato se queda suelto— ni cambia las que ya había, salvo cuando apuntan a un
+ * hábito que ya no existe.
+ * ------------------------------------------------------------------------- */
+
+/** Nombre comparable: sin mayúsculas, sin acentos y sin espacios de más. */
+function titleKey(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    // Los acentos, ya sueltos por la descomposición anterior.
+    .replace(/[̀-ͯ]/g, '');
+}
+
+function presetIndex(profileId: ProfileId): Map<string, PlanPreset> {
+  const index = new Map<string, PlanPreset>();
+  for (const preset of presetsOf(profileId)) index.set(titleKey(preset.title), preset);
+  return index;
+}
+
+export interface RelinkResult {
+  /** Ratos que pasan a tener hábito atado. */
+  linked: number;
+  /** Ratos ya atados a los que se les completa la cantidad prevista. */
+  filled: number;
+  /** Los que se quedan sueltos: su nombre no está entre los de siempre. */
+  loose: number;
+}
+
+const NO_RELINK: RelinkResult = { linked: 0, filled: 0, loose: 0 };
+
+/** La agenda con las ataduras que hoy le tocan, y el parte de lo que cambia. */
+function relink(profileId: ProfileId): { blocks: PlanBlock[]; result: RelinkResult } {
+  const blocks = planOf(profileId).blocks;
+  if (blocks.length === 0) return { blocks, result: NO_RELINK };
+
+  const presets = presetIndex(profileId);
+  const result: RelinkResult = { ...NO_RELINK };
+
+  const next = blocks.map((block) => {
+    // Una atadura viva se respeta; sólo se le completa la cantidad si el rato
+    // de siempre la declara y aquí faltaba.
+    const alive = block.metricId ? findMetric(profileId, block.metricId) : undefined;
+
+    if (alive) {
+      const preset = presets.get(titleKey(block.title));
+      if (
+        block.amount === undefined &&
+        preset !== undefined &&
+        preset.metricId === block.metricId &&
+        preset.amount !== undefined
+      ) {
+        result.filled += 1;
+        return { ...block, amount: preset.amount };
+      }
+      return block;
+    }
+
+    const preset = presets.get(titleKey(block.title));
+    const metric = preset?.metricId ? findMetric(profileId, preset.metricId) : undefined;
+
+    if (!preset || !metric) {
+      // Si apuntaba a un hábito que ya no existe, se deja limpio: mejor suelto
+      // que atado a algo que nadie puede registrar.
+      result.loose += 1;
+      return block.metricId ? { ...block, metricId: undefined, amount: undefined } : block;
+    }
+
+    result.linked += 1;
+    return { ...block, metricId: preset.metricId, amount: preset.amount };
+  });
+
+  return { blocks: next, result };
+}
+
+/** Qué pasaría al atar la agenda, sin tocarla. Es lo que enseña el aviso. */
+export function relinkPreview(profileId: ProfileId): RelinkResult {
+  return relink(profileId).result;
+}
+
+/** Ata la agenda guardada a los hábitos de hoy. Devuelve lo que ha cambiado. */
+export function relinkPlan(profileId: ProfileId): RelinkResult {
+  const { blocks, result } = relink(profileId);
+  if (result.linked > 0 || result.filled > 0) updatePlan(profileId, blocks);
+  return result;
+}
+
+/** Minutos apartados ese día, sean del tipo que sean. */
+export function plannedMinutes(blocks: PlanBlock[]): number {
+  return blocks.reduce((total, block) => total + block.duration, 0);
 }
 
 /* ---------------------------------------------------------------------------

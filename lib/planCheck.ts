@@ -337,30 +337,72 @@ export function planAlerts(
   }
 
   // Ratos que se quedan cortos frente al objetivo del propio hábito.
-  const shortSeen = new Set<string>();
+  //
+  // Dos matices, los dos por lo mismo —que el aviso se lea en vez de ser
+  // ruido—. Sólo se avisa por debajo del 60 %: reservar 45 de los 60 minutos
+  // de lectura no es un plan mal montado, y una comida planificada de las tres
+  // del día tampoco. Y se agrupa por hábito, porque «el plan se queda corto en
+  // lectura» se dice una vez y no cinco, una por día.
+  interface Shortfall {
+    id: string;
+    label: string;
+    unit: string;
+    target: number;
+    days: number[];
+    planned: number;
+  }
+
+  const shortfalls = new Map<string, Shortfall>();
 
   for (let day = 0; day < 7; day += 1) {
+    const seen = new Set<string>();
+
     for (const block of byDay[day]) {
       if (!block.metricId || block.amount === undefined) continue;
-      if (shortSeen.has(`${block.metricId}:${day}`)) continue;
+      if (seen.has(block.metricId)) continue;
 
       const metric = findMetric(profile.id, block.metricId);
       if (!metric || isCeiling(metric)) continue;
       if (metric.type !== 'counter' && metric.type !== 'duration') continue;
 
-      const total = plannedAmount(byDay[day], metric.id);
-      if (total >= metric.target) continue;
+      seen.add(metric.id);
 
-      shortSeen.add(`${block.metricId}:${day}`);
-      carencias.push({
-        id: `carencia-corto-${metric.id}-${day}`,
-        tone: 'carencia',
-        icon: '📉',
-        day,
-        title: `${DAY_NAMES[day]}: el plan se queda corto`,
-        detail: `Reservas ${total} ${metric.unit} de «${metric.label}» y la meta del día son ${metric.target}. Con lo planificado no da.`,
-      });
+      const total = plannedAmount(byDay[day], metric.id);
+      if (total >= metric.target * KEPT_THRESHOLD) continue;
+
+      const entry = shortfalls.get(metric.id) ?? {
+        id: metric.id,
+        label: metric.label,
+        unit: metric.unit,
+        target: metric.target,
+        days: [],
+        planned: total,
+      };
+
+      entry.days.push(day);
+      entry.planned = Math.min(entry.planned, total);
+      shortfalls.set(metric.id, entry);
     }
+  }
+
+  const worst = Array.from(shortfalls.values())
+    .sort((a, b) => b.days.length - a.days.length)
+    .slice(0, 2);
+
+  for (const short of worst) {
+    const days =
+      short.days.length === 1
+        ? DAY_NAMES[short.days[0]]
+        : `${short.days.length} días de la semana`;
+
+    carencias.push({
+      id: `carencia-corto-${short.id}`,
+      tone: 'carencia',
+      icon: '📉',
+      day: short.days.length === 1 ? short.days[0] : undefined,
+      title: `El plan se queda corto en «${short.label}»`,
+      detail: `En ${days.toLowerCase()} reservas ${short.planned} ${short.unit} y la meta del día son ${short.target}. Con lo planificado no da.`,
+    });
   }
 
   // Lo previsto que no llegó a registrarse. Es el aviso que ata las dos
@@ -444,7 +486,7 @@ export function planAlerts(
       tone: 'aviso',
       icon: '📭',
       title: `${emptyWeekdays.length} ${plural(emptyWeekdays.length, 'día entre semana sin nada', 'días entre semana sin nada')}`,
-      detail: `${emptyWeekdays.map((day) => DAY_NAMES[day]).join(', ')}. Puedes copiar el día de al lado desde el menú del día.`,
+      detail: `${emptyWeekdays.map((day) => DAY_NAMES[day]).join(', ')}. Con el ⧉ de un día que se le parezca lo copias entero encima.`,
     });
   }
 
@@ -457,7 +499,9 @@ export function planAlerts(
       tone: 'aviso',
       icon: '🔗',
       title: `${loose.length} ratos sin hábito atado`,
-      detail: 'Átalos a una casilla del registro y la semana podrá decirte si se están cumpliendo.',
+      detail:
+        'Átalos a una casilla del registro y la semana podrá decirte si se están cumpliendo. ' +
+        'Los que se llamen como un rato de siempre se atan solos con «🔗 Atar a los hábitos».',
     });
   }
 

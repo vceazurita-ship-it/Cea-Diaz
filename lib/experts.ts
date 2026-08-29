@@ -795,6 +795,59 @@ export const GUIDANCE: HabitGuidance[] = [
     experts: ['clear'],
   },
   {
+    metricId: 'cultura_equipo',
+    priority: 'apoyo',
+    claim: 'La cultura de un equipo se construye en ratos cortos y repetidos, como un hábito.',
+    detail:
+      'Clear lo explica para las personas y vale igual para un grupo: la identidad ' +
+      'no se anuncia en una charla de pretemporada, se demuestra en lo que se ' +
+      'repite cada semana. Dweck añade el contenido: se elogia el proceso —cómo se ' +
+      'ha competido, cómo se ha entrenado— y no el resultado del domingo.',
+    experts: ['clear', 'dweck'],
+  },
+  {
+    metricId: 'formacion',
+    priority: 'apoyo',
+    claim: 'Media hora de formación a la semana pesa más que un curso al año.',
+    detail:
+      'Newport lo llama trabajo profundo: poco rato, protegido y sin notificaciones. ' +
+      'Y Ericsson recuerda que sólo cuenta lo que se aplica después: escuchar un ' +
+      'podcast no es práctica deliberada hasta que algo de él entra en la sesión.',
+    experts: ['newport', 'ericsson'],
+  },
+  {
+    metricId: 'tiempo_hijos',
+    priority: 'importante',
+    claim: 'Los hijos no recuerdan los planes grandes, recuerdan los ratos de todos los días.',
+    detail:
+      'Álvaro Bilbao lo pone entre lo que más construye el cerebro de un niño: ' +
+      'presencia entera, aunque sea corta. Silvia Álava añade que el rato bueno no ' +
+      'necesita actividad ni pantalla, y Gottman que el móvil delante convierte la ' +
+      'presencia en ausencia. Una hora de verdad vale más que una tarde a medias.',
+    experts: ['bilbao', 'alava', 'gottman'],
+  },
+  {
+    metricId: 'tareas_casa',
+    priority: 'apoyo',
+    claim: 'Repartir la casa por escrito desactiva el reproche antes de que nazca.',
+    detail:
+      'Gottman sitúa el reparto doméstico entre los conflictos más repetidos y más ' +
+      'fáciles de desactivar. Joan Garriga lo mira desde los lugares: cuando cada ' +
+      'uno sabe qué le toca, dejan de existir cuentas pendientes que se cobran en ' +
+      'otra conversación.',
+    experts: ['gottman', 'garriga'],
+  },
+  {
+    metricId: 'organizar_semana',
+    priority: 'apoyo',
+    claim: 'La revisión semanal es lo que evita veinte decisiones sueltas entre semana.',
+    detail:
+      'Clear la propone corta y fija: qué funcionó, qué no y qué se cambia. Newport ' +
+      'le añade el reparto de huecos, que es donde se decide de verdad la semana: ' +
+      'lo que no tiene hora, no ocurre.',
+    experts: ['clear', 'newport'],
+  },
+  {
     metricId: 'energia_aula',
     priority: 'apoyo',
     claim: 'La energía en clase avisa del desgaste antes que el calendario.',

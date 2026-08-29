@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { DayChips } from '@/components/planner/DayChips';
 import {
   COMPANIONS,
   COMPANION_LIST,
@@ -12,12 +13,15 @@ import {
   blockFromPreset,
   durationLabel,
   linkableMetrics,
+  minutesOf,
+  overlap,
   presetGroupsOf,
   presetsOf,
+  timeOf,
 } from '@/lib/planner';
 import type { PlanPreset, PresetGroupId } from '@/lib/planner';
 import { targetWord } from '@/lib/scoring';
-import type { Companion, Metric, PlanBlock, PlanKind, Profile } from '@/types';
+import type { Companion, Metric, PlanBlock, PlanKind, Profile, WeekPlan } from '@/types';
 
 /* =========================================================================
  *  Alta y edición de un rato de la semana.
@@ -26,6 +30,16 @@ import type { Companion, Metric, PlanBlock, PlanKind, Profile } from '@/types';
  *  ratos de siempre —un toque y está—, y sólo debajo el formulario para el
  *  que no encaje en ninguno. Y al final, lo que ata la agenda al registro:
  *  de qué hábito es este rato y cuánto pretende aportar.
+ *
+ *  Tres cosas la hacen rápida de verdad:
+ *
+ *   · el **buscador** de los ratos de siempre, porque con sesenta en el
+ *     catálogo elegir pestaña y repasar botones ya es más lento que teclear
+ *     «anál»;
+ *   · los **días marcados a la vez**: el cole son cinco días y la cena son
+ *     siete, y apartarlos uno a uno es escribir lo mismo cinco veces;
+ *   · el **aviso de solape** antes de guardar, que es cuando todavía se
+ *     puede cambiar la hora sin volver a abrir nada.
  * ========================================================================= */
 
 /** Duraciones que se eligen el noventa por ciento de las veces. */
@@ -44,8 +58,13 @@ interface BlockEditorProps {
   block: PlanBlock;
   /** `true` cuando todavía no existe en la agenda. */
   isNew: boolean;
-  onSave: (block: PlanBlock) => void;
+  /** La semana entera: de ahí salen el aviso de solape y la carga de cada día. */
+  plan: WeekPlan;
+  /** Al guardar uno nuevo pueden salir varios: uno por día marcado. */
+  onSave: (block: PlanBlock, days: number[]) => void;
   onDelete?: () => void;
+  /** Abre la hoja de copiar; sólo tiene sentido en un rato que ya existe. */
+  onCopy?: () => void;
   onCancel: () => void;
 }
 
@@ -53,21 +72,39 @@ export function BlockEditor({
   profile,
   block,
   isNew,
+  plan,
   onSave,
   onDelete,
+  onCopy,
   onCancel,
 }: BlockEditorProps) {
   const [draft, setDraft] = useState<PlanBlock>(block);
+  /** Días en los que se apartará. Editando uno que ya existe, siempre el suyo. */
+  const [days, setDays] = useState<number[]>([block.day]);
+  const [query, setQuery] = useState('');
   const kid = profile.kind === 'kid';
 
   const presets = presetsOf(profile.id);
   const topics = useMemo(() => presetGroupsOf(profile.id), [profile.id]);
   const groups = useMemo(() => linkableMetrics(profile.id), [profile.id]);
 
-  // Qué tema está abierto. Sin temas —los peques, María— no se usa: la lista
-  // va corrida, como estaba.
+  // Qué tema está abierto. Sin temas —Familia, Pareja— no se usa: la lista va
+  // corrida, como estaba.
   const [topic, setTopic] = useState<PresetGroupId | null>(topics[0]?.id ?? null);
-  const shown = topics.length > 0 ? topics.find((item) => item.id === topic)?.presets ?? [] : presets;
+
+  /**
+   * Los ratos de siempre que se enseñan. Buscando se busca en todos, no sólo
+   * en el tema abierto: quien teclea «análisis» no quiere acordarse de en qué
+   * pestaña estaba.
+   */
+  const shown = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (text) {
+      return presets.filter((preset) => preset.title.toLowerCase().includes(text));
+    }
+    if (topics.length === 0) return presets;
+    return topics.find((item) => item.id === topic)?.presets ?? [];
+  }, [presets, query, topic, topics]);
 
   /**
    * Un toque rellena el formulario entero, atadura incluida. Respeta la hora
@@ -80,6 +117,7 @@ export function BlockEditor({
       ...blockFromPreset(preset, prev.day),
       id: prev.id,
       start: prev.start === '17:00' ? preset.start : prev.start,
+      note: prev.note,
     }));
 
   const metric: Metric | undefined = useMemo(() => {
@@ -94,11 +132,34 @@ export function BlockEditor({
   const unit = amountUnit(metric);
   const patch = (values: Partial<PlanBlock>) => setDraft((prev) => ({ ...prev, ...values }));
 
+  const counts = useMemo(
+    () => [0, 1, 2, 3, 4, 5, 6].map((day) => plan.blocks.filter((item) => item.day === day).length),
+    [plan],
+  );
+
+  /** Termina a las…: la cuenta que nadie quiere hacer de cabeza. */
+  const ends = timeOf(minutesOf(draft.start) + draft.duration);
+
+  /** Con qué se pisaría, día por día. Se dice antes de guardar, no después. */
+  const clashes = useMemo(() => {
+    const out: Array<{ day: number; title: string }> = [];
+
+    for (const day of isNew ? days : [draft.day]) {
+      const candidate = { ...draft, day };
+      const hit = plan.blocks.find((item) => item.id !== draft.id && overlap(item, candidate));
+      if (hit) out.push({ day, title: hit.title || 'otro rato' });
+    }
+
+    return out;
+  }, [days, draft, isNew, plan.blocks]);
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const title = draft.title.trim();
     if (!title) return;
-    onSave({ ...draft, title });
+
+    const targets = isNew ? (days.length > 0 ? days : [draft.day]) : [draft.day];
+    onSave({ ...draft, title, day: targets[0] }, targets);
   };
 
   return (
@@ -106,9 +167,20 @@ export function BlockEditor({
       {/* Los de siempre. Rellenan el formulario entero, atadura incluida. */}
       {isNew && presets.length > 0 && (
         <section>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide t-3">De un toque</p>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide t-3">De un toque</p>
+            <label className="ml-auto min-w-0 flex-1 sm:max-w-[220px]">
+              <span className="sr-only">Buscar entre los ratos de siempre</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="🔎 Buscar…"
+                className="field w-full py-1.5 text-xs"
+              />
+            </label>
+          </div>
 
-          {topics.length > 0 && (
+          {topics.length > 0 && !query.trim() && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {topics.map((item) => (
                 <button
@@ -136,12 +208,33 @@ export function BlockEditor({
                 key={preset.title}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="btn hairline surf-1 t-2 hover-soft border px-2.5 py-1 text-xs"
+                title={
+                  preset.metricId
+                    ? `${durationLabel(preset.duration)} · atado a un hábito`
+                    : `${durationLabel(preset.duration)} · sin hábito atado`
+                }
+                className={`btn border px-2.5 py-1 text-xs
+                  ${
+                    draft.title === preset.title
+                      ? 'bg-accent-soft border-accent t-1'
+                      : 'hairline surf-1 t-2 hover-soft'
+                  }`}
               >
                 <span aria-hidden>{preset.icon}</span>
                 {preset.title}
+                {preset.metricId && (
+                  <span aria-hidden className="opacity-50">
+                    🔗
+                  </span>
+                )}
               </button>
             ))}
+
+            {shown.length === 0 && (
+              <p className="text-xs t-3">
+                Nada con ese nombre. Escríbelo abajo y se aparta igual.
+              </p>
+            )}
           </div>
         </section>
       )}
@@ -190,66 +283,94 @@ export function BlockEditor({
       </section>
 
       {/* Cuándo */}
-      <section className="grid gap-3 sm:grid-cols-3">
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Día</span>
-          <select
-            value={draft.day}
-            onChange={(event) => patch({ day: Number(event.target.value) })}
-            className="field w-full"
-          >
-            {DAY_NAMES.map((name, index) => (
-              <option key={name} value={index}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Hora</span>
-          <input
-            type="time"
-            value={draft.start}
-            onChange={(event) => patch({ start: event.target.value || '17:00' })}
-            className="field w-full"
+      <section className="space-y-3">
+        {isNew ? (
+          <DayChips
+            value={days}
+            onChange={setDays}
+            today={undefined}
+            counts={counts}
+            label={days.length > 1 ? `Días (${days.length})` : 'Días'}
           />
-        </label>
+        ) : (
+          <label className="block sm:max-w-[220px]">
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Día</span>
+            <select
+              value={draft.day}
+              onChange={(event) => patch({ day: Number(event.target.value) })}
+              className="field w-full"
+            >
+              {DAY_NAMES.map((name, index) => (
+                <option key={name} value={index}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Dura</span>
-          <input
-            type="number"
-            min={5}
-            max={720}
-            step={5}
-            value={draft.duration}
-            onChange={(event) =>
-              patch({ duration: Math.max(5, Math.min(720, Number(event.target.value) || 5)) })
-            }
-            className="field w-full tabular-nums"
-          />
-        </label>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Hora</span>
+            <input
+              type="time"
+              value={draft.start}
+              onChange={(event) => patch({ start: event.target.value || '17:00' })}
+              className="field w-full tabular-nums"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">Dura</span>
+            <input
+              type="number"
+              min={5}
+              max={720}
+              step={5}
+              value={draft.duration}
+              onChange={(event) =>
+                patch({ duration: Math.max(5, Math.min(720, Number(event.target.value) || 5)) })
+              }
+              className="field w-full tabular-nums"
+            />
+          </label>
+
+          <div className="flex items-end">
+            <p className="pb-2 text-xs t-3">
+              Termina a las <strong className="tabular-nums t-2">{ends}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_MINUTES.map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              onClick={() => patch({ duration: minutes })}
+              aria-pressed={draft.duration === minutes}
+              className={`btn border px-2.5 py-1 text-xs font-semibold
+                ${
+                  draft.duration === minutes
+                    ? 'bg-accent-soft border-accent t-1'
+                    : 'hairline surf-1 t-2 hover-soft'
+                }`}
+            >
+              {durationLabel(minutes)}
+            </button>
+          ))}
+        </div>
+
+        {clashes.length > 0 && (
+          <p className="rounded-xl border p-2.5 text-xs leading-relaxed hairline surf-2 t-2">
+            ⏱️ Se pisa con «{clashes[0].title}»
+            {clashes.length === 1
+              ? ` el ${DAY_NAMES[clashes[0].day].toLowerCase()}`
+              : ` y con otros ${clashes.length - 1}`}
+            . Puedes guardarlo igual, pero uno de los dos no va a pasar.
+          </p>
+        )}
       </section>
-
-      <div className="flex flex-wrap gap-1.5">
-        {QUICK_MINUTES.map((minutes) => (
-          <button
-            key={minutes}
-            type="button"
-            onClick={() => patch({ duration: minutes })}
-            aria-pressed={draft.duration === minutes}
-            className={`btn border px-2.5 py-1 text-xs font-semibold
-              ${
-                draft.duration === minutes
-                  ? 'bg-accent-soft border-accent t-1'
-                  : 'hairline surf-1 t-2 hover-soft'
-              }`}
-          >
-            {durationLabel(minutes)}
-          </button>
-        ))}
-      </div>
 
       {/* De qué va */}
       <section>
@@ -380,13 +501,25 @@ export function BlockEditor({
         />
       </label>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border-t pt-3 hairline">
         <button type="submit" className="btn-primary px-4" disabled={!draft.title.trim()}>
-          {isNew ? 'Añadir a la semana' : 'Guardar'}
+          {isNew
+            ? days.length > 1
+              ? `Apartar en ${days.length} días`
+              : 'Añadir a la semana'
+            : 'Guardar'}
         </button>
+
         <button type="button" onClick={onCancel} className="btn-ghost px-3 text-sm">
           Cancelar
         </button>
+
+        {onCopy && (
+          <button type="button" onClick={onCopy} className="btn-ghost px-3 text-sm">
+            ⧉ Copiar o mover
+          </button>
+        )}
+
         {onDelete && (
           <button type="button" onClick={onDelete} className="btn-danger ml-auto px-3 text-sm">
             🗑️ Quitar

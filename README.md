@@ -80,6 +80,8 @@ components/
     WeekPlanner.tsx    La semana tipo: horario completo, tarjetas de día y avisos de coherencia
     WeekTimetable.tsx  La semana tipo entera: siete columnas sobre la misma regla de horas
     BlockEditor.tsx    Alta y edición de un rato: cuándo, con quién y a qué hábito va atado
+    PlanCopySheet.tsx  Copiar, repetir, mover o intercambiar un rato o un día entero
+    DayChips.tsx       Los siete días a toques, con atajos de laborables y fin de semana
     PlanAlerts.tsx     Carencias, excesos y avisos de la semana
     TodayPlanCard.tsx  Lo previsto para hoy, dentro de la pantalla de registro
   tasks/
@@ -179,7 +181,7 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 | ----------------------- | --------------------------------------------------------------------------------- |
 | **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
-| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal (lectura, escritura, máster) · Profesional (preparación de sesiones, análisis táctico, cuerpo técnico y alto rendimiento) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal (lectura, escritura, máster, formación) · Profesional (preparación de sesiones, análisis táctico, cultura de equipo, microciclo, cuerpo técnico y alto rendimiento) · Casa y Vínculos (tiempo con los hijos y con María, la gente de uno, su parte de la casa, recados y la semana organizada) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
 
@@ -263,6 +265,11 @@ Los que faltaban y el consenso considera de primer orden:
 | Rutina de acostarse de los peques         | AAP, Walker               | Familia                  |
 | Reconocer el esfuerzo, no el resultado    | Dweck                     | Familia                  |
 | Roce reparado el mismo día                | Gottman                   | Pareja                   |
+| Tiempo con los hijos, con el móvil lejos  | Bilbao, Álava, Gottman    | Víctor                   |
+| Mi parte de la casa, repartida            | Gottman, Garriga          | Víctor                   |
+| La semana organizada (revisión semanal)   | Clear, Newport            | Víctor                   |
+| Formación aplicada, no acumulada          | Newport, Ericsson         | Víctor                   |
+| Cultura de equipo trabajada a ratos       | Clear, Dweck              | Víctor                   |
 
 ## Sintonía de perfil
 
@@ -1202,8 +1209,8 @@ Se mira de dos maneras, con el mismo contenido detrás:
 
 | Vista | Para qué |
 | ----- | -------- |
-| **🗓️ La semana entera** | El horario completo: siete columnas sobre la misma regla de horas, de lo más temprano a lo más tardío que haya apartado. Se ven de un vistazo los huecos, los solapes y las tardes cargadas. Picar en un rato lo abre; picar en un hueco aparta uno nuevo a esa hora, redondeada a la media |
-| **✏️ Día a día** | Las siete tarjetas, que es donde se aparta, se copia un día en otro y se vacía |
+| **🗓️ La semana entera** | El horario completo: siete columnas sobre la misma regla de horas, de lo más temprano a lo más tardío que haya apartado. Se ven de un vistazo los huecos, los solapes y las tardes cargadas. Picar en un rato lo abre; picar en un hueco aparta uno nuevo a esa hora, redondeada a la media; picar en la cabecera de un día abre lo que se puede hacer con ese día. Alto de hora regulable y línea de la hora actual en la columna de hoy |
+| **✏️ Día a día** | Las siete tarjetas, cada una con lo que lleva, cuánto ocupa y sus tres botones: añadir, copiar o mover, y vaciar |
 
 Se abre por la entera en cuanto hay algo definido; con la agenda en blanco se entra
 directamente por las tarjetas, que es lo que hace falta entonces. Dos ratos a la misma
@@ -1247,7 +1254,7 @@ luego lo que conviene mirar.
 | **Exceso registrado** | Un rato con techo acabó por encima |
 | **Día sobrecargado** | Más de 10 h de cole, deporte, estudio y trabajo en un mismo día |
 | **Carencia clave** | Un hábito que los expertos dan por innegociable no tiene ni un rato en toda la semana |
-| **Plan corto** | Lo reservado ese día no llega a la meta diaria del hábito |
+| **Plan corto** | Lo reservado no llega ni al 60 % de la meta diaria del hábito. Se agrupa por hábito —«el plan se queda corto en lectura», una vez y no cinco— porque reservar 45 de 60 minutos no es un plan mal montado y decirlo cada día sería ruido |
 | **Previsto sin registrar** | Había entreno y la casilla está vacía: o no se fue, o no se apuntó |
 | **Dos cosas a la vez** | Dos ratos del mismo día se pisan: uno no va a pasar |
 | **Sin decir quién está** | Sólo en Leo y Hugo: ratos sin acompañante asignado |
@@ -1294,9 +1301,49 @@ puede deshacer. Y para lo de cada día están los **ratos de un toque**: una fil
 que rellena el formulario completo, atadura incluida, para no tener que buscar a mano el
 identificador de ninguna métrica.
 
-Cada día tiene además dos atajos, en la vista **día a día**: **⧉** copia el día anterior
-encima y **🧹** lo vacía. Y la semana entera se rehace con la de ejemplo, se copia de otro
-perfil o se vacía desde la barra de abajo. Todo se deshace desde el aviso.
+Y la semana entera se rehace con la de ejemplo, se copia de otro perfil, se ata a los
+hábitos o se vacía desde la barra de abajo. Todo se deshace desde el aviso.
+
+### Rellenarla rápido: copiar, repetir, mover
+
+Una semana no se escribe: se repite. El martes se parece al jueves, la cena es la misma
+cinco noches y el cole cae de lunes a viernes. Escribir eso veinte veces es lo que hace
+que una agenda se quede a medias —y una agenda a medias no sirve para nada—, así que
+todo lo que se repite se copia:
+
+| Dónde | Qué hace |
+| ----- | -------- |
+| **Días marcados al apartar** | Al añadir un rato nuevo se marcan **los días que haga falta** —con atajos de *toda la semana*, *de lunes a viernes* y *fin de semana*— y sale uno en cada uno. El cole de los peques son cinco toques en un solo guardado |
+| **⧉ en un rato** | **Otra vez este día** (la copia sale detrás del original, a la hora que se diga), **copiar a otros días** o **mover a otro día** |
+| **⧉ en un día** | **Copiar el día** entero en los que se le parezcan, **moverlo** a otro o **intercambiarlo** —el entreno del martes por el del jueves, con todo lo que llevan dentro— |
+| **Añadir o sustituir** | Al copiar un día se elige qué pasa con lo que ya hubiera: se suma, o se sustituye |
+| **🔎 buscador de ratos** | Con cincuenta y seis en el catálogo, teclear «anál» es más rápido que recorrer pestañas |
+| **🔗 Atar a los hábitos** | Ata de una vez los ratos guardados que se llaman como uno de siempre |
+
+En la vista **día a día**, cada tarjeta lleva su **＋ Añadir**, su **⧉** y su **🧹**; en la
+vista de **semana entera**, la cabecera de cada día es también un botón que abre lo mismo.
+Cada operación dice antes lo que va a pasar —«3 bloques · se quitan 12»— y después cuántos
+han salido, con **Deshacer** en el aviso.
+
+Dos detalles de la cuadrícula que no son adorno: el **alto de la hora** se cambia con
+⊟ ⊡ ⊞ —una semana de ochenta ratos no se lee con el mismo zoom que una de diez— y en la
+columna de hoy hay una **línea con la hora actual**, que es lo que convierte la semana
+tipo en «esto es lo que toca ahora». Y con más de dos tipos apartados aparece la fila de
+**resaltar**: pica «Trabajo» y el resto se apaga sin desaparecer.
+
+### Ratos ya guardados, hábitos nuevos
+
+La agenda se guarda con la atadura que tenían los ratos de siempre **el día en que se
+puso**. Cuando después nace la casilla que faltaba —el máster, las cuentas, el tiempo con
+los hijos—, lo ya guardado se queda como estaba: apartado, y sin nada contra lo que
+comprobarse.
+
+Para eso está **🔗 Atar a los hábitos**, que también sale solo como aviso arriba
+—«12 ratos pueden atarse a un hábito»— cuando hay algo que ganar. Busca cada rato por su
+nombre entre los de siempre —sin distinguir mayúsculas ni acentos— y le pone el hábito y
+la cantidad que hoy le tocan. No inventa: lo que no está en el catálogo se queda suelto, y
+lo que ya estaba atado no se toca, salvo que apuntara a un hábito que ya no existe. Se
+deshace como todo lo demás.
 
 ### Los temas: cincuenta y seis ratos que caben en una pantalla
 
@@ -1322,30 +1369,57 @@ cuadrícula—, pero quien monta la semana los busca en sitios distintos.
 | 💶 **Economía** | Apuntar los gastos, cuentas del mes, facturas y pagos, inversiones y ahorro |
 | 🌙 **Descanso y salud** | Siesta, a dormir, sin pantallas la última hora y luz natural al levantarse |
 
-El tema es **opcional**: los peques, María, Familia y Pareja no lo declaran y siguen
-teniendo su fila corrida de siempre. Sólo aparecen las pestañas cuando hay temas que
-enseñar, y sólo los temas que tienen algo dentro.
+Los peques y María tienen los suyos —**🎒 Cole y deberes**, **🏃 Deporte**, **🍽️ Comidas
+y rutinas**, **🎮 Juego y ocio** y **🌙 Descanso** en los peques; **👩‍🏫 Aula y alumnos**,
+**🏃 Deporte y cuidado**, **✨ Desarrollo**, **🍽️ Comidas** y **🌙 Descanso** en María—.
+Familia y Pareja siguen con su fila corrida, que con diez y seis ratos se lee entera. Sólo
+aparecen las pestañas cuando hay temas que enseñar, y sólo los que tienen algo dentro. Y
+por encima de todo está el **buscador**, que ignora las pestañas: quien teclea «anál» no
+quiere acordarse de en qué tema estaba.
 
-Lo que se ata al registro se ata de verdad: «preparación de la sesión» son sesenta
-minutos de `prep_sesion`, «análisis táctico · partido» noventa de `analisis_tactico`,
-«reuniones individuales» una charla de `charlas_jugadores`. Dos temas se quedaban sin
-casilla contra la que comprobarse y ahora la tienen: el **máster** entra en Desarrollo
-Personal —clase, estudio y entregas, los tres atados a `master`— y **Economía** es una
-categoría propia de Víctor, con el gasto del día apuntado, las compras impulsivas y la
-revisión de cuentas a la que se atan las cuentas del mes, las facturas y las
-inversiones. Las dos casillas de rato van con peso 1 y no 2, por lo mismo que el
-entreno propio: no se estudia ni se hacen cuentas todos los días, y un martes sin
-máster no es un hábito incumplido.
+### Que cada rato tenga contra qué comprobarse
 
-Lo que sigue sin casilla —los microciclos, la cultura de equipo— entra suelto: se
-aparta el rato igual, y la agenda no finge comprobar algo que nadie apunta.
+Un rato sin hábito atado se aparta igual, pero la agenda no puede decir nada de él. Así
+que lo que se ata, se ata de verdad —«preparación de la sesión» son sesenta minutos de
+`prep_sesion`, «análisis táctico · partido» noventa de `analisis_tactico`—, y lo que se
+apartaba sin casilla contra la que medirse ya la tiene. Estos son los hábitos que nacieron
+justamente por eso:
+
+| Hábito nuevo | Dónde vive | Qué ratos ata |
+| ------------ | ---------- | ------------- |
+| 🧭 **Cultura de equipo** | Víctor · Profesional | Análisis y desarrollo de la cultura de equipo |
+| 🗓️ **Microciclo planificado** | Víctor · Profesional | Los microciclos de ABP y de cultura, y los aprendizajes del micro |
+| 🎧 **Formación y podcast** | Víctor · Desarrollo Personal | Formación y podcast |
+| 🧒 **Tiempo con Leo y Hugo** | Víctor · Casa y Vínculos | Ocio en familia, experiencias con los hijos |
+| 💞 **Tiempo con María** | Víctor · Casa y Vínculos | Tiempo con María |
+| 👵 **Ver a la familia o a los amigos** | Víctor · Casa y Vínculos | Con los padres, con los amigos |
+| 🧹 **Mi parte de la casa** | Víctor · Casa y Vínculos | Responsabilidades de casa |
+| 🗂️ **Recados, compra y papeleo** | Víctor · Casa y Vínculos | Tareas y recados, compra, papeleo |
+| 📆 **La semana organizada** | Víctor · Casa y Vínculos | Organizar la semana |
+
+**Casa y Vínculos** es una categoría nueva de Víctor y responde a algo que faltaba: la
+mitad de su semana no es campo —son los hijos, María, la gente de uno y lo que la casa
+pide— y no tenía ni una casilla en el registro. Lo que va por semanas y no por días
+—ver a los padres, los recados, organizar la semana— va con peso 1, por lo mismo que el
+máster: el día que no toca no es un hábito incumplido.
+
+En los peques y en María se aprovechó lo que ya había: la merienda ata **frutas y
+verduras**, el camino al cole la **luz natural al levantarse**, el juego libre el
+**movimiento del día**, el desayuno su casilla, y en María entran el **feedback a
+alumnos**, el **cuidado de la voz**, la **escritura**, los **pasos** y las **horas de
+sueño**. De los seis perfiles, sólo cuatro ratos de las semanas de ejemplo entran sueltos:
+el **cole** y la **ducha** de los peques, y el **entrenamiento del equipo** y el
+**partido** de Víctor. Son el trabajo y el horario, no hábitos, y la agenda no finge
+comprobar algo que nadie apunta.
 
 La semana de ejemplo de Víctor es un **microciclo de verdad**, con partido el domingo:
 el lunes se recoge el partido —vídeo, individual y aprendizajes del micro—, el martes
 va el rival, el miércoles el balón parado propio y del rival, el jueves la cultura de
 equipo, el viernes lo individual y las cuentas, el sábado la activación y la tarde con
-los peques. Setenta y seis ratos —el gasto del día se apunta después de cenar, los
-siete—, sin un solo solape y sin ningún día por encima del aviso de sobrecarga.
+los peques. Ochenta y tres ratos —el gasto del día se apunta después de cenar, los
+siete—, sin un solo solape, sin ningún día por encima del aviso de sobrecarga y sin un
+solo día en el que el plan se quede corto frente a la meta de un hábito. Las seis semanas
+de ejemplo pasan ese mismo examen.
 
 ### La semana de uno en la de otro
 

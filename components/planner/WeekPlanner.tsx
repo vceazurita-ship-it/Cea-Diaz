@@ -5,7 +5,10 @@ import { useMemo, useState } from 'react';
 import { BlockEditor } from '@/components/planner/BlockEditor';
 import { CopyWeekPicker } from '@/components/planner/CopyWeekPicker';
 import { PlanAlerts } from '@/components/planner/PlanAlerts';
+import { PlanCopySheet } from '@/components/planner/PlanCopySheet';
+import type { CopyRequest, CopyTarget } from '@/components/planner/PlanCopySheet';
 import { WeekTimetable } from '@/components/planner/WeekTimetable';
+import type { TimetableZoom } from '@/components/planner/WeekTimetable';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
@@ -17,25 +20,43 @@ import {
   DAY_NAMES,
   DAY_SHORT,
   PLAN_KINDS,
+  addPlanBlocks,
   blocksOfDay,
   clearDayPlan,
-  copyDayPlan,
+  copyBlockTo,
+  copyDayTo,
   copyWeekFrom,
   copyableWeeks,
   daysFilled,
+  duplicateBlock,
   durationLabel,
   emptyBlock,
+  moveBlockTo,
+  moveDayTo,
   planOf,
+  plannedMinutes,
   rangeOf,
+  relinkPlan,
+  relinkPreview,
   removePlanBlock,
   sampleWeek,
   savePlanBlock,
+  spreadBlock,
+  swapDays,
   themeOf,
   updatePlan,
 } from '@/lib/planner';
 import type { WeekSource } from '@/lib/planner';
 import { PROFILES } from '@/lib/profiles';
-import type { DateKey, PlanBlock, PlanStatus, Profile, ProfileId, ProfileSkin } from '@/types';
+import type {
+  DateKey,
+  PlanBlock,
+  PlanKind,
+  PlanStatus,
+  Profile,
+  ProfileId,
+  ProfileSkin,
+} from '@/types';
 
 /* =========================================================================
  *  Agenda semanal del perfil.
@@ -50,6 +71,12 @@ import type { DateKey, PlanBlock, PlanStatus, Profile, ProfileId, ProfileSkin } 
  *  registro, y entonces al lado de lo planificado se dice si esta semana se
  *  cumplió, si se quedó corto o si se pasó del máximo. La semana tipo se
  *  queda igual; lo que cambia es lo que se le contrasta.
+ *
+ *  Rellenarla es la mitad del trabajo, así que la pantalla está montada para
+ *  eso: un rato se aparta **en varios días a la vez**, se **repite** más
+ *  tarde el mismo día, se **copia** a otros y un día entero se **copia, se
+ *  mueve o se intercambia** con otro. Y lo que ya estaba guardado suelto se
+ *  **ata de una vez** a los hábitos que hoy existen.
  *
  *  Lo que cambia de un perfil a otro es el rótulo y el adorno —el campo y
  *  Oliver y Benji para los peques, el filete dorado para María, el acero
@@ -69,6 +96,12 @@ const STATUS_STYLE: Record<PlanStatus, string> = {
   sinMetrica: 'surf-2 t-3',
 };
 
+const ZOOMS: Array<{ id: TimetableZoom; label: string; icon: string }> = [
+  { id: 'compacta', label: 'Vista compacta', icon: '⊟' },
+  { id: 'normal', label: 'Vista normal', icon: '⊡' },
+  { id: 'amplia', label: 'Vista amplia', icon: '⊞' },
+];
+
 interface WeekPlannerProps {
   profile: Profile;
   /** Día visible en el panel; de él sale la semana real que se contrasta. */
@@ -84,6 +117,11 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   const [view, setView] = useState<PlanView>('completa');
   /** Semanas ajenas ofrecidas para copiar, o `null` con el diálogo cerrado. */
   const [copying, setCopying] = useState<WeekSource[] | null>(null);
+  /** Lo que se está copiando o moviendo: un rato, un día, o nada. */
+  const [sheet, setSheet] = useState<CopyTarget | null>(null);
+  const [zoom, setZoom] = useState<TimetableZoom>('normal');
+  /** Tipo resaltado en la cuadrícula; el resto se apaga. */
+  const [focus, setFocus] = useState<PlanKind | null>(null);
 
   const kid = profile.kind === 'kid';
   const theme = themeOf(profile.id);
@@ -110,6 +148,21 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   const share = useMemo(() => (kid ? companionShare(plan) : []), [kid, plan]);
   const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
 
+  /**
+   * Qué ganaría la agenda guardada con las casillas de hoy. Lo lee del
+   * almacén y no del `plan` que ya tenemos, pero depende de él a propósito:
+   * es lo que hace que el aviso desaparezca en cuanto se ata.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pending = useMemo(() => relinkPreview(profile.id), [plan, profile.id]);
+
+  /** Los tipos que de verdad hay en esta semana: no se filtra por lo que no está. */
+  const kinds = useMemo(() => {
+    const seen = new Set<PlanKind>();
+    for (const block of plan.blocks) seen.add(block.kind);
+    return Array.from(seen);
+  }, [plan.blocks]);
+
   /** La frase de la semana: la misma todo el día, distinta cada día. */
   const quote = theme.quotes[today % theme.quotes.length] ?? theme.quotes[0];
 
@@ -125,10 +178,31 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
     notify({ message: 'Como estaba.', icon: '↩️' });
   };
 
-  const save = (block: PlanBlock) => {
-    savePlanBlock(profile.id, block);
+  /** Un rato nuevo puede salir en varios días de una sentada. */
+  const save = (block: PlanBlock, days: number[]) => {
+    const before = planOf(profile.id).blocks;
+    const isNew = editing?.isNew ?? false;
     setEditing(null);
-    notify({ message: editing?.isNew ? 'Apartado en la semana.' : 'Cambiado.', icon: '🗓️' });
+
+    if (!isNew) {
+      savePlanBlock(profile.id, block);
+      notify({ message: 'Cambiado.', icon: '🗓️' });
+      return;
+    }
+
+    const wanted = spreadBlock(block, days);
+    const added = addPlanBlocks(profile.id, wanted);
+
+    notify({
+      message:
+        added === 0
+          ? `La semana está llena: quita algo antes de apartar «${block.title}».`
+          : added === 1
+            ? `«${block.title}», apartado el ${DAY_NAMES[days[0] ?? block.day].toLowerCase()}.`
+            : `«${block.title}», apartado en ${added} días.`,
+      icon: added === 0 ? '🚧' : '🗓️',
+      action: added > 0 ? { label: 'Deshacer', onClick: undoTo(before) } : undefined,
+    });
   };
 
   const remove = (block: PlanBlock) => {
@@ -141,22 +215,6 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
       tone: 'danger',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
-  };
-
-  const copyDay = (day: number) => {
-    const from = (day + 6) % 7;
-    const before = planOf(profile.id).blocks;
-    const copied = copyDayPlan(profile.id, from, day);
-
-    notify(
-      copied > 0
-        ? {
-            message: `${copied} ${copied === 1 ? 'rato copiado' : 'ratos copiados'} del ${DAY_NAMES[from].toLowerCase()}.`,
-            icon: '📋',
-            action: { label: 'Deshacer', onClick: undoTo(before) },
-          }
-        : { message: `El ${DAY_NAMES[from].toLowerCase()} no tiene nada que copiar.`, icon: '🤷' },
-    );
   };
 
   const clearDay = (day: number) => {
@@ -172,12 +230,87 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
     });
   };
 
+  /** Copiar, mover, repetir o intercambiar: todo sale de la misma hoja. */
+  const applyCopy = (request: CopyRequest) => {
+    const before = planOf(profile.id).blocks;
+    const word = theme.blockWord;
+    const words = theme.blockWords;
+    let message = '';
+    let done = true;
+
+    if (request.kind === 'block') {
+      const title = request.block.title || 'El rato';
+
+      if (request.action === 'duplicar') {
+        const copy = duplicateBlock(profile.id, request.block, request.start);
+        done = copy !== null;
+        message = copy
+          ? `«${title}» otra vez a las ${copy.start}.`
+          : 'La semana está llena: no cabe otra copia.';
+      } else if (request.action === 'mover') {
+        moveBlockTo(profile.id, request.block, request.day);
+        message = `«${title}» movido al ${DAY_NAMES[request.day].toLowerCase()}.`;
+      } else {
+        const result = copyBlockTo(profile.id, request.block, request.days);
+        done = result.copied > 0;
+        message = done
+          ? `«${title}» copiado a ${result.copied} ${result.copied === 1 ? 'día' : 'días'}.`
+          : 'La semana está llena: no cabe ninguna copia más.';
+      }
+    } else if (request.action === 'intercambiar') {
+      const moved = swapDays(profile.id, request.from, request.to);
+      done = moved > 0;
+      message = done
+        ? `${DAY_NAMES[request.from]} y ${DAY_NAMES[request.to].toLowerCase()} cambiados de sitio.`
+        : 'Los dos días están vacíos: no hay nada que intercambiar.';
+    } else if (request.action === 'mover') {
+      const result = moveDayTo(profile.id, request.from, request.to, request.mode);
+      done = result.copied > 0;
+      message = done
+        ? `${DAY_NAMES[request.from]} movido al ${DAY_NAMES[request.to].toLowerCase()}: ${result.copied} ${result.copied === 1 ? word : words}.`
+        : `${DAY_NAMES[request.from]} no tiene nada que mover.`;
+    } else {
+      const result = copyDayTo(profile.id, request.from, request.days, request.mode);
+      done = result.copied > 0;
+      message = done
+        ? `${result.copied} ${result.copied === 1 ? word : words} de ${DAY_NAMES[request.from].toLowerCase()} en ${request.days.length} ${request.days.length === 1 ? 'día' : 'días'}.${result.dropped > 0 ? ` ${result.dropped} no caben.` : ''}`
+        : `${DAY_NAMES[request.from]} no tiene nada que copiar.`;
+    }
+
+    setSheet(null);
+    notify({
+      message,
+      icon: done ? '⧉' : '🚧',
+      action: done ? { label: 'Deshacer', onClick: undoTo(before) } : undefined,
+    });
+  };
+
+  /** Ata de una vez los ratos que se guardaron antes de tener casilla. */
+  const relink = () => {
+    const before = planOf(profile.id).blocks;
+    const result = relinkPlan(profile.id);
+
+    if (result.linked === 0 && result.filled === 0) {
+      notify({ message: 'No hay nada más que atar por el nombre.', icon: '🤷' });
+      return;
+    }
+
+    notify({
+      message:
+        result.linked > 0
+          ? `${result.linked} ${result.linked === 1 ? 'rato atado' : 'ratos atados'} a su hábito${result.filled > 0 ? ` y ${result.filled} con la cantidad puesta` : ''}.`
+          : `${result.filled} ${result.filled === 1 ? 'rato' : 'ratos'} con la cantidad prevista puesta.`,
+      icon: '🔗',
+      action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+  };
+
   const useSample = () => {
     const before = planOf(profile.id).blocks;
     updatePlan(profile.id, sampleWeek(profile.id));
     setView('completa');
     notify({
-      message: 'Semana de ejemplo puesta. Edítala a tu gusto.',
+      message: 'Semana de ejemplo puesta, ya atada a los hábitos. Edítala a tu gusto.',
       icon: '✨',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
@@ -234,6 +367,7 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
   const missed = review.missed;
   const judged = kept + missed;
   const filled = daysFilled(plan);
+  const total = plannedMinutes(plan.blocks);
 
   return (
     <div className="space-y-4">
@@ -249,16 +383,23 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
 
       {/* Lo que la semana tipo dice de sí misma */}
       <section className="card p-3 sm:p-4" aria-label="Resumen de la semana tipo">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <span className="font-bold t-1">
-            {review.blocks} {review.blocks === 1 ? theme.blockWord : theme.blockWords}
-          </span>
-          <span className="t-3">·</span>
-          <span className="t-2 tabular-nums">{filled} de 7 días con algo apartado</span>
-          <span className="t-3">·</span>
-          <span className="t-2">
-            🔗 {review.linked} {review.linked === 1 ? 'atado' : 'atados'} a un hábito
-          </span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Tile
+            value={`${review.blocks}`}
+            label={review.blocks === 1 ? theme.blockWord : theme.blockWords}
+            heading={heading}
+          />
+          <Tile value={`${filled}/7`} label="días con algo" heading={heading} />
+          <Tile
+            value={`${review.linked}`}
+            label={review.linked === 1 ? 'atado a un hábito' : 'atados a un hábito'}
+            heading={heading}
+          />
+          <Tile
+            value={judged > 0 ? `${Math.round((kept / judged) * 100)} %` : durationLabel(total)}
+            label={judged > 0 ? 'de lo vivido, cumplido' : 'apartados en la semana'}
+            heading={heading}
+          />
         </div>
 
         {/* Y aquí, y sólo aquí, entran las fechas: la semana tipo contra la
@@ -277,10 +418,6 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
                 style={{ width: `${Math.round((kept / judged) * 100)}%` }}
               />
             </div>
-            <p className="mt-1.5 text-xs t-3">
-              De lo planificado que ya ha pasado, se ha cumplido el{' '}
-              <strong className="tabular-nums t-2">{Math.round((kept / judged) * 100)} %</strong>.
-            </p>
           </div>
         )}
 
@@ -298,6 +435,29 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
           </div>
         )}
       </section>
+
+      {/* Lo guardado suelto, atable de un toque */}
+      {(pending.linked > 0 || pending.filled > 0) && (
+        <section className="card flex flex-wrap items-center gap-x-3 gap-y-2 border-accent p-3">
+          <span aria-hidden className="text-lg">
+            🔗
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold t-1">
+              {pending.linked > 0
+                ? `${pending.linked} ${pending.linked === 1 ? 'rato puede atarse' : 'ratos pueden atarse'} a un hábito`
+                : `${pending.filled} ${pending.filled === 1 ? 'rato' : 'ratos'} sin la cantidad prevista`}
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed t-2">
+              Se guardaron antes de que existieran esas casillas del registro. Atándolos, la semana
+              podrá decir si se cumplen.
+            </p>
+          </div>
+          <button type="button" onClick={relink} className="btn-primary px-3 py-1.5 text-xs">
+            Atarlos ahora
+          </button>
+        </section>
+      )}
 
       <PlanAlerts alerts={review.alerts} skin={skin} />
 
@@ -329,11 +489,64 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             ))}
           </div>
 
+          {shown === 'completa' && (
+            <div
+              className="flex gap-1 rounded-full p-1 surf-2"
+              role="group"
+              aria-label="Alto de la cuadrícula"
+            >
+              {ZOOMS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setZoom(option.id)}
+                  aria-pressed={zoom === option.id}
+                  aria-label={option.label}
+                  title={option.label}
+                  className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition
+                    ${zoom === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
+                >
+                  {option.icon}
+                </button>
+              ))}
+            </div>
+          )}
+
           <p className="text-[11px] t-3">
             {shown === 'completa'
-              ? 'Pica en un rato para cambiarlo, o en un hueco para apartar uno nuevo.'
-              : 'Aquí se aparta, se copia un día en otro y se vacía.'}
+              ? 'Pica en un rato para cambiarlo, en un hueco para apartar uno, o en el día para copiarlo entero.'
+              : 'Aquí se aparta, se copia, se mueve y se vacía.'}
           </p>
+        </div>
+      )}
+
+      {/* Resaltar un tipo: en una semana llena es la única manera de mirar
+          sólo el trabajo, o sólo lo de los peques. */}
+      {defined && shown === 'completa' && kinds.length > 2 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide t-3">Resaltar:</span>
+          <button
+            type="button"
+            onClick={() => setFocus(null)}
+            aria-pressed={focus === null}
+            className={`btn min-h-0 border px-2 py-0.5 text-[11px] font-semibold
+              ${focus === null ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
+          >
+            Todo
+          </button>
+          {kinds.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => setFocus(focus === kind ? null : kind)}
+              aria-pressed={focus === kind}
+              className={`btn min-h-0 border px-2 py-0.5 text-[11px] font-semibold
+                ${focus === kind ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
+            >
+              <span aria-hidden>{PLAN_KINDS[kind].icon}</span>
+              {PLAN_KINDS[kind].label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -345,8 +558,11 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             statusById={judged > 0 ? statusById : undefined}
             today={today}
             heading={heading}
+            zoom={zoom}
+            focus={focus}
             onSelect={(block) => setEditing({ block, isNew: false })}
             onAdd={(day, start) => setEditing({ block: emptyBlock(day, start), isNew: true })}
+            onDay={(day) => setSheet({ kind: 'day', day })}
           />
         </section>
       )}
@@ -382,11 +598,13 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
                     <span className="chip-accent px-2 py-0.5 text-[10px] uppercase">Hoy</span>
                   )}
 
-                  {dayJudged > 0 && (
-                    <span className="ml-auto text-[11px] tabular-nums t-3">
-                      {dayKept}/{dayJudged} ✓
-                    </span>
-                  )}
+                  <span className="ml-auto text-[11px] tabular-nums t-3">
+                    {dayJudged > 0
+                      ? `${dayKept}/${dayJudged} ✓`
+                      : blocks.length > 0
+                        ? durationLabel(plannedMinutes(blocks))
+                        : ''}
+                  </span>
                 </header>
 
                 {blocks.length === 0 ? (
@@ -399,11 +617,11 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
                       const kindMeta = PLAN_KINDS[block.kind];
 
                       return (
-                        <li key={block.id}>
+                        <li key={block.id} className="flex items-stretch gap-1">
                           <button
                             type="button"
                             onClick={() => setEditing({ block, isNew: false })}
-                            className="flex w-full items-start gap-2 rounded-xl border p-2 text-left
+                            className="flex min-w-0 flex-1 items-start gap-2 rounded-xl border p-2 text-left
                                        hairline surf-1 hover-soft"
                             title={`${rangeOf(block)}${check?.text ? ` · ${check.text}` : ''}`}
                           >
@@ -442,8 +660,24 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
                                     {statusIcon(status)} {statusShort(status)}
                                   </span>
                                 )}
+
+                                {!block.metricId && (
+                                  <span className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-3">
+                                    sin atar
+                                  </span>
+                                )}
                               </span>
                             </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSheet({ kind: 'block', block })}
+                            aria-label={`Copiar o mover «${block.title}»`}
+                            title="Copiar, repetir o mover"
+                            className="btn-ghost min-h-0 shrink-0 px-2 py-0 text-xs"
+                          >
+                            ⧉
                           </button>
                         </li>
                       );
@@ -461,9 +695,9 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => copyDay(day)}
-                    aria-label={`Copiar el ${DAY_NAMES[(day + 6) % 7].toLowerCase()} en el ${DAY_NAMES[day].toLowerCase()}`}
-                    title={`Copiar el ${DAY_NAMES[(day + 6) % 7].toLowerCase()}`}
+                    onClick={() => setSheet({ kind: 'day', day })}
+                    aria-label={`Copiar o mover el ${DAY_NAMES[day].toLowerCase()}`}
+                    title="Copiar, mover o intercambiar el día"
                     className="btn-ghost min-h-0 px-2 py-1.5 text-xs"
                   >
                     ⧉
@@ -497,6 +731,12 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
         <button type="button" onClick={openCopy} className="btn-ghost px-3 py-1.5 text-xs">
           ⧉ Copiar la semana de otro
         </button>
+
+        {defined && (
+          <button type="button" onClick={relink} className="btn-ghost px-3 py-1.5 text-xs">
+            🔗 Atar a los hábitos
+          </button>
+        )}
 
         {defined && (
           <button type="button" onClick={clearWeek} className="btn-ghost px-3 py-1.5 text-xs">
@@ -542,6 +782,24 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
         </Modal>
       )}
 
+      {sheet && (
+        <Modal
+          title={sheet.kind === 'block' ? '⧉ Copiar, repetir o mover' : '⧉ Copiar o mover el día'}
+          onClose={() => setSheet(null)}
+          size="lg"
+        >
+          <PlanCopySheet
+            plan={plan}
+            target={sheet}
+            today={today}
+            blockWord={theme.blockWord}
+            blockWords={theme.blockWords}
+            onApply={applyCopy}
+            onCancel={() => setSheet(null)}
+          />
+        </Modal>
+      )}
+
       {editing && (
         <Modal
           title={editing.isNew ? 'Apartar un rato' : 'Editar el rato'}
@@ -552,12 +810,35 @@ export function WeekPlanner({ profile, date, store, skin }: WeekPlannerProps) {
             profile={profile}
             block={editing.block}
             isNew={editing.isNew}
+            plan={plan}
             onSave={save}
             onCancel={() => setEditing(null)}
             onDelete={editing.isNew ? undefined : () => remove(editing.block)}
+            onCopy={
+              editing.isNew
+                ? undefined
+                : () => {
+                    const block = editing.block;
+                    setEditing(null);
+                    setSheet({ kind: 'block', block });
+                  }
+            }
           />
         </Modal>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Las cuatro cifras de la semana
+ * ------------------------------------------------------------------------- */
+
+function Tile({ value, label, heading }: { value: string; label: string; heading: string }) {
+  return (
+    <div className="rounded-xl border p-2 text-center hairline surf-2">
+      <p className={`text-lg font-bold tabular-nums t-1 ${heading}`}>{value}</p>
+      <p className="text-[10px] leading-tight t-3">{label}</p>
     </div>
   );
 }
@@ -681,4 +962,3 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote }: Header
     </header>
   );
 }
-
