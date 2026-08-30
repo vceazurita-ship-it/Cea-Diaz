@@ -16,7 +16,14 @@ import type { HabitStore } from '@/hooks/useHabitStore';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { formatShort, weekKeys, weekdayIndex } from '@/lib/dates';
-import { companionShare, reviewWeek, statusIcon, statusLabel, statusShort } from '@/lib/planCheck';
+import {
+  SILENT,
+  companionShare,
+  reviewWeek,
+  statusIcon,
+  statusLabel,
+  statusShort,
+} from '@/lib/planCheck';
 import {
   COMPANIONS,
   DAY_NAMES,
@@ -97,6 +104,7 @@ const STATUS_STYLE: Record<PlanStatus, string> = {
   cumplido: 'bg-accent t-on-accent',
   flojo: 'bg-amber-400/30 t-1',
   excedido: 't-danger',
+  sinDia: 'surf-2 t-3',
   sinRegistrar: 'surf-3 t-2',
   futuro: 'surf-2 t-3',
   sinMetrica: 'surf-2 t-3',
@@ -830,7 +838,7 @@ export function WeekPlanner({
             ).length;
             const dayJudged = blocks.filter((block) => {
               const status = checkById.get(block.id)?.status;
-              return status && status !== 'sinMetrica' && status !== 'futuro';
+              return status !== undefined && !SILENT.has(status);
             }).length;
 
             return (
@@ -904,7 +912,7 @@ export function WeekPlanner({
                                   </span>
                                 )}
 
-                                {block.metricId && status !== 'sinMetrica' && (
+                                {block.metricId && !SILENT.has(status) && (
                                   <span
                                     className={`rounded-full px-1.5 text-[10px] font-bold ${STATUS_STYLE[status]}`}
                                     title={check?.text}

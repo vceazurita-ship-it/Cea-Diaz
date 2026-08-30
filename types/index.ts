@@ -971,7 +971,14 @@ export interface WeekPlan {
  * Qué ha pasado con un rato planificado, mirado contra lo registrado ese día:
  *  - `sinMetrica`   no está atado a ningún hábito: no hay nada que comprobar.
  *  - `futuro`       todavía no ha llegado el día.
- *  - `sinRegistrar` el día ya pasó y la casilla sigue vacía.
+ *  - `sinDia`       aquel día no se registró nada de nada, así que no hay
+ *                   contra qué comparar. Distinto de `sinRegistrar`: allí el
+ *                   día sí se rellenó y esta casilla concreta se quedó vacía,
+ *                   que es un fallo de verdad; aquí sencillamente no se sabe,
+ *                   y contarlo como fallo daba disparates —una semana tipo
+ *                   recién puesta se estrenaba diciendo «68 fallidos» de unos
+ *                   días en los que ni siquiera existía—.
+ *  - `sinRegistrar` el día se registró y la casilla sigue vacía.
  *  - `cumplido`     lo registrado cubre lo previsto.
  *  - `flojo`        se registró, pero por debajo de lo previsto.
  *  - `excedido`     la métrica era un techo y se ha pasado.
@@ -979,6 +986,7 @@ export interface WeekPlan {
 export type PlanStatus =
   | 'sinMetrica'
   | 'futuro'
+  | 'sinDia'
   | 'sinRegistrar'
   | 'cumplido'
   | 'flojo'

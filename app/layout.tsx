@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
   appleWebApp: { capable: true, title: 'Hábitos', statusBarStyle: 'black-translucent' },
+  // El de Apple está descatalogado y el navegador lo dice en cada carga; el
+  // estándar es éste. Se declaran los dos: iPhone sigue leyendo el suyo.
+  other: { 'mobile-web-app-capable': 'yes' },
   // Es una app doméstica: no tiene sentido que la indexe nadie.
   robots: { index: false, follow: false },
 };
@@ -42,9 +45,25 @@ try {
 }
 `.trim();
 
+/**
+ * `data-mode` no se escribe aquí a propósito, y `<html>` lleva
+ * `suppressHydrationWarning`.
+ *
+ * El guion de arriba corre antes de que React llegue y deja puesto el modo de
+ * verdad. Si además se declarara el atributo en el JSX, React encontraría al
+ * hidratar un `light` que él no ha escrito y avisaría de que el servidor y el
+ * cliente no coinciden —«Prop `data-mode` did not match»— en todas las cargas
+ * de una casa que use el modo día. No era sólo ruido en la consola: React
+ * llegaba a corregir el atributo al valor del servidor, y por un instante la
+ * app se pintaba en el modo que no era.
+ *
+ * Así el atributo tiene un solo dueño: el guion primero y el efecto de
+ * `app/page.tsx` después. Sin él puesto, `:root` de `globals.css` ya resuelve
+ * el modo noche, que es el respaldo de siempre.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" data-skin="night" data-mode="dark">
+    <html lang="es" data-skin="night" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: MODE_BOOTSTRAP }} />
       </head>

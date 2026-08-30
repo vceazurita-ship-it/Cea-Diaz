@@ -123,6 +123,10 @@ function Home() {
   const goHome = useCallback(() => {
     silence();
     setActiveProfile(null);
+    // La pestaña de partida valía sólo para la vuelta de Google Calendar. Sin
+    // borrarla aquí se quedaba pegada, y entrar en cualquier perfil un rato
+    // después seguía abriendo Tareas en vez del registro del día.
+    setLandingTab(undefined);
   }, [silence]);
 
   const profile = activeProfile ? dress(getProfile(activeProfile)) : null;

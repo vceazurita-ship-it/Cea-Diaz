@@ -148,13 +148,19 @@ export function Dashboard({
   /* ------------------------------------------------ atajos de teclado */
 
   // Flechas para cambiar de día y «H» para volver a hoy. Se ignoran mientras
-  // se escribe, para no secuestrar el cursor dentro de la nota.
+  // se escribe, para no secuestrar el cursor dentro de la nota, y mientras
+  // haya un diálogo abierto: con la hoja de un reto o la de los criterios
+  // delante, una flecha cambiaba el día de debajo sin que se viera, y al
+  // cerrar aparecía otro día con otros datos sin que nadie lo hubiera pedido.
+  // Con Alt o Mayús tampoco: ésos son los atajos de la agenda.
   useEffect(() => {
     if (tab !== 'today') return;
 
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.matches('input, textarea, select') || event.metaKey || event.ctrlKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (target?.closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
 
       if (event.key === 'ArrowLeft') onDateChange(addDays(date, -1));
       else if (event.key === 'ArrowRight' && date < todayKey()) onDateChange(addDays(date, 1));

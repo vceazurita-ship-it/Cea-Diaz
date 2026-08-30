@@ -54,11 +54,25 @@ export const KEPT_THRESHOLD = 0.6;
 const STATUS_META: Record<PlanStatus, { icon: string; label: string; short: string }> = {
   sinMetrica: { icon: '·', label: 'Sin hábito atado', short: '—' },
   futuro: { icon: '○', label: 'Por venir', short: 'Por venir' },
+  sinDia: { icon: '·', label: 'Día sin registrar', short: 'Sin día' },
   sinRegistrar: { icon: '?', label: 'Sin registrar', short: 'Sin apuntar' },
   cumplido: { icon: '✓', label: 'Cumplido', short: 'Cumplido' },
   flojo: { icon: '↓', label: 'Por debajo de lo previsto', short: 'Corto' },
   excedido: { icon: '↑', label: 'Por encima del techo', short: 'Pasado' },
 };
+
+/**
+ * Desenlaces que no se marcan en pantalla, porque no dicen nada de nadie: el
+ * rato no está atado a ningún hábito, el día no ha llegado todavía, o aquel
+ * día no se registró nada y no hay contra qué comparar. Vive aquí para que
+ * las tres pantallas que pintan marcas —la cuadrícula, las tarjetas de día y
+ * el plan de hoy— callen exactamente en los mismos casos.
+ */
+export const SILENT: ReadonlySet<PlanStatus> = new Set<PlanStatus>([
+  'sinMetrica',
+  'futuro',
+  'sinDia',
+]);
 
 export function statusIcon(status: PlanStatus): string {
   return STATUS_META[status].icon;
@@ -104,25 +118,44 @@ export function checkBlock(
   const reading = formatMetricValue(metric, value);
 
   if (ratio === null) {
-    return isFuture(date) || date === todayKey()
-      ? {
-          block,
-          date,
-          metric,
-          status: 'futuro',
-          ratio: null,
-          reading,
-          text: `Cuando pase, se comprueba con «${metric.label}».`,
-        }
-      : {
-          block,
-          date,
-          metric,
-          status: 'sinRegistrar',
-          ratio: null,
-          reading,
-          text: `Estaba planificado y «${metric.label}» quedó sin registrar.`,
-        };
+    if (isFuture(date) || date === todayKey()) {
+      return {
+        block,
+        date,
+        metric,
+        status: 'futuro',
+        ratio: null,
+        reading,
+        text: `Cuando pase, se comprueba con «${metric.label}».`,
+      };
+    }
+
+    // Aquel día no se registró **nada**: no es que este hábito fallara, es que
+    // no hay con qué contrastarlo. Decir «fallido» ahí es inventarse un dato,
+    // y en cantidad: una semana tipo recién puesta acusaba de golpe todos los
+    // ratos de los días ya pasados de esa semana, que es cuando más
+    // desanimado está quien acaba de montarla.
+    if (!entry || Object.keys(entry.values).length === 0) {
+      return {
+        block,
+        date,
+        metric,
+        status: 'sinDia',
+        ratio: null,
+        reading,
+        text: `Ese día no se registró nada, así que no hay con qué comprobarlo.`,
+      };
+    }
+
+    return {
+      block,
+      date,
+      metric,
+      status: 'sinRegistrar',
+      ratio: null,
+      reading,
+      text: `Estaba planificado y «${metric.label}» quedó sin registrar.`,
+    };
   }
 
   // Techo: lo que importa no es llegar, es no pasarse. Y el plan lo dice
@@ -212,6 +245,10 @@ export function reviewWeek(
 
   const linked = checks.filter((check) => check.status !== 'sinMetrica');
   const kept = linked.filter((check) => check.status === 'cumplido').length;
+  // `sinDia` no entra: de un día que nadie registró no se puede decir que el
+  // plan fallara. Lo que sale de aquí es «de lo vivido y apuntado, cuánto se
+  // cumplió», y para que esa frase sea cierta hay que dejar fuera lo que no
+  // se apuntó en absoluto.
   const missed = linked.filter(
     (check) => check.status === 'sinRegistrar' || check.status === 'flojo' || check.status === 'excedido',
   ).length;

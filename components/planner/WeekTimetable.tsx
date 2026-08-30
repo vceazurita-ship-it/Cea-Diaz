@@ -17,7 +17,7 @@ import {
   weekSpan,
 } from '@/lib/planner';
 import type { PlanOrnament } from '@/lib/planner';
-import { statusIcon } from '@/lib/planCheck';
+import { SILENT, statusIcon } from '@/lib/planCheck';
 import type { PlanBlock, PlanKind, PlanStatus, WeekPlan } from '@/types';
 
 /* =========================================================================
@@ -920,7 +920,7 @@ export function WeekTimetable({
                             >
                               <span aria-hidden>{block.icon}</span> {block.title || 'Sin nombre'}
                             </span>
-                            {status && status !== 'sinMetrica' && status !== 'futuro' && (
+                            {status && !SILENT.has(status) && (
                               <span className="ml-auto shrink-0 text-[10px]" aria-hidden>
                                 {statusIcon(status)}
                               </span>

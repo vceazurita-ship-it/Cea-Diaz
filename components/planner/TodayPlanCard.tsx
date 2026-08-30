@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { friendlyDateLabel, isToday, weekdayIndex } from '@/lib/dates';
-import { checkBlock, statusIcon, statusLabel } from '@/lib/planCheck';
+import { SILENT, checkBlock, statusIcon, statusLabel } from '@/lib/planCheck';
 import {
   COMPANIONS,
   DAY_NAMES,
@@ -43,6 +43,7 @@ const STATUS_STYLE: Record<PlanStatus, string> = {
   cumplido: 'bg-accent t-on-accent',
   flojo: 'bg-amber-400/30 t-1',
   excedido: 't-danger',
+  sinDia: 'surf-2 t-3',
   sinRegistrar: 'surf-3 t-2',
   futuro: 'surf-2 t-3',
   sinMetrica: 'surf-2 t-3',
@@ -94,9 +95,7 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan }: TodayPl
   // Agenda sin estrenar: aquí no se dice nada.
   if (plan.blocks.length === 0) return null;
 
-  const judged = checks.filter(
-    (check) => check.status !== 'sinMetrica' && check.status !== 'futuro',
-  );
+  const judged = checks.filter((check) => !SILENT.has(check.status));
   const kept = judged.filter((check) => check.status === 'cumplido').length;
   const over = judged.filter((check) => check.status === 'excedido').length;
 
