@@ -1549,6 +1549,12 @@ export interface PlacedBlock {
   span: number;
   /** Carriles que tiene ese racimo. Es el divisor de la anchura. */
   lanes: number;
+  /**
+   * Con cuántos ratos se pisa de verdad. No es lo mismo que estar en un
+   * racimo de varios carriles: en una cadena A–B–C, A y C no se tocan. Esto
+   * es lo que decide si el rato lleva la marca de solape.
+   */
+  clashes: number;
 }
 
 /**
@@ -1595,7 +1601,12 @@ export function laneLayout(blocks: PlanBlock[]): {
       ) {
         span += 1;
       }
-      placed.push({ block: item.block, lane: item.lane, span, lanes });
+
+      const clashes = cluster.filter(
+        (other) => other !== item && other.from < item.to && item.from < other.to,
+      ).length;
+
+      placed.push({ block: item.block, lane: item.lane, span, lanes, clashes });
     }
 
     cluster = [];
@@ -1750,7 +1761,27 @@ function newId(): string {
   return `plan-${Math.random().toString(36).slice(2)}`;
 }
 
-export function blockFromPreset(preset: PlanPreset, day: number): PlanBlock {
+/**
+ * Un rato de los de siempre, listo para colocar.
+ *
+ * Con el perfil delante se decide además quién manda sobre la cantidad. Casi
+ * todos los ratos de siempre declaran exactamente los minutos que duran —la
+ * lectura de veinte minutos aporta veinte— y ésos se dejan al reloj, que es
+ * lo que hace que estirarlos suba también lo previsto. Los pocos en los que
+ * no coincide a propósito —el partido del finde ocupa cuatro horas y son dos
+ * y media de deporte— llegan con la cantidad clavada, porque ahí la cifra es
+ * un criterio y no una cuenta.
+ */
+export function blockFromPreset(preset: PlanPreset, day: number, profileId?: ProfileId): PlanBlock {
+  const metric =
+    profileId && preset.metricId ? findMetric(profileId, preset.metricId) : undefined;
+
+  const pinned =
+    preset.amount !== undefined &&
+    metric !== undefined &&
+    amountScale(metric) !== null &&
+    amountForDuration(metric, preset.duration) !== preset.amount;
+
   return {
     id: newId(),
     day,
@@ -1761,6 +1792,7 @@ export function blockFromPreset(preset: PlanPreset, day: number): PlanBlock {
     kind: preset.kind,
     metricId: preset.metricId,
     amount: preset.amount,
+    amountLock: pinned ? true : undefined,
     companion: preset.companion,
   };
 }
@@ -1795,7 +1827,7 @@ export function blockForMetric(
   const preset = presetsOf(profileId).find((item) => item.metricId === metric.id);
 
   if (preset) {
-    const block = blockFromPreset(preset, day);
+    const block = blockFromPreset(preset, day, profileId);
     return start ? { ...block, start } : block;
   }
 
@@ -1849,6 +1881,96 @@ export function amountUnit(metric: Metric | undefined): string | null {
   if (!metric) return null;
   if (metric.type === 'counter' || metric.type === 'duration') return metric.unit;
   return null;
+}
+
+/* ---------------------------------------------------------------------------
+ * La cantidad que se lleva sola
+ *
+ * Casi todo lo que se ata a un rato se mide en tiempo: minutos de lectura, de
+ * estudio, de movimiento, horas de sueño. En esos casos la cantidad prevista y
+ * lo que dura el bloque son la misma cifra dicha dos veces, y mantenerlas a
+ * mano era el fallo silencioso de toda la sección: se estiraba la lectura de
+ * veinte a cuarenta minutos arrastrando el borde, la agenda decía cuarenta y
+ * el hábito seguía comprobándose contra veinte. Nadie lo notaba hasta que la
+ * semana daba por cumplido lo que no lo estaba.
+ *
+ * Así que la cantidad la lleva el reloj. Cambiar la duración —arrastrando,
+ * estirando, con el teclado o escribiéndola en el editor— cambia lo previsto,
+ * y quien quiera separarlas lo dice escribiendo la cifra a mano: eso deja
+ * puesto `amountLock` y el reloj no vuelve a tocarla.
+ *
+ * Sólo vale para hábitos medidos en tiempo. Los vasos de agua, los toques de
+ * balón o las flexiones no salen de lo que dure el rato, así que ahí no se
+ * toca nada.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * En qué se convierte un minuto de reloj para esa métrica, o `null` si la
+ * métrica no se mide en tiempo y por tanto no puede seguir a la duración.
+ */
+export function amountScale(metric: Metric | undefined): number | null {
+  if (!metric || metric.type !== 'duration') return null;
+  const unit = metric.unit.trim().toLowerCase();
+  if (unit === 'min' || unit === 'mín' || unit === 'minutos') return 1;
+  if (unit === 'h' || unit === 'horas') return 1 / 60;
+  // Segundos, repeticiones y demás: no salen del reloj de la agenda.
+  return null;
+}
+
+/** ¿Le lleva el reloj la cantidad a este rato? */
+export function amountFollowsClock(metric: Metric | undefined, block: PlanBlock): boolean {
+  return !block.amountLock && amountScale(metric) !== null;
+}
+
+/**
+ * La cantidad que le corresponde a una duración, redondeada al paso de la
+ * métrica: media hora de sueño es 0,5 h y no 0,4999.
+ */
+export function amountForDuration(metric: Metric, duration: number): number {
+  const scale = amountScale(metric) ?? 1;
+  const step = 'step' in metric && metric.step > 0 ? metric.step : 1;
+  const raw = duration * scale;
+  const snapped = Math.round(raw / step) * step;
+  // El paso puede ser 0,25: sin esto salen colas de coma flotante.
+  return Math.round(snapped * 1000) / 1000;
+}
+
+/**
+ * El mismo rato con la cantidad puesta al día. Es lo que se llama en cada
+ * alta y en cada cambio, para que no haya forma de guardar un bloque cuya
+ * duración y cuya cantidad prevista digan cosas distintas.
+ */
+export function withClockAmount(profileId: ProfileId, block: PlanBlock): PlanBlock {
+  if (!block.metricId || block.amountLock) return block;
+
+  const metric = findMetric(profileId, block.metricId);
+  if (!metric || amountScale(metric) === null) return block;
+
+  const amount = amountForDuration(metric, block.duration);
+  return amount === block.amount ? block : { ...block, amount };
+}
+
+/**
+ * Cuánto cambiaría lo previsto al dejar el rato en esa duración, para poder
+ * decirlo en el aviso: «40 min, y la lectura del martes pasa a 40 min».
+ * Devuelve `null` cuando la cantidad no la lleva el reloj.
+ */
+export function clockAmountChange(
+  profileId: ProfileId,
+  block: PlanBlock,
+  duration: number,
+): { amount: number; unit: string; label: string } | null {
+  if (!block.metricId || block.amountLock) return null;
+
+  const metric = findMetric(profileId, block.metricId);
+  // La comprobación del tipo va aparte de la escala porque es la que deja al
+  // compilador saber que esta métrica tiene unidad.
+  if (!metric || metric.type !== 'duration' || amountScale(metric) === null) return null;
+
+  const amount = amountForDuration(metric, duration);
+  if (amount === block.amount) return null;
+
+  return { amount, unit: metric.unit, label: `${amount} ${metric.unit}` };
 }
 
 /* ---------------------------------------------------------------------------
@@ -2035,7 +2157,7 @@ export function sampleWeek(profileId: ProfileId): PlanBlock[] {
   for (const [day, title, start] of SEEDS[profileId] ?? []) {
     const preset = presets.find((item) => item.title === title);
     if (!preset) continue;
-    blocks.push({ ...blockFromPreset(preset, day), start: start ?? preset.start });
+    blocks.push({ ...blockFromPreset(preset, day, profileId), start: start ?? preset.start });
   }
 
   return sortBlocks(blocks);
@@ -2056,7 +2178,7 @@ const KIND_SET = new Set<string>(PLAN_KIND_LIST);
 const COMPANION_SET = new Set<string>(COMPANION_LIST);
 
 /** Deja pasar sólo lo que tiene forma de rato; lo demás se descarta. */
-function normalizeBlock(value: unknown, index: number): PlanBlock | null {
+function normalizeBlock(value: unknown, index: number, profileId?: string): PlanBlock | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Partial<PlanBlock>;
 
@@ -2070,16 +2192,37 @@ function normalizeBlock(value: unknown, index: number): PlanBlock | null {
   const duration = Number(raw.duration);
   const amount = Number(raw.amount);
 
+  const minutes = Number.isFinite(duration) ? Math.max(5, Math.min(720, duration)) : 60;
+  const declared = raw.amount !== undefined && Number.isFinite(amount) ? amount : undefined;
+  const metricId = typeof raw.metricId === 'string' && raw.metricId ? raw.metricId : undefined;
+
+  /**
+   * Las agendas guardadas antes de que la cantidad la llevara el reloj no
+   * traen la marca de «esto lo he puesto yo», y las hay que dicen a propósito
+   * algo distinto de lo que duran: el partido del finde ocupa cuatro horas y
+   * son dos y media de deporte. Al leerlas se les clava la cifra, para que la
+   * primera vez que se estire el bloque no se pierda ese criterio. Lo que ya
+   * cuadraba con el reloj se queda al reloj, que es la mayoría.
+   */
+  const metric =
+    profileId && metricId ? findMetric(profileId as ProfileId, metricId) : undefined;
+  const drifted =
+    declared !== undefined &&
+    metric !== undefined &&
+    amountScale(metric) !== null &&
+    amountForDuration(metric, minutes) !== declared;
+
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `plan-${index}`,
     day,
     start,
-    duration: Number.isFinite(duration) ? Math.max(5, Math.min(720, duration)) : 60,
+    duration: minutes,
     title: typeof raw.title === 'string' ? raw.title.slice(0, 60) : '',
     icon: typeof raw.icon === 'string' && raw.icon ? raw.icon.slice(0, 4) : '📌',
     kind: typeof raw.kind === 'string' && KIND_SET.has(raw.kind) ? (raw.kind as PlanKind) : 'otro',
-    metricId: typeof raw.metricId === 'string' && raw.metricId ? raw.metricId : undefined,
-    amount: raw.amount !== undefined && Number.isFinite(amount) ? amount : undefined,
+    metricId,
+    amount: declared,
+    amountLock: raw.amountLock === true || drifted ? true : undefined,
     companion:
       typeof raw.companion === 'string' && COMPANION_SET.has(raw.companion)
         ? (raw.companion as Companion)
@@ -2088,14 +2231,14 @@ function normalizeBlock(value: unknown, index: number): PlanBlock | null {
   };
 }
 
-function normalize(value: unknown): WeekPlan {
+function normalize(value: unknown, profileId?: string): WeekPlan {
   const base = emptyPlan();
   if (!value || typeof value !== 'object') return base;
 
   const raw = value as Partial<WeekPlan>;
   const blocks = Array.isArray(raw.blocks)
     ? raw.blocks
-        .map(normalizeBlock)
+        .map((block, index) => normalizeBlock(block, index, profileId))
         .filter((block): block is PlanBlock => block !== null)
         .slice(0, MAX_BLOCKS)
     : [];
@@ -2116,7 +2259,7 @@ export function loadPlans(): Record<string, WeekPlan> {
     const out: Record<string, WeekPlan> = {};
 
     for (const [profileId, value] of Object.entries(parsed ?? {})) {
-      out[profileId] = normalize(value);
+      out[profileId] = normalize(value, profileId);
     }
 
     cache = out;
@@ -2161,14 +2304,21 @@ export function updatePlan(profileId: ProfileId, blocks: PlanBlock[]): WeekPlan 
   return next;
 }
 
-/** Alta o modificación de un rato, por identificador. */
+/**
+ * Alta o modificación de un rato, por identificador.
+ *
+ * Pasa por aquí todo lo que cambia un rato —el editor, el arrastre, el
+ * estirón, las flechas del teclado—, así que es aquí donde la cantidad
+ * prevista se pone al día con el reloj y no en cada sitio que lo llama.
+ */
 export function savePlanBlock(profileId: ProfileId, block: PlanBlock): WeekPlan {
   const current = planOf(profileId).blocks;
   const exists = current.some((item) => item.id === block.id);
+  const synced = withClockAmount(profileId, block);
 
   return updatePlan(
     profileId,
-    exists ? current.map((item) => (item.id === block.id ? block : item)) : [...current, block],
+    exists ? current.map((item) => (item.id === block.id ? synced : item)) : [...current, synced],
   );
 }
 
@@ -2185,7 +2335,7 @@ export function addPlanBlocks(profileId: ProfileId, blocks: PlanBlock[]): number
 
   const current = planOf(profileId).blocks;
   const room = Math.max(0, MAX_BLOCKS - current.length);
-  const added = blocks.slice(0, room);
+  const added = blocks.slice(0, room).map((block) => withClockAmount(profileId, block));
 
   if (added.length > 0) updatePlan(profileId, [...current, ...added]);
   return added.length;
@@ -2272,7 +2422,7 @@ function place(
   const kept = clear.size > 0 ? current.filter((block) => !clear.has(block.day)) : current;
 
   const room = Math.max(0, MAX_BLOCKS - kept.length);
-  const added = incoming.slice(0, room);
+  const added = incoming.slice(0, room).map((block) => withClockAmount(profileId, block));
   if (added.length === 0 && kept.length === current.length) return NO_COPY;
 
   updatePlan(profileId, [...kept, ...added]);
@@ -2469,6 +2619,15 @@ function relink(profileId: ProfileId): { blocks: PlanBlock[]; result: RelinkResu
     const alive = block.metricId ? findMetric(profileId, block.metricId) : undefined;
 
     if (alive) {
+      // Lo que se mide en tiempo lo lleva el reloj, así que aquí se aprovecha
+      // para poner al día las agendas guardadas antes de que fuera así: un
+      // rato de lectura de cuarenta minutos que seguía diciendo veinte.
+      const ticked = withClockAmount(profileId, block);
+      if (ticked !== block) {
+        result.filled += 1;
+        return ticked;
+      }
+
       const preset = presets.get(titleKey(block.title));
       if (
         block.amount === undefined &&
@@ -2493,7 +2652,8 @@ function relink(profileId: ProfileId): { blocks: PlanBlock[]; result: RelinkResu
     }
 
     result.linked += 1;
-    return { ...block, metricId: preset.metricId, amount: preset.amount };
+    const tied: PlanBlock = { ...block, metricId: preset.metricId, amount: preset.amount };
+    return preset.amount !== undefined ? tied : withClockAmount(profileId, tied);
   });
 
   return { blocks: next, result };
@@ -2614,7 +2774,7 @@ export function applyRemotePlans(remote: Record<string, WeekPlan>): void {
 
   for (const [profileId, plan] of Object.entries(remote)) {
     const mine = merged[profileId];
-    const theirs = normalize(plan);
+    const theirs = normalize(plan, profileId);
     if (mine && Date.parse(mine.updatedAt) >= Date.parse(theirs.updatedAt)) continue;
     merged[profileId] = theirs;
     changed = true;
@@ -2630,7 +2790,9 @@ export function applyRemotePlans(remote: Record<string, WeekPlan>): void {
  */
 export function replacePlans(remote: Record<string, WeekPlan>): void {
   const next: Record<string, WeekPlan> = {};
-  for (const [profileId, plan] of Object.entries(remote)) next[profileId] = normalize(plan);
+  for (const [profileId, plan] of Object.entries(remote)) {
+    next[profileId] = normalize(plan, profileId);
+  }
   commit(next);
 }
 

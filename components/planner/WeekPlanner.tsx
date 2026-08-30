@@ -25,6 +25,7 @@ import {
   addPlanBlocks,
   blocksOfDay,
   clearDayPlan,
+  clockAmountChange,
   copyBlockTo,
   copyDayTo,
   copyWeekFrom,
@@ -307,18 +308,44 @@ export function WeekPlanner({
     });
   };
 
-  /** Estirar por abajo: el rato dura lo que se le deje. */
-  const resize = (block: PlanBlock, duration: number) => {
-    if (duration === block.duration) return;
+  /**
+   * Estirar el rato: por abajo dura más, por arriba empieza antes.
+   *
+   * Y si está atado a un hábito que se mide en tiempo, lo previsto va detrás
+   * solo. Se dice en el aviso a propósito: cambiar la duración cambia también
+   * contra qué se comprueba el hábito, y eso no puede pasar en silencio.
+   */
+  const resize = (block: PlanBlock, duration: number, start?: string) => {
+    const at = start ?? block.start;
+    if (duration === block.duration && at === block.start) return;
+
     const before = planOf(profile.id).blocks;
-    savePlanBlock(profile.id, { ...block, duration });
+    const tied = clockAmountChange(profile.id, block, duration);
+    savePlanBlock(profile.id, { ...block, duration, start: at });
 
     notify({
-      message: `«${block.title || 'El rato'}»: ${durationLabel(duration)}, hasta las ${timeOf(
-        minutesOf(block.start) + duration,
-      )}.`,
+      message: `«${block.title || 'El rato'}»: ${at} – ${timeOf(
+        minutesOf(at) + duration,
+      )}, ${durationLabel(duration)}.${tied ? ` Lo previsto, ${tied.label}.` : ''}`,
       icon: '↕️',
       action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+  };
+
+  /** Una copia donde se suelte: arrastrando con Alt o con el botón del rato. */
+  const duplicate = (block: PlanBlock, day: number, start: string) => {
+    const before = planOf(profile.id).blocks;
+    const copy = duplicateBlock(profile.id, { ...block, day }, start);
+    const title = block.title || 'El rato';
+
+    notify({
+      message: copy
+        ? day === block.day
+          ? `«${title}» otra vez a las ${start}.`
+          : `«${title}» copiado al ${DAY_NAMES[day].toLowerCase()} a las ${start}.`
+        : 'La semana está llena: no cabe otra copia.',
+      icon: copy ? '⧉' : '🚧',
+      action: copy ? { label: 'Deshacer', onClick: undoTo(before) } : undefined,
     });
   };
 
@@ -722,9 +749,9 @@ export function WeekPlanner({
             </label>
           )}
 
-          <p className="w-full text-[11px] t-3">
+          <p className="w-full text-[11px] leading-relaxed t-3">
             {shown === 'completa'
-              ? 'Pica en un rato para cambiarlo, arrástralo para moverlo, estíralo por abajo para que dure más, o pica en un hueco para apartar uno.'
+              ? 'Pica en un rato para cambiarlo y arrástralo para moverlo. Estíralo por arriba o por abajo para cambiar lo que dura —y con ello lo que se pretende dedicar al hábito—, arrástralo con Alt para copiarlo, y en su esquina tienes ⧉ para repetirlo y ✕ para quitarlo sin abrir nada.'
               : 'Aquí se aparta, se copia, se mueve y se vacía.'}
           </p>
         </div>
@@ -764,6 +791,7 @@ export function WeekPlanner({
             days={shownDays}
             heading={heading}
             zoom={zoom}
+            ornament={theme.ornament}
             focus={focus}
             query={query}
             onSelect={(block) => setEditing({ block, isNew: false })}
@@ -771,6 +799,8 @@ export function WeekPlanner({
             onDay={(day) => setSheet({ kind: 'day', day })}
             onMove={move}
             onResize={resize}
+            onDuplicate={duplicate}
+            onDelete={remove}
           />
 
           <p className="mt-2 hidden text-center text-[11px] t-3 sm:block">
@@ -781,7 +811,10 @@ export function WeekPlanner({
             <kbd className="font-mono font-bold">↑↓</kbd> corre la hora ·{' '}
             <kbd className="font-mono font-bold">Alt</kbd> +{' '}
             <kbd className="font-mono font-bold">Mayús</kbd> +{' '}
-            <kbd className="font-mono font-bold">↑↓</kbd> alarga o acorta
+            <kbd className="font-mono font-bold">↑↓</kbd> alarga o acorta ·{' '}
+            <kbd className="font-mono font-bold">Alt</kbd> +{' '}
+            <kbd className="font-mono font-bold">D</kbd> repite ·{' '}
+            <kbd className="font-mono font-bold">Supr</kbd> quita
           </p>
         </section>
       )}
@@ -897,6 +930,19 @@ export function WeekPlanner({
                             className="btn-ghost min-h-0 shrink-0 px-2 py-0 text-xs"
                           >
                             ⧉
+                          </button>
+
+                          {/* Quitarlo desde la lista, sin abrirlo. Lo mismo que
+                              hace la ✕ de la cuadrícula, y con el mismo
+                              «deshacer» detrás. */}
+                          <button
+                            type="button"
+                            onClick={() => remove(block)}
+                            aria-label={`Quitar «${block.title}»`}
+                            title="Quitar de la semana (se puede deshacer)"
+                            className="btn-ghost min-h-0 shrink-0 px-2 py-0 text-xs"
+                          >
+                            ✕
                           </button>
                         </li>
                       );

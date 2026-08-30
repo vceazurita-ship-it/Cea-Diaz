@@ -9,6 +9,8 @@ import {
   DAY_NAMES,
   PLAN_KINDS,
   PLAN_KIND_LIST,
+  amountForDuration,
+  amountScale,
   amountUnit,
   blockFromPreset,
   durationLabel,
@@ -114,23 +116,42 @@ export function BlockEditor({
    */
   const applyPreset = (preset: PlanPreset) =>
     setDraft((prev) => ({
-      ...blockFromPreset(preset, prev.day),
+      ...blockFromPreset(preset, prev.day, profile.id),
       id: prev.id,
       start: prev.start === '17:00' ? preset.start : prev.start,
       note: prev.note,
     }));
 
-  const metric: Metric | undefined = useMemo(() => {
-    if (!draft.metricId) return undefined;
-    for (const group of groups) {
-      const found = group.metrics.find((item) => item.id === draft.metricId);
-      if (found) return found;
-    }
-    return undefined;
-  }, [draft.metricId, groups]);
+  /** Los hábitos atables, por identificador: hace falta dentro de `patch`. */
+  const byId = useMemo(() => {
+    const index = new Map<string, Metric>();
+    for (const group of groups) for (const item of group.metrics) index.set(item.id, item);
+    return index;
+  }, [groups]);
+
+  const metric: Metric | undefined = draft.metricId ? byId.get(draft.metricId) : undefined;
 
   const unit = amountUnit(metric);
-  const patch = (values: Partial<PlanBlock>) => setDraft((prev) => ({ ...prev, ...values }));
+  /** `true` cuando el hábito se mide en tiempo y la cantidad puede ir sola. */
+  const clock = amountScale(metric) !== null;
+
+  /**
+   * Cualquier cambio del formulario pasa por aquí, y aquí es donde la cantidad
+   * prevista sigue al reloj: subir la lectura de veinte a cuarenta minutos
+   * sube lo previsto sin tener que acordarse de bajar a corregirlo. Deja de
+   * hacerlo en cuanto la cifra se escribe a mano, que es lo que pone
+   * `amountLock`.
+   */
+  const patch = (values: Partial<PlanBlock>) =>
+    setDraft((prev) => {
+      const next = { ...prev, ...values };
+      if (next.amountLock || !next.metricId) return next;
+
+      const tied = byId.get(next.metricId);
+      if (!tied || amountScale(tied) === null) return next;
+
+      return { ...next, amount: amountForDuration(tied, next.duration) };
+    });
 
   const counts = useMemo(
     () => [0, 1, 2, 3, 4, 5, 6].map((day) => plan.blocks.filter((item) => item.day === day).length),
@@ -435,7 +456,11 @@ export function BlockEditor({
           <select
             value={draft.metricId ?? ''}
             onChange={(event) =>
-              patch({ metricId: event.target.value || undefined, amount: undefined })
+              patch({
+                metricId: event.target.value || undefined,
+                amount: undefined,
+                amountLock: undefined,
+              })
             }
             className="field w-full"
           >
@@ -454,10 +479,18 @@ export function BlockEditor({
 
         {unit && (
           <label className="mt-3 block">
-            <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">
+            <span className="mb-1 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide t-3">
               Cuánto aporta este rato
+              {clock && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] normal-case tracking-normal
+                    ${draft.amountLock ? 'surf-2 t-2' : 'bg-accent-soft t-1'}`}
+                >
+                  {draft.amountLock ? '✏️ a mano' : '⏱️ lo lleva el reloj'}
+                </span>
+              )}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="number"
                 min={0}
@@ -466,6 +499,9 @@ export function BlockEditor({
                 onChange={(event) =>
                   patch({
                     amount: event.target.value === '' ? undefined : Number(event.target.value),
+                    // Escribirla a mano es decir que esta cifra manda: a partir
+                    // de aquí, estirar el rato ya no la toca.
+                    amountLock: clock ? true : undefined,
                   })
                 }
                 placeholder="—"
@@ -477,14 +513,30 @@ export function BlockEditor({
                   ({targetWord(metric)} del día: {metric.target} {metric.unit})
                 </span>
               )}
+              {clock && draft.amountLock && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    patch({
+                      amountLock: undefined,
+                      amount: amountForDuration(metric!, draft.duration),
+                    })
+                  }
+                  className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
+                >
+                  ⏱️ Que lo lleve el reloj
+                </button>
+              )}
             </div>
           </label>
         )}
 
         <p className="mt-2 text-xs leading-relaxed t-3">
-          {draft.metricId
-            ? 'Con esto, la semana puede decir si lo previsto se cumplió, se quedó corto o se pasó del máximo.'
-            : 'Sin hábito atado el rato se apunta igual, pero la agenda no podrá comprobar nada de él.'}
+          {!draft.metricId
+            ? 'Sin hábito atado el rato se apunta igual, pero la agenda no podrá comprobar nada de él.'
+            : clock && !draft.amountLock
+              ? `Se mide en tiempo, así que la cantidad va sola: lo que dure el rato es lo que se pretende dedicarle. Cambia la duración —aquí o estirándolo en la cuadrícula— y esto va detrás. Escríbela a mano si en este rato no coincide.`
+              : 'Con esto, la semana puede decir si lo previsto se cumplió, se quedó corto o se pasó del máximo.'}
         </p>
       </section>
 

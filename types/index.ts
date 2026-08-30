@@ -941,6 +941,21 @@ export interface PlanBlock {
   metricId?: string;
   /** Cuánto aporta a esa métrica (minutos, vasos, sesiones…). */
   amount?: number;
+  /**
+   * `true` cuando la cantidad se ha escrito a mano y manda sobre el reloj.
+   *
+   * Por defecto, un rato atado a un hábito que se mide en tiempo —minutos de
+   * lectura, horas de sueño— lleva la cuenta solo: lo que dura el bloque es
+   * lo que se pretende dedicarle, así que estirar la lectura de veinte a
+   * cuarenta minutos sube también lo previsto. Es lo natural, y es lo que
+   * evita que la agenda y el registro se separen sin que nadie se entere.
+   *
+   * Pero hay ratos en los que no coincide: en una hora de gimnasio se leen
+   * quince minutos. Quien escribe la cantidad a mano en el editor deja esta
+   * marca puesta, y a partir de ahí el reloj ya no la toca hasta que se pida
+   * volver al automático.
+   */
+  amountLock?: boolean;
   /** Con quién está el peque en ese rato. */
   companion?: Companion;
   note?: string;
