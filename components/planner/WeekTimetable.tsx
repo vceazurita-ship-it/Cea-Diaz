@@ -44,8 +44,10 @@ import type { PlanBlock, PlanKind, PlanStatus, WeekPlan } from '@/types';
  *   · con el teclado se hace todo lo mismo: **Alt + flechas** mueve el rato
  *     que tenga el foco, que es como se afina sin ratón y como se llega desde
  *     un lector de pantalla;
- *   · lo que **se pisa** se dibuja escalonado y marcado, en vez de repartirse
- *     el ancho en silencio;
+ *   · lo que **se pisa** se reparte el ancho sin taparse y va marcado —filete
+ *     rojo, ⚠ y la cuenta en la cabecera del día—, en vez de repartírselo en
+ *     silencio; y cada pastilla enseña lo que le cabe según lo ancha que haya
+ *     salido, que es lo que hace legible la hora más liada de la semana;
  *   · se elige **cuántos días** se miran, porque siete columnas en un móvil
  *     no son una semana, son un acordeón;
  *   · el **alto de la hora** se cambia, la cabecera de cada día **es un
@@ -299,6 +301,7 @@ export function WeekTimetable({
    * otra cosa. Con ratón manda el `hover` de siempre y esto sólo acompaña.
    */
   const [marked, setMarked] = useState<string | null>(null);
+
 
   /* --------------------------------------------------------- arrastrar */
 
@@ -752,30 +755,41 @@ export function WeekTimetable({
                     const box = Math.max(15, ((to - from) / 60) * HOUR - 2);
                     const tall = box >= 34;
                     const roomy = box >= 52;
+                    /**
+                     * Un rato de veinte minutos son quince píxeles de alto, y
+                     * ahí el relleno de arriba y abajo se come el renglón: la
+                     * lectura de antes de dormir salía partida por la mitad.
+                     * Cuando el sitio es ése, se quita el relleno y se baja un
+                     * punto la letra, que es la diferencia entre leerse y no.
+                     */
+                    const squat = box < 24;
                     const off =
                       (focus !== null && block.kind !== focus) ||
                       (needle !== '' && !block.title.toLowerCase().includes(needle));
 
                     /**
-                     * Lo que se pisa, escalonado.
+                     * Lo que se pisa, uno al lado del otro y sin taparse.
                      *
-                     * Repartir el ancho a partes iguales es correcto y es
-                     * ilegible: dos cosas a la vez se quedan en dos rendijas
-                     * donde no cabe ni el nombre. Cuando hay algo a la
-                     * derecha, la pastilla se ensancha por debajo de la
-                     * siguiente y el orden lo pone el apilado; así se ve que
-                     * hay dos, se lee la de encima entera y se sigue viendo el
-                     * borde de la de debajo.
+                     * Se probó escalonándolos, que es lo que hacen media
+                     * docena de calendarios: la pastilla de delante se monta
+                     * un poco encima de la de detrás. Se lee peor, no mejor
+                     * —tapa justo la esquina donde están la hora y los botones
+                     * del rato de debajo, y deja de verse dónde acaba cada
+                     * uno—. Así que cada uno en su carril, con un canal de tres
+                     * píxeles entre medias para que se vean los dos bordes, y
+                     * el aviso de que se pisan se da por otro lado: filete
+                     * rojo, ⚠ en la hora y la cuenta en la cabecera del día.
                      */
-                    const stacked = lanes > 1 && lane + width < lanes;
-                    const widthPct = (width / lanes) * 100 + (stacked ? 7 : 0);
+                    const widthPct = (width / lanes) * 100;
 
                     /**
                      * Copiar y quitar piden un sitio donde picar, así que sólo
-                     * salen en pastillas con sitio. Con ratón salen al pasar
-                     * por encima; con el dedo no hay «pasar por encima», así
-                     * que se enseñan mientras esté puesto el modo de arrastrar,
-                     * que es el que dice «vengo a tocar la semana».
+                     * salen en pastillas con sitio: el alto se mira aquí y el
+                     * ancho lo mira `.rato-util` desde el CSS. Con ratón salen
+                     * al pasar por encima; con el dedo no hay «pasar por
+                     * encima», así que se enseñan mientras esté puesto el modo
+                     * de arrastrar, que es el que dice «vengo a tocar la
+                     * semana».
                      */
                     const showTools =
                       (Boolean(onDuplicate) || Boolean(onDelete)) && !dragging && box >= 24;
@@ -803,7 +817,7 @@ export function WeekTimetable({
                           top: topOf(from) + 1,
                           height: box,
                           left: `${(lane / lanes) * 100}%`,
-                          width: `calc(${widthPct}% - 2px)`,
+                          width: `calc(${widthPct}% - 3px)`,
                           touchAction: handMode ? 'none' : 'manipulation',
                           zIndex: dragging ? 30 : Math.min(4 + lane, 9),
                           visibility: travelling ? 'hidden' : undefined,
@@ -817,7 +831,8 @@ export function WeekTimetable({
                               ? 'inset 0 0 0 1.5px color-mix(in srgb, var(--danger) 65%, transparent), 0 2px 6px -2px rgba(0,0,0,0.35)'
                               : undefined,
                         }}
-                        className={`group absolute select-none overflow-hidden px-1.5 py-0.5 text-left
+                        className={`rato group absolute select-none overflow-hidden text-left
+                                    ${squat ? 'px-1.5 py-0' : 'px-1.5 py-0.5'}
                                     outline-none transition-[filter,opacity] focus-visible:ring-2
                                     focus-visible:ring-[color:var(--ring)] ${look.chip}
                                     ${
@@ -825,7 +840,6 @@ export function WeekTimetable({
                                         ? 'surf-raised t-1 hairline-strong shadow-sm hover:brightness-[1.04]'
                                         : `bg-gradient-to-br text-white shadow-sm hover:brightness-110 ${kindMeta.gradient}`
                                     }
-                                    ${stacked ? 'shadow-md' : ''}
                                     ${off ? 'opacity-20' : ''}
                                     ${dragging ? 'scale-[1.02] opacity-90 shadow-lg ring-2 ring-white/70' : ''}
                                     ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
@@ -864,56 +878,108 @@ export function WeekTimetable({
                           </span>
                         )}
 
-                        <span className="relative flex items-baseline gap-1">
-                          <span className={`truncate text-[11px] leading-tight ${look.title}`}>
-                            <span aria-hidden>{block.icon}</span> {block.title || 'Sin nombre'}
-                          </span>
-                          {status && status !== 'sinMetrica' && status !== 'futuro' && (
-                            <span className="ml-auto shrink-0 text-[10px]" aria-hidden>
-                              {statusIcon(status)}
+                        {/* Sin sitio para una palabra en un renglón: el emoji
+                            arriba y el nombre partido debajo. Cuál de los dos
+                            se enseña lo deciden `.rato-corto` y `.rato-largo`
+                            por lo ancha que haya salido la pastilla, no por lo
+                            ancha que sea la pantalla: es la misma semana la que
+                            reparte a lo ancho, y sólo ella sabe cuánto le queda
+                            a cada rato. */}
+                        <span
+                          className={`rato-corto relative h-full flex-col items-center gap-0.5 overflow-hidden
+                            ${tall ? 'justify-start pt-0.5' : 'justify-center'}`}
+                        >
+                          <span className="flex items-center gap-0.5">
+                            <span aria-hidden className="text-sm leading-none">
+                              {block.icon}
                             </span>
-                          )}
-                        </span>
-
-                        {tall && (
-                          <span
-                            className={`relative mt-0.5 flex items-center gap-1 truncate text-[10px] tabular-nums
-                              ${wash ? 't-3' : 'opacity-85'}`}
-                          >
-                            <span className="truncate">
-                              {timeOf(from)}
-                              {roomy && <> – {timeOf(to)}</>} · {durationLabel(length)}
-                            </span>
-                            {/* Con quién está el peque: en el campo es la mitad
-                                de la información del rato. */}
-                            {block.companion && (
-                              <span aria-hidden title={COMPANIONS[block.companion].label}>
-                                {COMPANIONS[block.companion].icon}
-                              </span>
-                            )}
                             {clashes > 0 && (
-                              <span className={wash ? 't-danger' : ''} title="Se pisa con otro rato">
+                              <span aria-hidden className={`text-[9px] ${wash ? 't-danger' : ''}`}>
                                 ⚠
                               </span>
                             )}
                           </span>
-                        )}
+                          {/* Con alto de sobra cabe el nombre partido en dos o
+                              tres líneas, que es mejor que un emoji solo en
+                              medio de una tarjeta de dos horas. */}
+                          {tall && (
+                            <span
+                              className={`rato-nombre w-full break-words text-center text-[9px] font-semibold leading-[1.15]
+                                ${wash ? 't-2' : 'opacity-95'}`}
+                            >
+                              {block.title || 'Sin nombre'}
+                            </span>
+                          )}
+                        </span>
 
-                        {roomy && block.metricId && (
-                          <span
-                            aria-hidden
-                            className={`absolute bottom-0.5 right-1 text-[9px] ${wash ? 't-3' : 'opacity-70'}`}
-                          >
-                            🔗
+                        <span className="rato-largo">
+                          <span className="relative flex items-baseline gap-1">
+                            <span
+                              className={`truncate leading-tight ${look.title}
+                                ${squat ? 'text-[10px]' : 'text-[11px]'}`}
+                            >
+                              <span aria-hidden>{block.icon}</span> {block.title || 'Sin nombre'}
+                            </span>
+                            {status && status !== 'sinMetrica' && status !== 'futuro' && (
+                              <span className="ml-auto shrink-0 text-[10px]" aria-hidden>
+                                {statusIcon(status)}
+                              </span>
+                            )}
                           </span>
-                        )}
+
+                          {tall && (
+                            <span
+                              className={`relative mt-0.5 flex items-center gap-1 truncate text-[10px] tabular-nums
+                                ${wash ? 't-3' : 'opacity-85'}`}
+                            >
+                              <span className="truncate">
+                                {timeOf(from)}
+                                {roomy && (
+                                  <span className="rato-detalle"> – {timeOf(to)}</span>
+                                )}
+                                <span className="rato-detalle">
+                                  {' '}
+                                  · {durationLabel(length)}
+                                </span>
+                              </span>
+                              {/* Con quién está el peque: en el campo es la
+                                  mitad de la información del rato. */}
+                              {block.companion && (
+                                <span
+                                  aria-hidden
+                                  className="rato-detalle"
+                                  title={COMPANIONS[block.companion].label}
+                                >
+                                  {COMPANIONS[block.companion].icon}
+                                </span>
+                              )}
+                              {clashes > 0 && (
+                                <span
+                                  className={wash ? 't-danger' : ''}
+                                  title="Se pisa con otro rato"
+                                >
+                                  ⚠
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          {roomy && block.metricId && (
+                            <span
+                              aria-hidden
+                              className={`rato-detalle absolute bottom-0.5 right-1 text-[9px] ${wash ? 't-3' : 'opacity-70'}`}
+                            >
+                              🔗
+                            </span>
+                          )}
+                        </span>
 
                         {/* Copiar y quitar sin abrir nada. Es lo que convierte
                             rellenar la semana en un rato en vez de en una
                             sesión de formularios. */}
                         {showTools && (
                           <span
-                            className={`absolute right-0.5 top-0.5 z-10 flex gap-0.5 transition-opacity
+                            className={`rato-util absolute right-0.5 top-0.5 z-10 flex gap-0.5 transition-opacity
                               group-hover:opacity-100 group-focus-within:opacity-100
                               ${toolsOn ? 'opacity-100' : 'opacity-0'}`}
                           >

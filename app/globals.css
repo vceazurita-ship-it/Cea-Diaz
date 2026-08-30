@@ -390,6 +390,70 @@ button:active:not(:disabled),
   }
 }
 
+/* -------------------------------------------------------------------------
+ * Lo que le cabe dentro a un rato de la agenda
+ *
+ * Una pastilla de la semana mide lo que le dejen: sola ocupa la columna
+ * entera, y con dos cosas más a la misma hora se queda en cincuenta píxeles.
+ * Ahí no cabe «Reunión de staff · 16:30 – 18:30 · 2 h»; cabe un emoji. Y no
+ * depende del tamaño de la pantalla sino del de la propia pastilla, así que
+ * lo decide una consulta de contenedor y no una media query ni una medida
+ * tomada a mano en JavaScript —que es lo que había, y llegaba tarde o pronto
+ * según cuándo terminase de asentarse el diseño—.
+ *
+ * Las medidas son del hueco de dentro —lo que mide una consulta de contenedor
+ * es la caja de contenido, no la pastilla con su relleno y su borde—, así que
+ * son unos catorce píxeles menos de lo que ocupa el rato en la columna:
+ *
+ *  · por debajo de 110 se cae el detalle: el final, la duración, con quién y
+ *    la marca de atado. Se quedan el nombre y la hora de empezar;
+ *  · por debajo de 58 no cabe el nombre en un renglón con la hora: la pastilla
+ *    pasa a emoji arriba y nombre partido debajo, si tiene alto para él;
+ *  · por debajo de 30 no cabe ni partido —«Reunión» salía en columna, una
+ *    letra por línea— y se queda el emoji solo. El nombre lo dicen el globo y
+ *    el `aria-label`, que ahí siguen enteros.
+ * ------------------------------------------------------------------------- */
+.rato {
+  container-type: inline-size;
+}
+.rato-corto {
+  display: none;
+}
+.rato-largo {
+  display: block;
+}
+
+/* `.rato-detalle` y `.rato-util` no declaran su presentación normal a
+   propósito: la traen de su clase de Tailwind —una es en línea, la otra una
+   fila— y aquí sólo se las esconde. Devolverles un `display` fijo sería
+   pisar esa clase, porque estas reglas van después de las utilidades. */
+@container (max-width: 109px) {
+  .rato-detalle {
+    display: none;
+  }
+}
+
+@container (max-width: 57px) {
+  .rato-corto {
+    display: flex;
+  }
+  .rato-largo,
+  .rato-util {
+    display: none;
+  }
+}
+
+@container (max-width: 29px) {
+  .rato-nombre {
+    display: none;
+  }
+  /* Sin nombre debajo, el emoji se centra en la pastilla entera. */
+  .rato-corto {
+    justify-content: center;
+    padding-top: 0;
+  }
+}
+
 /* Rango (sliders) con estilo consistente en navegadores. El pulgar hereda el
    acento del perfil y mide 24 px: agarrable con el dedo. */
 input[type='range'] {
