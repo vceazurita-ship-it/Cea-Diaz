@@ -69,28 +69,147 @@ export const DAY_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 interface KindMeta {
   label: string;
   icon: string;
-  /** Clases Tailwind del degradado de la pastilla del rato. */
-  gradient: string;
+  /**
+   * La gama del área, en grados de tono: por dónde empieza el degradado y por
+   * dónde acaba. De aquí sale el color de cada rato, y de aquí sale también
+   * el margen dentro del que un tema puede desviarse sin salirse del área.
+   */
+  hue: number;
+  hueTo: number;
+  /** Cuánto color lleva. El trabajo es gris a propósito; el ocio, no. */
+  sat: number;
   /** `true` en lo que ocupa tiempo activo; lo lee el aviso de sobrecarga. */
   busy: boolean;
 }
 
+/**
+ * Las doce áreas. El tono es el que tenían los degradados de Tailwind con los
+ * que se pintaron hasta ahora, para que la semana no cambie de color de un día
+ * para otro: cole azul, deporte verde, comida ámbar, trabajo acero…
+ */
 export const PLAN_KINDS: Record<PlanKind, KindMeta> = {
-  cole: { label: 'Cole', icon: '🎒', gradient: 'from-sky-400 to-blue-600', busy: true },
-  deporte: { label: 'Deporte', icon: '⚽', gradient: 'from-emerald-400 to-green-600', busy: true },
-  estudio: { label: 'Estudio', icon: '📚', gradient: 'from-cyan-400 to-sky-600', busy: true },
-  comida: { label: 'Comida', icon: '🍽️', gradient: 'from-amber-400 to-orange-600', busy: false },
-  sueno: { label: 'Sueño', icon: '🌙', gradient: 'from-indigo-400 to-violet-700', busy: false },
-  ocio: { label: 'Ocio', icon: '🎮', gradient: 'from-fuchsia-400 to-purple-600', busy: false },
-  trabajo: { label: 'Trabajo', icon: '💼', gradient: 'from-slate-400 to-slate-700', busy: true },
-  casa: { label: 'Casa', icon: '🧹', gradient: 'from-lime-400 to-emerald-600', busy: true },
-  juntos: { label: 'En familia', icon: '🏡', gradient: 'from-orange-400 to-rose-500', busy: false },
-  pareja: { label: 'En pareja', icon: '💞', gradient: 'from-rose-400 to-pink-600', busy: false },
-  cuidado: { label: 'Cuidado', icon: '🫶', gradient: 'from-teal-400 to-cyan-600', busy: false },
-  otro: { label: 'Otro', icon: '📌', gradient: 'from-zinc-400 to-zinc-600', busy: true },
+  cole: { label: 'Cole', icon: '🎒', hue: 199, hueTo: 221, sat: 84, busy: true },
+  deporte: { label: 'Deporte', icon: '⚽', hue: 158, hueTo: 142, sat: 70, busy: true },
+  estudio: { label: 'Estudio', icon: '📚', hue: 187, hueTo: 201, sat: 80, busy: true },
+  comida: { label: 'Comida', icon: '🍽️', hue: 43, hueTo: 25, sat: 90, busy: false },
+  sueno: { label: 'Sueño', icon: '🌙', hue: 239, hueTo: 264, sat: 66, busy: false },
+  ocio: { label: 'Ocio', icon: '🎮', hue: 292, hueTo: 273, sat: 78, busy: false },
+  trabajo: { label: 'Trabajo', icon: '💼', hue: 215, hueTo: 217, sat: 18, busy: true },
+  casa: { label: 'Casa', icon: '🧹', hue: 82, hueTo: 152, sat: 66, busy: true },
+  juntos: { label: 'En familia', icon: '🏡', hue: 27, hueTo: 350, sat: 86, busy: false },
+  pareja: { label: 'En pareja', icon: '💞', hue: 351, hueTo: 333, sat: 82, busy: false },
+  cuidado: { label: 'Cuidado', icon: '🫶', hue: 172, hueTo: 192, sat: 68, busy: false },
+  otro: { label: 'Otro', icon: '📌', hue: 240, hueTo: 240, sat: 5, busy: true },
 };
 
 export const PLAN_KIND_LIST = Object.keys(PLAN_KINDS) as PlanKind[];
+
+/* ---------------------------------------------------------------------------
+ * El color de un rato
+ *
+ * El área manda —cole azul, deporte verde—, pero dentro de un área no todo es
+ * lo mismo: en la semana de Víctor «análisis del rival», «reunión de staff» y
+ * «gimnasio del cuerpo técnico» eran los tres el mismo gris, y en la de los
+ * peques el cole y la extraescolar del cole eran el mismo azul. Doce colores
+ * para ochenta ratos es un código que ya no distingue nada.
+ *
+ * Así que el tono lo pone el área y el **tema** —el nombre del rato— lo
+ * desvía un poco: unos grados de tono, algo de saturación y algo de claridad,
+ * siempre dentro de la gama. Dos ratos del mismo tipo se siguen leyendo como
+ * hermanos; dos ratos distintos ya no se confunden. Y como el desvío sale del
+ * nombre, el mismo rato es del mismo color el lunes y el jueves, y en la
+ * cuadrícula, en la lista del día y en la leyenda.
+ * ------------------------------------------------------------------------- */
+
+/** Número estable a partir del nombre. El mismo texto, el mismo color. */
+function topicSeed(text: string): number {
+  const clean = text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+
+  let hash = 2166136261;
+  for (let i = 0; i < clean.length; i += 1) {
+    hash ^= clean.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return Math.abs(hash);
+}
+
+/** Los dos extremos del degradado de un rato, en color resuelto. */
+export interface BlockPalette {
+  /** Arranque del degradado, el tono claro. */
+  from: string;
+  /** Final del degradado, el tono hondo. */
+  to: string;
+  /** Un color sólo, para puntos y filetes. */
+  solid: string;
+}
+
+const clampHue = (value: number) => ((value % 360) + 360) % 360;
+
+/**
+ * Gama del área sin desviar. Es la de la leyenda y la de las barras de
+ * reparto, donde lo que se nombra es el área entera y no un rato.
+ */
+export function kindPalette(kind: PlanKind): BlockPalette {
+  const meta = PLAN_KINDS[kind] ?? PLAN_KINDS.otro;
+  return {
+    from: `hsl(${meta.hue} ${meta.sat}% 58%)`,
+    to: `hsl(${clampHue(meta.hueTo)} ${meta.sat}% 42%)`,
+    solid: `hsl(${meta.hue} ${meta.sat}% 50%)`,
+  };
+}
+
+/**
+ * Gama del área, desviada por el tema. `title` es el tema: lo que hace que la
+ * natación y el cole, los dos azules, no sean el mismo azul.
+ */
+export function topicPalette(kind: PlanKind, title: string): BlockPalette {
+  const meta = PLAN_KINDS[kind] ?? PLAN_KINDS.otro;
+  const clean = title.trim();
+  if (!clean) return kindPalette(kind);
+
+  const seed = topicSeed(clean);
+  /** Tres tiradas independientes del mismo número: tono, claridad y color. */
+  const roll = (bits: number) => ((seed >> bits) % 1009) / 1008;
+
+  /**
+   * Cuánto se puede desviar.
+   *
+   * En un área con color —el verde del deporte— con dieciséis grados de tono
+   * ya se distinguen dos ratos sin que ninguno deje de ser verde. En un área
+   * casi gris —el acero del trabajo, con un 18 % de saturación— desviar el
+   * tono no se ve: ahí lo que separa un tema de otro es **cuánto** color
+   * lleva, así que el gris se abre en una familia de aceros, del casi neutro
+   * al azulado, y con más recorrido de tono porque a esas saturaciones sigue
+   * leyéndose como el mismo material.
+   */
+  const pale = meta.sat < 30;
+  const shift = (roll(0) - 0.5) * 2 * (pale ? 26 : 16);
+  const light = (roll(7) - 0.5) * 2 * (pale ? 7 : 6);
+  const sat = pale
+    ? Math.min(40, meta.sat + roll(15) * 20)
+    : Math.max(6, Math.min(94, meta.sat + (roll(15) - 0.5) * 2 * 10));
+
+  return {
+    from: `hsl(${clampHue(meta.hue + shift)} ${sat}% ${58 + light}%)`,
+    to: `hsl(${clampHue(meta.hueTo + shift)} ${sat}% ${42 + light}%)`,
+    solid: `hsl(${clampHue(meta.hue + shift)} ${sat}% ${50 + light}%)`,
+  };
+}
+
+/** El color de un rato concreto: su área, matizada por su nombre. */
+export function blockPalette(block: PlanBlock): BlockPalette {
+  return topicPalette(block.kind, block.title);
+}
+
+/** El degradado listo para un `style`, en la dirección que se pida. */
+export function gradientOf(palette: BlockPalette, angle = '145deg'): string {
+  return `linear-gradient(${angle}, ${palette.from}, ${palette.to})`;
+}
 
 interface CompanionMeta {
   label: string;
@@ -1485,6 +1604,51 @@ export function overlap(a: PlanBlock, b: PlanBlock): boolean {
   return startA < startB + b.duration && startB < startA + a.duration;
 }
 
+/**
+ * ¿Cabe uno entero dentro del otro?
+ *
+ * Es la forma normal de que dos ratos verdaderos ocupen la misma hora: la
+ * natación de los peques es en el propio colegio, así que la hora de natación
+ * vive dentro de las cinco de cole. No hay nada que corregir ahí, y por eso
+ * ni lleva filete rojo ni sale en los avisos: se pinta encima, como en
+ * cualquier calendario.
+ */
+export function nested(a: PlanBlock, b: PlanBlock): boolean {
+  if (a.day !== b.day) return false;
+  const fromA = minutesOf(a.start);
+  const fromB = minutesOf(b.start);
+  const toA = fromA + a.duration;
+  const toB = fromB + b.duration;
+  /**
+   * Uno tiene que ser **más largo** que el otro. Dos ratos con la misma hora
+   * y la misma duración se envuelven mutuamente si sólo se miran los
+   * extremos, y ésos son justo el peor choque que hay: la clase de las cinco
+   * y la natación de las cinco no son «una dentro de la otra», son una encima
+   * de la otra, y eso hay que decirlo.
+   */
+  if (fromA <= fromB && toB <= toA && toA - fromA > toB - fromB) return true;
+  return fromB <= fromA && toA <= toB && toB - fromB > toA - fromA;
+}
+
+/**
+ * ¿Pueden pasar los dos a la vez?
+ *
+ * Uno dentro del otro, o cualquiera de los dos marcado como simultáneo en su
+ * editor —que es lo que cubre los solapes a medias: la reunión que empieza
+ * diez minutos antes de que acabe la clase—. Y un rato reflejado de otra
+ * agenda tampoco «se pisa» con lo propio en el sentido de que haya que
+ * arreglarlo: se ve, se sabe, y quien decide es quien mira.
+ */
+export function simultaneous(a: PlanBlock, b: PlanBlock): boolean {
+  if (a.overlapOk || b.overlapOk) return true;
+  return nested(a, b);
+}
+
+/** ¿Chocan de verdad? Se pisan **y** no pueden pasar los dos. */
+export function clashing(a: PlanBlock, b: PlanBlock): boolean {
+  return overlap(a, b) && !simultaneous(a, b);
+}
+
 export function sortBlocks(blocks: PlanBlock[]): PlanBlock[] {
   return [...blocks].sort((a, b) =>
     a.day !== b.day ? a.day - b.day : minutesOf(a.start) - minutesOf(b.start),
@@ -1543,16 +1707,21 @@ export function endOf(block: PlanBlock): number {
 /** Un rato ya colocado en la cuadrícula: dónde cae y cuánto se ensancha. */
 export interface PlacedBlock {
   block: PlanBlock;
-  /** Carril en el que empieza, dentro de su racimo. */
-  lane: number;
-  /** Carriles que ocupa: se ensancha a la derecha hasta topar con algo. */
-  span: number;
-  /** Carriles que tiene ese racimo. Es el divisor de la anchura. */
-  lanes: number;
+  /** Dónde empieza a lo ancho de la columna, de 0 a 1. */
+  left: number;
+  /** Cuánto ocupa a lo ancho de la columna, de 0 a 1. */
+  width: number;
   /**
-   * Con cuántos ratos se pisa de verdad. No es lo mismo que estar en un
-   * racimo de varios carriles: en una cadena A–B–C, A y C no se tocan. Esto
-   * es lo que decide si el rato lleva la marca de solape.
+   * Cuántos ratos lo envuelven: 0 el que va al fondo, 1 el que se pinta
+   * dentro de él, 2 el que va dentro de ése. Es lo que hace que la natación
+   * salga **encima** de la mancha del cole en vez de partir la columna en dos.
+   */
+  depth: number;
+  /**
+   * Con cuántos ratos choca de verdad. No es lo mismo que solaparse: lo que
+   * cabe entero dentro de otro —o lo que está marcado como simultáneo— ocupa
+   * la misma hora a propósito y no es un fallo del plan. Esto es lo que
+   * decide si el rato lleva la marca roja.
    */
   clashes: number;
 }
@@ -1571,63 +1740,136 @@ export interface PlacedBlock {
  * Y dentro del racimo cada rato **se ensancha** hasta topar: si sólo dos
  * cosas se pisan de tres carriles, ocupan lo que les corresponde y no un
  * tercio cada una.
+ *
+ * Lo que **cabe entero dentro** de otro no entra en ese reparto: se pinta
+ * encima, metido hacia dentro, como en cualquier calendario. La natación es
+ * en el propio colegio, así que la hora de natación va sobre la mancha de las
+ * cinco de cole y no le roba media columna —ni la marca en rojo, porque las
+ * dos cosas pasan de verdad—.
  */
 export function laneLayout(blocks: PlanBlock[]): {
   lanes: number;
   placed: PlacedBlock[];
 } {
+  interface Item {
+    block: PlanBlock;
+    from: number;
+    to: number;
+  }
+
+  const items: Item[] = sortBlocks(blocks).map((block) => {
+    const from = minutesOf(block.start);
+    return { block, from, to: from + Math.max(5, block.duration) };
+  });
+
+  /**
+   * Quién mete a quién. De cada rato se busca el contenedor **más ajustado**:
+   * la natación va dentro del cole y no dentro de «todo el día», si los dos
+   * la envuelven. La contención es estricta en duración, así que no puede
+   * haber ciclos ni dos ratos idénticos metiéndose el uno en el otro.
+   */
+  const parentOf = new Map<Item, Item | null>();
+  for (const item of items) {
+    let parent: Item | null = null;
+    for (const other of items) {
+      if (other === item) continue;
+      const envelops =
+        other.from <= item.from && item.to <= other.to && other.to - other.from > item.to - item.from;
+      if (!envelops) continue;
+      if (!parent || other.to - other.from < parent.to - parent.from) parent = other;
+    }
+    parentOf.set(item, parent);
+  }
+
+  const childrenOf = new Map<Item | null, Item[]>();
+  for (const item of items) {
+    const parent = parentOf.get(item) ?? null;
+    const brood = childrenOf.get(parent) ?? [];
+    brood.push(item);
+    childrenOf.set(parent, brood);
+  }
+
+  /** Con cuántos choca cada uno. Lo simultáneo a propósito no cuenta. */
+  const clashesOf = new Map<PlanBlock, number>();
+  for (const item of items) {
+    clashesOf.set(
+      item.block,
+      items.filter((other) => other !== item && clashing(item.block, other.block)).length,
+    );
+  }
+
   const placed: PlacedBlock[] = [];
   let widest = 1;
 
-  /** El racimo que se está formando: lo que sigue abierto a esta hora. */
-  let cluster: Array<{ block: PlanBlock; lane: number; from: number; to: number }> = [];
-  /** Hasta qué minuto llega lo más tardío del racimo. */
-  let clusterEnd = -1;
+  /**
+   * Coloca un grupo de hermanos dentro del trozo de columna que les toca, y
+   * mete a sus hijos en un trozo aún más estrecho del suyo.
+   */
+  const place = (group: Item[], depth: number, area: { left: number; width: number }) => {
+    /** El racimo que se está formando: lo que sigue abierto a esta hora. */
+    let cluster: Array<{ item: Item; lane: number }> = [];
+    /** Hasta qué minuto llega lo más tardío del racimo. */
+    let clusterEnd = -1;
 
-  const flush = () => {
-    if (cluster.length === 0) return;
+    const flush = () => {
+      if (cluster.length === 0) return;
 
-    const lanes = cluster.reduce((max, item) => Math.max(max, item.lane + 1), 1);
-    widest = Math.max(widest, lanes);
+      const lanes = cluster.reduce((max, entry) => Math.max(max, entry.lane + 1), 1);
+      if (depth === 0) widest = Math.max(widest, lanes);
 
-    for (const item of cluster) {
-      let span = 1;
-      while (
-        item.lane + span < lanes &&
-        !cluster.some(
-          (other) =>
-            other.lane === item.lane + span && other.from < item.to && item.from < other.to,
-        )
-      ) {
-        span += 1;
+      for (const entry of cluster) {
+        let span = 1;
+        while (
+          entry.lane + span < lanes &&
+          !cluster.some(
+            (other) =>
+              other.lane === entry.lane + span &&
+              other.item.from < entry.item.to &&
+              entry.item.from < other.item.to,
+          )
+        ) {
+          span += 1;
+        }
+
+        const left = area.left + (entry.lane / lanes) * area.width;
+        const width = (span / lanes) * area.width;
+
+        placed.push({
+          block: entry.item.block,
+          left,
+          width,
+          depth,
+          clashes: clashesOf.get(entry.item.block) ?? 0,
+        });
+
+        // Y lo que va dentro de él, dentro de él: metido por la izquierda,
+        // que es lo que hace que se siga viendo de qué es hijo.
+        const brood = childrenOf.get(entry.item);
+        if (brood && brood.length > 0) {
+          const inset = depth === 0 ? 0.26 : 0.14;
+          place(brood, depth + 1, { left: left + width * inset, width: width * (1 - inset) });
+        }
       }
 
-      const clashes = cluster.filter(
-        (other) => other !== item && other.from < item.to && item.from < other.to,
-      ).length;
+      cluster = [];
+      clusterEnd = -1;
+    };
 
-      placed.push({ block: item.block, lane: item.lane, span, lanes, clashes });
+    for (const item of group) {
+      // Lo que empieza cuando ya no queda nada abierto abre racimo nuevo.
+      if (item.from >= clusterEnd) flush();
+
+      let lane = 0;
+      while (cluster.some((entry) => entry.lane === lane && entry.item.to > item.from)) lane += 1;
+
+      cluster.push({ item, lane });
+      clusterEnd = Math.max(clusterEnd, item.to);
     }
 
-    cluster = [];
-    clusterEnd = -1;
+    flush();
   };
 
-  for (const block of sortBlocks(blocks)) {
-    const from = minutesOf(block.start);
-    const to = from + Math.max(5, block.duration);
-
-    // Lo que empieza cuando ya no queda nada abierto abre racimo nuevo.
-    if (from >= clusterEnd) flush();
-
-    let lane = 0;
-    while (cluster.some((item) => item.lane === lane && item.to > from)) lane += 1;
-
-    cluster.push({ block, lane, from, to });
-    clusterEnd = Math.max(clusterEnd, to);
-  }
-
-  flush();
+  place(childrenOf.get(null) ?? [], 0, { left: 0, width: 1 });
 
   return { lanes: widest, placed };
 }
@@ -2227,7 +2469,10 @@ function normalizeBlock(value: unknown, index: number, profileId?: string): Plan
       typeof raw.companion === 'string' && COMPANION_SET.has(raw.companion)
         ? (raw.companion as Companion)
         : undefined,
+    overlapOk: raw.overlapOk === true ? true : undefined,
     note: typeof raw.note === 'string' && raw.note ? raw.note.slice(0, 240) : undefined,
+    // `mirror` no se copia a propósito: un reflejo es de otra agenda y aquí
+    // sólo se mira. Así no puede guardarse ni viajar a la nube por error.
   };
 }
 
@@ -2275,6 +2520,147 @@ export function planOf(profileId: ProfileId): WeekPlan {
   return loadPlans()[profileId] ?? emptyPlan();
 }
 
+/* ---------------------------------------------------------------------------
+ * Reflejos: lo de los peques, en la agenda de quien los lleva
+ *
+ * La semana de Leo y la de Hugo ya dicen quién está con ellos en cada rato.
+ * Esa información estaba encerrada en su agenda: para saber qué le caía
+ * encima a María el jueves había que entrar en la de Leo, luego en la de Hugo,
+ * y sumarlo de cabeza. Ahora sale donde hace falta: lo que lleva «con mamá»
+ * —o «con los dos»— aparece en la semana de María, y lo de «con papá» en la de
+ * Víctor, en su hora y con el color del peque.
+ *
+ * Son de sólo lectura a propósito. El rato sigue viviendo en la agenda del
+ * peque: allí se cambia, allí se mueve y allí se quita, y así no hay dos
+ * copias de la misma verdad que puedan separarse. Aquí se ven, se cuentan y
+ * avisan de lo que se pisa con lo propio, que es justo lo que se necesitaba.
+ * ------------------------------------------------------------------------- */
+
+/** Qué acompañante de los peques trae el rato a cada adulto. */
+const MIRROR_RULES: Partial<Record<ProfileId, Companion[]>> = {
+  maria: ['mama', 'ambos'],
+  victor: ['papa', 'ambos'],
+};
+
+/** ¿Este perfil recibe reflejos de los peques? */
+export function takesMirrors(profileId: ProfileId): boolean {
+  return MIRROR_RULES[profileId] !== undefined;
+}
+
+/** ¿Es un rato prestado de otra agenda? Entonces aquí no se toca. */
+export function isMirror(block: PlanBlock): boolean {
+  return block.mirror !== undefined;
+}
+
+/**
+ * Los ratos de los peques que le tocan a este perfil, listos para pintarse
+ * junto a los suyos.
+ *
+ * Se les quita la atadura al hábito a propósito: la lectura de Leo se
+ * comprueba contra el registro de Leo, no contra el de María, y dejarla
+ * puesta habría hecho que la semana de María dijera que le faltan hábitos que
+ * no son suyos.
+ */
+export function mirrorBlocks(profileId: ProfileId): PlanBlock[] {
+  const wanted = MIRROR_RULES[profileId];
+  if (!wanted) return [];
+
+  const plans = loadPlans();
+  const out: PlanBlock[] = [];
+
+  for (const profile of PROFILES) {
+    if (profile.kind !== 'kid') continue;
+    const plan = plans[profile.id];
+    if (!plan) continue;
+
+    for (const block of plan.blocks) {
+      if (!block.companion || !wanted.includes(block.companion)) continue;
+
+      out.push({
+        ...block,
+        id: `reflejo:${profile.id}:${block.id}`,
+        metricId: undefined,
+        amount: undefined,
+        amountLock: undefined,
+        mirror: {
+          profileId: profile.id,
+          name: profile.name,
+          avatar: profile.avatar,
+          tint: profile.tint,
+          companion: block.companion,
+        },
+      });
+    }
+  }
+
+  return sortBlocks(out);
+}
+
+/**
+ * La semana de un perfil con los reflejos dentro. Es lo que se pinta; lo que
+ * se guarda sigue siendo `planOf`.
+ */
+export function planWithMirrors(profileId: ProfileId, on = true): WeekPlan {
+  const own = planOf(profileId);
+  if (!on || !takesMirrors(profileId)) return own;
+
+  const borrowed = mirrorBlocks(profileId);
+  if (borrowed.length === 0) return own;
+
+  return { ...own, blocks: sortBlocks([...own.blocks, ...borrowed]) };
+}
+
+/** Minutos de la semana que este perfil pasa con los peques, por peque. */
+export function mirrorShare(
+  blocks: PlanBlock[],
+): Array<{ profileId: ProfileId; name: string; avatar: string; tint: string; minutes: number; count: number }> {
+  const totals = new Map<
+    ProfileId,
+    { profileId: ProfileId; name: string; avatar: string; tint: string; minutes: number; count: number }
+  >();
+
+  for (const block of blocks) {
+    if (!block.mirror) continue;
+    const { profileId, name, avatar, tint } = block.mirror;
+    const row = totals.get(profileId) ?? { profileId, name, avatar, tint, minutes: 0, count: 0 };
+    row.minutes += block.duration;
+    row.count += 1;
+    totals.set(profileId, row);
+  }
+
+  return Array.from(totals.values()).sort((a, b) => b.minutes - a.minutes);
+}
+
+/**
+ * Si se enseñan o no. Es una preferencia de cómo se mira, no un dato de la
+ * casa, así que se queda en este aparato y no viaja a la nube: en el móvil de
+ * María puede interesar verlos siempre y en el ordenador de Víctor no.
+ */
+const MIRROR_VIEW_KEY = 'habitos-familia:agenda-reflejos';
+
+export function mirrorsShown(profileId: ProfileId): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const raw = window.localStorage.getItem(MIRROR_VIEW_KEY);
+    if (!raw) return true;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return parsed?.[profileId] !== false;
+  } catch {
+    return true;
+  }
+}
+
+export function showMirrors(profileId: ProfileId, on: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(MIRROR_VIEW_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    window.localStorage.setItem(MIRROR_VIEW_KEY, JSON.stringify({ ...parsed, [profileId]: on }));
+  } catch {
+    // Modo privado o cuota llena: la preferencia vale para esta sesión.
+  }
+}
+
 function commit(next: Record<string, WeekPlan>): void {
   cache = next;
 
@@ -2296,7 +2682,9 @@ function commit(next: Record<string, WeekPlan>): void {
  */
 export function updatePlan(profileId: ProfileId, blocks: PlanBlock[]): WeekPlan {
   const next: WeekPlan = {
-    blocks: sortBlocks(blocks).slice(0, MAX_BLOCKS),
+    // Los reflejos de otras agendas nunca se guardan aquí: son de quien los
+    // tiene apartados, y aquí sólo se miraban.
+    blocks: sortBlocks(blocks.filter((block) => !block.mirror)).slice(0, MAX_BLOCKS),
     updatedAt: new Date().toISOString(),
   };
 

@@ -5,9 +5,9 @@ import {
   COMPANIONS,
   DAY_NAMES,
   busyMinutes,
+  clashing,
   durationLabel,
   minutesOf,
-  overlap,
 } from '@/lib/planner';
 import { formatMetricValue, isCeiling, metricRatio } from '@/lib/scoring';
 import { entryKey } from '@/lib/storage';
@@ -470,20 +470,33 @@ export function planAlerts(
 
   /* ----------------------------------------------------------- avisos */
 
-  // Solapes: dos cosas a la misma hora es un plan que no se puede cumplir.
+  /**
+   * Solapes que sí son un problema: dos cosas a la misma hora que no pueden
+   * pasar las dos. Lo que cabe entero dentro de otro rato —la natación, que
+   * es en el propio colegio— o lo que está marcado como simultáneo en su
+   * editor no cuenta: eso ocurre a la vez a propósito y avisar de ello era
+   * cuatro avisos falsos por semana.
+   */
   for (let day = 0; day < 7; day += 1) {
     const blocks = [...byDay[day]].sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
-    for (let i = 0; i < blocks.length - 1; i += 1) {
-      if (!overlap(blocks[i], blocks[i + 1])) continue;
-      avisos.push({
-        id: `aviso-solape-${day}-${blocks[i].id}`,
-        tone: 'aviso',
-        icon: '⏱️',
-        day,
-        title: `${DAY_NAMES[day]}: dos cosas a la vez`,
-        detail: `«${blocks[i].title}» y «${blocks[i + 1].title}» se pisan. Uno de los dos no va a pasar.`,
-      });
-      break; // uno por día basta para que se mire ese día
+    let said = false;
+
+    for (let i = 0; i < blocks.length - 1 && !said; i += 1) {
+      for (let j = i + 1; j < blocks.length; j += 1) {
+        if (minutesOf(blocks[j].start) >= minutesOf(blocks[i].start) + blocks[i].duration) break;
+        if (!clashing(blocks[i], blocks[j])) continue;
+
+        avisos.push({
+          id: `aviso-solape-${day}-${blocks[i].id}`,
+          tone: 'aviso',
+          icon: '⏱️',
+          day,
+          title: `${DAY_NAMES[day]}: dos cosas a la vez`,
+          detail: `«${blocks[i].title}» y «${blocks[j].title}» se pisan. Uno de los dos no va a pasar; si en realidad pasan los dos, márcalo en el rato con «🔀 A la vez».`,
+        });
+        said = true; // uno por día basta para que se mire ese día
+        break;
+      }
     }
   }
 
@@ -577,6 +590,48 @@ function plannedFor(metric: Metric, planned: Set<string>): boolean {
 /** Cómo llama ese perfil a un rato de su agenda, en singular. */
 function themeWord(profile: Profile): string {
   return profile.kind === 'kid' ? 'rato' : 'bloque';
+}
+
+/**
+ * Lo de los peques contra lo propio.
+ *
+ * Es el aviso que sólo puede darse cuando las dos semanas se miran juntas: si
+ * el jueves a las seis María tiene clase online y a esa misma hora le toca
+ * llevar a Leo a natación, no hay agenda que lo cumpla. Va aparte de
+ * `reviewWeek` a propósito: aquello revisa **la semana de uno**, y esto es lo
+ * que pasa cuando se le suma la de otro.
+ */
+export function mirrorAlerts(own: PlanBlock[], borrowed: PlanBlock[]): PlanAlert[] {
+  const out: PlanAlert[] = [];
+
+  for (let day = 0; day < 7; day += 1) {
+    const mine = own.filter((block) => block.day === day);
+    const theirs = borrowed.filter((block) => block.day === day);
+    let found: { mine: PlanBlock; theirs: PlanBlock } | null = null;
+
+    for (const block of theirs) {
+      const hit = mine.find((item) => clashing(item, block));
+      if (hit) {
+        found = { mine: hit, theirs: block };
+        break;
+      }
+    }
+
+    if (!found) continue;
+
+    out.push({
+      id: `aviso-reflejo-${day}-${found.theirs.id}`,
+      tone: 'aviso',
+      icon: '👨‍👩‍👦',
+      day,
+      title: `${DAY_NAMES[day]}: no puedes estar en los dos sitios`,
+      detail: `«${found.mine.title}» es tuyo y «${found.theirs.title}» es de ${
+        found.theirs.mirror?.name ?? 'los peques'
+      }, y caen a la misma hora. Cámbiale la hora a uno, o que lleve al peque el otro.`,
+    });
+  }
+
+  return out;
 }
 
 /** Con quién están los peques esa semana, en minutos por persona. */

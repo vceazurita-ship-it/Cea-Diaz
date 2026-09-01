@@ -13,12 +13,13 @@ import type { TimetableZoom } from '@/components/planner/WeekTimetable';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
-import { useWeekPlan } from '@/hooks/useWeekPlan';
+import { useWeekPlan, useWeekPlanWithMirrors } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { formatShort, weekKeys, weekdayIndex } from '@/lib/dates';
 import {
   SILENT,
   companionShare,
+  mirrorAlerts,
   reviewWeek,
   statusIcon,
   statusLabel,
@@ -30,6 +31,7 @@ import {
   DAY_SHORT,
   PLAN_KINDS,
   addPlanBlocks,
+  blockPalette,
   blocksOfDay,
   clearDayPlan,
   clockAmountChange,
@@ -41,8 +43,13 @@ import {
   duplicateBlock,
   durationLabel,
   emptyBlock,
+  gradientOf,
+  isMirror,
+  kindPalette,
   kindShare,
   minutesOf,
+  mirrorShare,
+  mirrorsShown,
   moveBlockTo,
   moveDayTo,
   planOf,
@@ -53,8 +60,10 @@ import {
   removePlanBlock,
   sampleWeek,
   savePlanBlock,
+  showMirrors,
   spreadBlock,
   swapDays,
+  takesMirrors,
   themeOf,
   timeOf,
   updatePlan,
@@ -172,11 +181,36 @@ export function WeekPlanner({
   const [soloDay, setSoloDay] = useState<number | null>(null);
   /** Lo tecleado en el buscador: lo que no lo lleve se apaga en la cuadrícula. */
   const [query, setQuery] = useState('');
+  /**
+   * Si se enseñan los ratos de los peques que le tocan a este perfil. Se
+   * arranca en `true` y se corrige tras montar con lo que se eligiera la
+   * última vez: en el servidor no hay `localStorage` y adivinar aquí
+   * desajustaría la hidratación.
+   */
+  const [mirrors, setMirrors] = useState(true);
 
   const kid = profile.kind === 'kid';
   const theme = themeOf(profile.id);
   const dates = useMemo(() => weekKeys(date), [date]);
   const today = weekdayIndex(date);
+
+  /** Los adultos que llevan a los peques: María y Víctor. */
+  const takes = takesMirrors(profile.id);
+
+  useEffect(() => {
+    if (!takes) return;
+    setMirrors(mirrorsShown(profile.id));
+  }, [profile.id, takes]);
+
+  /**
+   * La semana que se pinta: la propia, más lo de los peques que le toca a
+   * este perfil. Lo que se **guarda** sigue siendo `plan` a secas, así que
+   * todo lo que edita —copiar un día, vaciar la semana, contar los ratos— ve
+   * sólo lo suyo y no puede llevarse por delante la agenda de un peque.
+   */
+  const shownPlan = useWeekPlanWithMirrors(profile.id, takes && mirrors);
+  const borrowed = useMemo(() => shownPlan.blocks.filter(isMirror), [shownPlan.blocks]);
+  const withKids = useMemo(() => mirrorShare(borrowed), [borrowed]);
 
   // El rato que llega de otra pestaña se recoge una vez y se abre su editor.
   useEffect(() => {
@@ -217,6 +251,18 @@ export function WeekPlanner({
 
   const share = useMemo(() => (kid ? companionShare(plan) : []), [kid, plan]);
 
+  /**
+   * Los avisos de la semana, y detrás los que sólo se ven mirando las dos
+   * agendas a la vez: la clase de las seis contra la natación de las seis.
+   */
+  const alerts = useMemo(
+    () =>
+      borrowed.length > 0
+        ? [...mirrorAlerts(plan.blocks, borrowed), ...review.alerts]
+        : review.alerts,
+    [borrowed, plan.blocks, review.alerts],
+  );
+
   /** En qué se va la semana tipo. Es la lectura que nadie hace de cabeza. */
   const shares = useMemo(() => kindShare(plan.blocks), [plan.blocks]);
 
@@ -256,6 +302,22 @@ export function WeekPlanner({
     notify({ message: 'Como estaba.', icon: '↩️' });
   };
 
+  /**
+   * Lo prestado no se toca desde aquí. El rato es de la semana del peque —de
+   * ahí sale, y ahí sigue mandando quién está con él—, así que en vez de
+   * dejar que se mueva y que las dos agendas digan cosas distintas, se dice
+   * de quién es y dónde se cambia.
+   */
+  const borrowedBlock = (block: PlanBlock): boolean => {
+    if (!isMirror(block)) return false;
+    const { name, companion } = block.mirror!;
+    notify({
+      message: `«${block.title}» es de ${name} (${COMPANIONS[companion].label.toLowerCase()}). Se cambia en la semana de ${name}.`,
+      icon: block.mirror!.avatar,
+    });
+    return true;
+  };
+
   /** Un rato nuevo puede salir en varios días de una sentada. */
   const save = (block: PlanBlock, days: number[]) => {
     const before = planOf(profile.id).blocks;
@@ -284,6 +346,7 @@ export function WeekPlanner({
   };
 
   const remove = (block: PlanBlock) => {
+    if (borrowedBlock(block)) return;
     const before = planOf(profile.id).blocks;
     removePlanBlock(profile.id, block.id);
     setEditing(null);
@@ -301,6 +364,7 @@ export function WeekPlanner({
    * resbala un cuarto de hora y hay que poder volver atrás sin pensar.
    */
   const move = (block: PlanBlock, day: number, start: string) => {
+    if (borrowedBlock(block)) return;
     if (block.day === day && block.start === start) return;
     const before = planOf(profile.id).blocks;
     const title = block.title || 'El rato';
@@ -324,6 +388,7 @@ export function WeekPlanner({
    * contra qué se comprueba el hábito, y eso no puede pasar en silencio.
    */
   const resize = (block: PlanBlock, duration: number, start?: string) => {
+    if (borrowedBlock(block)) return;
     const at = start ?? block.start;
     if (duration === block.duration && at === block.start) return;
 
@@ -342,6 +407,7 @@ export function WeekPlanner({
 
   /** Una copia donde se suelte: arrastrando con Alt o con el botón del rato. */
   const duplicate = (block: PlanBlock, day: number, start: string) => {
+    if (borrowedBlock(block)) return;
     const before = planOf(profile.id).blocks;
     const copy = duplicateBlock(profile.id, { ...block, day }, start);
     const title = block.title || 'El rato';
@@ -570,8 +636,11 @@ export function WeekPlanner({
                 <span
                   key={item.kind}
                   title={`${PLAN_KINDS[item.kind].label}: ${durationLabel(item.minutes)}`}
-                  className={`h-full bg-gradient-to-r ${PLAN_KINDS[item.kind].gradient}`}
-                  style={{ width: `${(item.minutes / Math.max(1, total)) * 100}%` }}
+                  className="h-full"
+                  style={{
+                  width: `${(item.minutes / Math.max(1, total)) * 100}%`,
+                  backgroundImage: gradientOf(kindPalette(item.kind), '90deg'),
+                }}
                 />
               ))}
             </div>
@@ -600,13 +669,69 @@ export function WeekPlanner({
                 >
                   <span
                     aria-hidden
-                    className={`h-2 w-2 rounded-full bg-gradient-to-br ${PLAN_KINDS[item.kind].gradient}`}
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundImage: gradientOf(kindPalette(item.kind)) }}
                   />
                   {PLAN_KINDS[item.kind].label}
                   <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Lo que a este perfil le toca de los peques. Sale de la semana de
+            Leo y de la de Hugo: lo que allí lleva «con mamá» —o «con los
+            dos»— aparece aquí, y aquí es donde se ve cuánto es. */}
+        {takes && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
+            <span className="text-xs font-bold uppercase tracking-wide t-3">Con los peques:</span>
+
+            {withKids.length > 0 ? (
+              withKids.map((item) => (
+                <span
+                  key={item.profileId}
+                  className="chip-soft"
+                  style={{ boxShadow: `inset 2px 0 0 ${item.tint}` }}
+                  title={`${item.count} ${item.count === 1 ? 'rato' : 'ratos'} de ${item.name} contigo esta semana`}
+                >
+                  <span aria-hidden>{item.avatar}</span>
+                  {item.name}
+                  <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
+                </span>
+              ))
+            ) : (
+              <span className="text-xs t-3">
+                {mirrors
+                  ? 'Nada por ahora. En la semana de Leo y de Hugo, marca quién está con ellos en cada rato y saldrá aquí.'
+                  : 'Escondido ahora mismo.'}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = !mirrors;
+                setMirrors(next);
+                showMirrors(profile.id, next);
+                notify({
+                  message: next
+                    ? 'Lo de los peques, en tu semana.'
+                    : 'Sólo tus ratos. Vuelve a encenderlo cuando quieras.',
+                  icon: next ? '👨‍👩‍👦' : '🙈',
+                });
+              }}
+              aria-pressed={mirrors}
+              title={
+                mirrors
+                  ? 'Esconder los ratos de los peques que te tocan'
+                  : 'Ver los ratos de los peques que te tocan'
+              }
+              className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition
+                ${mirrors ? 'bg-accent-soft t-1' : 'surf-2 t-3 hover-soft'}`}
+            >
+              {mirrors ? '👁️ Se ven' : '🙈 Escondidos'}
+            </button>
           </div>
         )}
 
@@ -649,7 +774,7 @@ export function WeekPlanner({
       )}
 
       <PlanAlerts
-        alerts={review.alerts}
+        alerts={alerts}
         skin={skin}
         onDay={(day) => {
           setView('completa');
@@ -793,7 +918,7 @@ export function WeekPlanner({
       {shown === 'completa' && (
         <section className={`${kid ? 'card-kid' : 'card'} p-3`} aria-label="La semana tipo entera">
           <WeekTimetable
-            plan={plan}
+            plan={shownPlan}
             statusById={judged > 0 ? statusById : undefined}
             today={today}
             days={shownDays}
@@ -802,7 +927,10 @@ export function WeekPlanner({
             ornament={theme.ornament}
             focus={focus}
             query={query}
-            onSelect={(block) => setEditing({ block, isNew: false })}
+            onSelect={(block) => {
+              if (borrowedBlock(block)) return;
+              setEditing({ block, isNew: false });
+            }}
             onAdd={(day, start) => setEditing({ block: emptyBlock(day, start), isNew: true })}
             onDay={(day) => setSheet({ kind: 'day', day })}
             onMove={move}
@@ -833,6 +961,7 @@ export function WeekPlanner({
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
             const blocks = blocksOfDay(plan, day);
             const hoy = day === today;
+            const dayBorrowed = borrowed.filter((block) => block.day === day);
             const dayKept = blocks.filter(
               (block) => checkById.get(block.id)?.status === 'cumplido',
             ).length;
@@ -874,7 +1003,6 @@ export function WeekPlanner({
                     {blocks.map((block) => {
                       const check = checkById.get(block.id);
                       const status = check?.status ?? 'sinMetrica';
-                      const kindMeta = PLAN_KINDS[block.kind];
 
                       return (
                         <li key={block.id} className="flex items-stretch gap-1">
@@ -887,7 +1015,8 @@ export function WeekPlanner({
                           >
                             <span
                               aria-hidden
-                              className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-b ${kindMeta.gradient}`}
+                              className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ backgroundImage: gradientOf(blockPalette(block), '180deg') }}
                             />
 
                             <span className="min-w-0 flex-1">
@@ -955,6 +1084,37 @@ export function WeekPlanner({
                         </li>
                       );
                     })}
+                  </ul>
+                )}
+
+                {/* Y debajo, lo que ese día te toca de los peques. No se toca
+                    desde aquí —es de su semana— pero sale donde se decide la
+                    tuya, que es cuando de verdad hace falta saberlo. */}
+                {dayBorrowed.length > 0 && (
+                  <ul className="mt-2 space-y-1 border-t pt-2 hairline">
+                    {dayBorrowed.map((block) => (
+                      <li
+                        key={block.id}
+                        className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 surf-1"
+                        style={{ boxShadow: `inset 2px 0 0 ${block.mirror!.tint}` }}
+                        title={`${rangeOf(block)} · ${block.title} — de ${block.mirror!.name} (${COMPANIONS[
+                          block.mirror!.companion
+                        ].label.toLowerCase()}). Se cambia en su semana.`}
+                      >
+                        <span aria-hidden className="text-xs">
+                          {block.mirror!.avatar}
+                        </span>
+                        <span className="text-[11px] font-bold tabular-nums t-3">
+                          {block.start}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[11px] t-2">
+                          <span aria-hidden>{block.icon}</span> {block.title}
+                        </span>
+                        <span className="shrink-0 text-[10px] tabular-nums t-3">
+                          {durationLabel(block.duration)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 )}
 

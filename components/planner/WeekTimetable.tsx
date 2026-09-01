@@ -7,8 +7,11 @@ import {
   DAY_NAMES,
   DAY_SHORT,
   PLAN_KINDS,
+  blockPalette,
   blocksOfDay,
   durationLabel,
+  gradientOf,
+  isMirror,
   laneLayout,
   minutesOf,
   plannedMinutes,
@@ -535,6 +538,16 @@ export function WeekTimetable({
     }
   };
 
+  /**
+   * Y en un rato prestado, sólo abrir. Mover con las flechas lo que vive en
+   * otra agenda sería cambiar la semana de un peque desde aquí sin decirlo.
+   */
+  const borrowedKeys = (block: PlanBlock) => (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onSelect(block);
+  };
+
   /* ------------------------------------------------------------ pintura */
 
   /** Dónde cae un minuto dentro de la columna. */
@@ -603,7 +616,12 @@ export function WeekTimetable({
           {/* Los días que toque, todos a la vez */}
           {shownDays.map((day) => {
             const { placed } = layout[day];
-            const load = plannedMinutes(placed.map((item) => item.block));
+            /* Lo prestado no se cuenta como carga propia: en la cabecera de
+               María «6 · 5 h» tiene que seguir siendo lo suyo, y lo de los
+               peques va aparte, con su cara. */
+            const own = placed.filter((item) => !isMirror(item.block));
+            const borrowed = placed.length - own.length;
+            const load = plannedMinutes(own.map((item) => item.block));
             const clashing = placed.filter((item) => item.clashes > 0).length;
             const hoy = day === today;
             const weekend = day >= 5;
@@ -633,7 +651,15 @@ export function WeekTimetable({
                         {hoy && <span className="ml-1 text-[9px] normal-case">hoy</span>}
                       </span>
                       <span className="flex items-center gap-1 text-[9px] tabular-nums opacity-70">
-                        {placed.length > 0 ? `${placed.length} · ${durationLabel(load)}` : '—'}
+                        {own.length > 0 ? `${own.length} · ${durationLabel(load)}` : '—'}
+                        {borrowed > 0 && (
+                          <span
+                            title={`${borrowed} ${borrowed === 1 ? 'rato' : 'ratos'} de los peques contigo`}
+                            aria-label={`${borrowed} ${borrowed === 1 ? 'rato' : 'ratos'} de los peques contigo`}
+                          >
+                            👧{borrowed}
+                          </span>
+                        )}
                         {clashing > 0 && (
                           <span
                             className="t-danger"
@@ -728,8 +754,15 @@ export function WeekTimetable({
                     </span>
                   )}
 
-                  {placed.map(({ block, lane, span: width, lanes, clashes }) => {
+                  {placed.map(({ block, left, width, depth, clashes }) => {
                     const dragging = drag?.id === block.id && drag.moved;
+                    /**
+                     * Los ratos prestados de la agenda de un peque. Se ven, se
+                     * cuentan y avisan de lo que se pisa, pero no se tocan:
+                     * son de su semana, y allí se cambian. Aquí un clic sólo
+                     * cuenta de quién es.
+                     */
+                    const borrowed = isMirror(block);
                     /**
                      * Mientras viaja a otro día se queda aquí, invisible. No
                      * se desmonta a propósito: es el elemento que tiene
@@ -751,7 +784,13 @@ export function WeekTimetable({
                     const to = Math.min(24 * 60, from + length);
 
                     const status = statusById?.get(block.id);
-                    const kindMeta = PLAN_KINDS[block.kind];
+                    /**
+                     * El color: la gama del área, matizada por el nombre. Dos
+                     * ratos de trabajo se siguen leyendo como trabajo, pero el
+                     * análisis del rival y la reunión de staff ya no son la
+                     * misma mancha gris.
+                     */
+                    const palette = blockPalette(block);
                     const box = Math.max(15, ((to - from) / 60) * HOUR - 2);
                     const tall = box >= 34;
                     const roomy = box >= 52;
@@ -779,8 +818,15 @@ export function WeekTimetable({
                      * píxeles entre medias para que se vean los dos bordes, y
                      * el aviso de que se pisan se da por otro lado: filete
                      * rojo, ⚠ en la hora y la cuenta en la cabecera del día.
+                     *
+                     * Lo que cabe entero dentro de otro es el caso aparte: no
+                     * entra en el reparto, se pinta **encima** y metido hacia
+                     * dentro. La natación es en el propio colegio, así que su
+                     * hora va sobre la mancha del cole en vez de partir la
+                     * columna en dos medias columnas que no son verdad.
                      */
-                    const widthPct = (width / lanes) * 100;
+                    const widthPct = width * 100;
+                    const leftPct = left * 100;
 
                     /**
                      * Copiar y quitar piden un sitio donde picar, así que sólo
@@ -789,10 +835,13 @@ export function WeekTimetable({
                      * al pasar por encima; con el dedo no hay «pasar por
                      * encima», así que se enseñan mientras esté puesto el modo
                      * de arrastrar, que es el que dice «vengo a tocar la
-                     * semana».
+                     * semana». En lo prestado no salen nunca: no es de aquí.
                      */
                     const showTools =
-                      (Boolean(onDuplicate) || Boolean(onDelete)) && !dragging && box >= 24;
+                      !borrowed &&
+                      (Boolean(onDuplicate) || Boolean(onDelete)) &&
+                      !dragging &&
+                      box >= 24;
                     const toolsOn = marked === block.id || (coarse && handMode);
 
                     return (
@@ -801,35 +850,68 @@ export function WeekTimetable({
                         role="button"
                         tabIndex={0}
                         aria-label={`${block.title || 'Sin nombre'}, ${DAY_NAMES[day]} ${rangeOf(block)}${
-                          clashes > 0 ? ', se pisa con otro rato' : ''
+                          borrowed ? `, de ${block.mirror?.name}` : ''
+                        }${clashes > 0 ? ', se pisa con otro rato' : ''}${
+                          depth > 0 && clashes === 0 ? ', a la vez que otro rato' : ''
                         }`}
-                        onPointerDown={start(block, 'move')}
-                        onPointerMove={track}
-                        onPointerUp={finish(block)}
-                        onPointerCancel={abort}
-                        onKeyDown={keys(block)}
+                        onPointerDown={borrowed ? undefined : start(block, 'move')}
+                        onPointerMove={borrowed ? undefined : track}
+                        onPointerUp={borrowed ? undefined : finish(block)}
+                        onPointerCancel={borrowed ? undefined : abort}
+                        onKeyDown={borrowed ? borrowedKeys(block) : keys(block)}
                         onFocus={() => setMarked(block.id)}
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          // Lo prestado no se arrastra, así que su clic no
+                          // pasa por «soltar»: se atiende aquí.
+                          if (borrowed) onSelect(block);
+                        }}
                         title={`${rangeOf(block)} · ${block.title} · ${durationLabel(block.duration)}${
-                          clashes > 0 ? ' — se pisa con otro rato' : ''
-                        }${canDrag ? ' — arrástralo para moverlo, con Alt para copiarlo' : ''}`}
+                          borrowed
+                            ? ` — de ${block.mirror?.name} (${COMPANIONS[block.mirror!.companion].label.toLowerCase()}). Se cambia en su semana.`
+                            : ''
+                        }${clashes > 0 ? ' — se pisa con otro rato' : ''}${
+                          depth > 0 && clashes === 0 ? ' — pasa dentro de otro rato' : ''
+                        }${canDrag && !borrowed ? ' — arrástralo para moverlo, con Alt para copiarlo' : ''}`}
                         style={{
                           top: topOf(from) + 1,
                           height: box,
-                          left: `${(lane / lanes) * 100}%`,
+                          left: `${leftPct}%`,
                           width: `calc(${widthPct}% - 3px)`,
-                          touchAction: handMode ? 'none' : 'manipulation',
-                          zIndex: dragging ? 30 : Math.min(4 + lane, 9),
+                          touchAction: handMode && !borrowed ? 'none' : 'manipulation',
+                          /* Lo que va dentro de otro se pinta por encima de
+                             él: si no, la mancha de las cinco horas de cole se
+                             comería la hora de natación. */
+                          zIndex: dragging ? 30 : Math.min(4 + depth * 6 + Math.round(left * 4), 20),
                           visibility: travelling ? 'hidden' : undefined,
+                          /* El color del rato: la gama de su área, matizada
+                             por su nombre. En papel entra como velo y como
+                             listón —lo pintan los dos <span> de abajo—; en el
+                             campo, entero. */
+                          backgroundImage: wash ? undefined : gradientOf(palette),
+                          /* En papel el velo es suave a propósito —el texto
+                             manda—, así que el color del tema se apoya también
+                             en el borde: con eso dos ratos del mismo tipo se
+                             distinguen sin subir el volumen del relleno. */
+                          borderColor:
+                            wash && !borrowed && clashes === 0
+                              ? `color-mix(in srgb, ${palette.solid} 45%, transparent)`
+                              : undefined,
                           /* El filete rojo de lo que se pisa. Va en línea y
                              como sombra interior a propósito: así no le quita
                              el sitio ni al anillo del foco ni al borde de la
                              piel, que son dos cosas que también tienen que
-                             verse en la misma pastilla. */
+                             verse en la misma pastilla. Lo prestado lleva el
+                             suyo con el color del peque, que es lo que dice de
+                             quién es sin gastar una línea de texto. */
                           boxShadow:
                             clashes > 0
                               ? 'inset 0 0 0 1.5px color-mix(in srgb, var(--danger) 65%, transparent), 0 2px 6px -2px rgba(0,0,0,0.35)'
-                              : undefined,
+                              : borrowed
+                                ? `inset 0 0 0 1.5px ${block.mirror!.tint}, 0 2px 6px -2px rgba(0,0,0,0.35)`
+                                : depth > 0
+                                  ? '0 3px 10px -3px rgba(0,0,0,0.45)'
+                                  : undefined,
                         }}
                         className={`rato group absolute select-none overflow-hidden text-left
                                     ${squat ? 'px-1.5 py-0' : 'px-1.5 py-0.5'}
@@ -838,11 +920,12 @@ export function WeekTimetable({
                                     ${
                                       wash
                                         ? 'surf-raised t-1 hairline-strong shadow-sm hover:brightness-[1.04]'
-                                        : `bg-gradient-to-br text-white shadow-sm hover:brightness-110 ${kindMeta.gradient}`
+                                        : 'text-white shadow-sm hover:brightness-110'
                                     }
                                     ${off ? 'opacity-20' : ''}
+                                    ${borrowed ? 'rato-prestado' : ''}
                                     ${dragging ? 'scale-[1.02] opacity-90 shadow-lg ring-2 ring-white/70' : ''}
-                                    ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                                    ${canDrag && !borrowed ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                       >
                         {/* En papel, el color del tipo entra como velo y como
                             listón: se sigue leyendo de qué va sin sacrificar el
@@ -852,11 +935,17 @@ export function WeekTimetable({
                           <>
                             <span
                               aria-hidden
-                              className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-[0.22] ${kindMeta.gradient}`}
+                              className="pointer-events-none absolute inset-0 opacity-[0.28]"
+                              style={{ backgroundImage: gradientOf(palette) }}
                             />
                             <span
                               aria-hidden
-                              className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${kindMeta.gradient}`}
+                              className="pointer-events-none absolute inset-y-0 left-0 w-1"
+                              style={{
+                                backgroundImage: borrowed
+                                  ? `linear-gradient(180deg, ${block.mirror!.tint}, ${block.mirror!.tint})`
+                                  : gradientOf(palette, '180deg'),
+                              }}
                             />
                             {/* Brillo de canto: es lo que hace que la pastilla
                                 parezca una tarjeta y no una mancha de color. */}
@@ -865,6 +954,18 @@ export function WeekTimetable({
                               className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/40"
                             />
                           </>
+                        )}
+
+                        {/* En el campo la pastilla es color entero, así que el
+                            filete del peque hay que ponerlo aparte: es lo que
+                            dice de quién es el rato cuando dos hermanos tienen
+                            deporte a la misma hora y los dos salen verdes. */}
+                        {!wash && borrowed && (
+                          <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-y-0 left-0 w-1.5"
+                            style={{ backgroundColor: block.mirror!.tint }}
+                          />
                         )}
 
                         {/* Balón de fondo en lo que es deporte. Sólo en el
@@ -890,6 +991,11 @@ export function WeekTimetable({
                             ${tall ? 'justify-start pt-0.5' : 'justify-center'}`}
                         >
                           <span className="flex items-center gap-0.5">
+                            {borrowed && (
+                              <span aria-hidden className="text-[11px] leading-none">
+                                {block.mirror!.avatar}
+                              </span>
+                            )}
                             <span aria-hidden className="text-sm leading-none">
                               {block.icon}
                             </span>
@@ -918,6 +1024,11 @@ export function WeekTimetable({
                               className={`truncate leading-tight ${look.title}
                                 ${squat ? 'text-[10px]' : 'text-[11px]'}`}
                             >
+                              {/* Lo prestado se anuncia con la cara del peque
+                                  antes que con su nombre: es lo que se
+                                  distingue de un vistazo en una columna
+                                  llena. */}
+                              {borrowed && <span aria-hidden>{block.mirror!.avatar} </span>}
                               <span aria-hidden>{block.icon}</span> {block.title || 'Sin nombre'}
                             </span>
                             {status && !SILENT.has(status) && (
@@ -1028,7 +1139,7 @@ export function WeekTimetable({
                         )}
 
                         {/* El tirador de arriba: empezar antes sin tocar el final */}
-                        {onResize && box >= 34 && (
+                        {onResize && !borrowed && box >= 34 && (
                           <span
                             role="presentation"
                             onPointerDown={start(block, 'head')}
@@ -1047,7 +1158,7 @@ export function WeekTimetable({
                         )}
 
                         {/* El tirador de abajo: estirar para que dure más */}
-                        {onResize && box >= 26 && (
+                        {onResize && !borrowed && box >= 26 && (
                           <span
                             role="presentation"
                             onPointerDown={start(block, 'resize')}

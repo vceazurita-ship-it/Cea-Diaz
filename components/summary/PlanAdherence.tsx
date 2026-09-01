@@ -5,7 +5,15 @@ import { useMemo } from 'react';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { adherence } from '@/lib/planLink';
-import { DAY_NAMES, DAY_SHORT, PLAN_KINDS, durationLabel, themeOf } from '@/lib/planner';
+import {
+  DAY_NAMES,
+  DAY_SHORT,
+  PLAN_KINDS,
+  durationLabel,
+  gradientOf,
+  kindPalette,
+  themeOf,
+} from '@/lib/planner';
 import type { DateKey, DayEntry, Profile, ProfileSkin, SummaryRange } from '@/types';
 
 /* =========================================================================
@@ -242,8 +250,11 @@ export function PlanAdherence({
               <span
                 key={item.kind}
                 title={`${PLAN_KINDS[item.kind].label}: ${durationLabel(item.minutes)}`}
-                className={`h-full bg-gradient-to-r ${PLAN_KINDS[item.kind].gradient}`}
-                style={{ width: `${(item.minutes / Math.max(1, data.minutes)) * 100}%` }}
+                className="h-full"
+                style={{
+                  width: `${(item.minutes / Math.max(1, data.minutes)) * 100}%`,
+                  backgroundImage: gradientOf(kindPalette(item.kind), '90deg'),
+                }}
               />
             ))}
           </div>
@@ -252,7 +263,8 @@ export function PlanAdherence({
               <span key={item.kind} className="inline-flex items-center gap-1 text-[11px] t-3">
                 <span
                   aria-hidden
-                  className={`h-2 w-2 rounded-full bg-gradient-to-br ${PLAN_KINDS[item.kind].gradient}`}
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundImage: gradientOf(kindPalette(item.kind)) }}
                 />
                 {PLAN_KINDS[item.kind].label}
                 <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>

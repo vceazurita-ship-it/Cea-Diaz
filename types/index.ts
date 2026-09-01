@@ -958,7 +958,43 @@ export interface PlanBlock {
   amountLock?: boolean;
   /** Con quién está el peque en ese rato. */
   companion?: Companion;
+  /**
+   * `true` cuando este rato **puede** pasar a la vez que otro y eso no es un
+   * fallo del plan.
+   *
+   * La natación de los peques es en el propio colegio: el rato de natación
+   * cae dentro del de cole y los dos son verdad a la vez. Sin esta marca la
+   * agenda los pintaba con filete rojo y avisaba de que «uno de los dos no va
+   * a pasar», que es justo lo contrario de lo que ocurre. Lo que cabe entero
+   * dentro de otro rato se da por simultáneo solo; esto es para los solapes a
+   * medias —la reunión que empieza antes de que acabe la clase— que también
+   * se quieren dar por buenos.
+   */
+  overlapOk?: boolean;
   note?: string;
+  /**
+   * Rato prestado de la agenda de otro perfil, sólo para mirarlo.
+   *
+   * Es lo que hace que en la semana de María salga la natación de Leo si la
+   * lleva ella: el rato sigue viviendo en la agenda de Leo —allí se cambia y
+   * allí se quita— y aquí es un reflejo de sólo lectura. **Nunca se guarda**:
+   * al leer la agenda se descarta, así que no puede colarse en el almacén ni
+   * viajar a la nube.
+   */
+  mirror?: PlanMirror;
+}
+
+/** De quién viene un rato reflejado, y por qué sale en esta agenda. */
+export interface PlanMirror {
+  /** Perfil dueño del rato: el peque. */
+  profileId: ProfileId;
+  name: string;
+  /** Emoji del peque, para reconocerlo de un vistazo en la pastilla. */
+  avatar: string;
+  /** Color del peque: el filete con el que se distingue del resto. */
+  tint: string;
+  /** Qué acompañante del rato original lo trae hasta aquí. */
+  companion: Companion;
 }
 
 /** La semana tipo de un perfil. Una por perfil, fechada para poder viajar. */

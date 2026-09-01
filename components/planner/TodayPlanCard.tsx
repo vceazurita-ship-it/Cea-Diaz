@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { useWeekPlan } from '@/hooks/useWeekPlan';
+import { useWeekPlanWithMirrors } from '@/hooks/useWeekPlan';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { friendlyDateLabel, isToday, weekdayIndex } from '@/lib/dates';
 import { SILENT, checkBlock, statusIcon, statusLabel } from '@/lib/planCheck';
@@ -59,7 +59,10 @@ interface TodayPlanCardProps {
 }
 
 export function TodayPlanCard({ profile, date, store, kid, onOpenPlan }: TodayPlanCardProps) {
-  const plan = useWeekPlan(profile.id);
+  /* Con los ratos de los peques que le tocan a este perfil dentro: para
+     María y para Víctor, «hoy a las seis llevas tú a Leo» es justo lo que
+     hace falta leer aquí. En los demás perfiles no cambia nada. */
+  const plan = useWeekPlanWithMirrors(profile.id);
   const theme = themeOf(profile.id);
   const day = weekdayIndex(date);
   const hoy = isToday(date);
@@ -223,6 +226,8 @@ function PlanLine({
   current: boolean;
 }) {
   const done = now !== null && endOf(check.block) <= now;
+  /** De un peque, traído a esta agenda porque hoy le toca a quien mira. */
+  const mirror = check.block.mirror;
 
   return (
     <li
@@ -232,6 +237,9 @@ function PlanLine({
     >
       <span className="text-xs font-bold tabular-nums t-3">{check.block.start}</span>
       <span className="text-sm font-semibold t-1">
+        {/* Lo de un peque se anuncia con su cara: es lo que distingue «tu
+            clase de las seis» de «llevar a Leo a las seis». */}
+        {mirror && <span aria-hidden>{mirror.avatar} </span>}
         <span aria-hidden>{check.block.icon}</span> {check.block.title}
       </span>
       <span className="text-[11px] tabular-nums t-3">{durationLabel(check.block.duration)}</span>
@@ -240,7 +248,16 @@ function PlanLine({
         <span className="chip-accent px-1.5 py-0 text-[10px] uppercase tracking-wide">Ahora</span>
       )}
 
-      {check.block.companion && (
+      {mirror && (
+        <span
+          className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-2"
+          style={{ boxShadow: `inset 2px 0 0 ${mirror.tint}` }}
+        >
+          con {mirror.name}
+        </span>
+      )}
+
+      {check.block.companion && !mirror && (
         <span className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-2">
           <span aria-hidden>{COMPANIONS[check.block.companion].icon}</span>{' '}
           {COMPANIONS[check.block.companion].short}

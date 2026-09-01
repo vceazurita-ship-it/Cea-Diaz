@@ -13,12 +13,14 @@ import {
   amountScale,
   amountUnit,
   blockFromPreset,
+  clashing,
   durationLabel,
   linkableMetrics,
   minutesOf,
   overlap,
   presetGroupsOf,
   presetsOf,
+  simultaneous,
   timeOf,
 } from '@/lib/planner';
 import type { PlanPreset, PresetGroupId } from '@/lib/planner';
@@ -161,13 +163,34 @@ export function BlockEditor({
   /** Termina a las…: la cuenta que nadie quiere hacer de cabeza. */
   const ends = timeOf(minutesOf(draft.start) + draft.duration);
 
-  /** Con qué se pisaría, día por día. Se dice antes de guardar, no después. */
+  /**
+   * Con qué **chocaría**, día por día. Se dice antes de guardar, no después.
+   *
+   * Lo que cabe entero dentro de otro rato no cuenta como choque: la natación
+   * es en el propio colegio y las dos cosas pasan de verdad. Eso se dice
+   * aparte, en gris, para que se vea que la agenda lo ha entendido así.
+   */
   const clashes = useMemo(() => {
     const out: Array<{ day: number; title: string }> = [];
 
     for (const day of isNew ? days : [draft.day]) {
       const candidate = { ...draft, day };
-      const hit = plan.blocks.find((item) => item.id !== draft.id && overlap(item, candidate));
+      const hit = plan.blocks.find((item) => item.id !== draft.id && clashing(item, candidate));
+      if (hit) out.push({ day, title: hit.title || 'otro rato' });
+    }
+
+    return out;
+  }, [days, draft, isNew, plan.blocks]);
+
+  /** Y con qué convive a propósito: lo que lo envuelve o lo que lleva dentro. */
+  const alongside = useMemo(() => {
+    const out: Array<{ day: number; title: string }> = [];
+
+    for (const day of isNew ? days : [draft.day]) {
+      const candidate = { ...draft, day };
+      const hit = plan.blocks.find(
+        (item) => item.id !== draft.id && overlap(item, candidate) && simultaneous(item, candidate),
+      );
       if (hit) out.push({ day, title: hit.title || 'otro rato' });
     }
 
@@ -383,14 +406,55 @@ export function BlockEditor({
         </div>
 
         {clashes.length > 0 && (
-          <p className="rounded-xl border p-2.5 text-xs leading-relaxed hairline surf-2 t-2">
-            ⏱️ Se pisa con «{clashes[0].title}»
-            {clashes.length === 1
-              ? ` el ${DAY_NAMES[clashes[0].day].toLowerCase()}`
-              : ` y con otros ${clashes.length - 1}`}
-            . Puedes guardarlo igual, pero uno de los dos no va a pasar.
+          <div className="rounded-xl border p-2.5 hairline surf-2">
+            <p className="text-xs leading-relaxed t-2">
+              ⏱️ Se pisa con «{clashes[0].title}»
+              {clashes.length === 1
+                ? ` el ${DAY_NAMES[clashes[0].day].toLowerCase()}`
+                : ` y con otros ${clashes.length - 1}`}
+              . Puedes guardarlo igual, pero uno de los dos no va a pasar.
+            </p>
+            {/* Salvo que pasen los dos de verdad, que es lo normal en cuanto
+                una actividad es dentro de otra: la natación es en el propio
+                colegio. Un toque aquí y la agenda deja de corregir algo que
+                no está mal. */}
+            <button
+              type="button"
+              onClick={() => patch({ overlapOk: true })}
+              className="btn-ghost mt-2 min-h-0 px-2 py-1 text-[11px]"
+            >
+              🔀 Pasan los dos a la vez
+            </button>
+          </div>
+        )}
+
+        {clashes.length === 0 && alongside.length > 0 && (
+          <p className="rounded-xl border p-2.5 text-xs leading-relaxed hairline surf-1 t-3">
+            🔀 Va a la vez que «{alongside[0].title}»
+            {alongside.length > 1 ? ` y otros ${alongside.length - 1}` : ''}, y así se pinta: uno
+            encima del otro, sin marcarlo como fallo.
           </p>
         )}
+
+        {/* Y a mano, para lo que se solapa a medias: la reunión que empieza
+            antes de que acabe la clase, el partido que se cruza con la
+            comida. */}
+        <label className="flex items-start gap-2 rounded-xl border p-2.5 hairline surf-1">
+          <input
+            type="checkbox"
+            checked={draft.overlapOk === true}
+            onChange={(event) => patch({ overlapOk: event.target.checked || undefined })}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--accent)]"
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-bold t-1">🔀 Puede pasar a la vez que otra cosa</span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed t-3">
+              Para lo que ocurre dentro de otro rato o a caballo de él —la natación, que es en el
+              propio colegio—. Se sigue viendo en su hora, encima de lo otro, pero deja de contar
+              como un solape que hay que arreglar.
+            </span>
+          </span>
+        </label>
       </section>
 
       {/* De qué va */}
@@ -444,6 +508,18 @@ export function BlockEditor({
               </button>
             ))}
           </div>
+
+          {/* Esto ya no se queda aquí dentro: es lo que hace que el rato salga
+              en la agenda de quien lo lleva. Merece decirse donde se elige. */}
+          <p className="mt-2 text-[11px] leading-relaxed t-3">
+            {draft.companion === 'mama'
+              ? 'Con esto, el rato sale también en la semana de María, en su hora.'
+              : draft.companion === 'papa'
+                ? 'Con esto, el rato sale también en la semana de Víctor, en su hora.'
+                : draft.companion === 'ambos'
+                  ? 'Con esto, el rato sale en la semana de María y en la de Víctor, en su hora.'
+                  : 'Lo que marques con mamá o con papá sale también en la semana de ellos, para que se vea de un vistazo quién lleva qué.'}
+          </p>
         </section>
       )}
 
