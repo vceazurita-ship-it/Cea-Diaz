@@ -986,7 +986,7 @@ export function WeekTimetable({
                               className="pointer-events-none absolute inset-y-0 left-0 w-1"
                               style={{
                                 backgroundImage: borrowed
-                                  ? mirrorRail(block.mirror!)
+                                  ? mirrorRail(block.mirror!.kids)
                                   : gradientOf(palette, '180deg'),
                               }}
                             />
@@ -1007,7 +1007,7 @@ export function WeekTimetable({
                           <span
                             aria-hidden
                             className="pointer-events-none absolute inset-y-0 left-0 w-1.5"
-                            style={{ backgroundImage: mirrorRail(block.mirror!) }}
+                            style={{ backgroundImage: mirrorRail(block.mirror!.kids) }}
                           />
                         )}
 

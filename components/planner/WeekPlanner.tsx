@@ -48,6 +48,8 @@ import {
   kindPalette,
   kindShare,
   minutesOf,
+  mirrorMinutes,
+  mirrorRail,
   mirrorShare,
   mirrorsShown,
   moveBlockTo,
@@ -684,24 +686,40 @@ export function WeekPlanner({
 
         {/* Lo que a este perfil le toca de los peques. Sale de la semana de
             Leo y de la de Hugo: lo que allí lleva «con mamá» —o «con los
-            dos»— aparece aquí, y aquí es donde se ve cuánto es. */}
+            dos»— aparece aquí, y aquí es donde se ve cuánto es.
+
+            Se reparte por **con quién se está** y no por peque: la natación
+            de los dos hermanos es una sola tarde, así que tiene su fila y no
+            se cuenta entera en la de cada uno. Con eso, las filas suman el
+            rato de verdad apartado, que es lo que se lee al lado. */}
         {takes && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
             <span className="text-xs font-bold uppercase tracking-wide t-3">Con los peques:</span>
 
             {withKids.length > 0 ? (
-              withKids.map((item) => (
-                <span
-                  key={item.profileId}
-                  className="chip-soft"
-                  style={{ boxShadow: `inset 2px 0 0 ${item.tint}` }}
-                  title={`${item.count} ${item.count === 1 ? 'rato' : 'ratos'} de ${item.name} contigo esta semana`}
-                >
-                  <span aria-hidden>{item.avatar}</span>
-                  {item.name}
-                  <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
-                </span>
-              ))
+              <>
+                {withKids.map((item) => (
+                  <span
+                    key={item.id}
+                    className="chip-soft"
+                    title={`${item.count} ${item.count === 1 ? 'rato' : 'ratos'} con ${item.name} esta semana`}
+                  >
+                    <span
+                      aria-hidden
+                      className="-ml-0.5 h-3.5 w-1 shrink-0 rounded-full"
+                      style={{ backgroundImage: mirrorRail(item.kids) }}
+                    />
+                    <span aria-hidden>{item.avatar}</span>
+                    {item.name}
+                    <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
+                  </span>
+                ))}
+                {withKids.length > 1 && (
+                  <span className="text-[11px] tabular-nums t-3">
+                    · {durationLabel(mirrorMinutes(borrowed))} en total
+                  </span>
+                )}
+              </>
             ) : (
               <span className="text-xs t-3">
                 {mirrors

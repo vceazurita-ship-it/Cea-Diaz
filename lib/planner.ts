@@ -5,7 +5,7 @@ import type {
   Metric,
   PlanBlock,
   PlanKind,
-  PlanMirror,
+  PlanMirrorKid,
   ProfileId,
   WeekPlan,
 } from '@/types';
@@ -2647,10 +2647,10 @@ export function mirrorBlocks(profileId: ProfileId): PlanBlock[] {
  * colores partidos por la mitad cuando el rato es de los dos. Es lo que dice
  * de quién es sin gastar una línea de texto.
  */
-export function mirrorRail(mirror: PlanMirror, angle = '180deg'): string {
-  const stops = mirror.kids.map(
+export function mirrorRail(kids: PlanMirrorKid[], angle = '180deg'): string {
+  const stops = kids.map(
     (kid, index) =>
-      `${kid.tint} ${((index / mirror.kids.length) * 100).toFixed(0)}% ${(((index + 1) / mirror.kids.length) * 100).toFixed(0)}%`,
+      `${kid.tint} ${((index / kids.length) * 100).toFixed(0)}% ${(((index + 1) / kids.length) * 100).toFixed(0)}%`,
   );
   return `linear-gradient(${angle}, ${stops.join(', ')})`;
 }
@@ -2669,34 +2669,49 @@ export function planWithMirrors(profileId: ProfileId, on = true): WeekPlan {
   return { ...own, blocks: sortBlocks([...own.blocks, ...borrowed]) };
 }
 
+/** Una fila del reparto: con quién se pasa el rato y cuánto. */
+export interface MirrorShareRow {
+  /** Quiénes son, en orden: sirve de clave y de identidad. */
+  id: string;
+  kids: PlanMirrorKid[];
+  /** «Leo», «Hugo», «Leo y Hugo». */
+  name: string;
+  avatar: string;
+  minutes: number;
+  count: number;
+}
+
 /**
- * Minutos de la semana que este perfil pasa con los peques, por peque.
+ * En qué se va el rato que este perfil pasa con los peques.
  *
- * Un rato compartido —la natación de los dos— cuenta para los dos: la
- * pregunta que contesta esta lista es «cuánto rato paso con cada uno», y esa
- * tarde se pasa con los dos a la vez. Por eso la suma de las filas puede ser
- * mayor que el rato apartado, y está bien que lo sea.
+ * Se agrupa **por con quién se está**, no por peque, y ahí está la
+ * diferencia: la natación de los dos hermanos es una sola tarde, así que
+ * tiene su propia fila —«Leo y Hugo»— en vez de sumarse entera en la de cada
+ * uno. Así las filas suman el rato de verdad apartado en la semana y no el
+ * doble, que era lo que pasaba contándolo por cabeza.
  */
-export function mirrorShare(
-  blocks: PlanBlock[],
-): Array<{ profileId: ProfileId; name: string; avatar: string; tint: string; minutes: number; count: number }> {
-  const totals = new Map<
-    ProfileId,
-    { profileId: ProfileId; name: string; avatar: string; tint: string; minutes: number; count: number }
-  >();
+export function mirrorShare(blocks: PlanBlock[]): MirrorShareRow[] {
+  const totals = new Map<string, MirrorShareRow>();
 
   for (const block of blocks) {
     if (!block.mirror) continue;
 
-    for (const kid of block.mirror.kids) {
-      const row = totals.get(kid.profileId) ?? { ...kid, minutes: 0, count: 0 };
-      row.minutes += block.duration;
-      row.count += 1;
-      totals.set(kid.profileId, row);
-    }
+    const { kids, name, avatar } = block.mirror;
+    const id = kids.map((kid) => kid.profileId).join('+');
+    const row = totals.get(id) ?? { id, kids, name, avatar, minutes: 0, count: 0 };
+    row.minutes += block.duration;
+    row.count += 1;
+    totals.set(id, row);
   }
 
-  return Array.from(totals.values()).sort((a, b) => b.minutes - a.minutes);
+  return Array.from(totals.values()).sort(
+    (a, b) => a.kids.length - b.kids.length || b.minutes - a.minutes,
+  );
+}
+
+/** Minutos que este perfil tiene apartados con los peques, sin repetir. */
+export function mirrorMinutes(blocks: PlanBlock[]): number {
+  return blocks.reduce((total, block) => total + (block.mirror ? block.duration : 0), 0);
 }
 
 /**
