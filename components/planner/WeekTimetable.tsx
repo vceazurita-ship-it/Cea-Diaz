@@ -270,6 +270,13 @@ export function WeekTimetable({
   const needle = query.trim().toLowerCase();
 
   /**
+   * Columnas estrechas: más de cuatro días a la vez. Con eso no cabe la
+   * cuenta larga en la cabecera ni el nombre del día entero, así que las dos
+   * cosas se acortan a la vez y por el mismo motivo.
+   */
+  const tight = shownDays.length > 4;
+
+  /**
    * La hora de ahora, para la línea de la columna de hoy. Se arranca en nulo
    * y se corrige tras montar: en el servidor no hay reloj del navegador y
    * pintarla antes desajustaría la hidratación.
@@ -646,12 +653,27 @@ export function WeekTimetable({
                       >
                         <span className="sm:hidden">{DAY_SHORT[day]}</span>
                         <span className="hidden sm:inline">
-                          {shownDays.length > 4 ? DAY_SHORT[day] : DAY_NAMES[day]}
+                          {tight ? DAY_SHORT[day] : DAY_NAMES[day]}
                         </span>
                         {hoy && <span className="ml-1 text-[9px] normal-case">hoy</span>}
                       </span>
-                      <span className="flex items-center gap-1 text-[9px] tabular-nums opacity-70">
-                        {own.length > 0 ? `${own.length} · ${durationLabel(load)}` : '—'}
+                      <span className="flex items-center gap-1 text-[9px] leading-none tabular-nums opacity-70">
+                        {/* Con la semana entera en un móvil, la columna mide
+                            ochenta píxeles y «4 · 6 h 45 min» se parte en dos
+                            renglones que empujan la cuadrícula hacia abajo.
+                            Ahí basta la cuenta; las horas se leen entrando en
+                            el día, y en cuanto hay pantalla vuelven. */}
+                        {own.length > 0 ? (
+                          <span>
+                            {own.length}
+                            <span className={tight ? 'hidden sm:inline' : ''}>
+                              {' '}
+                              · {durationLabel(load)}
+                            </span>
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                         {borrowed > 0 && (
                           <span
                             title={`${borrowed} ${borrowed === 1 ? 'rato' : 'ratos'} de los peques contigo`}
@@ -829,6 +851,24 @@ export function WeekTimetable({
                     const leftPct = left * 100;
 
                     /**
+                     * El sangrado de lo que va dentro de otro rato, en
+                     * píxeles y no en tanto por ciento: es lo que se ve
+                     * —«esto pasa ahí dentro»— y lo que en una columna de
+                     * ochenta píxeles no puede costar un cuarto del ancho,
+                     * porque entonces la pastilla se queda sin sitio para su
+                     * propio nombre. Un pellizco del ancho hasta un tope de
+                     * veinte píxeles: generoso en una pantalla grande,
+                     * discreto en un móvil.
+                     */
+                    const step = Math.min(depth, 2);
+                    const indent =
+                      depth === 0
+                        ? null
+                        : `min(${(width * (step === 1 ? 10 : 18)).toFixed(2)}%, ${
+                            step === 1 ? 26 : 46
+                          }px)`;
+
+                    /**
                      * Copiar y quitar piden un sitio donde picar, así que sólo
                      * salen en pastillas con sitio: el alto se mira aquí y el
                      * ancho lo mira `.rato-util` desde el CSS. Con ratón salen
@@ -876,8 +916,10 @@ export function WeekTimetable({
                         style={{
                           top: topOf(from) + 1,
                           height: box,
-                          left: `${leftPct}%`,
-                          width: `calc(${widthPct}% - 3px)`,
+                          left: indent ? `calc(${leftPct}% + ${indent})` : `${leftPct}%`,
+                          width: indent
+                            ? `calc(${widthPct}% - ${indent} - 3px)`
+                            : `calc(${widthPct}% - 3px)`,
                           touchAction: handMode && !borrowed ? 'none' : 'manipulation',
                           /* Lo que va dentro de otro se pinta por encima de
                              él: si no, la mancha de las cinco horas de cole se
@@ -1113,7 +1155,7 @@ export function WeekTimetable({
                                 }}
                                 aria-label={`Repetir «${block.title || 'el rato'}»`}
                                 title="Repetir detrás (o arrástralo con Alt)"
-                                className={`grid h-4 w-4 place-items-center rounded text-[9px] leading-none
+                                className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
                                   ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'} hover:brightness-125`}
                               >
                                 ⧉
@@ -1129,7 +1171,7 @@ export function WeekTimetable({
                                 }}
                                 aria-label={`Quitar «${block.title || 'el rato'}»`}
                                 title="Quitar de la semana (se puede deshacer)"
-                                className={`grid h-4 w-4 place-items-center rounded text-[9px] leading-none
+                                className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
                                   ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'} hover:brightness-125`}
                               >
                                 ✕

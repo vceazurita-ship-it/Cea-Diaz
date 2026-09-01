@@ -444,7 +444,7 @@ export function BlockEditor({
             type="checkbox"
             checked={draft.overlapOk === true}
             onChange={(event) => patch({ overlapOk: event.target.checked || undefined })}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--accent)]"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-[color:var(--accent)]"
           />
           <span className="min-w-0">
             <span className="block text-xs font-bold t-1">🔀 Puede pasar a la vez que otra cosa</span>

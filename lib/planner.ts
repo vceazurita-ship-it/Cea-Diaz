@@ -1842,13 +1842,16 @@ export function laneLayout(blocks: PlanBlock[]): {
           clashes: clashesOf.get(entry.item.block) ?? 0,
         });
 
-        // Y lo que va dentro de él, dentro de él: metido por la izquierda,
-        // que es lo que hace que se siga viendo de qué es hijo.
+        /**
+         * Y lo que va dentro de él, en su mismo trozo de columna. El sangrado
+         * que lo hace parecer «dentro» no se pone aquí sino al pintarlo, en
+         * píxeles: quitarle a un hijo una cuarta parte del ancho se lee bien
+         * en una pantalla grande y fatal en un móvil, donde la columna del
+         * martes mide ochenta píxeles y la natación se quedaba en sesenta —el
+         * ancho justo al que la pastilla deja de poder enseñar su nombre—.
+         */
         const brood = childrenOf.get(entry.item);
-        if (brood && brood.length > 0) {
-          const inset = depth === 0 ? 0.26 : 0.14;
-          place(brood, depth + 1, { left: left + width * inset, width: width * (1 - inset) });
-        }
+        if (brood && brood.length > 0) place(brood, depth + 1, { left, width });
       }
 
       cluster = [];
