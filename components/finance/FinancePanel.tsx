@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { FinanceAdvice } from '@/components/finance/FinanceAdvice';
+import { FinanceStats } from '@/components/finance/FinanceStats';
 import { LedgerCard } from '@/components/finance/LedgerCard';
+import { QuickUpdate } from '@/components/finance/QuickUpdate';
 import { useToast } from '@/components/ui/Toast';
 import {
   LEDGERS,
@@ -33,6 +36,7 @@ import {
   subscribeBooks,
   ledgerTotal,
 } from '@/lib/finance';
+import { financeAlerts, financeNotes } from '@/lib/financeExperts';
 import type { FinanceBook, FinanceItem, LedgerId, Profile } from '@/types';
 
 /* =========================================================================
@@ -57,13 +61,19 @@ interface FinancePanelProps {
   profile: Profile;
 }
 
-/** Las dos maneras de mirar las mismas cuentas. */
-type View = 'resumen' | 'libretas';
+/**
+ * Las cuatro maneras de mirar las mismas cuentas, en el orden en que se
+ * usan: se entra a ver cómo va, se lee lo que la app tiene que decir, se
+ * baja al detalle y sólo de vez en cuando se abre a editar.
+ */
+type View = 'resumen' | 'consejo' | 'estadisticas' | 'libretas';
 
 export function FinancePanel({ profile }: FinancePanelProps) {
   const notify = useToast();
   const [book, setBook] = useState<FinanceBook>(emptyBook);
   const [view, setView] = useState<View>('resumen');
+  /** El modo de teclear cifras deprisa, que es a lo que se entra cada mes. */
+  const [quick, setQuick] = useState(false);
 
   useEffect(() => {
     setBook(bookOf(profile.id));
@@ -79,6 +89,11 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   const runway = runwayMonths(book);
   const shares = useMemo(() => expenseShare(book), [book]);
   const drifts = useMemo(() => drift(book), [book]);
+
+  /** Lo que la app tiene que decir, y cuánto de ello es urgente. */
+  const notes = useMemo(() => financeNotes(book), [book]);
+  const alerts = useMemo(() => financeAlerts(book), [book]);
+  const top = notes.find((note) => note.tone === 'grave' || note.tone === 'aviso');
 
   /* ------------------------------------------------------------ acciones */
 
@@ -151,6 +166,16 @@ export function FinancePanel({ profile }: FinancePanelProps) {
     );
   }
 
+  if (quick) {
+    return (
+      <QuickUpdate
+        book={book}
+        onChange={(ledger, item) => commit(putItem(book, ledger, item))}
+        onDone={() => setQuick(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Lo que se viene a mirar */}
@@ -200,6 +225,27 @@ export function FinancePanel({ profile }: FinancePanelProps) {
             </>
           )}
         </p>
+
+        {/* Y lo primero que hay que oír, si hay algo que oír */}
+        {top && (
+          <button
+            type="button"
+            onClick={() => setView('consejo')}
+            className={`mt-3 flex w-full items-start gap-2 rounded-xl border p-2.5 text-left
+              ${top.tone === 'grave' ? 'border-[color:var(--danger)]' : 'border-accent'}`}
+          >
+            <span aria-hidden className="text-base">
+              {top.icon}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-bold leading-snug t-1">{top.title}</span>
+              <span className="mt-0.5 block text-[11px] t-3">
+                {alerts > 1 ? `Y ${alerts - 1} cosa${alerts - 1 === 1 ? '' : 's'} más que mirar. ` : ''}
+                Toca para verlo entero.
+              </span>
+            </span>
+          </button>
+        )}
 
         {/* En qué se va el mes */}
         {shares.length > 1 && (
@@ -266,12 +312,27 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         )}
       </section>
 
+      {/* Lo primero que se viene a hacer: teclear las cifras del mes */}
+      <button
+        type="button"
+        onClick={() => setQuick(true)}
+        className="btn-primary w-full py-2.5 text-sm"
+      >
+        ⚡ Poner las cuentas al día
+      </button>
+
       {/* Cómo mirarlas */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-full p-1 surf-2" role="tablist" aria-label="Cómo ver las cuentas">
+        <div
+          className="flex flex-wrap gap-1 rounded-full p-1 surf-2"
+          role="tablist"
+          aria-label="Cómo ver las cuentas"
+        >
           {(
             [
               { id: 'resumen', label: '📊 Resumen' },
+              { id: 'consejo', label: alerts > 0 ? `🧠 Consejo · ${alerts}` : '🧠 Consejo' },
+              { id: 'estadisticas', label: '📈 Estadísticas' },
               { id: 'libretas', label: '✏️ Libretas' },
             ] as Array<{ id: View; label: string }>
           ).map((option) => (
@@ -294,7 +355,11 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         </button>
       </div>
 
-      {view === 'resumen' ? (
+      {view === 'consejo' ? (
+        <FinanceAdvice book={book} />
+      ) : view === 'estadisticas' ? (
+        <FinanceStats book={book} />
+      ) : view === 'resumen' ? (
         <section className="card p-4" aria-label="Los totales de cada libreta">
           <ul className="divide-y hairline">
             {(Object.keys(LEDGERS) as LedgerId[]).map((ledger) => {

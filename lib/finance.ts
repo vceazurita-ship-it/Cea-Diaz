@@ -1,4 +1,11 @@
-import type { FinanceBook, FinanceItem, LedgerId } from '@/types';
+import type {
+  FinanceBook,
+  FinanceGoals,
+  FinanceItem,
+  FinanceSnapshot,
+  LedgerId,
+  SpendTier,
+} from '@/types';
 
 /* =========================================================================
  *  Economía: las cuentas de Víctor.
@@ -145,6 +152,76 @@ export const LEDGERS: Record<LedgerId, LedgerMeta> = {
 
 export const LEDGER_LIST = Object.keys(LEDGERS) as LedgerId[];
 
+/* ---------------------------------------------------------------------------
+ * La escala: en qué orden importa el dinero en esta casa
+ *
+ * Es lo que convierte un presupuesto en una decisión. Un gasto se puede mirar
+ * por categoría —colegio, gasolina, ocio— y eso dice **en qué** se va; la
+ * escala dice **para qué**, y ahí es donde se ve si el dinero está yendo
+ * donde uno ha dicho que quiere que vaya.
+ *
+ * El orden es el que decidió la casa y no se toca desde aquí: primero lo que
+ * no se elige, luego los peques y lo que les hace crecer, luego el tiempo en
+ * pareja y las experiencias de los cuatro, y después la comodidad de vivir.
+ * ------------------------------------------------------------------------- */
+
+interface TierMeta {
+  label: string;
+  icon: string;
+  /** Qué entra aquí, en una línea. */
+  hint: string;
+  /** Color estable, para la barra y la leyenda. */
+  color: string;
+}
+
+export const TIERS: Record<SpendTier, TierMeta> = {
+  base: {
+    label: 'Lo que no se elige',
+    icon: '🏠',
+    hint: 'Techo, luz, comida, seguros, impuestos. El suelo sobre el que se decide todo lo demás.',
+    color: 'hsl(215 16% 52%)',
+  },
+  hijos: {
+    label: 'Los peques y su desarrollo',
+    icon: '🌱',
+    hint: 'Colegio, deporte, idiomas, libros: lo que les hace crecer.',
+    color: 'hsl(150 58% 42%)',
+  },
+  pareja: {
+    label: 'María y vosotros dos',
+    icon: '💞',
+    hint: 'El tiempo a solas: cenas, escapadas, lo que sostiene la pareja.',
+    color: 'hsl(340 62% 54%)',
+  },
+  familia: {
+    label: 'Los cuatro juntos',
+    icon: '🧭',
+    hint: 'Viajes, planes y experiencias compartidas de los cuatro.',
+    color: 'hsl(28 78% 52%)',
+  },
+  calidad: {
+    label: 'Calidad de vida',
+    icon: '✨',
+    hint: 'Lo que hace la vida más cómoda o más agradable, sin ser ninguna de las anteriores.',
+    color: 'hsl(262 55% 58%)',
+  },
+  otros: {
+    label: 'Sin colocar',
+    icon: '❔',
+    hint: 'Todavía no le has dicho a qué sirve. Colócalo y entrará en el reparto.',
+    color: 'hsl(220 8% 62%)',
+  },
+};
+
+/**
+ * El orden de la escala. La app no lo inventa: lo contrasta. Si «calidad de
+ * vida» pesa más que «los peques», eso es lo que se dice, sin adornarlo.
+ */
+export const TIER_ORDER: SpendTier[] = ['base', 'hijos', 'pareja', 'familia', 'calidad', 'otros'];
+
+/** Las prioridades que se eligen de verdad; `base` es el suelo y `otros` un pendiente. */
+export const CHOSEN_TIERS: SpendTier[] = ['hijos', 'pareja', 'familia', 'calidad'];
+
 /** Las libretas que forman el patrimonio, en el orden en que se suman. */
 export const WEALTH_LEDGERS: LedgerId[] = ['cuentas', 'inversiones', 'cobros', 'pagos'];
 
@@ -160,6 +237,8 @@ interface Seed {
   label: string;
   icon: string;
   note?: string;
+  /** Sólo en los gastos: a qué prioridad sirve de partida. Se puede cambiar. */
+  tier?: SpendTier;
 }
 
 const SEEDS: Record<LedgerId, Seed[]> = {
@@ -172,24 +251,26 @@ const SEEDS: Record<LedgerId, Seed[]> = {
     { label: 'Otros ingresos', icon: '➕' },
   ],
   gastos: [
-    { label: 'Casa', icon: '🏠' },
-    { label: 'Suministros', icon: '💡' },
-    { label: 'Seguro dental', icon: '🦷' },
-    { label: 'Plan de pensiones', icon: '🏦' },
-    { label: 'Móvil e internet', icon: '📱' },
-    { label: 'Coche', icon: '🚗', note: 'Mantenimiento' },
-    { label: 'Seguro del coche', icon: '🛡️' },
-    { label: 'Impuestos del coche', icon: '🧾' },
-    { label: 'Gasolina y transporte', icon: '⛽' },
-    { label: 'Comida', icon: '🍽️' },
-    { label: 'Colegio', icon: '🎒' },
-    { label: 'Actividades de los peques', icon: '🏊' },
-    { label: 'Ropa de los peques', icon: '👕' },
-    { label: 'Abono del Madrid', icon: '🏟️' },
-    { label: 'Ocio', icon: '🎬' },
-    { label: 'Regalos', icon: '🎁' },
-    { label: 'Idiomas', icon: '🗣️' },
-    { label: 'Imprevistos', icon: '❓' },
+    { label: 'Casa', icon: '🏠', tier: 'base' },
+    { label: 'Suministros', icon: '💡', tier: 'base' },
+    { label: 'Seguro dental', icon: '🦷', tier: 'base' },
+    { label: 'Plan de pensiones', icon: '🏦', tier: 'base' },
+    { label: 'Móvil e internet', icon: '📱', tier: 'base' },
+    { label: 'Coche', icon: '🚗', note: 'Mantenimiento', tier: 'base' },
+    { label: 'Seguro del coche', icon: '🛡️', tier: 'base' },
+    { label: 'Impuestos del coche', icon: '🧾', tier: 'base' },
+    { label: 'Gasolina y transporte', icon: '⛽', tier: 'base' },
+    { label: 'Comida', icon: '🍽️', tier: 'base' },
+    { label: 'Colegio', icon: '🎒', tier: 'hijos' },
+    { label: 'Actividades de los peques', icon: '🏊', tier: 'hijos' },
+    { label: 'Ropa de los peques', icon: '👕', tier: 'hijos' },
+    { label: 'Abono del Madrid', icon: '🏟️', tier: 'familia' },
+    { label: 'Ocio', icon: '🎬', tier: 'calidad' },
+    { label: 'Regalos', icon: '🎁', tier: 'calidad' },
+    { label: 'Idiomas', icon: '🗣️', tier: 'hijos' },
+    { label: 'Cenas y planes con María', icon: '💞', tier: 'pareja' },
+    { label: 'Experiencias de los cuatro', icon: '🧭', tier: 'familia' },
+    { label: 'Imprevistos', icon: '❓', tier: 'base' },
   ],
   cuentas: [{ label: 'Cuenta principal', icon: '🏦' }],
   inversiones: [
@@ -213,12 +294,27 @@ export function emptyItem(): FinanceItem {
   return { id: newId(), label: '', icon: '📌', amount: 0 };
 }
 
+/**
+ * Con qué cifras se juzga el objetivo, de partida.
+ *
+ * El 4 % de retirada es la referencia clásica (Bengen; estudio Trinity) y el
+ * 4 % de rendimiento real es una hipótesis prudente para una cartera de renta
+ * variable a largo plazo, ya descontada la inflación. El colchón de doce
+ * meses no es el de manual —lo corriente son de tres a seis— sino el que pide
+ * vivir de un contrato de temporada.
+ */
+export function defaultGoals(): FinanceGoals {
+  return { withdrawal: 4, cushion: 12, realReturn: 4 };
+}
+
 export function emptyBook(): FinanceBook {
   return {
     season: '',
     months: 12,
     holidays: 0,
     ledgers: { ingresos: [], gastos: [], cuentas: [], inversiones: [], cobros: [], pagos: [] },
+    history: [],
+    goals: defaultGoals(),
     updatedAt: NEVER,
   };
 }
@@ -243,6 +339,7 @@ export function starterBook(): FinanceBook {
       icon: seed.icon,
       amount: 0,
       note: seed.note,
+      tier: seed.tier,
     }));
   }
 
@@ -366,6 +463,210 @@ export function drift(book: FinanceBook): Array<{ item: FinanceItem; diff: numbe
     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 }
 
+/* ---------------------------------------------------------------------------
+ * La escala, en cifras
+ * ------------------------------------------------------------------------- */
+
+/** A qué prioridad sirve un gasto. Sin colocar, «otros». */
+export function tierOf(item: FinanceItem): SpendTier {
+  return item.tier ?? 'otros';
+}
+
+/** Lo que se va al mes en cada prioridad, de la primera a la última. */
+export function tierShare(
+  book: FinanceBook,
+): Array<{ tier: SpendTier; amount: number; share: number; count: number }> {
+  const total = monthlyExpense(book);
+  const totals = new Map<SpendTier, { amount: number; count: number }>();
+
+  for (const item of book.ledgers.gastos) {
+    const tier = tierOf(item);
+    const row = totals.get(tier) ?? { amount: 0, count: 0 };
+    row.amount += amountOf(item, 'gastos');
+    row.count += 1;
+    totals.set(tier, row);
+  }
+
+  return TIER_ORDER.filter((tier) => totals.has(tier)).map((tier) => {
+    const row = totals.get(tier)!;
+    return { tier, amount: row.amount, share: total > 0 ? row.amount / total : 0, count: row.count };
+  });
+}
+
+/**
+ * Lo que se va en lo que **se elige**, sin contar el suelo.
+ *
+ * Es el reparto que de verdad se decide: comparar el colegio con la hipoteca
+ * no dice nada, porque la hipoteca no está en discusión. Comparar el colegio
+ * con el ocio, sí.
+ */
+export function chosenShare(
+  book: FinanceBook,
+): Array<{ tier: SpendTier; amount: number; share: number }> {
+  const rows = tierShare(book).filter((row) => CHOSEN_TIERS.includes(row.tier));
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  return rows.map((row) => ({
+    tier: row.tier,
+    amount: row.amount,
+    share: total > 0 ? row.amount / total : 0,
+  }));
+}
+
+/**
+ * Dónde el reparto real contradice el orden declarado.
+ *
+ * Devuelve los pares en los que una prioridad de más abajo se lleva más
+ * dinero que una de más arriba. No es un fallo por sí mismo —un mes con un
+ * viaje grande descoloca cualquier escala— pero es exactamente lo que uno
+ * quiere ver dicho en voz alta, porque a solas no se ve.
+ */
+export function tierClashes(
+  book: FinanceBook,
+): Array<{ above: SpendTier; below: SpendTier; gap: number }> {
+  const rows = chosenShare(book).filter((row) => row.amount > 0);
+  const out: Array<{ above: SpendTier; below: SpendTier; gap: number }> = [];
+
+  for (let i = 0; i < rows.length; i += 1) {
+    for (let j = i + 1; j < rows.length; j += 1) {
+      if (rows[j].amount > rows[i].amount) {
+        out.push({ above: rows[i].tier, below: rows[j].tier, gap: rows[j].amount - rows[i].amount });
+      }
+    }
+  }
+
+  return out.sort((a, b) => b.gap - a.gap);
+}
+
+/* ---------------------------------------------------------------------------
+ * La independencia financiera, en cifras
+ *
+ * Todo esto sale de dos ideas y ninguna es un truco:
+ *
+ *  · lo que hace falta acumular no depende de lo que se gana sino de **lo que
+ *    se gasta**, porque es el gasto lo que hay que sostener cuando se deje de
+ *    trabajar. De ahí que el número sea el gasto anual dividido por la tasa de
+ *    retirada: al 4 %, veinticinco veces el gasto de un año;
+ *  · y lo que decide cuánto se tarda no es el sueldo sino la **tasa de
+ *    ahorro**, porque una tasa alta sube lo que se acumula y baja a la vez lo
+ *    que hay que acumular. Es lo que hace que dos personas con el mismo sueldo
+ *    tarden veinte años o cinco.
+ * ------------------------------------------------------------------------- */
+
+/** Lo que se gasta en un año: los meses del curso más las vacaciones. */
+export function yearlyExpense(book: FinanceBook): number {
+  return monthlyExpense(book) * 12 + book.holidays;
+}
+
+/** Qué parte de lo que entra se queda. Es la cifra que manda en todo lo demás. */
+export function savingsRate(book: FinanceBook): number | null {
+  const income = monthlyIncome(book);
+  if (income <= 0) return null;
+  return monthlySaving(book) / income;
+}
+
+/** Lo que hay que acumular para vivir de ello: el gasto de un año entre la tasa. */
+export function fiNumber(book: FinanceBook): number {
+  const rate = Math.max(1, book.goals?.withdrawal ?? 4) / 100;
+  return yearlyExpense(book) / rate;
+}
+
+/** Cuánto de ese número está ya puesto. */
+export function fiProgress(book: FinanceBook): number {
+  const target = fiNumber(book);
+  if (target <= 0) return 0;
+  return Math.max(0, netWorth(book) / target);
+}
+
+/**
+ * Años que faltan al ritmo de hoy, contando que lo acumulado también renta.
+ *
+ * Se resuelve la fórmula del capital con aportaciones periódicas. Sin ahorro
+ * no hay respuesta: no es «infinito», es que por ese camino no se llega, y
+ * decirlo así es más útil que un número enorme.
+ */
+export function yearsToFi(book: FinanceBook): number | null {
+  const target = fiNumber(book);
+  const have = netWorth(book);
+  if (target <= 0) return null;
+  if (have >= target) return 0;
+
+  const yearly = monthlySaving(book) * 12;
+  const rate = Math.max(0, book.goals?.realReturn ?? 4) / 100;
+
+  if (yearly <= 0) return null;
+  if (rate === 0) return (target - have) / yearly;
+
+  // n = ln((meta·r + a) / (tengo·r + a)) / ln(1 + r)
+  const top = target * rate + yearly;
+  const bottom = have * rate + yearly;
+  if (bottom <= 0 || top <= 0) return null;
+
+  const years = Math.log(top / bottom) / Math.log(1 + rate);
+  return Number.isFinite(years) && years > 0 ? years : null;
+}
+
+/**
+ * Lo que habría dentro de tantos años **sin aportar ni un euro más**. Es la
+ * pregunta de «¿y si dejo de ahorrar?», y suele ser la que más tranquiliza.
+ */
+export function coastWorth(book: FinanceBook, years: number): number {
+  const rate = Math.max(0, book.goals?.realReturn ?? 4) / 100;
+  return netWorth(book) * (1 + rate) ** years;
+}
+
+/** Meses de gasto que cubre el dinero disponible. El colchón de verdad. */
+export function cushionMonths(book: FinanceBook): number | null {
+  const spend = monthlyExpense(book);
+  if (spend <= 0) return null;
+  return liquidWorth(book) / spend;
+}
+
+/** «3 años y 2 meses» a partir de unos años con decimales. */
+export function yearsLabel(years: number): string {
+  return runwayLabel(years * 12);
+}
+
+/* ---------------------------------------------------------------------------
+ * El histórico
+ *
+ * Una foto por mes. Se pisa mientras el mes está en curso y se queda quieta
+ * cuando pasa, así que la serie es «cómo estaban las cuentas al final de cada
+ * mes» sin pedirle a nadie que se acuerde de guardarla.
+ * ------------------------------------------------------------------------- */
+
+/** «2026-09». */
+export function monthKey(date = new Date()): string {
+  return String(date.getFullYear()) + '-' + String(date.getMonth() + 1).padStart(2, '0');
+}
+
+export function snapshotOf(book: FinanceBook, month = monthKey()): FinanceSnapshot {
+  return {
+    month,
+    income: monthlyIncome(book),
+    expense: monthlyExpense(book),
+    worth: netWorth(book),
+    liquid: liquidWorth(book),
+  };
+}
+
+/** Tope de la serie: cinco años de meses son de sobra para una gráfica. */
+const MAX_HISTORY = 60;
+
+/** El libro con la foto de este mes puesta al día. */
+export function withSnapshot(book: FinanceBook): FinanceBook {
+  const month = monthKey();
+  const shot = snapshotOf(book, month);
+  const rest = (book.history ?? []).filter((row) => row.month !== month);
+  return { ...book, history: [...rest, shot].slice(-MAX_HISTORY) };
+}
+
+/** Cuánto ha cambiado el patrimonio desde la foto más vieja que se guarda. */
+export function worthTrend(book: FinanceBook): { from: FinanceSnapshot; to: FinanceSnapshot } | null {
+  const history = book.history ?? [];
+  if (history.length < 2) return null;
+  return { from: history[0], to: history[history.length - 1] };
+}
+
 /**
  * El color de un concepto, sacado de su nombre.
  *
@@ -425,6 +726,10 @@ function normalizeItem(value: unknown, index: number): FinanceItem | null {
     amount: Number.isFinite(amount) ? amount : 0,
     alt: raw.alt !== undefined && Number.isFinite(alt) ? alt : undefined,
     note: typeof raw.note === 'string' && raw.note ? raw.note.slice(0, 160) : undefined,
+    tier:
+      typeof raw.tier === 'string' && TIER_ORDER.includes(raw.tier as SpendTier)
+        ? (raw.tier as SpendTier)
+        : undefined,
   };
 }
 
@@ -447,11 +752,39 @@ function normalize(value: unknown): FinanceBook {
       : [];
   }
 
+  const history = Array.isArray(raw.history)
+    ? raw.history
+        .filter(
+          (row): row is FinanceSnapshot =>
+            Boolean(row) && typeof row === 'object' && typeof (row as FinanceSnapshot).month === 'string',
+        )
+        .map((row) => ({
+          month: row.month.slice(0, 7),
+          income: Number(row.income) || 0,
+          expense: Number(row.expense) || 0,
+          worth: Number(row.worth) || 0,
+          liquid: Number(row.liquid) || 0,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-MAX_HISTORY)
+    : [];
+
+  const goals = raw.goals ?? {};
+  const withdrawal = Number((goals as FinanceGoals).withdrawal);
+  const cushion = Number((goals as FinanceGoals).cushion);
+  const realReturn = Number((goals as FinanceGoals).realReturn);
+
   return {
     season: typeof raw.season === 'string' ? raw.season.slice(0, 12) : base.season,
     months: Number.isFinite(months) ? Math.max(1, Math.min(24, Math.round(months))) : 12,
     holidays: Number.isFinite(holidays) ? holidays : 0,
     ledgers,
+    history,
+    goals: {
+      withdrawal: Number.isFinite(withdrawal) ? Math.max(1, Math.min(10, withdrawal)) : 4,
+      cushion: Number.isFinite(cushion) ? Math.max(1, Math.min(36, Math.round(cushion))) : 12,
+      realReturn: Number.isFinite(realReturn) ? Math.max(0, Math.min(12, realReturn)) : 4,
+    },
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : base.updatedAt,
   };
 }
@@ -509,7 +842,9 @@ function commit(next: Record<string, FinanceBook>): void {
 }
 
 export function saveBook(profileId: string, book: FinanceBook): FinanceBook {
-  const next: FinanceBook = { ...book, updatedAt: new Date().toISOString() };
+  // Cada guardado deja la foto de este mes al día. Es gratis y es lo que hace
+  // que dentro de un año haya una serie que mirar sin haber hecho nada.
+  const next: FinanceBook = { ...withSnapshot(book), updatedAt: new Date().toISOString() };
   commit({ ...loadBooks(), [profileId]: next });
   return next;
 }

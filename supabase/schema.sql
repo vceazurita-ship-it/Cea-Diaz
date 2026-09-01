@@ -298,6 +298,13 @@ create table if not exists public.finance (
   updated_at  timestamptz not null default now()
 );
 
+-- Añadidas después: el histórico mensual —que es lo que permite mirar la
+-- serie y no sólo la foto de hoy— y las cifras con las que se juzga el
+-- objetivo. Quien ya tenga la tabla creada las recibe aquí sin perder nada.
+alter table public.finance
+  add column if not exists history jsonb not null default '[]'::jsonb,
+  add column if not exists goals   jsonb not null default '{}'::jsonb;
+
 create index if not exists finance_owner_idx on public.finance (owner, profile_id);
 
 alter table public.finance enable row level security;

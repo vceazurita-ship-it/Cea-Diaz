@@ -906,6 +906,63 @@ export type DashboardTab = 'today' | 'plan' | 'challenges' | 'tasks' | 'summary'
  */
 export type LedgerId = 'ingresos' | 'gastos' | 'cuentas' | 'inversiones' | 'cobros' | 'pagos';
 
+/**
+ * A qué sirve un gasto, en la escala que ha decidido la casa.
+ *
+ * No es una categoría contable: es una prioridad. El orden importa y es el
+ * que decidió Víctor —primero los peques y lo que les hace crecer, luego el
+ * tiempo con María y las experiencias de los cuatro, y después la comodidad
+ * de vivir—, porque es contra ese orden contra el que la app contrasta el
+ * reparto real. Antes de todos ellos está `base`: lo que no se elige.
+ */
+export type SpendTier = 'base' | 'hijos' | 'pareja' | 'familia' | 'calidad' | 'otros';
+
+/**
+ * Una foto mensual de las cuentas.
+ *
+ * Sin esto la sección sólo sabe decir cómo van hoy, y «cómo van» sin «de
+ * dónde vienen» no es información: la tasa de ahorro de un mes suelto no
+ * dice nada y la de doce dice casi todo. Se guarda una por mes, se pisa
+ * mientras el mes está en curso y se queda quieta cuando pasa.
+ */
+export interface FinanceSnapshot {
+  /** «2026-09». */
+  month: string;
+  /** Lo que entraba al mes, según la libreta de ese momento. */
+  income: number;
+  /** Y lo que salía. */
+  expense: number;
+  /** El patrimonio de entonces. */
+  worth: number;
+  /** Y la parte de él que era dinero disponible. */
+  liquid: number;
+}
+
+/**
+ * Algo que la app tiene que decir de estas cuentas, ya contrastado contra las
+ * cifras. Sin cifra no hay nota: un aviso sin número no es un aviso, es una
+ * frase de libro.
+ */
+export interface FinanceNote {
+  id: string;
+  /**
+   *  - `grave` está sangrando: hay que mirarlo hoy.
+   *  - `aviso` se aparta de un criterio con respaldo.
+   *  - `idea`  no está mal, pero se puede hacer mejor.
+   *  - `bien`  está donde debe, y conviene saberlo.
+   */
+  tone: 'grave' | 'aviso' | 'idea' | 'bien';
+  icon: string;
+  /** El titular, con la cifra dentro. */
+  title: string;
+  /** El detalle: de dónde sale el número y qué hacer con él. */
+  detail: string;
+  /** Quién lo sostiene, por identificador de `FINANCE_EXPERTS`. */
+  experts: string[];
+  /** La cifra suelta, para enseñarla al lado del titular. */
+  metric?: string;
+}
+
 /** Un apunte: una línea de cualquiera de las libretas. */
 export interface FinanceItem {
   id: string;
@@ -923,6 +980,12 @@ export interface FinanceItem {
    */
   alt?: number;
   note?: string;
+  /**
+   * A qué prioridad de la casa sirve. Sólo se usa en los gastos: es lo que
+   * permite contrastar en qué se va el dinero contra el orden que se ha
+   * decidido, que es distinto de en qué categoría cae.
+   */
+  tier?: SpendTier;
 }
 
 /**
@@ -938,7 +1001,34 @@ export interface FinanceBook {
   /** El pico de las vacaciones, que no cabe en el mes tipo. */
   holidays: number;
   ledgers: Record<LedgerId, FinanceItem[]>;
+  /** Una foto por mes, de la más vieja a la más nueva. */
+  history: FinanceSnapshot[];
+  /** Con qué cifras se juzga la independencia financiera. */
+  goals: FinanceGoals;
   updatedAt: string;
+}
+
+/**
+ * Las dos cifras con las que se mide el objetivo. Se pueden cambiar porque
+ * ninguna de las dos es una ley de la naturaleza, y quien las cambia debe
+ * saber lo que está cambiando.
+ */
+export interface FinanceGoals {
+  /**
+   * Cuánto se puede sacar al año de lo acumulado sin que se acabe, en tanto
+   * por ciento. El 4 % viene del trabajo de Bengen y del estudio Trinity
+   * sobre carteras a treinta años; hay quien lo baja al 3,5 % para retiradas
+   * más largas, que es exactamente el caso de retirarse pronto.
+   */
+  withdrawal: number;
+  /**
+   * Meses de gasto que se quieren tener en dinero disponible. Lo corriente
+   * son tres a seis; con un sueldo que depende de un contrato de temporada,
+   * doce es lo prudente.
+   */
+  cushion: number;
+  /** Rendimiento real anual que se supone al proyectar, en tanto por ciento. */
+  realReturn: number;
 }
 
 /* ---------------------------- Agenda semanal ----------------------------- */

@@ -652,6 +652,8 @@ interface FinanceRow {
   months: number | null;
   holidays: number | null;
   ledgers: FinanceBook['ledgers'] | null;
+  history: FinanceBook['history'] | null;
+  goals: Partial<FinanceBook['goals']> | null;
   updated_at: string;
 }
 
@@ -678,11 +680,34 @@ export async function pullFinance(): Promise<Record<string, FinanceBook>> {
         cobros: [],
         pagos: [],
       },
+      history: row.history ?? [],
+      goals: {
+        withdrawal: row.goals?.withdrawal ?? 4,
+        cushion: row.goals?.cushion ?? 12,
+        realReturn: row.goals?.realReturn ?? 4,
+      },
       updatedAt: isoOf(row.updated_at),
     };
   }
 
   return out;
+}
+
+/**
+ * Una cuenta que no haya vuelto a lanzar el `schema.sql` todavía no tiene las
+ * columnas del histórico. Antes que dejar la economía sin sincronizar por eso
+ * —que es lo que pasaría, y con un mensaje que no dice nada— se reintenta sin
+ * ellas: viajan las cifras, que es lo que de verdad importa, y la serie se
+ * queda en el aparato hasta que las columnas estén.
+ */
+function faltaColumna(message: string): boolean {
+  const texto = message.toLowerCase();
+  return (
+    texto.includes('history') ||
+    texto.includes('goals') ||
+    texto.includes('column') ||
+    texto.includes('schema cache')
+  );
 }
 
 export async function pushFinance(
@@ -693,7 +718,7 @@ export async function pushFinance(
   const client = supabase();
   if (!client) return;
 
-  const { error } = await client.from('finance').upsert({
+  const fila = {
     id: `${owner}:${profileId}`,
     owner,
     profile_id: profileId,
@@ -702,9 +727,23 @@ export async function pushFinance(
     holidays: book.holidays,
     ledgers: book.ledgers,
     updated_at: book.updatedAt,
+  };
+
+  const { error } = await client.from('finance').upsert({
+    ...fila,
+    history: book.history,
+    goals: book.goals,
   });
 
-  if (error) throw new Error(error.message);
+  if (!error) return;
+
+  if (faltaColumna(error.message)) {
+    const retry = await client.from('finance').upsert(fila);
+    if (!retry.error) return;
+    throw new Error(retry.error.message);
+  }
+
+  throw new Error(error.message);
 }
 
 /* ---------------------------------------------------------------------------

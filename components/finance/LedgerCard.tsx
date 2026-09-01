@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { LEDGERS, euros } from '@/lib/finance';
+import { LEDGERS, TIERS, TIER_ORDER, euros } from '@/lib/finance';
 import type { FinanceItem, LedgerId } from '@/types';
 
 /* =========================================================================
@@ -134,6 +134,34 @@ export function LedgerCard({ ledger, items, total, onChange, onDelete, onAdd }: 
                       placeholder="—"
                       className="field w-full py-1 text-sm tabular-nums"
                     />
+                  </label>
+                )}
+
+                {/* A qué prioridad sirve. Sólo en los gastos: es lo que
+                    permite contrastar el reparto contra la escala de la casa,
+                    y es un toque por gasto que se da una vez. */}
+                {ledger === 'gastos' && (
+                  <label className="min-w-0 basis-full">
+                    <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide t-3">
+                      ¿A qué sirve?
+                    </span>
+                    <select
+                      value={item.tier ?? ''}
+                      onChange={(event) =>
+                        onChange({
+                          ...item,
+                          tier: (event.target.value || undefined) as FinanceItem['tier'],
+                        })
+                      }
+                      className="field w-full py-1 text-sm"
+                    >
+                      <option value="">Sin colocar</option>
+                      {TIER_ORDER.filter((tier) => tier !== 'otros').map((tier) => (
+                        <option key={tier} value={tier}>
+                          {TIERS[tier].icon} {TIERS[tier].label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 )}
 
