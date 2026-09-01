@@ -5,6 +5,7 @@ import type {
   Metric,
   PlanBlock,
   PlanKind,
+  PlanMirror,
   ProfileId,
   WeekPlan,
 } from '@/types';
@@ -2569,7 +2570,27 @@ export function mirrorBlocks(profileId: ProfileId): PlanBlock[] {
   if (!wanted) return [];
 
   const plans = loadPlans();
-  const out: PlanBlock[] = [];
+
+  /**
+   * Lo que hace que dos ratos sean **el mismo** rato: el día, la hora, lo que
+   * dura, cómo se llama, de qué es y con quién. La natación de los hermanos
+   * es una natación; si algo de eso no coincide —uno va con mamá y el otro
+   * con los dos, o uno entra media hora antes— son dos planes distintos y
+   * salen los dos, que es justo lo que hay que ver.
+   */
+  const sameness = (block: PlanBlock) =>
+    [
+      block.day,
+      block.start,
+      block.duration,
+      block.title.trim().toLowerCase(),
+      block.kind,
+      block.icon,
+      block.companion,
+      block.note ?? '',
+    ].join('|');
+
+  const merged = new Map<string, PlanBlock>();
 
   for (const profile of PROFILES) {
     if (profile.kind !== 'kid') continue;
@@ -2579,24 +2600,59 @@ export function mirrorBlocks(profileId: ProfileId): PlanBlock[] {
     for (const block of plan.blocks) {
       if (!block.companion || !wanted.includes(block.companion)) continue;
 
-      out.push({
+      const kid = {
+        profileId: profile.id,
+        name: profile.name,
+        avatar: profile.avatar,
+        tint: profile.tint,
+      };
+      const key = sameness(block);
+      const seen = merged.get(key);
+
+      // El mismo rato de otro hermano: se le añade la cara y ya está.
+      if (seen?.mirror) {
+        if (seen.mirror.kids.some((item) => item.profileId === kid.profileId)) continue;
+        const kids = [...seen.mirror.kids, kid];
+        seen.mirror = {
+          ...seen.mirror,
+          kids,
+          name: kids.map((item) => item.name).join(' y '),
+          avatar: kids.map((item) => item.avatar).join(''),
+        };
+        continue;
+      }
+
+      merged.set(key, {
         ...block,
         id: `reflejo:${profile.id}:${block.id}`,
         metricId: undefined,
         amount: undefined,
         amountLock: undefined,
         mirror: {
-          profileId: profile.id,
-          name: profile.name,
-          avatar: profile.avatar,
-          tint: profile.tint,
+          kids: [kid],
+          name: kid.name,
+          avatar: kid.avatar,
+          tint: kid.tint,
           companion: block.companion,
         },
       });
     }
   }
 
-  return sortBlocks(out);
+  return sortBlocks(Array.from(merged.values()));
+}
+
+/**
+ * El filete que marca un rato prestado: el color del peque, o los dos
+ * colores partidos por la mitad cuando el rato es de los dos. Es lo que dice
+ * de quién es sin gastar una línea de texto.
+ */
+export function mirrorRail(mirror: PlanMirror, angle = '180deg'): string {
+  const stops = mirror.kids.map(
+    (kid, index) =>
+      `${kid.tint} ${((index / mirror.kids.length) * 100).toFixed(0)}% ${(((index + 1) / mirror.kids.length) * 100).toFixed(0)}%`,
+  );
+  return `linear-gradient(${angle}, ${stops.join(', ')})`;
 }
 
 /**
@@ -2613,7 +2669,14 @@ export function planWithMirrors(profileId: ProfileId, on = true): WeekPlan {
   return { ...own, blocks: sortBlocks([...own.blocks, ...borrowed]) };
 }
 
-/** Minutos de la semana que este perfil pasa con los peques, por peque. */
+/**
+ * Minutos de la semana que este perfil pasa con los peques, por peque.
+ *
+ * Un rato compartido —la natación de los dos— cuenta para los dos: la
+ * pregunta que contesta esta lista es «cuánto rato paso con cada uno», y esa
+ * tarde se pasa con los dos a la vez. Por eso la suma de las filas puede ser
+ * mayor que el rato apartado, y está bien que lo sea.
+ */
 export function mirrorShare(
   blocks: PlanBlock[],
 ): Array<{ profileId: ProfileId; name: string; avatar: string; tint: string; minutes: number; count: number }> {
@@ -2624,11 +2687,13 @@ export function mirrorShare(
 
   for (const block of blocks) {
     if (!block.mirror) continue;
-    const { profileId, name, avatar, tint } = block.mirror;
-    const row = totals.get(profileId) ?? { profileId, name, avatar, tint, minutes: 0, count: 0 };
-    row.minutes += block.duration;
-    row.count += 1;
-    totals.set(profileId, row);
+
+    for (const kid of block.mirror.kids) {
+      const row = totals.get(kid.profileId) ?? { ...kid, minutes: 0, count: 0 };
+      row.minutes += block.duration;
+      row.count += 1;
+      totals.set(kid.profileId, row);
+    }
   }
 
   return Array.from(totals.values()).sort((a, b) => b.minutes - a.minutes);

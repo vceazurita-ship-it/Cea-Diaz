@@ -310,9 +310,11 @@ export function WeekPlanner({
    */
   const borrowedBlock = (block: PlanBlock): boolean => {
     if (!isMirror(block)) return false;
-    const { name, companion } = block.mirror!;
+    const { name, companion, kids } = block.mirror!;
     notify({
-      message: `«${block.title}» es de ${name} (${COMPANIONS[companion].label.toLowerCase()}). Se cambia en la semana de ${name}.`,
+      message: `«${block.title}» es de ${name} (${COMPANIONS[companion].label.toLowerCase()}). Se cambia ${
+        kids.length > 1 ? 'en la semana de cada uno' : `en la semana de ${name}`
+      }.`,
       icon: block.mirror!.avatar,
     });
     return true;

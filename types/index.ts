@@ -984,14 +984,31 @@ export interface PlanBlock {
   mirror?: PlanMirror;
 }
 
-/** De quién viene un rato reflejado, y por qué sale en esta agenda. */
-export interface PlanMirror {
-  /** Perfil dueño del rato: el peque. */
+/** Un peque de los que traen un rato reflejado a esta agenda. */
+export interface PlanMirrorKid {
   profileId: ProfileId;
   name: string;
   /** Emoji del peque, para reconocerlo de un vistazo en la pastilla. */
   avatar: string;
   /** Color del peque: el filete con el que se distingue del resto. */
+  tint: string;
+}
+
+/** De quién viene un rato reflejado, y por qué sale en esta agenda. */
+export interface PlanMirror {
+  /**
+   * Los peques a los que les toca ese mismo rato. Casi siempre uno, pero la
+   * natación de los hermanos es **una** natación: si en la semana de Leo y en
+   * la de Hugo el rato es idéntico —mismo día, misma hora, lo que dura, cómo
+   * se llama y con quién—, es el mismo plan y sale una sola vez, con los dos
+   * dentro. Duplicarlo era contar dos veces una tarde que es una.
+   */
+  kids: PlanMirrorKid[];
+  /** Cómo se dice de quién es: «Leo», «Leo y Hugo». */
+  name: string;
+  /** Su cara, o las dos caras si el rato es de los dos. */
+  avatar: string;
+  /** Color con el que se marca: el del peque, o el del primero si son varios. */
   tint: string;
   /** Qué acompañante del rato original lo trae hasta aquí. */
   companion: Companion;

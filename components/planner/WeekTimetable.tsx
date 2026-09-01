@@ -14,6 +14,7 @@ import {
   isMirror,
   laneLayout,
   minutesOf,
+  mirrorRail,
   plannedMinutes,
   rangeOf,
   timeOf,
@@ -985,7 +986,7 @@ export function WeekTimetable({
                               className="pointer-events-none absolute inset-y-0 left-0 w-1"
                               style={{
                                 backgroundImage: borrowed
-                                  ? `linear-gradient(180deg, ${block.mirror!.tint}, ${block.mirror!.tint})`
+                                  ? mirrorRail(block.mirror!)
                                   : gradientOf(palette, '180deg'),
                               }}
                             />
@@ -1006,7 +1007,7 @@ export function WeekTimetable({
                           <span
                             aria-hidden
                             className="pointer-events-none absolute inset-y-0 left-0 w-1.5"
-                            style={{ backgroundColor: block.mirror!.tint }}
+                            style={{ backgroundImage: mirrorRail(block.mirror!) }}
                           />
                         )}
 
