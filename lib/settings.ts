@@ -40,7 +40,7 @@ const NEVER = '1970-01-01T00:00:00.000Z';
 const PREFERENCES: ThemePreference[] = ['auto', 'light', 'dark'];
 
 export function defaultSettings(): HouseSettings {
-  return { theme: 'auto', sound: true, pin: null, updatedAt: NEVER };
+  return { theme: 'auto', sound: true, pin: null, finance: null, updatedAt: NEVER };
 }
 
 /* ---------------------------------------------------------------------------
@@ -69,6 +69,7 @@ function normalize(value: Partial<HouseSettings> | null): HouseSettings {
     theme: isPreference(value.theme) ? value.theme : base.theme,
     sound: typeof value.sound === 'boolean' ? value.sound : base.sound,
     pin: isDigest(value.pin) ? value.pin : null,
+    finance: isDigest(value.finance) ? value.finance : null,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : base.updatedAt,
   };
 }
@@ -127,7 +128,10 @@ export function updateSettings(patch: Partial<Omit<HouseSettings, 'updatedAt'>>)
 
 /** Adopta lo que venía de la nube. No se refecha: la elección es de quien la hizo. */
 export function applyRemoteSettings(remote: Partial<HouseSettings>): void {
-  commit(normalize(remote));
+  // La clave de la sección de economía no viaja: vive en el aparato donde se
+  // puso y allí se queda, así que lo que llegue de fuera no puede borrarla.
+  const { finance } = loadSettings();
+  commit(normalize({ ...remote, finance: remote.finance ?? finance }));
 }
 
 /** Avisa cuando cambian, vengan de este aparato o de otro. */
@@ -228,4 +232,44 @@ export async function migrateLegacyPin(): Promise<void> {
     // Sin contexto seguro se queda como estaba: seguir pidiéndolo en claro
     // es feo, pero perder el PIN de la casa lo es más.
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * La clave de la sección de economía
+ *
+ * Va aparte del PIN de la casa a propósito: el PIN abre el módulo de pareja y
+ * lo saben los dos; esto abre las cuentas de Víctor y no tiene por qué
+ * saberlo nadie más. La mecánica es la misma —se guarda la huella, nunca lo
+ * tecleado— y por el mismo motivo: así no se puede leer del navegador, ni de
+ * la nube, ni por encima del hombro. Y no está en el código: el repositorio
+ * de esta app es público, así que la clave se pone desde la propia sección la
+ * primera vez que se entra.
+ * ------------------------------------------------------------------------- */
+
+/** ¿Hay ya una clave puesta para la sección de economía? */
+export function hasFinanceKey(): boolean {
+  return loadSettings().finance !== null;
+}
+
+export async function setFinanceKey(key: string): Promise<void> {
+  if (!subtle()) {
+    throw new Error('Este navegador no puede guardar la clave a salvo. Hace falta https.');
+  }
+
+  const salt = toHex(window.crypto.getRandomValues(new Uint8Array(16)));
+  const hash = await derive(key, salt, PIN_ROUNDS);
+  if (!hash) throw new Error('No se ha podido guardar la clave.');
+
+  updateSettings({ finance: { salt, hash, rounds: PIN_ROUNDS } });
+}
+
+/**
+ * Sin clave puesta no se abre nada: la sección pide crearla antes. Es lo
+ * contrario que el PIN de la casa, que tiene uno de fábrica para que la app
+ * se pueda estrenar sin configurar nada.
+ */
+export async function verifyFinanceKey(typed: string): Promise<boolean> {
+  const { finance } = loadSettings();
+  if (!finance) return false;
+  return (await derive(typed, finance.salt, finance.rounds)) === finance.hash;
 }

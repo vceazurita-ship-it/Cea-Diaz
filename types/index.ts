@@ -881,13 +881,65 @@ export interface HouseSettings {
   sound: boolean;
   /** `null` mientras siga valiendo el PIN de fábrica. */
   pin: PinDigest | null;
+  /**
+   * Clave de la sección de economía de Víctor, aparte del PIN de la casa.
+   *
+   * Viaja como huella y sólo como huella, igual que el PIN: ni el número ni
+   * nada que se le parezca se guarda en claro, ni aquí, ni en el navegador,
+   * ni en el código —el repositorio es público—. `null` mientras no se haya
+   * puesto ninguna, que es cuando la sección pide crearla.
+   */
+  finance: PinDigest | null;
   updatedAt: string;
 }
 
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';
-export type DashboardTab = 'today' | 'plan' | 'challenges' | 'tasks' | 'summary';
+export type DashboardTab = 'today' | 'plan' | 'challenges' | 'tasks' | 'summary' | 'economia';
+
+/* ------------------------------- Economía ------------------------------- */
+
+/**
+ * Las seis libretas de la sección de economía. Las dos primeras son el ritmo
+ * del mes; las cuatro siguientes, la foto del patrimonio.
+ */
+export type LedgerId = 'ingresos' | 'gastos' | 'cuentas' | 'inversiones' | 'cobros' | 'pagos';
+
+/** Un apunte: una línea de cualquiera de las libretas. */
+export interface FinanceItem {
+  id: string;
+  label: string;
+  icon: string;
+  /**
+   * La cifra principal: lo que entra o sale al mes en ingresos y gastos, el
+   * saldo en las demás. En los gastos es **la previsión**.
+   */
+  amount: number;
+  /**
+   * La segunda cifra, donde la libreta la usa: el gasto real frente a la
+   * previsión, o el máximo frente al mínimo en un ingreso que no está
+   * cerrado. Sin ella, manda la primera.
+   */
+  alt?: number;
+  note?: string;
+}
+
+/**
+ * Las cuentas de un curso, del 1 de agosto al 31 de julio.
+ *
+ * Vive sólo en el aparato: no hay tabla en la nube para esto, a propósito.
+ */
+export interface FinanceBook {
+  /** «2025-26». */
+  season: string;
+  /** Meses que se presupuestan. El curso entero son doce. */
+  months: number;
+  /** El pico de las vacaciones, que no cabe en el mes tipo. */
+  holidays: number;
+  ledgers: Record<LedgerId, FinanceItem[]>;
+  updatedAt: string;
+}
 
 /* ---------------------------- Agenda semanal ----------------------------- */
 

@@ -6,6 +6,8 @@ import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/Cha
 import { DateNavigator } from '@/components/DateNavigator';
 import { AttentionCard } from '@/components/experts/AttentionCard';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
+import { FinanceLock } from '@/components/finance/FinanceLock';
+import { FinancePanel } from '@/components/finance/FinancePanel';
 import { DayNoteCard } from '@/components/notes/DayNoteCard';
 import { TodayPlanCard } from '@/components/planner/TodayPlanCard';
 import { WeekPlanner } from '@/components/planner/WeekPlanner';
@@ -76,6 +78,11 @@ export function Dashboard({
    * que la agenda lo recoja y abra su editor. Se vacía en cuanto lo hace.
    */
   const [planSeed, setPlanSeed] = useState<PlanBlock | null>(null);
+  /**
+   * Si la sección de economía está abierta. Se olvida al salir del perfil: la
+   * clave se pide una vez por visita, no una vez por navegador.
+   */
+  const [financeOpen, setFinanceOpen] = useState(false);
   const notify = useToast();
 
   const kid = profile.kind === 'kid';
@@ -236,6 +243,14 @@ export function Dashboard({
           { id: 'challenges', label: 'Retos', icon: '🎯' },
           { id: 'tasks', label: 'Tareas', icon: '📋' },
           { id: 'summary', label: 'Resúmenes', icon: '📊' },
+          /**
+           * La economía es de Víctor y sólo suya, así que la pestaña no
+           * existe en los demás paneles: no hay nada que esconder ni que
+           * explicar donde no toca. Detrás lleva su propia clave.
+           */
+          ...(profile.id === 'victor'
+            ? [{ id: 'economia' as const, label: 'Economía', icon: '💶' }]
+            : []),
         ];
 
   return (
@@ -448,6 +463,14 @@ export function Dashboard({
             }
             onReserve={reserveForMetric}
           />
+        </div>
+      ) : tab === 'economia' ? (
+        <div role="tabpanel" id="panel-economia" aria-labelledby="tab-economia">
+          {financeOpen ? (
+            <FinancePanel profile={profile} />
+          ) : (
+            <FinanceLock name={profile.name} onUnlock={() => setFinanceOpen(true)} />
+          )}
         </div>
       ) : tab === 'tasks' ? (
         <div role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">

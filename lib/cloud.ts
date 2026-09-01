@@ -441,7 +441,8 @@ export async function deleteAppearanceRows(
  * elección, la haya hecho quien la haya hecho.
  *
  * Del PIN viaja la huella, nunca el número. Quien mire la tabla ve una sal y
- * un resumen, que no sirven para entrar.
+ * un resumen, que no sirven para entrar. La clave de la sección de economía
+ * ni siquiera eso: se queda en el aparato donde se puso.
  * ------------------------------------------------------------------------- */
 
 interface SettingsRow {
@@ -462,6 +463,9 @@ function fromSettingsRow(row: SettingsRow): HouseSettings {
       row.pin_salt && row.pin_hash && row.pin_rounds
         ? { salt: row.pin_salt, hash: row.pin_hash, rounds: row.pin_rounds }
         : null,
+    // La clave de economía no viaja por la nube: no hay columna para ella y
+    // no la queremos. `applyRemoteSettings` conserva la de este aparato.
+    finance: null,
     updatedAt: isoOf(row.updated_at),
   };
 }

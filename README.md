@@ -60,11 +60,15 @@ components/
   Ambient.tsx          Decoración de fondo, teñida con el color del perfil
   ProfileSelector.tsx  Pantalla inicial con los 6 perfiles, su foto y su estado
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
-  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes
+  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes (+ Economía en Víctor)
   profile/
     ProfileHeader.tsx  Las tres cabeceras de perfil (fútbol, editorial, grupo)
   cloud/
     SignIn.tsx         Entrada con la cuenta de casa
+  finance/
+    FinanceLock.tsx    La clave de la sección de economía (sólo Víctor)
+    FinancePanel.tsx   Las cuentas del curso: totales, autonomía y reparto
+    LedgerCard.tsx     Una libreta, con sus apuntes editables en el sitio
   challenges/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
@@ -123,6 +127,7 @@ lib/
   cromoArt.ts          Equipaciones y rasgos con los que se dibuja el retrato de cada cromo
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
+  finance.ts           Economía: las seis libretas, sus cuentas y su guardado local
   planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
   planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
   learning.ts          Catálogo del bonus del día y elección según el interés
@@ -1698,6 +1703,46 @@ Además de la nueva estructura:
 - **Los interruptores son interruptores.** Un botón cuyo texto cambia obliga a leer para
   saber si lo que pone es lo que está puesto o lo que va a pasar al picarlo; el carril de
   `ui/Switch.tsx` se ve de lejos y toda la fila es el objetivo táctil.
+
+## Economía
+
+Sección propia dentro del panel de **Víctor**, y sólo suyo: la pestaña no
+existe en los demás perfiles. Está calcada de la hoja de cálculo con la que
+lleva los cursos, pero puesta del revés. La hoja empieza por las filas y
+esconde en una celda la única cifra que de verdad se consulta; aquí esa cifra
+va arriba y en grande: **cuánto tiempo aguantas** si mañana no entra nada.
+
+Seis libretas, que son los seis bloques de la hoja:
+
+| Libreta | Qué cuenta | Ritmo |
+| ------- | ---------- | ----- |
+| Ingresos | Salario del club, comisión del agente (en negativo), ESS fijo y variable, autónomos | al mes |
+| Gastos | Casa, colegio, coche, comida… con **previsión y real** | al mes |
+| Cuentas | El dinero disponible, banco por banco | saldo |
+| Inversiones | Fondos y participaciones | saldo |
+| Me deben | Lo que está por cobrar, y cuándo reclamarlo | saldo |
+| Debo | Lo comprometido y sin pagar | saldo |
+
+El curso va del 1 de agosto al 31 de julio, como en la hoja, así que el
+periodo se cuenta en meses y las vacaciones van aparte: son un pico del año,
+no un gasto de todos los meses. De ahí salen solas cuatro cuentas —lo que
+queda al mes y en el curso, el patrimonio (cuentas + inversiones + cobros −
+pagos) y la autonomía en meses—, la barra de en qué se va el mes y el
+contraste entre lo presupuestado y lo que de verdad se fue.
+
+Tres decisiones que conviene no deshacer sin pensarlo:
+
+- **En el código no hay ni una cifra.** Este repositorio es público, así que
+  lo que viaja aquí es la forma —los conceptos y cómo se suman— y los números
+  viven sólo en el aparato. Por lo mismo, las hojas de cálculo que se dejen
+  caer en la carpeta están en `.gitignore`.
+- **No sube a la nube.** A diferencia del resto de la app, la libreta se queda
+  en `localStorage`. Son las cuentas de una persona, no el registro de la
+  casa. Por eso hay un botón para copiarlas enteras en texto: es la salida de
+  emergencia si se cambia de móvil.
+- **Clave propia y por aparato.** Va aparte del PIN de la casa —ése lo saben
+  los dos— y se guarda como huella PBKDF2, nunca en claro. La huella tampoco
+  viaja, así que en cada aparato se pone una vez.
 
 ## Instalación en el móvil
 
