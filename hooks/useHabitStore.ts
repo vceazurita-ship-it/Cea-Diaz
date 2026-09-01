@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  applyRemoteBooks,
+  loadBooks,
+  saveBook,
+  subscribeBooks,
+} from '@/lib/finance';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimePostgresChangesPayload, Session } from '@supabase/supabase-js';
 
@@ -10,11 +16,13 @@ import {
   mergeById,
   pullAll,
   pullLineups,
+  pullFinance,
   pullPlans,
   pullReplica,
   pullSettings,
   pushEntries,
   pushLineup,
+  pushFinance,
   pushPlan,
   pushReplica,
   pushSettings,
@@ -171,7 +179,7 @@ export type CloudStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error';
  * pieza a pieza en vez de dar la sincronización entera por buena.
  */
 export interface CloudPart {
-  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans' | 'photos' | 'replica';
+  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans' | 'finance' | 'photos' | 'replica';
   label: string;
   ok: boolean;
   /** Lo que dijo la nube cuando no llegó. */
@@ -247,7 +255,15 @@ interface CloudRow {
  * apagar las sintonías tardaba hasta tres cuartos de hora en verse en el
  * otro móvil, que es justo lo contrario de lo que espera quien lo hace.
  */
-const LIVE_TABLES = ['entries', 'tasks', 'settings', 'lineups', 'agendas', 'replicas'] as const;
+const LIVE_TABLES = [
+  'entries',
+  'tasks',
+  'settings',
+  'lineups',
+  'agendas',
+  'finance',
+  'replicas',
+] as const;
 
 /**
  * Apunta lo que este mismo navegador acaba de subir, para reconocer su propio
@@ -312,6 +328,23 @@ async function reconcilePlans(owner: string, remember: Remember): Promise<void> 
 }
 
 /**
+ * Las libretas de economía. Mismo trato que las agendas: no son un registro
+ * del día, se leen y se escriben enteras y gana la última guardada. Es lo que
+ * permite apuntar un gasto en el móvil y encontrárselo en el portátil.
+ */
+async function reconcileFinance(owner: string, remember: Remember): Promise<void> {
+  const remote = await pullFinance();
+  applyRemoteBooks(remote);
+
+  for (const [profileId, local] of Object.entries(loadBooks())) {
+    const theirs = remote[profileId];
+    if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
+    await pushFinance(profileId, local, owner);
+    remember('finance', `${owner}:${profileId}`, local.updatedAt);
+  }
+}
+
+/**
  * Lo que no pasa por `db` y se reconcilia aparte. Va en una lista para poder
  * recorrerlo y contar pieza a pieza cómo le fue: que falte la tabla de las
  * agendas no puede impedir que lleguen los registros, pero tampoco puede
@@ -325,6 +358,7 @@ const PIECES: Array<{
   { id: 'settings', label: 'Ajustes de la casa', reconcile: reconcileSettings },
   { id: 'lineups', label: 'Campogramas', reconcile: reconcileLineups },
   { id: 'plans', label: 'Agendas semanales', reconcile: reconcilePlans },
+  { id: 'finance', label: 'Economía', reconcile: reconcileFinance },
 ];
 
 /** Cómo se cuenta lo que no ha llegado, sin repetir la lista de piezas. */
@@ -796,6 +830,23 @@ export function useHabitStore(): HabitStore {
       });
     }
 
+    try {
+      const books = Object.entries(loadBooks());
+      for (const [profileId, book] of books) {
+        const saved = saveBook(profileId, book);
+        await pushFinance(profileId, saved, uid);
+        remember('finance', `${uid}:${profileId}`, saved.updatedAt);
+      }
+      report.push({ id: 'finance', label: 'Economía', ok: true, sent: books.length });
+    } catch (error) {
+      report.push({
+        id: 'finance',
+        label: 'Economía',
+        ok: false,
+        error: error instanceof Error ? error.message : 'No ha viajado.',
+      });
+    }
+
     const note = failureNote(report);
 
     setParts(report);
@@ -954,6 +1005,38 @@ export function useHabitStore(): HabitStore {
         report.push({
           id: 'plans',
           label: 'Agendas semanales',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      try {
+        const mine = loadBooks();
+        const there = await pullFinance();
+        const gone = Object.keys(there)
+          .filter((profileId) => !mine[profileId])
+          .map((profileId) => `${uid}:${profileId}`);
+
+        await deleteFrom('finance', gone);
+
+        const ids = Object.entries(mine);
+        for (const [profileId, book] of ids) {
+          const saved = saveBook(profileId, book);
+          await pushFinance(profileId, saved, uid);
+          remember('finance', `${uid}:${profileId}`, saved.updatedAt);
+        }
+
+        report.push({
+          id: 'finance',
+          label: 'Economía',
+          ok: true,
+          sent: ids.length,
+          removed: gone.length,
+        });
+      } catch (error) {
+        report.push({
+          id: 'finance',
+          label: 'Economía',
           ok: false,
           error: error instanceof Error ? error.message : 'No ha viajado.',
         });
@@ -1190,6 +1273,34 @@ export function useHabitStore(): HabitStore {
 
           void pushPlan(profileId, plan, uid)
             .then(() => remember('agendas', id, plan.updatedAt))
+            .catch(() => undefined);
+        }
+      }, LINEUP_PUSH_MS);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [session, remember]);
+
+  // Y la economía, igual: un gasto apuntado en el móvil tiene que estar en el
+  // portátil sin esperar al repaso. Va detrás de la clave de la sección, pero
+  // eso es la puerta de la pantalla; los datos viajan como los demás.
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    let timer = 0;
+    const unsubscribe = subscribeBooks(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        for (const [profileId, book] of Object.entries(loadBooks())) {
+          const id = `${uid}:${profileId}`;
+          if (echoes.current[`finance:${id}`] === book.updatedAt) continue;
+
+          void pushFinance(profileId, book, uid)
+            .then(() => remember('finance', id, book.updatedAt))
             .catch(() => undefined);
         }
       }, LINEUP_PUSH_MS);

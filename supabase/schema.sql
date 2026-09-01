@@ -198,6 +198,15 @@ create table if not exists public.settings (
   updated_at  timestamptz not null default now()
 );
 
+-- La clave de la sección de economía. Viaja como huella, igual que el PIN:
+-- quien mire la tabla ve una sal y un resumen, que no sirven para entrar.
+-- Se añaden aquí para que quien ya tenga la tabla creada las reciba sin
+-- borrar nada.
+alter table public.settings
+  add column if not exists finance_salt   text,
+  add column if not exists finance_hash   text,
+  add column if not exists finance_rounds integer;
+
 alter table public.settings enable row level security;
 
 drop policy if exists "ajustes propios" on public.settings;
@@ -264,6 +273,41 @@ create policy "agendas propias" on public.agendas
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
+-- ------------------------------------------------------------ economía
+--  Las cuentas del curso de un perfil: ingresos, gastos, cuentas,
+--  inversiones, lo que le deben y lo que debe.
+--
+--  Una fila por perfil que lleve cuentas, y las seis libretas juntas en un
+--  `jsonb`: se leen y se escriben siempre a la vez, como la agenda, y gana
+--  la última guardada. No hay filas por apunte porque no hace falta
+--  consultarlos por separado y porque así el reparto entre aparatos es una
+--  sola comparación de fechas.
+--
+--  Va con las mismas políticas que el resto: sin sesión no se lee nada, y
+--  con sesión sólo se ve lo propio. Dentro de la app, además, la sección
+--  tiene su propia clave.
+
+create table if not exists public.finance (
+  id          text primary key,          -- `${owner}:${profileId}`
+  owner       uuid not null references auth.users (id) on delete cascade,
+  profile_id  text not null,
+  season      text not null default '',           -- «2025-26»
+  months      integer not null default 12,        -- lo que dura el curso
+  holidays    numeric not null default 0,         -- el pico de las vacaciones
+  ledgers     jsonb not null default '{}'::jsonb, -- las seis libretas
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists finance_owner_idx on public.finance (owner, profile_id);
+
+alter table public.finance enable row level security;
+
+drop policy if exists "economia propia" on public.finance;
+create policy "economia propia" on public.finance
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
 -- ------------------------------------------------------------- réplicas
 --  Una sola fila por cuenta que dice «lo que hay aquí arriba es la copia
 --  exacta de tal aparato, declarada tal día». No lleva datos: es el aviso
@@ -302,7 +346,7 @@ create policy "replicas propias" on public.replicas
 --  tablas a la publicación, Postgres avisa en el momento y lo registrado en
 --  el móvil aparece en el portátil en un par de segundos, sin recargar.
 --
---  Van las siete, no sólo los registros y las tareas: una foto nueva, el
+--  Van las ocho, no sólo los registros y las tareas: una foto nueva, el
 --  modo noche, un once recolocado o el entreno del jueves movido de hora son
 --  exactamente lo que uno espera ver aparecer solo en el otro aparato. Con
 --  las cuatro que faltaban, eso tardaba hasta tres cuartos de hora.
@@ -321,7 +365,8 @@ begin
   end if;
 
   foreach t in array array[
-    'entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas', 'replicas'
+    'entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas', 'replicas',
+    'finance'
   ] loop
     if not exists (
       select 1 from pg_publication_tables

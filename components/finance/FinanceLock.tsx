@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-import { hasFinanceKey, setFinanceKey, verifyFinanceKey } from '@/lib/settings';
+import {
+  hasFinanceKey,
+  setFinanceKey,
+  subscribeSettings,
+  verifyFinanceKey,
+} from '@/lib/settings';
 
 /* =========================================================================
  *  La puerta de la sección de economía.
@@ -17,8 +22,9 @@ import { hasFinanceKey, setFinanceKey, verifyFinanceKey } from '@/lib/settings';
  *  doméstica. Y no está escrita en el código —el repositorio de esta app es
  *  público—, así que la primera vez hay que ponerla aquí.
  *
- *  Se pone **por aparato**: la huella no viaja con el resto de los ajustes.
- *  Es la contrapartida de que las cifras tampoco salgan de aquí.
+ *  La huella viaja con el resto de los ajustes, así que la clave es la
+ *  misma en el móvil y en el ordenador: se pone una vez y vale para los dos.
+ *  Lo que viaja es el resumen, no la clave; con él no se entra.
  * ========================================================================= */
 
 interface FinanceLockProps {
@@ -34,7 +40,17 @@ export function FinanceLock({ name, onUnlock }: FinanceLockProps) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => setReady(hasFinanceKey()), []);
+  /**
+   * Se mira tras montar —en el servidor no hay ajustes— y se sigue
+   * escuchando. Lo segundo importa: en un aparato recién estrenado la huella
+   * puede llegar de la nube un segundo después de abrir esta pantalla, y sin
+   * escucharla se ofrecería crear una clave nueva encima de la que ya hay,
+   * cambiándosela de paso a todos los demás aparatos.
+   */
+  useEffect(() => {
+    setReady(hasFinanceKey());
+    return subscribeSettings(() => setReady(hasFinanceKey()));
+  }, []);
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -127,8 +143,8 @@ export function FinanceLock({ name, onUnlock }: FinanceLockProps) {
         ) : (
           <>
             <p className="mt-1 text-sm leading-relaxed t-3">
-              Todavía no hay clave en este aparato. Ponla ahora y se guardará como huella: ni
-              aquí, ni en la nube, ni en el código queda escrita.
+              Todavía no hay clave. Ponla ahora y se guardará como huella: ni aquí, ni en la
+              nube, ni en el código queda escrita lo que teclees. Vale para todos tus aparatos.
             </p>
             <form onSubmit={create} className="mt-5 space-y-3">
               <label className="block text-left">
@@ -179,8 +195,8 @@ export function FinanceLock({ name, onUnlock }: FinanceLockProps) {
 
         <p className="mt-4 text-[11px] leading-relaxed t-3">
           Es una barrera de andar por casa, no una caja fuerte: lo que se apunte aquí vive sin
-          cifrar en este navegador. Y la clave es de este aparato, así que en el móvil habrá que
-          ponerla otra vez.
+          cifrar en el navegador y en la cuenta de la casa. Lo que impide es que alguien que coja
+          el móvil desbloqueado se ponga a leer.
         </p>
       </div>
     </div>

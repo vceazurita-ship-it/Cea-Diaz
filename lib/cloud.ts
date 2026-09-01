@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { ReplicaMark } from '@/lib/replica';
 import type {
   DayEntry,
+  FinanceBook,
   HabitDatabase,
   HouseSettings,
   Lineup,
@@ -221,7 +222,7 @@ export async function pushTasks(tasks: Task[], owner: string): Promise<void> {
  * Todas las tablas cuya clave es una columna `id`. Las lápidas sólo hablan
  * de dos, pero la réplica tiene que poder quitar filas de cualquiera.
  */
-export type IdTable = CloudTable | 'lineups' | 'agendas' | 'appearance';
+export type IdTable = CloudTable | 'lineups' | 'agendas' | 'finance' | 'appearance';
 
 /**
  * Borra por identificador, en tandas. El troceo no es un lujo: la lista
@@ -441,8 +442,8 @@ export async function deleteAppearanceRows(
  * elección, la haya hecho quien la haya hecho.
  *
  * Del PIN viaja la huella, nunca el número. Quien mire la tabla ve una sal y
- * un resumen, que no sirven para entrar. La clave de la sección de economía
- * ni siquiera eso: se queda en el aparato donde se puso.
+ * un resumen, que no sirven para entrar. Lo mismo la clave de la sección de
+ * economía, que va por las mismas columnas y con el mismo trato.
  * ------------------------------------------------------------------------- */
 
 interface SettingsRow {
@@ -452,6 +453,9 @@ interface SettingsRow {
   pin_salt: string | null;
   pin_hash: string | null;
   pin_rounds: number | null;
+  finance_salt: string | null;
+  finance_hash: string | null;
+  finance_rounds: number | null;
   updated_at: string;
 }
 
@@ -463,9 +467,10 @@ function fromSettingsRow(row: SettingsRow): HouseSettings {
       row.pin_salt && row.pin_hash && row.pin_rounds
         ? { salt: row.pin_salt, hash: row.pin_hash, rounds: row.pin_rounds }
         : null,
-    // La clave de economía no viaja por la nube: no hay columna para ella y
-    // no la queremos. `applyRemoteSettings` conserva la de este aparato.
-    finance: null,
+    finance:
+      row.finance_salt && row.finance_hash && row.finance_rounds
+        ? { salt: row.finance_salt, hash: row.finance_hash, rounds: row.finance_rounds }
+        : null,
     updatedAt: isoOf(row.updated_at),
   };
 }
@@ -492,6 +497,9 @@ export async function pushSettings(settings: HouseSettings, owner: string): Prom
     pin_salt: settings.pin?.salt ?? null,
     pin_hash: settings.pin?.hash ?? null,
     pin_rounds: settings.pin?.rounds ?? null,
+    finance_salt: settings.finance?.salt ?? null,
+    finance_hash: settings.finance?.hash ?? null,
+    finance_rounds: settings.finance?.rounds ?? null,
     updated_at: settings.updatedAt,
   });
 
@@ -622,6 +630,82 @@ export async function pushPlan(
   if (error) throw new Error(error.message);
 }
 
+
+/* ---------------------------------------------------------------------------
+ * Economía
+ *
+ * Las cuentas del curso de un perfil. Como la agenda, las seis libretas viajan
+ * juntas en un `jsonb`: se leen y se escriben siempre a la vez, y gana la
+ * última guardada. Una fila por perfil que lleve cuentas.
+ *
+ * Sube porque se pidió que subiera: llevar las cuentas en el móvil y mirarlas
+ * en el portátil es media razón de tenerlas aquí. Va con las mismas políticas
+ * que todo lo demás —sin sesión no se lee nada, y con sesión sólo lo propio— y
+ * dentro de la app, además, detrás de su propia clave.
+ * ------------------------------------------------------------------------- */
+
+interface FinanceRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  season: string | null;
+  months: number | null;
+  holidays: number | null;
+  ledgers: FinanceBook['ledgers'] | null;
+  updated_at: string;
+}
+
+/** Las libretas de la cuenta, indexadas por perfil. */
+export async function pullFinance(): Promise<Record<string, FinanceBook>> {
+  const client = supabase();
+  if (!client) return {};
+
+  const { data, error } = await client.from('finance').select('*');
+  if (error) throw new Error(error.message);
+
+  const out: Record<string, FinanceBook> = {};
+
+  for (const row of (data ?? []) as FinanceRow[]) {
+    out[row.profile_id] = {
+      season: row.season ?? '',
+      months: row.months ?? 12,
+      holidays: Number(row.holidays ?? 0),
+      ledgers: row.ledgers ?? {
+        ingresos: [],
+        gastos: [],
+        cuentas: [],
+        inversiones: [],
+        cobros: [],
+        pagos: [],
+      },
+      updatedAt: isoOf(row.updated_at),
+    };
+  }
+
+  return out;
+}
+
+export async function pushFinance(
+  profileId: string,
+  book: FinanceBook,
+  owner: string,
+): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('finance').upsert({
+    id: `${owner}:${profileId}`,
+    owner,
+    profile_id: profileId,
+    season: book.season,
+    months: book.months,
+    holidays: book.holidays,
+    ledgers: book.ledgers,
+    updated_at: book.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
+}
 
 /* ---------------------------------------------------------------------------
  * Marca de réplica

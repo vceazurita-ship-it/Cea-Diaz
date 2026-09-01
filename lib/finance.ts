@@ -25,8 +25,12 @@ import type { FinanceBook, FinanceItem, LedgerId } from '@/types';
  *
  *  **Aquí no hay ni una cifra suya.** El repositorio de esta app es público,
  *  así que lo que viaja en el código es la forma —cómo se llaman las cosas y
- *  cómo se suman— y los números viven sólo en el aparato, como el resto de lo
- *  que registra la familia. Por lo mismo, esta libreta no sube a la nube.
+ *  cómo se suman— y los números viven en el aparato y en la cuenta de la casa,
+ *  como el resto de lo que registra la familia.
+ *
+ *  Las libretas van indexadas por perfil aunque de momento sólo las lleve uno:
+ *  es lo que permite que la nube las reparta perfil a perfil, igual que las
+ *  agendas, y lo que evita mover nada el día que otro quiera las suyas.
  * ========================================================================= */
 
 export const FINANCE_KEY = 'habitos-familia:economia';
@@ -404,7 +408,7 @@ export function euros(amount: number, decimals = 0): string {
  * aquí.
  * ------------------------------------------------------------------------- */
 
-let cache: FinanceBook | null = null;
+let cache: Record<string, FinanceBook> | null = null;
 const listeners = new Set<() => void>();
 
 function normalizeItem(value: unknown, index: number): FinanceItem | null {
@@ -452,22 +456,45 @@ function normalize(value: unknown): FinanceBook {
   };
 }
 
-export function loadBook(): FinanceBook {
+/**
+ * Las libretas guardadas, por perfil.
+ *
+ * Van indexadas aunque de momento sólo las lleve uno: es lo que permite que
+ * la nube las reparta perfil a perfil, como hace con las agendas, y lo que
+ * evita tener que mover nada el día que otro quiera las suyas.
+ */
+export function loadBooks(): Record<string, FinanceBook> {
   if (cache) return cache;
-  if (typeof window === 'undefined') return emptyBook();
+  if (typeof window === 'undefined') return {};
 
   try {
     const raw = window.localStorage.getItem(FINANCE_KEY);
-    cache = raw ? normalize(JSON.parse(raw)) : emptyBook();
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    const out: Record<string, FinanceBook> = {};
+
+    // La primera versión guardaba una libreta suelta, sin perfil. Si es lo
+    // que hay, se recoge como de Víctor, que era de quien era.
+    if (parsed && typeof parsed === 'object' && 'ledgers' in parsed) {
+      out.victor = normalize(parsed);
+    } else {
+      for (const [profileId, value] of Object.entries(parsed ?? {})) {
+        out[profileId] = normalize(value);
+      }
+    }
+
+    cache = out;
   } catch {
-    cache = emptyBook();
+    cache = {};
   }
 
   return cache;
 }
 
-export function saveBook(book: FinanceBook): FinanceBook {
-  const next: FinanceBook = { ...book, updatedAt: new Date().toISOString() };
+export function bookOf(profileId: string): FinanceBook {
+  return loadBooks()[profileId] ?? emptyBook();
+}
+
+function commit(next: Record<string, FinanceBook>): void {
   cache = next;
 
   if (typeof window !== 'undefined') {
@@ -479,10 +506,36 @@ export function saveBook(book: FinanceBook): FinanceBook {
   }
 
   for (const listener of listeners) listener();
+}
+
+export function saveBook(profileId: string, book: FinanceBook): FinanceBook {
+  const next: FinanceBook = { ...book, updatedAt: new Date().toISOString() };
+  commit({ ...loadBooks(), [profileId]: next });
   return next;
 }
 
-export function subscribeBook(listener: () => void): () => void {
+/**
+ * Lo que llega de otro aparato. Se adopta lo que sea más reciente y se deja
+ * lo demás como está: la misma regla que en el resto de la app, y la que
+ * permite apuntar un gasto en el móvil y verlo en el portátil sin que ninguno
+ * de los dos pise al otro.
+ */
+export function applyRemoteBooks(remote: Record<string, FinanceBook>): void {
+  const local = loadBooks();
+  const next = { ...local };
+  let changed = false;
+
+  for (const [profileId, book] of Object.entries(remote)) {
+    const mine = local[profileId];
+    if (mine && Date.parse(mine.updatedAt) >= Date.parse(book.updatedAt)) continue;
+    next[profileId] = book;
+    changed = true;
+  }
+
+  if (changed) commit(next);
+}
+
+export function subscribeBooks(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

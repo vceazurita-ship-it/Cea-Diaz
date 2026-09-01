@@ -6,7 +6,7 @@
  *   1. Si las dos variables están puestas y tienen buena pinta.
  *   2. Si la clave es la pública y no la de servicio (pegar esa por error
  *      abriría la base entera a cualquiera que abra la app).
- *   3. Si las ocho tablas del `schema.sql` existen de verdad.
+ *   3. Si las nueve tablas del `schema.sql` existen de verdad.
  *   4. Con la cuenta de casa: si las políticas dejan leer y si el cubo de
  *      las fotos está en su sitio.
  *
@@ -151,7 +151,7 @@ if (!carga) {
   ojo(`La clave dice ser de tipo «${carga.role}». Se esperaba «anon».`);
 }
 
-/* --------------------------------------------------- 3. las ocho tablas */
+/* --------------------------------------------------- 3. las nueve tablas */
 
 const client = createClient(url, anon, { auth: { persistSession: false } });
 
@@ -162,13 +162,24 @@ const TABLAS = [
   ['settings', 'los ajustes de casa'],
   ['lineups', 'los campogramas'],
   ['agendas', 'las agendas semanales'],
+  ['finance', 'las cuentas de economía'],
   ['replicas', 'el «dejar todos igual que este»'],
   ['calendar_links', 'los permisos de Google Calendar'],
 ];
 
 const ANCHO = 15;
 
-function noExiste(error) {
+/**
+ * Si la tabla no está.
+ *
+ * Lo que delata a una tabla que falta no es el error —no lo hay— sino el
+ * número de la respuesta: preguntando sólo por la cuenta, una tabla que
+ * existe contesta **200** aunque las políticas no dejen ver ni una fila, y
+ * una que no existe contesta **204**. Sin mirar eso, el comprobador daba por
+ * buenas hasta las tablas inventadas: nueve verdes y ni una comprobada.
+ */
+function noExiste(error, status) {
+  if (status === 204 || status === 404) return true;
   if (!error) return false;
   const codigo = error.code || '';
   const texto = `${error.message || ''}`.toLowerCase();
@@ -185,10 +196,16 @@ function sinRed(error) {
   return /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo|network/i.test(texto);
 }
 
-/* Sin esto, una clave equivocada hacía que las ocho tablas salieran como
-   «existe y está protegida»: ocho verdes y ni una sola comprobada. Vale más
-   pararse y decirlo. */
-function claveMala(error) {
+/**
+ * Y sin esto seguía mintiendo. Cuando la clave es de otro proyecto —o ha
+ * caducado— PostgREST contesta 401 y supabase-js devuelve un error **con el
+ * mensaje vacío**: ni código, ni texto, nada que reconocer. Ese error caía en
+ * la rama de «RLS lo niega, luego la tabla está», y el comprobador pintaba de
+ * verde hasta una tabla inventada. El número de la respuesta es lo único
+ * fiable ahí, así que se mira también.
+ */
+function claveMala(error, status) {
+  if (status === 401 || status === 403) return true;
   const codigo = `${error?.code || ''}`;
   const texto = `${error?.message || ''}`.toLowerCase();
   return (
@@ -208,24 +225,25 @@ let conexion = true;
 const faltan = [];
 
 for (const [tabla, para] of TABLAS) {
-  const { error } = await client.from(tabla).select('*', { head: true, count: 'exact' });
+  const { error, status } = await client.from(tabla).select('*', { head: true, count: 'exact' });
 
-  if (!error) {
-    ok(`${tabla.padEnd(ANCHO)} — ${para}`);
-  } else if (noExiste(error)) {
+  if (noExiste(error, status)) {
     mal(`${tabla.padEnd(ANCHO)} — NO EXISTE (${para})`);
     faltan.push(tabla);
     fallos++;
-  } else if (sinRed(error)) {
-    mal(`No se puede llegar a Supabase: ${error.message}`);
-    nota('¿La URL es la correcta? ¿Hay conexión? ¿El proyecto está pausado?');
+  } else if (!error) {
+    ok(`${tabla.padEnd(ANCHO)} — ${para}`);
+  } else if (claveMala(error, status)) {
+    mal(`Supabase rechaza la clave${error.message ? `: ${error.message}` : ` (respuesta ${status}).`}`);
+    nota('La clave y la URL tienen que ser del MISMO proyecto, y la clave no');
+    nota('puede estar caducada. Cópialas otra vez de Supabase -> Project');
+    nota('Settings -> API. Sin eso, nada de lo de abajo se ha comprobado.');
     conexion = false;
     fallos++;
     break;
-  } else if (claveMala(error)) {
-    mal(`Supabase rechaza la clave: ${error.message}`);
-    nota('La clave y la URL tienen que ser del MISMO proyecto. Cópialas otra');
-    nota('vez de Supabase -> Project Settings -> API, la «anon public» entera.');
+  } else if (sinRed(error)) {
+    mal(`No se puede llegar a Supabase: ${error.message}`);
+    nota('¿La URL es la correcta? ¿Hay conexión? ¿El proyecto está pausado?');
     conexion = false;
     fallos++;
     break;

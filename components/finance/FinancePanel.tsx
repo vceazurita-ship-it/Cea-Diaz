@@ -13,7 +13,7 @@ import {
   dropItem,
   euros,
   expenseShare,
-  loadBook,
+  bookOf,
   emptyBook,
   emptyItem,
   monthlyExpense,
@@ -30,7 +30,7 @@ import {
   saveBook,
   seasonOf,
   starterBook,
-  subscribeBook,
+  subscribeBooks,
   ledgerTotal,
 } from '@/lib/finance';
 import type { FinanceBook, FinanceItem, LedgerId, Profile } from '@/types';
@@ -46,10 +46,11 @@ import type { FinanceBook, FinanceItem, LedgerId, Profile } from '@/types';
  *  consulta: cuánto tiempo se aguanta con lo que hay. Aquí eso va arriba, en
  *  grande, y las filas debajo para quien quiera bajar al detalle.
  *
- *  Lo que se apunta vive **sólo en este aparato**: no sube a la nube como el
- *  resto de la app. Son las cuentas de una persona, y mientras no haga falta
- *  verlas desde otro sitio no tienen por qué salir de aquí. Por eso hay un
- *  botón para copiarlas enteras: es la salida de emergencia.
+ *  Lo que se apunta viaja con la cuenta de casa, como el resto: se apunta un
+ *  gasto en el móvil y está en el portátil. Detrás de la clave de la sección,
+ *  y con las mismas políticas que todo lo demás —sin sesión no se lee nada—.
+ *  Y sigue habiendo un botón para copiarlas enteras en texto, que es la
+ *  salida de emergencia de cualquier cosa que se guarde en un sitio solo.
  * ========================================================================= */
 
 interface FinancePanelProps {
@@ -65,9 +66,9 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   const [view, setView] = useState<View>('resumen');
 
   useEffect(() => {
-    setBook(loadBook());
-    return subscribeBook(() => setBook(loadBook()));
-  }, []);
+    setBook(bookOf(profile.id));
+    return subscribeBooks(() => setBook(bookOf(profile.id)));
+  }, [profile.id]);
 
   const started = bookStarted(book);
 
@@ -81,7 +82,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
 
   /* ------------------------------------------------------------ acciones */
 
-  const commit = (next: FinanceBook) => setBook(saveBook(next));
+  const commit = (next: FinanceBook) => setBook(saveBook(profile.id, next));
 
   const start = () => {
     commit(starterBook());
@@ -104,7 +105,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
       action: {
         label: 'Deshacer',
         onClick: () => {
-          setBook(saveBook(before));
+          setBook(saveBook(profile.id, before));
           notify({ message: 'Como estaba.', icon: '↩️' });
         },
       },
@@ -409,8 +410,8 @@ export function FinancePanel({ profile }: FinancePanelProps) {
       )}
 
       <p className="text-center text-[11px] leading-relaxed t-3">
-        Esto no sale de este aparato: no se sincroniza con la nube como el resto de la app. Si
-        cambias de móvil, cópialas antes con 📋.
+        Se sincroniza con la cuenta de casa, como el resto de la app: lo que apuntes en el móvil
+        aparece en el ordenador. Detrás de su clave, y sólo para quien entre con la cuenta.
       </p>
     </div>
   );

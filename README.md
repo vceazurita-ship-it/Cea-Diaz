@@ -1736,13 +1736,20 @@ Tres decisiones que conviene no deshacer sin pensarlo:
   lo que viaja aquí es la forma —los conceptos y cómo se suman— y los números
   viven sólo en el aparato. Por lo mismo, las hojas de cálculo que se dejen
   caer en la carpeta están en `.gitignore`.
-- **No sube a la nube.** A diferencia del resto de la app, la libreta se queda
-  en `localStorage`. Son las cuentas de una persona, no el registro de la
-  casa. Por eso hay un botón para copiarlas enteras en texto: es la salida de
-  emergencia si se cambia de móvil.
-- **Clave propia y por aparato.** Va aparte del PIN de la casa —ése lo saben
-  los dos— y se guarda como huella PBKDF2, nunca en claro. La huella tampoco
-  viaja, así que en cada aparato se pone una vez.
+- **Sincroniza con la cuenta de casa**, como el resto: tabla `finance`, una
+  fila por perfil con las seis libretas en un `jsonb`, gana la última guardada
+  y viaja también en tiempo real. Con las mismas políticas que todo lo demás:
+  sin sesión no se lee nada, y con sesión sólo lo propio. Aun así hay un botón
+  que las copia enteras en texto, que es la salida de emergencia de cualquier
+  cosa guardada en un solo sitio.
+- **Clave propia**, aparte del PIN de la casa —ése lo saben los dos—, guardada
+  como huella PBKDF2 y nunca en claro. La huella viaja con los ajustes, así
+  que la clave es la misma en el móvil y en el ordenador.
+
+Al desplegar hay que **volver a lanzar `supabase/schema.sql`** en el editor SQL
+del proyecto: crea la tabla `finance` y añade a `settings` las tres columnas de
+la huella. El archivo es idempotente, así que relanzarlo entero no toca nada de
+lo que ya está.
 
 ## Instalación en el móvil
 

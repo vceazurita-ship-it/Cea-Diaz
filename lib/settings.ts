@@ -128,8 +128,9 @@ export function updateSettings(patch: Partial<Omit<HouseSettings, 'updatedAt'>>)
 
 /** Adopta lo que venía de la nube. No se refecha: la elección es de quien la hizo. */
 export function applyRemoteSettings(remote: Partial<HouseSettings>): void {
-  // La clave de la sección de economía no viaja: vive en el aparato donde se
-  // puso y allí se queda, así que lo que llegue de fuera no puede borrarla.
+  // La clave de la sección de economía viaja con lo demás, pero una cuenta
+  // creada antes de que existiera la columna llega sin ella: entonces manda la
+  // que haya aquí, para que actualizar no deje la sección sin llave.
   const { finance } = loadSettings();
   commit(normalize({ ...remote, finance: remote.finance ?? finance }));
 }
@@ -243,7 +244,8 @@ export async function migrateLegacyPin(): Promise<void> {
  * tecleado— y por el mismo motivo: así no se puede leer del navegador, ni de
  * la nube, ni por encima del hombro. Y no está en el código: el repositorio
  * de esta app es público, así que la clave se pone desde la propia sección la
- * primera vez que se entra.
+ * primera vez que se entra. Como la del PIN, la huella viaja, de modo que
+ * vale igual en el móvil y en el ordenador.
  * ------------------------------------------------------------------------- */
 
 /** ¿Hay ya una clave puesta para la sección de economía? */
