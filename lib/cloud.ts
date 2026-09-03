@@ -697,10 +697,10 @@ export async function pullFinance(): Promise<Record<string, FinanceBook>> {
 
 /**
  * Una cuenta que no haya vuelto a lanzar el `schema.sql` todavía no tiene las
- * columnas del histórico. Antes que dejar la economía sin sincronizar por eso
- * —que es lo que pasaría, y con un mensaje que no dice nada— se reintenta sin
- * ellas: viajan las cifras, que es lo que de verdad importa, y la serie se
- * queda en el aparato hasta que las columnas estén.
+ * columnas que se fueron añadiendo después. Antes que dejar la economía sin
+ * sincronizar por eso —que es lo que pasaría, y con un mensaje que no dice
+ * nada— se reintenta sin ellas: viajan las cifras, que es lo que de verdad
+ * importa, y lo demás se queda en el aparato hasta que las columnas estén.
  */
 function faltaColumna(message: string): boolean {
   const texto = message.toLowerCase();
@@ -713,6 +713,17 @@ function faltaColumna(message: string): boolean {
   );
 }
 
+/**
+ * Las columnas añadidas después de la tabla original, de la más nueva a la
+ * más vieja.
+ *
+ * Se van soltando de una en una, y ése es todo el truco: tirar las tres a la
+ * primera negativa haría que estrenar `pay_months` dejara de sincronizar
+ * también el histórico y los objetivos, que llevaban meses funcionando. Se
+ * pierde lo justo, y sólo hasta que se relance el esquema.
+ */
+const EXTRAS_FINANCE = ['pay_months', 'goals', 'history'] as const;
+
 export async function pushFinance(
   profileId: string,
   book: FinanceBook,
@@ -721,7 +732,7 @@ export async function pushFinance(
   const client = supabase();
   if (!client) return;
 
-  const fila = {
+  const base: Record<string, unknown> = {
     id: `${owner}:${profileId}`,
     owner,
     profile_id: profileId,
@@ -732,22 +743,26 @@ export async function pushFinance(
     updated_at: book.updatedAt,
   };
 
-  const { error } = await client.from('finance').upsert({
-    ...fila,
-    history: book.history,
-    goals: book.goals,
+  const extras: Record<string, unknown> = {
     pay_months: book.payMonths ?? null,
-  });
+    goals: book.goals,
+    history: book.history,
+  };
 
-  if (!error) return;
+  // Se intenta con todo y, a cada negativa por columna que falta, se suelta
+  // la más nueva y se vuelve a probar. La última vuelta es la tabla de
+  // siempre, que existe en cualquier cuenta.
+  for (let soltadas = 0; soltadas <= EXTRAS_FINANCE.length; soltadas += 1) {
+    const fila = { ...base };
+    for (const columna of EXTRAS_FINANCE.slice(soltadas)) fila[columna] = extras[columna];
 
-  if (faltaColumna(error.message)) {
-    const retry = await client.from('finance').upsert(fila);
-    if (!retry.error) return;
-    throw new Error(retry.error.message);
+    const { error } = await client.from('finance').upsert(fila);
+    if (!error) return;
+
+    if (soltadas === EXTRAS_FINANCE.length || !faltaColumna(error.message)) {
+      throw new Error(error.message);
+    }
   }
-
-  throw new Error(error.message);
 }
 
 /* ---------------------------------------------------------------------------
