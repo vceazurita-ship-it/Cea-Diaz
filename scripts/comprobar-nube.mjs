@@ -7,7 +7,11 @@
  *   2. Si la clave es la pública y no la de servicio (pegar esa por error
  *      abriría la base entera a cualquiera que abra la app).
  *   3. Si las nueve tablas del `schema.sql` existen de verdad.
- *   4. Con la cuenta de casa: si las políticas dejan leer y si el cubo de
+ *   4. Y si tienen las columnas que se fueron añadiendo después, que es
+ *      distinto: una tabla vieja con el esquema a medio lanzar sale verde en
+ *      la lista de arriba mientras pierde por el camino todo lo que no cabe,
+ *      sin dar error en ninguna parte.
+ *   5. Con la cuenta de casa: si las políticas dejan leer y si el cubo de
  *      las fotos está en su sitio.
  *
  *  No escribe nada en ninguna parte. En particular no toca `replicas`:
@@ -261,10 +265,73 @@ if (faltan.length > 0) {
   nota('Run. Es idempotente: no borra nada, sólo añade lo que falte.');
 }
 
+/* ------------------------------- 3. las columnas añadidas después */
+
+/**
+ * Las columnas que no estaban en la tabla original.
+ *
+ * Comprobar que la tabla existe no basta, y esto se aprendió por las malas:
+ * `finance` llevaba meses ahí, verde en esta misma lista, mientras el
+ * histórico y los objetivos no subían a ninguna parte porque sus columnas no
+ * se habían creado nunca. Una tabla vieja con el `schema.sql` a medio lanzar
+ * no da error en ningún sitio: simplemente pierde por el camino lo que no
+ * cabe, y nadie se entera hasta que hace falta el dato que no está.
+ *
+ * Se preguntan sin sesión a propósito: una columna que falta lo dice el
+ * propio Postgres al leer la petición, antes de que las políticas decidan
+ * nada, así que el aviso sale igual aunque no haya cuenta configurada.
+ *
+ * Y se preguntan con una lectura normal, no con `head`. Con `head` la
+ * respuesta no trae cuerpo, así que el error llega sin código y sin mensaje:
+ * la primera versión de esto daba verde a las tres columnas que faltaban de
+ * verdad, que es exactamente el fallo contra el que avisa la cabecera.
+ */
+const COLUMNAS = [
+  ['entries', 'notes', 'las notas del día'],
+  ['tasks', 'calendar_pending', 'los recados que esperan al calendario'],
+  ['calendar_links', 'broken', 'los enlaces de calendario rotos'],
+  ['settings', 'finance_salt', 'la clave de economía'],
+  ['finance', 'history', 'la serie mensual de las cuentas'],
+  ['finance', 'goals', 'las cifras con las que se juzga el objetivo'],
+  ['finance', 'pay_months', 'los meses que de verdad se cobra'],
+];
+
+if (conexion) {
+  titulo('3. Las columnas que se añadieron después');
+
+  const sinColumna = [];
+
+  for (const [tabla, columna, para] of COLUMNAS) {
+    if (faltan.includes(tabla)) continue;
+
+    const { error } = await client.from(tabla).select(`${columna}`).limit(1);
+    const rotula = `${tabla}.${columna}`.padEnd(24);
+
+    // 42703 es «no existe esa columna». Sin error significa que está —vacía
+    // por las políticas, pero está—, y cualquier otro error es RLS negando la
+    // lectura, que también significa que está.
+    if (error && (error.code === '42703' || /does not exist/i.test(error.message || ''))) {
+      mal(`${rotula} — NO EXISTE (${para})`);
+      sinColumna.push(`${tabla}.${columna}`);
+      fallos++;
+    } else {
+      ok(`${rotula} — ${para}`);
+    }
+  }
+
+  if (sinColumna.length > 0) {
+    console.log('');
+    ojo(`Sin crear: ${sinColumna.join(', ')}`);
+    nota('La tabla está, pero el schema.sql se quedó a medio lanzar. Lo que');
+    nota('va en esas columnas no sube: se queda en el aparato y se pierde al');
+    nota('cambiar de móvil. Pega supabase/schema.sql entero y dale a Run.');
+  }
+}
+
 /* ------------------------------- 4. con la cuenta: políticas y el cubo */
 
 if (conexion && email && password) {
-  titulo('3. Con la cuenta de casa');
+  titulo('4. Con la cuenta de casa');
 
   const { data: sesion, error: errorEntrada } =
     await client.auth.signInWithPassword({ email, password });
@@ -317,7 +384,7 @@ if (conexion && email && password) {
     await client.auth.signOut();
   }
 } else if (conexion) {
-  titulo('3. Con la cuenta de casa');
+  titulo('4. Con la cuenta de casa');
   ojo('Sin comprobar: faltan COMPROBAR_EMAIL y COMPROBAR_PASSWORD.');
   nota('Ponlos en .env.local si quieres que compruebe también las fotos y');
   nota('que las políticas dejan leer. Es opcional.');

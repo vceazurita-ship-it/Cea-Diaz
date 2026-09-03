@@ -348,10 +348,11 @@ registrado sube solo en cuanto vuelve la conexión.
 npm run comprobar:nube
 ```
 
-Lee las variables de `.env.local` y dice, una por una, si las ocho tablas del
-`schema.sql` están de verdad, si la clave es la pública y no la de servicio, y
-—si además pones `COMPROBAR_EMAIL` y `COMPROBAR_PASSWORD`— si la cuenta de casa
-puede leer y si el cubo de las fotos responde. No escribe nada en ninguna parte:
+Lee las variables de `.env.local` y dice, una por una, si las nueve tablas del
+`schema.sql` están de verdad, **si tienen las columnas que se fueron añadiendo
+después**, si la clave es la pública y no la de servicio, y —si además pones
+`COMPROBAR_EMAIL` y `COMPROBAR_PASSWORD`— si la cuenta de casa puede leer y si
+el cubo de las fotos responde. No escribe nada en ninguna parte:
 en particular no toca `replicas`, porque dejar ahí una marca les diría a los
 demás móviles que se pusieran a copiar.
 
@@ -361,6 +362,7 @@ Sirve para separar los dos fallos que se confunden siempre:
 |---|---|
 | «Sin nube configurada» en Ajustes → Nube | Faltan las **variables**. El SQL no tiene nada que ver: puede estar perfecto. |
 | Entra pero la subida falla | Faltan **tablas**. Relanza `schema.sql` entero. |
+| Entra, sube, y aun así se pierde un dato concreto | Falta una **columna**. La tabla está y no da error: simplemente tira por el camino lo que no cabe. Relanza `schema.sql` entero. |
 
 Ojo: comprueba **el ordenador donde se lanza**. Que aquí salga todo en verde no
 dice nada del móvil: para eso las dos variables tienen que estar en Vercel y hay
