@@ -650,6 +650,7 @@ interface FinanceRow {
   profile_id: string;
   season: string | null;
   months: number | null;
+  pay_months: number | null;
   holidays: number | null;
   ledgers: FinanceBook['ledgers'] | null;
   history: FinanceBook['history'] | null;
@@ -671,6 +672,7 @@ export async function pullFinance(): Promise<Record<string, FinanceBook>> {
     out[row.profile_id] = {
       season: row.season ?? '',
       months: row.months ?? 12,
+      payMonths: row.pay_months ?? undefined,
       holidays: Number(row.holidays ?? 0),
       ledgers: row.ledgers ?? {
         ingresos: [],
@@ -705,6 +707,7 @@ function faltaColumna(message: string): boolean {
   return (
     texto.includes('history') ||
     texto.includes('goals') ||
+    texto.includes('pay_months') ||
     texto.includes('column') ||
     texto.includes('schema cache')
   );
@@ -733,6 +736,7 @@ export async function pushFinance(
     ...fila,
     history: book.history,
     goals: book.goals,
+    pay_months: book.payMonths ?? null,
   });
 
   if (!error) return;

@@ -110,7 +110,11 @@ export const FINANCE_EXPERTS: Record<string, Expert> = {
   },
 };
 
-export function financeExpertsOf(note: FinanceNote): Expert[] {
+/**
+ * Quién sostiene lo que se está diciendo. Vale igual para una nota que para
+ * una acción del plan: las dos citan del mismo cajón y con la misma regla.
+ */
+export function financeExpertsOf(note: { experts: string[] }): Expert[] {
   return note.experts.map((id) => FINANCE_EXPERTS[id]).filter(Boolean);
 }
 

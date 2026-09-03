@@ -234,6 +234,13 @@ export const WEALTH_LEDGERS: LedgerId[] = ['cuentas', 'inversiones', 'cobros', '
  * ------------------------------------------------------------------------- */
 
 interface Seed {
+  /**
+   * Nombre corto y estable del concepto. No se enseña en ningún sitio: sirve
+   * para casar la fila con su cifra de arranque, que vive fuera del código
+   * (ver `startFigures`). Cambiar un `label` no debe romper el arranque, y
+   * por eso la llave va aparte del rótulo.
+   */
+  key: string;
   label: string;
   icon: string;
   note?: string;
@@ -243,43 +250,72 @@ interface Seed {
 
 const SEEDS: Record<LedgerId, Seed[]> = {
   ingresos: [
-    { label: 'Salario del club', icon: '⚽', note: 'Segundo entrenador' },
-    { label: 'Comisión del agente', icon: '🤝', note: 'En negativo: se descuenta del salario' },
-    { label: 'ESS · asesoría fija', icon: '🎓' },
-    { label: 'ESS · variable', icon: '📊', note: 'Lo que no está cerrado' },
-    { label: 'Autónomos', icon: '🧾', note: 'En negativo' },
-    { label: 'Otros ingresos', icon: '➕' },
+    { key: 'salario', label: 'Salario del club', icon: '⚽', note: 'Segundo entrenador' },
+    {
+      key: 'agente',
+      label: 'Comisión del agente',
+      icon: '🤝',
+      note: 'En negativo: se descuenta del salario',
+    },
+    { key: 'ess-fija', label: 'ESS · asesoría fija', icon: '🎓', note: 'Por renegociar' },
+    { key: 'ess-variable', label: 'ESS · variable', icon: '📊', note: 'Lo que no está cerrado' },
+    { key: 'players-380', label: '380 Players', icon: '🧩', note: 'Por negociar' },
+    { key: 'rcde', label: 'RCDE', icon: '🔵', note: 'Condiciones por cerrar' },
+    { key: 'autonomos', label: 'Autónomos', icon: '🧾', note: 'En negativo' },
+    { key: 'otros', label: 'Otros ingresos', icon: '➕' },
   ],
   gastos: [
-    { label: 'Casa', icon: '🏠', tier: 'base' },
-    { label: 'Suministros', icon: '💡', tier: 'base' },
-    { label: 'Seguro dental', icon: '🦷', tier: 'base' },
-    { label: 'Plan de pensiones', icon: '🏦', tier: 'base' },
-    { label: 'Móvil e internet', icon: '📱', tier: 'base' },
-    { label: 'Coche', icon: '🚗', note: 'Mantenimiento', tier: 'base' },
-    { label: 'Seguro del coche', icon: '🛡️', tier: 'base' },
-    { label: 'Impuestos del coche', icon: '🧾', tier: 'base' },
-    { label: 'Gasolina y transporte', icon: '⛽', tier: 'base' },
-    { label: 'Comida', icon: '🍽️', tier: 'base' },
-    { label: 'Colegio', icon: '🎒', tier: 'hijos' },
-    { label: 'Actividades de los peques', icon: '🏊', tier: 'hijos' },
-    { label: 'Ropa de los peques', icon: '👕', tier: 'hijos' },
-    { label: 'Abono del Madrid', icon: '🏟️', tier: 'familia' },
-    { label: 'Ocio', icon: '🎬', tier: 'calidad' },
-    { label: 'Regalos', icon: '🎁', tier: 'calidad' },
-    { label: 'Idiomas', icon: '🗣️', tier: 'hijos' },
-    { label: 'Cenas y planes con María', icon: '💞', tier: 'pareja' },
-    { label: 'Experiencias de los cuatro', icon: '🧭', tier: 'familia' },
-    { label: 'Imprevistos', icon: '❓', tier: 'base' },
+    { key: 'casa', label: 'Casa', icon: '🏠', tier: 'base' },
+    { key: 'suministros', label: 'Suministros', icon: '💡', tier: 'base' },
+    { key: 'dental', label: 'Seguro dental', icon: '🦷', tier: 'base' },
+    { key: 'pensiones', label: 'Plan de pensiones', icon: '🏦', tier: 'base' },
+    { key: 'movil', label: 'Móvil e internet', icon: '📱', tier: 'base' },
+    { key: 'coche', label: 'Coche', icon: '🚗', note: 'Mantenimiento', tier: 'base' },
+    { key: 'seguro-coche', label: 'Seguro del coche', icon: '🛡️', tier: 'base' },
+    { key: 'impuestos-coche', label: 'Impuestos del coche', icon: '🧾', tier: 'base' },
+    { key: 'gasolina', label: 'Gasolina y transporte', icon: '⛽', tier: 'base' },
+    { key: 'comida', label: 'Comida', icon: '🍽️', tier: 'base' },
+    { key: 'colegio', label: 'Colegio', icon: '🎒', tier: 'hijos' },
+    { key: 'actividades', label: 'Actividades de los peques', icon: '🏊', tier: 'hijos' },
+    { key: 'ropa', label: 'Ropa de los peques', icon: '👕', tier: 'hijos' },
+    { key: 'madrid', label: 'Abono del Madrid', icon: '🏟️', tier: 'familia' },
+    { key: 'ocio', label: 'Ocio', icon: '🎬', tier: 'calidad' },
+    { key: 'regalos', label: 'Regalos', icon: '🎁', tier: 'calidad' },
+    { key: 'idiomas', label: 'Idiomas', icon: '🗣️', tier: 'hijos' },
+    { key: 'pareja', label: 'Cenas y planes con María', icon: '💞', tier: 'pareja' },
+    { key: 'experiencias', label: 'Experiencias de los cuatro', icon: '🧭', tier: 'familia' },
+    { key: 'imprevistos', label: 'Imprevistos', icon: '❓', tier: 'base' },
   ],
-  cuentas: [{ label: 'Cuenta principal', icon: '🏦' }],
+  cuentas: [
+    { key: 'unicaja', label: 'Unicaja', icon: '🏦', note: 'Vaciar hacia lo que renta' },
+    { key: 'revolut', label: 'Revolut', icon: '💳' },
+    {
+      key: 'ruralvia',
+      label: 'Ruralvia',
+      icon: '🏦',
+      note: 'Línea de crédito: no se toca, así que va a cero',
+    },
+    { key: 'cajamar', label: 'Caja Mar', icon: '🏦' },
+  ],
   inversiones: [
-    { label: 'Cobas Internacional', icon: '🌍' },
-    { label: 'Cobas Selección', icon: '📈' },
-    { label: 'Acciones de ESS', icon: '🎓', note: 'Participación en la escuela' },
+    { key: 'cobas-int', label: 'Cobas Internacional', icon: '🌍' },
+    { key: 'cobas-sel', label: 'Cobas Selección', icon: '📈' },
+    { key: 'ess', label: 'Acciones de ESS', icon: '🎓', note: 'Participación en la escuela' },
+    { key: 'phantom', label: 'Phantom shares', icon: '📜', note: 'Participación diferida' },
+    { key: 'abonos', label: 'Abonos del Madrid', icon: '🏟️', note: 'Cuánto y cuándo' },
   ],
-  cobros: [],
-  pagos: [],
+  cobros: [
+    { key: 'players-380', label: '380 Players', icon: '🧩', note: 'Cuánto y cuándo' },
+    { key: 'victor-v', label: 'Víctor V.', icon: '🫱', note: 'Cuánto y cuándo' },
+    { key: 'deudas', label: 'Deudas por cobrar', icon: '🤝', note: 'Por preguntar' },
+    { key: 'spok', label: 'Spok', icon: '📄', note: 'Esperando los papeles' },
+    { key: 'accidente', label: 'Accidente', icon: '🚑', note: 'Reclamar en marzo' },
+    { key: 'accidente-leo', label: 'Accidente de Leo', icon: '🚑', note: 'Reclamar en febrero' },
+  ],
+  pagos: [
+    { key: 'madre', label: 'Madre', icon: '👵', note: 'Por pagar' },
+    { key: 'iva', label: 'IVA del trimestre', icon: '🧾', note: 'Cuando llegue el trimestre' },
+  ],
 };
 
 let counter = 0;
@@ -326,24 +362,158 @@ export function seasonOf(date = new Date()): string {
   return `${start}-${`${start + 1}`.slice(2)}`;
 }
 
-/** La libreta de estreno: los conceptos de siempre, todo a cero. */
-export function starterBook(): FinanceBook {
-  const book = emptyBook();
-  book.season = seasonOf();
-  book.updatedAt = new Date().toISOString();
+/* ---------------------------------------------------------------------------
+ * Las cifras de arranque
+ *
+ * La libreta de estreno puede venir ya rellena, para no tener que teclear
+ * cuarenta números el primer día. Pero **esas cifras no pueden vivir aquí**:
+ * este repositorio es público y la regla de la casa —la misma que deja fuera
+ * el `.xlsx` de los gastos— es que en el código no entra ninguna cantidad de
+ * nadie.
+ *
+ * Así que el código trae la forma y el aparato trae los números, en
+ * `NEXT_PUBLIC_ECONOMIA_SEED`: un JSON con las cantidades por llave de
+ * concepto, en `.env.local` para el ordenador y en las variables de Vercel
+ * para el móvil. Sin la variable, la libreta se estrena a cero como siempre.
+ *
+ * Y sólo cuenta al estrenar o al pulsar «rellenar»: en cuanto hay cifras
+ * tecleadas mandan ellas, que para eso la sección es editable.
+ * ------------------------------------------------------------------------- */
 
-  for (const ledger of LEDGER_LIST) {
-    book.ledgers[ledger] = SEEDS[ledger].map((seed) => ({
-      id: newId(),
-      label: seed.label,
-      icon: seed.icon,
-      amount: 0,
-      note: seed.note,
-      tier: seed.tier,
-    }));
+/** `[cifra principal, segunda cifra]`. La segunda, cuando la libreta la usa. */
+type SeedAmount = number | [number, number];
+
+interface StartFigures {
+  months?: number;
+  payMonths?: number;
+  holidays?: number;
+  goals?: Partial<FinanceGoals>;
+  /** `{ gastos: { casa: [previsión, real] } }`, por llave de `SEEDS`. */
+  amounts?: Partial<Record<LedgerId, Record<string, SeedAmount>>>;
+}
+
+let figures: StartFigures | null = null;
+
+/** Lo que traiga el aparato, ya leído. Vacío si no trae nada o viene roto. */
+export function startFigures(): StartFigures {
+  if (figures) return figures;
+
+  const raw = process.env.NEXT_PUBLIC_ECONOMIA_SEED;
+  if (!raw) return (figures = {});
+
+  try {
+    const parsed = JSON.parse(raw) as StartFigures;
+    figures = parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    figures = {};
   }
 
-  return book;
+  return figures;
+}
+
+/** ¿Hay cifras de arranque en este aparato? Decide si se ofrece el botón. */
+export function hasStartFigures(): boolean {
+  return Object.keys(startFigures().amounts ?? {}).length > 0;
+}
+
+/** La cifra de arranque de un concepto, si la hay. */
+function seedAmount(ledger: LedgerId, key: string): { amount: number; alt?: number } | null {
+  const value = startFigures().amounts?.[ledger]?.[key];
+  if (value === undefined) return null;
+
+  if (Array.isArray(value)) {
+    const [amount, alt] = value;
+    return { amount: Number(amount) || 0, alt: Number.isFinite(alt) ? Number(alt) : undefined };
+  }
+
+  return { amount: Number(value) || 0 };
+}
+
+/** La libreta de estreno: los conceptos de siempre, con lo que traiga el aparato. */
+export function starterBook(): FinanceBook {
+  const start = startFigures();
+  const book = emptyBook();
+
+  book.season = seasonOf();
+  book.updatedAt = new Date().toISOString();
+  book.months = Number.isFinite(start.months) ? Number(start.months) : book.months;
+  book.payMonths = Number.isFinite(start.payMonths) ? Number(start.payMonths) : undefined;
+  book.holidays = Number.isFinite(start.holidays) ? Number(start.holidays) : 0;
+  book.goals = { ...book.goals, ...(start.goals ?? {}) };
+
+  for (const ledger of LEDGER_LIST) {
+    book.ledgers[ledger] = SEEDS[ledger].map((seed) => {
+      const figure = seedAmount(ledger, seed.key);
+      return {
+        id: newId(),
+        label: seed.label,
+        icon: seed.icon,
+        amount: figure?.amount ?? 0,
+        alt: figure?.alt,
+        note: seed.note,
+        tier: seed.tier,
+      };
+    });
+  }
+
+  return normalize(book);
+}
+
+/**
+ * La libreta que ya existe, rellenada con lo que traiga el aparato.
+ *
+ * Respeta lo tecleado: sólo pone cifra donde no la había y añade los
+ * conceptos que falten. Es lo que se pulsa cuando se empezó a cero y luego
+ * aparecieron los números, y lo que evita tener que borrar y volver a
+ * empezar —que es como se pierde el histórico—.
+ */
+export function seedInto(book: FinanceBook): FinanceBook {
+  const start = startFigures();
+  const next: FinanceBook = { ...book, ledgers: { ...book.ledgers } };
+
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+  for (const ledger of LEDGER_LIST) {
+    const list = [...next.ledgers[ledger]];
+
+    for (const seed of SEEDS[ledger]) {
+      const figure = seedAmount(ledger, seed.key);
+      if (!figure) continue;
+
+      const index = list.findIndex((item) => same(item.label, seed.label));
+
+      if (index === -1) {
+        list.push({
+          id: newId(),
+          label: seed.label,
+          icon: seed.icon,
+          amount: figure.amount,
+          alt: figure.alt,
+          note: seed.note,
+          tier: seed.tier,
+        });
+        continue;
+      }
+
+      const item = list[index];
+      list[index] = {
+        ...item,
+        amount: item.amount === 0 ? figure.amount : item.amount,
+        alt: item.alt === undefined ? figure.alt : item.alt,
+        note: item.note ?? seed.note,
+        tier: item.tier ?? seed.tier,
+      };
+    }
+
+    next.ledgers[ledger] = list.slice(0, MAX_ITEMS);
+  }
+
+  if (Number.isFinite(start.months)) next.months = Number(start.months);
+  if (Number.isFinite(start.payMonths)) next.payMonths = Number(start.payMonths);
+  if (next.holidays === 0 && Number.isFinite(start.holidays)) next.holidays = Number(start.holidays);
+  next.goals = { ...next.goals, ...(start.goals ?? {}) };
+
+  return normalize(next);
 }
 
 /* ---------------------------------------------------------------------------
@@ -383,9 +553,22 @@ export function monthlySaving(book: FinanceBook): number {
   return monthlyIncome(book) - monthlyExpense(book);
 }
 
-/** Lo previsto del curso entero: los meses que dura, más las vacaciones. */
+/**
+ * Los meses que se cobra de verdad.
+ *
+ * En un club son diez y se vive doce. Mientras no se diga otra cosa vale lo
+ * mismo que la duración del curso, que es el caso de quien cobra siempre.
+ */
+export function payMonths(book: FinanceBook): number {
+  const value = book.payMonths;
+  return Number.isFinite(value) && (value as number) > 0
+    ? Math.min(book.months, value as number)
+    : book.months;
+}
+
+/** Lo previsto del curso entero: los meses que se cobra, no los que se vive. */
 export function periodIncome(book: FinanceBook): number {
-  return monthlyIncome(book) * book.months;
+  return monthlyIncome(book) * payMonths(book);
 }
 
 export function periodExpense(book: FinanceBook): number {
@@ -394,6 +577,36 @@ export function periodExpense(book: FinanceBook): number {
 
 export function periodSaving(book: FinanceBook): number {
   return periodIncome(book) - periodExpense(book);
+}
+
+/**
+ * Lo que entra en un año entero, con los meses que se cobra.
+ *
+ * Es la cifra honesta y casi siempre es peor que la del mes tipo: un mes
+ * cobrando puede cuadrar y el año no cuadrar, y el que decide es el año.
+ */
+export function yearlyIncome(book: FinanceBook): number {
+  return monthlyIncome(book) * Math.min(12, payMonths(book));
+}
+
+/** Lo que sobra —o falta— en un año entero. */
+export function yearlySaving(book: FinanceBook): number {
+  return yearlyIncome(book) - yearlyExpense(book);
+}
+
+/**
+ * Qué parte del patrimonio hay que sacar cada año para llegar a fin de mes.
+ *
+ * Es la misma cifra con la que se juzga una jubilación —la tasa de retirada—
+ * aplicada a un año cualquiera: si lo que falta cabe dentro del 4 %, el
+ * patrimonio lo aguanta indefinidamente aunque la libreta del mes salga en
+ * rojo; si se pasa, se está comiendo el capital. Sin déficit no hay tasa.
+ */
+export function withdrawalRate(book: FinanceBook): number | null {
+  const gap = -yearlySaving(book);
+  const worth = netWorth(book);
+  if (gap <= 0 || worth <= 0) return null;
+  return gap / worth;
 }
 
 /**
@@ -614,6 +827,26 @@ export function coastWorth(book: FinanceBook, years: number): number {
   return netWorth(book) * (1 + rate) ** years;
 }
 
+/**
+ * Años hasta el número **sin aportar un euro más**, sólo con lo que renta.
+ *
+ * Es la respuesta a «¿y si dejo de ahorrar hoy?», y en una casa con el mes
+ * justo suele ser la cifra más útil de todas: dice si el problema es que
+ * falta patrimonio o que sobra gasto. `null` cuando por ahí no se llega.
+ */
+export function coastYears(book: FinanceBook): number | null {
+  const target = fiNumber(book);
+  const have = netWorth(book);
+  if (target <= 0 || have <= 0) return null;
+  if (have >= target) return 0;
+
+  const rate = Math.max(0, book.goals?.realReturn ?? 4) / 100;
+  if (rate === 0) return null;
+
+  const years = Math.log(target / have) / Math.log(1 + rate);
+  return Number.isFinite(years) && years > 0 ? years : null;
+}
+
 /** Meses de gasto que cubre el dinero disponible. El colchón de verdad. */
 export function cushionMonths(book: FinanceBook): number | null {
   const spend = monthlyExpense(book);
@@ -739,6 +972,7 @@ function normalize(value: unknown): FinanceBook {
 
   const raw = value as Partial<FinanceBook>;
   const months = Number(raw.months);
+  const pay = Number(raw.payMonths);
   const holidays = Number(raw.holidays);
 
   const ledgers = { ...base.ledgers };
@@ -777,6 +1011,7 @@ function normalize(value: unknown): FinanceBook {
   return {
     season: typeof raw.season === 'string' ? raw.season.slice(0, 12) : base.season,
     months: Number.isFinite(months) ? Math.max(1, Math.min(24, Math.round(months))) : 12,
+    payMonths: Number.isFinite(pay) ? Math.max(1, Math.min(24, Math.round(pay))) : undefined,
     holidays: Number.isFinite(holidays) ? holidays : 0,
     ledgers,
     history,
@@ -931,7 +1166,8 @@ export function bookAsText(book: FinanceBook): string {
   const runway = runwayMonths(book);
   lines.push(
     `Al mes: entra ${euros(monthlyIncome(book))}, sale ${euros(monthlyExpense(book))}, queda ${euros(monthlySaving(book))}`,
-    `Curso (${book.months} meses${book.holidays ? ' + vacaciones' : ''}): ${euros(periodSaving(book))}`,
+    `Curso (${book.months} meses, se cobra ${payMonths(book)}${book.holidays ? ' + vacaciones' : ''}): ${euros(periodSaving(book))}`,
+    `Año entero: entra ${euros(yearlyIncome(book))}, sale ${euros(yearlyExpense(book))}`,
     `Patrimonio: ${euros(netWorth(book))}`,
     runway === null ? 'Autonomía: sin gastos apuntados' : `Autonomía: ${runwayLabel(runway)}`,
   );

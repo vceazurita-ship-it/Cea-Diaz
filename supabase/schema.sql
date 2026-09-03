@@ -305,6 +305,12 @@ alter table public.finance
   add column if not exists history jsonb not null default '[]'::jsonb,
   add column if not exists goals   jsonb not null default '{}'::jsonb;
 
+-- Y los meses que de verdad se cobra, que no son los que se vive: en un club
+-- se cobran diez y se gasta doce, y sin distinguirlo el curso sale cuadrado
+-- cuando no lo está. Vacío quiere decir «se cobra todos los meses».
+alter table public.finance
+  add column if not exists pay_months integer;
+
 create index if not exists finance_owner_idx on public.finance (owner, profile_id);
 
 alter table public.finance enable row level security;

@@ -68,6 +68,10 @@ components/
   finance/
     FinanceLock.tsx    La clave de la sección de economía (sólo Víctor)
     FinancePanel.tsx   Las cuentas del curso: totales, autonomía y reparto
+    FinancePlan.tsx    Qué hacer con ellas: veredicto, simulador y acciones con cifra
+    FinanceAdvice.tsx  Lo que dicen las cuentas, y quién sostiene cada aviso
+    FinanceStats.tsx   Las gráficas: el número, la escala, la serie y el patrimonio
+    QuickUpdate.tsx    Poner las cifras del mes al día sin abrir seis libretas
     LedgerCard.tsx     Una libreta, con sus apuntes editables en el sitio
   challenges/
     ChallengesPanel.tsx  Retos de la semana, medallero y puntos
@@ -128,6 +132,8 @@ lib/
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   finance.ts           Economía: las seis libretas, sus cuentas y su guardado local
+  financeExperts.ts    El criterio de las cuentas: quién lo sostiene y qué avisar
+  financePlan.ts       El plan: veredicto del año, palancas y acciones ordenadas
   planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
   planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
   learning.ts          Catálogo del bonus del día y elección según el interés
@@ -1716,7 +1722,7 @@ Seis libretas, que son los seis bloques de la hoja:
 
 | Libreta | Qué cuenta | Ritmo |
 | ------- | ---------- | ----- |
-| Ingresos | Salario del club, comisión del agente (en negativo), ESS fijo y variable, autónomos | al mes |
+| Ingresos | Salario del club, comisión del agente (en negativo), ESS fijo y variable, 380 Players, RCDE, autónomos | al mes |
 | Gastos | Casa, colegio, coche, comida… con **previsión y real** | al mes |
 | Cuentas | El dinero disponible, banco por banco | saldo |
 | Inversiones | Fondos y participaciones | saldo |
@@ -1730,12 +1736,48 @@ queda al mes y en el curso, el patrimonio (cuentas + inversiones + cobros −
 pagos) y la autonomía en meses—, la barra de en qué se va el mes y el
 contraste entre lo presupuestado y lo que de verdad se fue.
 
+**Los meses que se cobra no son los que se vive.** En un club son diez de
+doce, así que el libro lleva las dos cifras (`months` y `payMonths`) y los
+ingresos del periodo se cuentan sobre la segunda. Sin separarlas, un mes tipo
+sale cuadrado y el año no cuadra, que es exactamente el error que la hoja
+arrastraba.
+
+### El plan
+
+Cinco maneras de mirar las mismas cuentas: **Resumen**, **Plan**, **Consejo**,
+**Estadísticas** y **Libretas**. El consejo (`lib/financeExperts.ts`) describe
+—«el 96 % de lo invertido está en una sola casa»—; el plan
+(`lib/financePlan.ts`) manda: qué mover, cuánto y qué cambia si se hace. Va
+antes que el consejo en las pestañas porque es lo que se busca al abrir esto.
+
+Se apoya en tres criterios, escritos en la cabecera del módulo:
+
+- **se juzga el año, no el mes**, por lo de los meses que se cobra;
+- **un déficit no es por sí solo una alarma**: lo que decide es qué parte del
+  patrimonio hay que sacar cada año para taparlo. Es la tasa de retirada de
+  siempre, con un 5 % de margen antes de dar la voz, porque ninguna de las
+  cifras que entran tiene esa precisión;
+- **nada sin cifra y nada sin efecto**: cada acción trae el número del que
+  sale y el número en el que se nota, que es lo que permite ordenarlas.
+
+Encima de las acciones hay un **simulador** con las tres únicas palancas que
+existen —ingresar más, gastar menos, pasar de lo invertido a la cuenta—. No
+guarda nada: mueve las cifras, recalcula el veredicto y las acciones, y se
+quita de un toque. Para cambiar las cuentas de verdad están las libretas.
+
 Tres decisiones que conviene no deshacer sin pensarlo:
 
 - **En el código no hay ni una cifra.** Este repositorio es público, así que
   lo que viaja aquí es la forma —los conceptos y cómo se suman— y los números
   viven sólo en el aparato. Por lo mismo, las hojas de cálculo que se dejen
   caer en la carpeta están en `.gitignore`.
+
+  Para no tener que teclear cuarenta números el primer día, la libreta se
+  puede estrenar rellena: las cantidades van en `NEXT_PUBLIC_ECONOMIA_SEED`
+  —`.env.local` en el ordenador, variables de entorno en Vercel—, con la
+  forma que documenta `.env.example`. Sólo se usan al estrenar y al pulsar
+  «Rellenar con la hoja», que respeta lo ya tecleado; a partir de ahí manda
+  la app. Sin la variable, la sección se estrena a cero como siempre.
 - **Sincroniza con la cuenta de casa**, como el resto: tabla `finance`, una
   fila por perfil con las seis libretas en un `jsonb`, gana la última guardada
   y viaja también en tiempo real. Con las mismas políticas que todo lo demás:
@@ -1747,8 +1789,8 @@ Tres decisiones que conviene no deshacer sin pensarlo:
   que la clave es la misma en el móvil y en el ordenador.
 
 Al desplegar hay que **volver a lanzar `supabase/schema.sql`** en el editor SQL
-del proyecto: crea la tabla `finance` y añade a `settings` las tres columnas de
-la huella. El archivo es idempotente, así que relanzarlo entero no toca nada de
+del proyecto: crea la tabla `finance` —con `pay_months`, los meses que se cobra— y
+añade a `settings` las tres columnas de la huella. El archivo es idempotente, así que relanzarlo entero no toca nada de
 lo que ya está.
 
 ## Instalación en el móvil

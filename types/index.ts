@@ -998,6 +998,15 @@ export interface FinanceBook {
   season: string;
   /** Meses que se presupuestan. El curso entero son doce. */
   months: number;
+  /**
+   * Meses que de verdad se cobra.
+   *
+   * No es lo mismo que `months` y confundirlos es el error que más caro sale:
+   * en un club se cobran diez meses y se vive doce, así que un mes tipo puede
+   * salir cuadrado y el año entero no cuadrar. Cuando no está puesto vale lo
+   * mismo que `months`, que es el caso de quien cobra todos los meses.
+   */
+  payMonths?: number;
   /** El pico de las vacaciones, que no cabe en el mes tipo. */
   holidays: number;
   ledgers: Record<LedgerId, FinanceItem[]>;
@@ -1029,6 +1038,38 @@ export interface FinanceGoals {
   cushion: number;
   /** Rendimiento real anual que se supone al proyectar, en tanto por ciento. */
   realReturn: number;
+}
+
+/**
+ * Una cosa que hacer con estas cuentas, ya con la cifra puesta.
+ *
+ * Es el paso siguiente a `FinanceNote`. La nota **describe** —«el 96 % está
+ * en una sola casa»—; la acción **manda**: qué mover, cuánto, y qué cambia si
+ * se hace. La diferencia importa porque un diagnóstico sin siguiente paso se
+ * lee, se asiente y no se toca nada.
+ */
+export interface PlanAction {
+  id: string;
+  /**
+   *  - `sangra`   el dinero se está yendo hoy: es lo primero.
+   *  - `frágil`   no sangra, pero deja a la casa sin margen si algo falla.
+   *  - `ordenar`  está bien, pero mal colocado o sin fecha.
+   *  - `mirar`    ni urge ni falla: conviene tenerlo delante.
+   */
+  urgency: 'sangra' | 'fragil' | 'ordenar' | 'mirar';
+  icon: string;
+  /** Qué hacer, con la cifra dentro. */
+  title: string;
+  /** Por qué, con el número del que sale. */
+  why: string;
+  /** Los pasos concretos. Cada uno con su cantidad cuando la tiene. */
+  steps: string[];
+  /** Qué cambia si se hace. Sin esto, una recomendación es una opinión. */
+  effect?: string;
+  /** La cifra suelta, para el canto de la tarjeta. */
+  metric?: string;
+  /** Quién lo sostiene, por identificador de `FINANCE_EXPERTS`. */
+  experts: string[];
 }
 
 /* ---------------------------- Agenda semanal ----------------------------- */

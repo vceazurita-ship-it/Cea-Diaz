@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FinanceAdvice } from '@/components/finance/FinanceAdvice';
+import { FinancePlan } from '@/components/finance/FinancePlan';
 import { FinanceStats } from '@/components/finance/FinanceStats';
 import { LedgerCard } from '@/components/finance/LedgerCard';
 import { QuickUpdate } from '@/components/finance/QuickUpdate';
@@ -19,11 +20,13 @@ import {
   bookOf,
   emptyBook,
   emptyItem,
+  hasStartFigures,
   monthlyExpense,
   monthlyIncome,
   monthlySaving,
   netWorth,
   liquidWorth,
+  payMonths,
   periodExpense,
   periodIncome,
   periodSaving,
@@ -32,11 +35,13 @@ import {
   runwayMonths,
   saveBook,
   seasonOf,
+  seedInto,
   starterBook,
   subscribeBooks,
   ledgerTotal,
 } from '@/lib/finance';
 import { financeAlerts, financeNotes } from '@/lib/financeExperts';
+import { planCount } from '@/lib/financePlan';
 import type { FinanceBook, FinanceItem, LedgerId, Profile } from '@/types';
 
 /* =========================================================================
@@ -62,11 +67,15 @@ interface FinancePanelProps {
 }
 
 /**
- * Las cuatro maneras de mirar las mismas cuentas, en el orden en que se
- * usan: se entra a ver cómo va, se lee lo que la app tiene que decir, se
- * baja al detalle y sólo de vez en cuando se abre a editar.
+ * Las cinco maneras de mirar las mismas cuentas, en el orden en que se usan:
+ * se entra a ver cómo va, se mira qué hacer —con la cifra y con el «¿y
+ * si…?»—, se lee por qué, se baja al detalle y sólo de vez en cuando se abre
+ * a editar.
+ *
+ * El plan va antes que el consejo a propósito: el consejo describe y el plan
+ * manda, y de las dos cosas la que se busca al abrir esto es la segunda.
  */
-type View = 'resumen' | 'consejo' | 'estadisticas' | 'libretas';
+type View = 'resumen' | 'plan' | 'consejo' | 'estadisticas' | 'libretas';
 
 export function FinancePanel({ profile }: FinancePanelProps) {
   const notify = useToast();
@@ -93,6 +102,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   /** Lo que la app tiene que decir, y cuánto de ello es urgente. */
   const notes = useMemo(() => financeNotes(book), [book]);
   const alerts = useMemo(() => financeAlerts(book), [book]);
+  const todo = useMemo(() => planCount(book), [book]);
   const top = notes.find((note) => note.tone === 'grave' || note.tone === 'aviso');
 
   /* ------------------------------------------------------------ acciones */
@@ -100,11 +110,37 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   const commit = (next: FinanceBook) => setBook(saveBook(profile.id, next));
 
   const start = () => {
+    const seeded = hasStartFigures();
     commit(starterBook());
-    setView('libretas');
+    setView(seeded ? 'plan' : 'libretas');
     notify({
-      message: 'Libretas puestas con los conceptos de siempre. Ahora, las cifras.',
+      message: seeded
+        ? 'Libretas puestas con las cifras de la hoja. Repásalas y cambia lo que haga falta.'
+        : 'Libretas puestas con los conceptos de siempre. Ahora, las cifras.',
       icon: '💶',
+    });
+  };
+
+  /**
+   * Rellenar una libreta que ya existe con las cifras de arranque.
+   *
+   * Se ofrece porque el caso corriente es haber empezado a cero y que las
+   * cifras aparezcan después; y respeta lo tecleado para que nadie tenga que
+   * borrar y volver a empezar, que es como se pierde el histórico.
+   */
+  const fill = () => {
+    const before = book;
+    commit(seedInto(book));
+    notify({
+      message: 'Cifras de la hoja puestas donde no había nada.',
+      icon: '📥',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          setBook(saveBook(profile.id, before));
+          notify({ message: 'Como estaba.', icon: '↩️' });
+        },
+      },
     });
   };
 
@@ -155,11 +191,12 @@ export function FinancePanel({ profile }: FinancePanelProps) {
             aguantas</strong> si mañana no entra nada.
           </p>
           <p className="mt-3 text-xs leading-relaxed t-3">
-            Empieza con los conceptos de siempre —salario, agente, ESS, casa, colegio, Cobas…— ya
-            puestos y a cero. Sólo hay que teclear las cifras.
+            {hasStartFigures()
+              ? 'Empieza con los conceptos de siempre —salario, agente, ESS, casa, colegio, Cobas…— y con las cifras de la hoja ya puestas. Se cambian una a una cuando cambien.'
+              : 'Empieza con los conceptos de siempre —salario, agente, ESS, casa, colegio, Cobas…— ya puestos y a cero. Sólo hay que teclear las cifras.'}
           </p>
           <button type="button" onClick={start} className="btn-primary mt-5 w-full py-2.5">
-            Empezar las libretas
+            {hasStartFigures() ? 'Empezar con la hoja puesta' : 'Empezar las libretas'}
           </button>
         </div>
       </div>
@@ -184,6 +221,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           <h2 className="text-sm font-bold t-1">💶 Economía de {profile.name}</h2>
           <span className="text-xs t-3">
             curso {book.season || seasonOf()} · {book.months} {book.months === 1 ? 'mes' : 'meses'}
+            {payMonths(book) < book.months && `, se cobran ${payMonths(book)}`}
           </span>
         </header>
 
@@ -331,6 +369,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           {(
             [
               { id: 'resumen', label: '📊 Resumen' },
+              { id: 'plan', label: todo > 0 ? `🧭 Plan · ${todo}` : '🧭 Plan' },
               { id: 'consejo', label: alerts > 0 ? `🧠 Consejo · ${alerts}` : '🧠 Consejo' },
               { id: 'estadisticas', label: '📈 Estadísticas' },
               { id: 'libretas', label: '✏️ Libretas' },
@@ -355,7 +394,9 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         </button>
       </div>
 
-      {view === 'consejo' ? (
+      {view === 'plan' ? (
+        <FinancePlan book={book} />
+      ) : view === 'consejo' ? (
         <FinanceAdvice book={book} />
       ) : view === 'estadisticas' ? (
         <FinanceStats book={book} />
@@ -407,7 +448,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         <>
           {/* El marco del curso */}
           <section className="card p-3" aria-label="El curso">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="block">
                 <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">
                   Curso
@@ -441,6 +482,28 @@ export function FinancePanel({ profile }: FinancePanelProps) {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">
+                  Meses que se cobra
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={book.months}
+                  value={payMonths(book)}
+                  onChange={(event) =>
+                    commit({
+                      ...book,
+                      payMonths: Math.max(
+                        1,
+                        Math.min(book.months, Number(event.target.value) || 1),
+                      ),
+                    })
+                  }
+                  className="field w-full tabular-nums"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">
                   Vacaciones (€ del curso)
                 </span>
                 <input
@@ -455,9 +518,27 @@ export function FinancePanel({ profile }: FinancePanelProps) {
               </label>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed t-3">
-              El curso va del 1 de agosto al 31 de julio. Las vacaciones van aparte porque son un
-              pico del año entero, no un gasto de todos los meses.
+              El curso va del 1 de agosto al 31 de julio. Los meses que se cobra no son los que se
+              vive —en un club son diez de doce— y separarlos es lo que evita que el año parezca
+              cuadrado cuando no lo está. Las vacaciones van aparte porque son un pico del año
+              entero, no un gasto de todos los meses.
             </p>
+
+            {hasStartFigures() && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3 hairline">
+                <button
+                  type="button"
+                  onClick={fill}
+                  className="btn-ghost px-3 py-1.5 text-xs"
+                >
+                  📥 Rellenar con la hoja
+                </button>
+                <span className="min-w-0 flex-1 text-[11px] leading-relaxed t-3">
+                  Trae las cifras de arranque de este aparato. Sólo rellena lo que esté a cero: lo
+                  que ya hayas tecleado no se toca.
+                </span>
+              </div>
+            )}
           </section>
 
           {(Object.keys(LEDGERS) as LedgerId[]).map((ledger) => (
