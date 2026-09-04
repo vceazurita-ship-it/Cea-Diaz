@@ -63,6 +63,34 @@ export const EXPERTS: Record<string, Expert> = {
     field: 'Fuerza, capacidad aeróbica, proteína',
     level: 'divulgacion',
   },
+  schoenfeld: {
+    id: 'schoenfeld',
+    name: 'Brad Schoenfeld',
+    role: 'Investigador de hipertrofia (CUNY Lehman)',
+    field: 'Volumen, carga y crecimiento muscular',
+    level: 'divulgacion',
+  },
+  lyon: {
+    id: 'lyon',
+    name: 'Gabrielle Lyon',
+    role: 'Médica, «Forever Strong»',
+    field: 'Masa muscular como órgano de longevidad',
+    level: 'divulgacion',
+  },
+  mcgill: {
+    id: 'mcgill',
+    name: 'Stuart McGill',
+    role: 'Catedrático emérito de biomecánica de la columna (Waterloo)',
+    field: 'Core, rigidez y salud lumbar',
+    level: 'divulgacion',
+  },
+  sanmillan: {
+    id: 'sanmillan',
+    name: 'Iñigo San Millán',
+    role: 'Fisiólogo del ejercicio (Colorado)',
+    field: 'Función mitocondrial, lactato y zona 2',
+    level: 'divulgacion',
+  },
   willett: {
     id: 'willett',
     name: 'Walter Willett',
@@ -1071,6 +1099,154 @@ export const GUIDANCE: HabitGuidance[] = [
       'donde tratar lo que en casa se enquista: fuera del escenario del conflicto ' +
       'se habla distinto.',
     experts: ['gottman', 'marcos', 'bolinches'],
+  },
+
+  /* ====================== CUERPO Y PROTOCOLO · sólo Víctor ================ */
+  {
+    metricId: 'medicion',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'Medirse siempre igual vale más que medirse con precisión.',
+    detail:
+      'En ayunas, después del baño y antes de beber. La bioimpedancia estima la ' +
+      'grasa a partir del agua del cuerpo, así que la misma persona da cifras ' +
+      'distintas por la mañana y por la noche sin haber cambiado nada. Lo que ' +
+      'informa es la serie de dos semanas medida siempre a la misma hora; una ' +
+      'cifra suelta no dice casi nada.',
+    experts: ['attia', 'lyon'],
+  },
+  {
+    metricId: 'grasa',
+    priority: 'apoyo',
+    only: ['victor'],
+    claim: 'El salto de un día para otro es agua, no grasa.',
+    detail:
+      'Ganar o perder grasa de verdad va a un ritmo de gramos por día, muy por ' +
+      'debajo de lo que el aparato puede distinguir. Una comida salada, una ' +
+      'recarga de hidratos o una sesión dura mueven el agua del músculo y con ' +
+      'ella la cifra. Mira la media de la semana contra la de la anterior; el ' +
+      'número de hoy sólo sirve para alimentar esa media.',
+    experts: ['attia', 'schoenfeld'],
+  },
+  {
+    metricId: 'musculo',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'La masa muscular es el órgano que más predice cómo se envejece.',
+    detail:
+      'Lyon y Attia la tratan como reserva metabólica y no como estética: es el ' +
+      'principal sumidero de glucosa del cuerpo y lo que sostiene la autonomía ' +
+      'en la última década de vida. Schoenfeld sitúa el estímulo que la mantiene ' +
+      'en carga suficiente y repetida, no en machacarse: por eso el reparto ' +
+      'semanal pesa más que cualquier sesión concreta.',
+    experts: ['lyon', 'attia', 'schoenfeld'],
+  },
+  {
+    metricId: 'fc_reposo',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'El pulso de la noche avisa antes que las piernas.',
+    detail:
+      'Un pulso en reposo estable y bajo es el reflejo de un corazón entrenado. ' +
+      'Lo que informa no es la cifra sino el cambio: varias noches por encima de ' +
+      'lo habitual sin haber cambiado el entreno suelen apuntar a otra cosa —cena ' +
+      'tardía, alcohol, poco sueño o algo incubándose—. Es el primer sitio donde ' +
+      'mirar cuando la sesión se hace cuesta arriba sin motivo.',
+    experts: ['attia', 'sanmillan'],
+  },
+  {
+    metricId: 'hrv',
+    priority: 'apoyo',
+    only: ['victor'],
+    claim: 'La variabilidad se lee contra tu propia media, nunca contra la de otro.',
+    detail:
+      'Mide cuánto varía el tiempo entre latidos mientras duermes: más variación, ' +
+      'sistema nervioso más descansado. Los valores absolutos cambian tanto entre ' +
+      'personas y entre aparatos que compararlos no significa nada. Lo útil es la ' +
+      'desviación sobre tu propia media de siete días: una caída marcada es el ' +
+      'mejor aviso disponible de que hoy conviene aflojar.',
+    experts: ['huberman', 'attia'],
+  },
+  {
+    metricId: 'arranque',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'Beber al levantarse es lo sólido; la sal es el matiz de quien suda mucho.',
+    detail:
+      'Se despierta con varias horas de deshidratación encima y beber pronto es ' +
+      'consenso. Lo de la pizca de sal no lo es: tiene sentido en quien entrena ' +
+      'fuerte y suda a diario —repone el sodio perdido y ayuda a que el agua se ' +
+      'quede dentro—, y ninguno en quien no. El raspador de lengua sí tiene ' +
+      'respaldo modesto y concreto: reduce la carga bacteriana y el mal aliento ' +
+      'de la mañana.',
+    experts: ['huberman', 'frank'],
+  },
+  {
+    metricId: 'suplementos',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'De todo el bote, la creatina es la que de verdad tiene la evidencia detrás.',
+    detail:
+      'Creatina monohidrato es el suplemento deportivo más estudiado que existe: ' +
+      '3-5 g al día, a cualquier hora, con efecto sobre fuerza y masa muscular. ' +
+      'Omega 3 y vitamina D corrigen carencias reales y ahí sí hacen algo; sin ' +
+      'carencia, poco. El magnesio ayuda al descanso en quien va justo. Ninguno ' +
+      'sustituye comida, sueño ni entreno: el suplemento tapa un hueco, no ' +
+      'construye nada por su cuenta.',
+    experts: ['attia', 'marcos'],
+  },
+  {
+    metricId: 'escudo',
+    priority: 'apoyo',
+    only: ['victor'],
+    claim: 'Aplana el pico de azúcar; no convierte la comida en otra cosa.',
+    detail:
+      'El vinagre antes de una comida con hidratos reduce de forma modesta la ' +
+      'subida de glucosa posterior, y es lo mejor sostenido de los dos. La ' +
+      'berberina baja la glucosa de verdad, pero por eso mismo no es inocua: ' +
+      'interacciona con medicamentos y no está pensada para tomarse a diario sin ' +
+      'motivo. Úsalo como lo que es —un margen para la comida que no cocinas ' +
+      'tú—, nunca como permiso para comer distinto.',
+    experts: ['marcos', 'endika', 'frank'],
+  },
+  {
+    metricId: 'transito',
+    priority: 'apoyo',
+    only: ['victor'],
+    claim: 'Es la señal que se rompe primero cuando algo se descoloca.',
+    detail:
+      'Viajes, sueño corto, poca agua o poca fibra lo cortan antes de que se note ' +
+      'en el entreno. Por eso se apunta y no se puntúa: no es un hábito que se ' +
+      'decida, es un aviso que se lee. Dos días seguidos en blanco piden mirar el ' +
+      'agua, la verdura y las horas de sueño antes que la sesión.',
+    experts: ['spector', 'marcos'],
+  },
+  {
+    metricId: 'hombro',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'El manguito no se entrena para crecer: se entrena para no perder lo demás.',
+    detail:
+      'Todo lo que empuja y todo lo que se cuelga pasa por la misma articulación, ' +
+      'y es la que más se resiente cuando el volumen sube. Diez minutos de ' +
+      'rotadores y deltoides posterior cuestan poco y son lo que sostiene los ' +
+      'años de banca y de dominadas. Se hace antes de que duela: cuando duele, ' +
+      'ya es rehabilitación.',
+    experts: ['mcgill', 'attia'],
+  },
+  {
+    metricId: 'cierre_noche',
+    priority: 'importante',
+    only: ['victor'],
+    claim: 'Lo que hace efecto es la secuencia repetida, no la pastilla del final.',
+    detail:
+      'Walker y Huberman insisten en que la señal que ordena el sueño es la ' +
+      'rutina: misma hora, luz baja y bajada de temperatura. La melatonina ayuda ' +
+      'sobre todo a mover el reloj —viajes, turnos— y las dosis estudiadas son ' +
+      'pequeñas, del orden de medio miligramo; más no funciona mejor y a diario ' +
+      'de forma indefinida no está bien respaldado. El magnesio sí ayuda al ' +
+      'descanso en quien anda justo.',
+    experts: ['walker', 'huberman', 'attia'],
   },
 ];
 

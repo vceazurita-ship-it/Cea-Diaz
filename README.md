@@ -192,7 +192,7 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 | ----------------------- | --------------------------------------------------------------------------------- |
 | **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
-| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera y core, cada una con su marca) · Desarrollo Personal (lectura, escritura, máster, formación) · Profesional (preparación de sesiones, análisis táctico, cultura de equipo, microciclo, cuerpo técnico y alto rendimiento) · Casa y Vínculos (tiempo con los hijos y con María, la gente de uno, su parte de la casa, recados y la semana organizada) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
+| **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación (con su protocolo: el arranque de la mañana, la suplementación, el escudo de las comidas fuera y el tránsito) · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera, core y rodaje, cada una con su marca) · Cuerpo y Composición (la medición de la mañana: peso, grasa, músculo, pulso en reposo y variabilidad) · Desarrollo Personal (lectura, escritura, máster, formación) · Profesional (preparación de sesiones, análisis táctico, cultura de equipo, microciclo, cuerpo técnico y alto rendimiento) · Casa y Vínculos (tiempo con los hijos y con María, la gente de uno, su parte de la casa, recados y la semana organizada) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
 | **Hábitos en Pareja**   | Tiempo a Solas · Conexión y Rutinas — protegido por PIN                            |
 
@@ -201,6 +201,34 @@ de «Salud y Bienestar»: son los tres bloques que los expertos tratan por separ
 con cifras propias, y juntos se leían como un cajón de catorce casillas. La tarjeta
 de sueño conserva el identificador `salud`, así que las notas ya escritas siguen
 donde estaban.
+
+#### Cuerpo y Composición: la única tarjeta que no es de hábitos
+
+Víctor persigue algo concreto —ganar músculo sin que suba la grasa— y hasta ahora eso
+no tenía dónde comprobarse: el reparto dice cuánto se levanta y la nutrición qué se
+come, pero si el conjunto está funcionando o no sólo lo dicen la báscula y el reloj, y
+se miraban en la muñeca y se olvidaban.
+
+La tarjeta lo recoge, y lo hace al revés que las demás. **Sólo puntúa la casilla de
+arriba** —«Medición de la mañana»—, que es la única que se decide: medirse o no. Las
+cinco cifras que cuelgan de ella (peso, grasa, músculo esquelético, pulso en reposo y
+variabilidad) van con `weight: 0` porque son el resultado y no el hábito. Un día que el
+peso sube no es un día suspendido: es un día con más agua dentro, y eso sólo se
+distingue mirando la serie de dos semanas.
+
+Por eso mismo la cifra que el deslizador pinta a la derecha es **la escala, no una
+meta**: aquí no hay nada que cumplir. Y por eso el paso del peso es de 200 g y no de
+100: entre la noche y la mañana se va casi un kilo sólo de agua, así que afinar más
+sería afinar el ruido.
+
+#### El protocolo, dentro de Nutrición
+
+El arranque de la mañana, la suplementación fija, el escudo de las comidas fuera y el
+tránsito no son una categoría aparte: son cosas que entran por la boca —o que salen— y
+viven en Nutrición e Hidratación, que admite casillas propias del perfil a través de su
+parámetro `extra`. Dos de ellas van con `weight: 0` a propósito: el **escudo** sólo
+aplica el día que se come fuera, y el **tránsito** no se decide, se comprueba. Es la
+señal que primero se rompe en un viaje, y por eso se apunta aunque no puntúe.
 
 ## El criterio de los expertos
 
@@ -697,7 +725,7 @@ Cómo se decide cada uno (`lib/challenges.ts`):
 ##### El reparto semanal de Víctor
 
 No todo se deduce del historial. Víctor tiene una rutina cerrada —**pierna, pecho,
-dorsal, flexiones, series de carrera y core**, repartidas entre los siete días— que
+dorsal, flexiones, series de carrera, core y rodaje**, repartidas entre los siete días— que
 está decidida de antemano: lo único que cambia cada semana es cuánto ha salido. El
 reparto se declara una sola vez en `VICTOR_SPLIT` (`lib/habits.ts`) y de ahí salen a la
 vez las casillas del día y los retos fijos de la semana (`ROUTINE`, en
@@ -717,26 +745,33 @@ camino:
 
 | Sesión | Marcas |
 | --- | --- |
-| Pierna | Sentadilla · mejor serie |
+| Pierna | Sentadilla · mejor serie (con las repes de esa serie) · Gemelo y sóleo · peso máximo (con las repes de ese peso) |
 | Pecho | Press de banca · peso máximo (con las repes de esa serie) · Press de banca · más repeticiones (con el peso de esa serie) |
 | Dorsal | Dominadas seguidas · Dominada con lastre · peso máximo (con las repes de ese lastre) |
 | Flexiones | Flexiones seguidas · 500 flexiones · tiempo |
-| Series de carrera | Series completadas |
-| Core | Plancha aguantada |
+| Series de carrera | Series completadas (con el ritmo de esas series) |
+| Core | Plancha aguantada · Dragon flag · repeticiones |
+| Rodaje | Rodaje más largo · Rodaje · mejor ritmo (con la distancia de esa tirada) |
 
 Al banca se sube moviendo más peso o aguantando más repeticiones, y a la barra de
 dominadas se llega un día en que sumar repeticiones a pelo deja de ser fuerza y pasa a
 ser fondo: con una sola casilla, la mitad del trabajo de la semana no aparecería en
-ninguna parte. Las cifras entre paréntesis son **acompañantes**: se apuntan al lado,
+ninguna parte. Corriendo pasa lo mismo por partida doble: ir más lejos y ir más rápido
+son dos progresos distintos, y una semana entera de tiradas largas parecería un
+estancamiento si sólo se mirase el ritmo. En pierna, la sentadilla mide la fuerza de la
+cadena entera y el gemelo con el sóleo miden lo que amortigua cada zancada de las
+carreras de esa misma semana; en core, la plancha es el suelo y el dragon flag es donde
+se ve si la cosa progresa. Las cifras entre paréntesis son **acompañantes**: se apuntan al lado,
 nunca deciden si el reto está superado y existen porque «doce repeticiones» no dice si
 fue un buen día hasta que se sabe con qué peso.
 
-Las **500 flexiones** son la única marca del reparto en la que mejorar es bajar: el
-trabajo está decidido de antemano —son 500 siempre— y lo que se compara es lo que se
-tarda. Va con `direction: 'atMost'`, y de ahí en adelante todo se lee al revés: el
-récord es el tiempo más corto, el reto dice «baja de 58 min» y lo evalúa la regla
-`metricLow`, que ignora los días sin apuntar nada para que una casilla en blanco no
-valga como el mejor tiempo posible.
+Dos marcas del reparto se leen al revés, porque en ellas mejorar es bajar: las **500
+flexiones** —donde el trabajo está decidido de antemano, son 500 siempre, y lo que se
+compara es lo que se tarda— y el **ritmo del rodaje**, en minutos por kilómetro. Van con
+`direction: 'atMost'`, y de ahí en adelante todo cambia de signo: el récord es la cifra
+más baja, el reto dice «baja de 58 min» y lo evalúa la regla `metricLow`, que ignora los
+días sin apuntar nada para que una casilla en blanco no valga como el mejor tiempo
+posible.
 
 Todo esto vive en Movimiento y Fuerza como una tarjeta por sesión: el interruptor de
 sí/no (`split.pierna`, `split.pecho`…), la marca (`marca.pecho`, `marca.pecho.repes`…)
@@ -749,7 +784,7 @@ medir.
 
 Por el mismo motivo bajan de peso las dos casillas vecinas —**Entrenamiento propio**
 y **Entrenamiento de fuerza**—, que en Víctor van con `weight: 1` y en María siguen
-con `weight: 2`. Un reparto de seis sesiones en siete días deja días de descanso, y
+con `weight: 2`. Un reparto de siete sesiones en siete días deja días de descanso, y
 ese descanso está decidido, no incumplido: con el peso de fondo esos días le
 salían casi suspendidos. Con peso 1 restan, pero poco, y quien de verdad juzga el
 entreno son los retos de cada marca. El peso se queda **por encima de cero a

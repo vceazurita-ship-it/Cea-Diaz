@@ -406,8 +406,16 @@ function adultSleepCategory(extra: Metric[] = []): HabitCategory {
   };
 }
 
-/** Nutrición e hidratación: sólo cambia cuánta agua toca. */
-function adultNutritionCategory(water: { target: number; max: number }): HabitCategory {
+/**
+ * Nutrición e hidratación: cambia cuánta agua toca y, con `extra`, las casillas
+ * propias de quien la use. Víctor mete ahí su protocolo —el arranque de la
+ * mañana, la suplementación y el escudo de las comidas fuera— porque son cosas
+ * que entran por la boca y a diario, no una categoría aparte.
+ */
+function adultNutritionCategory(
+  water: { target: number; max: number },
+  extra: Metric[] = [],
+): HabitCategory {
   return {
     id: 'nutricion',
     label: 'Nutrición e Hidratación',
@@ -466,6 +474,7 @@ function adultNutritionCategory(water: { target: number; max: number }): HabitCa
         icon: '🌇',
         type: 'toggle',
       },
+      ...extra,
     ],
   };
 }
@@ -474,7 +483,7 @@ function adultNutritionCategory(water: { target: number; max: number }): HabitCa
  * Movimiento y fuerza: `main` es el entrenamiento propio de cada uno.
  *
  * Con `weeklyStrength` el entreno baja de peso 2 a peso 1. Es lo que necesita
- * quien entrena por reparto semanal —Víctor reparte seis sesiones entre siete
+ * quien entrena por reparto semanal —Víctor reparte siete sesiones entre siete
  * días—: con el peso de fondo, los días de descanso que el propio reparto
  * exige salían casi suspendidos por no haber entrenado. Sigue contando, porque
  * sigue siendo lo importante del día que toca, pero ya no manda sobre la nota:
@@ -487,6 +496,12 @@ function adultMovementCategory(
   weeklyStrength = false,
   /** Con grupos, las sesiones se registran en tarjetas en vez de en lista. */
   groups?: MetricGroup[],
+  /**
+   * Cuántos pasos son un buen día para quien lo use. Se parametriza porque el
+   * tope no es un objetivo: es hasta dónde llega el contador, y quien pasa de
+   * dieciséis mil un día normal no tenía dónde apuntar los que hizo de más.
+   */
+  steps: { target: number; max: number } = { target: 8000, max: 16000 },
 ): HabitCategory {
   return {
     id: 'movimiento_fuerza',
@@ -513,8 +528,8 @@ function adultMovementCategory(
         label: 'Pasos del día',
         icon: '👟',
         type: 'counter',
-        target: 8000,
-        max: 16000,
+        target: steps.target,
+        max: steps.max,
         step: 500,
         unit: 'pasos',
         weight: 2,
@@ -634,8 +649,8 @@ const mariaCategories: HabitCategory[] = [
 ];
 
 /**
- * El reparto semanal de Víctor: seis sesiones que se reparten los siete días
- * —pierna, pecho, dorsal, flexiones, series de carrera y core—. Cada una se
+ * El reparto semanal de Víctor: siete sesiones que se reparten los siete días
+ * —pierna, pecho, dorsal, flexiones, series de carrera, core y rodaje—. Cada una se
  * marca el día que toca, y de ahí se rellenan solos los retos fijos de su
  * semana (`lib/challenges.ts`), que es justo para lo que existen estas
  * casillas.
@@ -729,7 +744,7 @@ export const VICTOR_SPLIT: SplitSession[] = [
     label: 'Pierna',
     icon: '🦵',
     help: 'Sentadilla, peso muerto, zancadas: la sesión de tren inferior de la semana.',
-    why: 'El tren inferior sostiene todo lo demás: rodilla, cadera y espalda aguantan lo que la pierna sea capaz de aguantar.',
+    why: 'El tren inferior sostiene todo lo demás: rodilla, cadera y espalda aguantan lo que la pierna sea capaz de aguantar. Y el sóleo es lo que amortigua cada zancada de las carreras de esa misma semana.',
     gradient: 'from-amber-400 to-orange-600',
     marks: [
       {
@@ -740,6 +755,23 @@ export const VICTOR_SPLIT: SplitSession[] = [
         max: 220,
         reference: 60,
         help: 'Kilos de la serie más pesada que hayas completado con buena técnica.',
+        companion: repsWith(
+          'Cuántas repeticiones salieron con ese peso. Seis a 90 kg y una a 90 kg no son la misma serie.',
+        ),
+      },
+      {
+        key: 'gemelo',
+        label: 'Gemelo y sóleo · peso máximo',
+        short: 'gemelo y sóleo',
+        icon: '🦶',
+        unit: 'kg',
+        step: 5,
+        max: 300,
+        reference: 60,
+        help: 'Kilos de la serie más pesada en prensa o de pie, con pausa abajo y recorrido entero.',
+        companion: repsWith(
+          'Cuántas repeticiones salieron con ese peso. Con pausa abajo no cuenta lo mismo que a rebote.',
+        ),
       },
     ],
   },
@@ -775,7 +807,11 @@ export const VICTOR_SPLIT: SplitSession[] = [
         icon: '🔁',
         unit: 'repes',
         step: 1,
-        max: 50,
+        // El tope no es una previsión de lo que se va a hacer: es hasta dónde
+        // llega el deslizador. Se deja muy por encima de lo que hoy se levanta
+        // porque un tope que se alcanza deja de poder registrar la marca que lo
+        // alcanzó, y ese día el récord se pierde por culpa de la casilla.
+        max: 80,
         reference: 8,
         help: 'Repeticiones de la serie más larga, seguidas y sin dejar la barra en el soporte.',
         companion: {
@@ -806,7 +842,7 @@ export const VICTOR_SPLIT: SplitSession[] = [
         icon: '🧗',
         unit: 'dominadas',
         step: 1,
-        max: 40,
+        max: 60,
         reference: 6,
         help: 'Las de la mejor serie, seguidas y con la barbilla por encima de la barra.',
       },
@@ -849,9 +885,14 @@ export const VICTOR_SPLIT: SplitSession[] = [
         short: 'las 500',
         icon: '⏱️',
         unit: 'min',
-        step: 1,
-        max: 180,
-        reference: 60,
+        // Medio minuto de paso y no uno entero: quien completa las 500 se mueve
+        // en una franja estrecha, y con pasos de un minuto dos intentos
+        // separados por cuarenta segundos se apuntaban con la misma cifra. El
+        // tope baja en la misma medida: tres horas no eran una escala, eran un
+        // desierto en el que la marca no se distinguía del cero.
+        step: 0.5,
+        max: 45,
+        reference: 30,
         // La única marca del reparto en la que mejorar es bajar: aquí el
         // trabajo está decidido de antemano —son 500 siempre— y lo que se
         // compara es lo que se tarda en hacerlo.
@@ -876,6 +917,18 @@ export const VICTOR_SPLIT: SplitSession[] = [
         max: 20,
         reference: 6,
         help: 'Series completas al ritmo previsto. La que se corta a mitad no cuenta.',
+        // Mismo motivo que las repeticiones del banca: «seis series» no dice si
+        // fue un buen día hasta que se sabe a cuánto iban, y sin el ritmo al
+        // lado el récord se batiría sólo aflojando el paso.
+        companion: {
+          label: 'Ritmo de la serie',
+          icon: '🚀',
+          unit: 'km/h',
+          step: 0.5,
+          max: 25,
+          reference: 12,
+          help: 'A cuánto iban. La marca es cuántas salieron; esto pone el precio a su lado.',
+        },
       },
     ],
   },
@@ -895,6 +948,63 @@ export const VICTOR_SPLIT: SplitSession[] = [
         max: 300,
         reference: 60,
         help: 'Segundos de la plancha más larga, con la cadera arriba y sin arquear la espalda.',
+      },
+      {
+        key: 'dragon',
+        label: 'Dragon flag · repeticiones',
+        short: 'dragon flag',
+        icon: '🐉',
+        unit: 'repes',
+        step: 1,
+        max: 30,
+        reference: 3,
+        help: 'Las de la mejor serie, bajando el cuerpo recto y sin que la espalda se despegue del banco.',
+      },
+    ],
+  },
+  {
+    id: 'rodaje',
+    label: 'Rodaje',
+    icon: '🛣️',
+    help: 'Carrera continua: la tirada del día, con cuestas o sin ellas. Las series van en su propia tarjeta.',
+    why: 'El rodaje es el suelo sobre el que se sostienen las series: es donde se construye el motor que luego aguanta los cambios de ritmo, y la sesión que más kilómetros deja en las piernas.',
+    gradient: 'from-teal-400 to-cyan-600',
+    // Dos marcas por lo mismo que en el banca: correr más lejos y correr más
+    // rápido son dos progresos distintos, y con una sola casilla una semana
+    // entera de tiradas largas parecería un estancamiento.
+    marks: [
+      {
+        label: 'Rodaje más largo',
+        icon: '🛣️',
+        unit: 'km',
+        step: 0.5,
+        max: 45,
+        reference: 5,
+        help: 'Kilómetros de la tirada seguida. Los semáforos cuentan; las paradas a descansar, no.',
+      },
+      {
+        key: 'ritmo',
+        label: 'Rodaje · mejor ritmo',
+        short: 'mejor ritmo',
+        icon: '⚡',
+        unit: 'min/km',
+        // Como las 500 flexiones: aquí mejorar es bajar, y el listón del reto se
+        // lee al revés. El paso de 0,05 son tres segundos por kilómetro, que es
+        // la diferencia que de verdad separa dos rodajes.
+        step: 0.05,
+        max: 10,
+        reference: 6,
+        direction: 'atMost',
+        help: 'Ritmo medio de la tirada, en minutos por kilómetro: 5,5 son 5:30. Aquí mejorar es bajar.',
+        companion: {
+          label: 'Distancia de esa tirada',
+          icon: '🛣️',
+          unit: 'km',
+          step: 0.5,
+          max: 45,
+          reference: 5,
+          help: 'Cuántos kilómetros a ese ritmo. Un buen ritmo en dos kilómetros no es el mismo día que en doce.',
+        },
       },
     ],
   },
@@ -958,7 +1068,7 @@ function markSlider(
  * cada sesión, el interruptor de «hecha» y las marcas que hayan salido.
  *
  * Van con `weight: 0` a propósito: son contexto, no cumplimiento. Si contaran,
- * un martes de pierna saldría suspendido por las cinco sesiones que ese día no
+ * un martes de pierna saldría suspendido por las seis sesiones que ese día no
  * tocaban, que es justo lo contrario de lo que hay que medir. El generador de
  * retos sí las lee: no necesita el peso para saber qué día se entrenó ni con
  * qué marca.
@@ -985,6 +1095,107 @@ const victorSplitMetrics: Metric[] = VICTOR_SPLIT.flatMap(
   ],
 );
 
+/**
+ * Cuerpo y composición: la medición de la mañana y lo que dice.
+ *
+ * Existe porque el objetivo —ganar músculo sin que suba la grasa— no tenía
+ * dónde comprobarse. El reparto dice cuánto se levanta y la nutrición qué se
+ * come; si eso está funcionando o no sólo lo dicen la báscula y el reloj, y
+ * hasta ahora se miraban en la muñeca y se olvidaban.
+ *
+ * Sólo puntúa la casilla de arriba, que es la única que se decide: medirse o
+ * no. Las cifras van con `weight: 0` porque son el resultado y no el hábito;
+ * un día que el peso sube no es un día suspendido, es un día con más agua
+ * dentro, y eso sólo se ve mirándolas seguidas. La cifra que el deslizador
+ * pinta a la derecha es la escala, no una meta: aquí no hay meta que cumplir.
+ */
+const victorBodyCategory: HabitCategory = {
+  id: 'cuerpo',
+  label: 'Cuerpo y Composición',
+  icon: '⚖️',
+  description: 'La medición de la mañana: peso, composición y lo que marca el reloj.',
+  gradient: 'from-teal-400 to-emerald-600',
+  metrics: [
+    {
+      id: 'medicion',
+      label: 'Medición de la mañana',
+      icon: '⚖️',
+      type: 'toggle',
+      weight: 2,
+      help: 'En ayunas, después del baño y antes de beber. Medida a otra hora, la cifra no se puede comparar con la de ayer.',
+    },
+    {
+      id: 'peso',
+      label: 'Peso',
+      icon: '🧱',
+      type: 'duration',
+      target: 75,
+      min: 60,
+      max: 95,
+      // Paso de 200 g a propósito: entre la noche y la mañana se va casi un
+      // kilo sólo de agua, así que afinar a los 100 g es afinar el ruido.
+      step: 0.2,
+      unit: 'kg',
+      weight: 0,
+      help: 'De la báscula, si la hay. El día que no la haya, el resto de la tarjeta sale igual del reloj.',
+    },
+    {
+      id: 'grasa',
+      label: 'Grasa corporal',
+      icon: '📉',
+      type: 'duration',
+      target: 15,
+      min: 5,
+      max: 20,
+      step: 0.1,
+      unit: '%',
+      direction: 'atMost',
+      weight: 0,
+      help: 'La del reloj. Da saltos de un día para otro según el agua que tengas dentro: lo que dice algo es la línea de dos semanas, no la cifra de hoy.',
+    },
+    {
+      id: 'musculo',
+      label: 'Músculo esquelético',
+      icon: '📈',
+      type: 'duration',
+      target: 36,
+      min: 25,
+      max: 45,
+      step: 0.1,
+      unit: 'kg',
+      weight: 0,
+      help: 'La otra mitad del objetivo. Sube y baja con el agua igual que la grasa, y por el mismo motivo: se mide por conductividad, no por bulto.',
+    },
+    {
+      id: 'fc_reposo',
+      label: 'Pulso en reposo durmiendo',
+      icon: '🫀',
+      type: 'duration',
+      target: 55,
+      min: 35,
+      max: 80,
+      step: 1,
+      unit: 'ppm',
+      direction: 'atMost',
+      weight: 0,
+      help: 'El dato del reloj. Cuando sube varios días seguidos sin cambiar el entreno, el cuerpo está pagando otra cosa: cena tardía, alcohol o poco sueño.',
+    },
+    {
+      id: 'hrv',
+      label: 'Variabilidad del pulso',
+      icon: '📟',
+      type: 'duration',
+      target: 60,
+      min: 10,
+      max: 200,
+      step: 5,
+      unit: 'ms',
+      weight: 0,
+      help: 'Cuánto varía el latido de noche. Alta significa sistema nervioso descansado; una caída fuerte es el mejor aviso de que hoy toca aflojar.',
+    },
+  ],
+};
+
 const victorCategories: HabitCategory[] = [
   adultSleepCategory([
     {
@@ -999,10 +1210,57 @@ const victorCategories: HabitCategory[] = [
       unit: 'min',
       help: 'Corta y antes de las 15:00; pasada la media hora se despierta peor.',
     },
+    {
+      id: 'cierre_noche',
+      label: 'Cierre de la noche',
+      icon: '🌙',
+      type: 'toggle',
+      help: 'El ritual de apagar: magnesio, luz baja y, si toca, melatonina en dosis corta. Lo que hace efecto es la secuencia repetida, no la pastilla.',
+    },
   ]),
-  adultNutritionCategory({ target: 10, max: 14 }),
+  // Catorce vasos se quedaban cortos los días de sesión larga y calor: bebe
+  // por encima de tres litros y el contador se le acababa antes que el día.
+  adultNutritionCategory({ target: 12, max: 22 }, [
+    {
+      id: 'arranque',
+      label: 'Lengua y agua con sal al levantarse',
+      icon: '🌅',
+      type: 'toggle',
+      weight: 2,
+      help: 'Raspador de lengua y un vaso largo de agua tibia con una pizca de sal, antes del café. Es el primer gesto del día y el que ordena el resto.',
+    },
+    {
+      id: 'suplementos',
+      label: 'Suplementación del día',
+      icon: '💊',
+      type: 'toggle',
+      weight: 2,
+      help: 'La base fija, la que se toma toque lo que toque: creatina, omega 3, magnesio y vitamina D con K2.',
+    },
+    {
+      id: 'escudo',
+      label: 'Escudo antes de comer fuera',
+      icon: '🛡️',
+      type: 'toggle',
+      // Peso cero: no es un hábito diario, es una respuesta a una comida que no
+      // cocinas tú. El día que se come en casa, no marcarlo no es un fallo.
+      weight: 0,
+      help: 'Lo que se toma un rato antes de la comida que no controlas. Sólo cuenta el día que la hay.',
+    },
+    {
+      id: 'transito',
+      label: 'Al baño por la mañana',
+      icon: '🚽',
+      type: 'toggle',
+      // Tampoco puntúa: esto no se decide, ocurre. Se apunta porque es la señal
+      // más honesta de que el descanso, el agua y la fibra van finos, y porque
+      // en los viajes es lo primero que se rompe.
+      weight: 0,
+      help: 'No se decide, se comprueba. Es el aviso de que el descanso, el agua y la fibra van finos: cuando falla dos días seguidos, mira ahí antes que en el entreno.',
+    },
+  ]),
   // El entreno de Víctor va con `weight: 1` en vez de 2, porque su semana la
-  // manda el reparto: seis sesiones repartidas entre siete días, y no todas
+  // manda el reparto: siete sesiones repartidas entre siete días, y no todas
   // piden gimnasio. El día sin sesión es descanso decidido, no un hábito
   // incumplido, y con el peso de fondo le hundía la nota. Resta, pero poco:
   // quien de verdad juzga el entreno son los retos fijos de cada marca. Y al no
@@ -1024,11 +1282,22 @@ const victorCategories: HabitCategory[] = [
     },
     [
       { id: 'movilidad', label: 'Movilidad y prevención', icon: '🤸', type: 'toggle' },
+      {
+        id: 'hombro',
+        label: 'Hombro y manguito',
+        icon: '🎯',
+        type: 'toggle',
+        help: 'Los diez minutos de deltoides y rotadores que sostienen todo lo que empuja y todo lo que se cuelga. No es una sesión: es lo que evita perderlas.',
+      },
       ...victorSplitMetrics,
     ],
     true,
     VICTOR_SPLIT_GROUPS,
+    // Un día suyo normal pasa de doce mil pasos y los de partido rondan los
+    // veinte mil: con el tope general se quedaban sin registrar los de arriba.
+    { target: 12000, max: 24000 },
   ),
+  victorBodyCategory,
   {
     id: 'desarrollo',
     label: 'Desarrollo Personal',

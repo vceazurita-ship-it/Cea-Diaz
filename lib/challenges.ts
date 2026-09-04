@@ -662,8 +662,8 @@ function buildCandidates(profile: Profile, stats: MetricStat[], dayStats: DaySta
  * de antemano. Se declaran aquí, fuera del generador, y acompañan cada lunes a
  * los tres que sí salen de los datos.
  *
- * Víctor reparte seis sesiones entre los siete días —pierna, pecho, dorsal,
- * flexiones, series de carrera y core—. Estos retos no piden cifras: se
+ * Víctor reparte siete sesiones entre los siete días —pierna, pecho, dorsal,
+ * flexiones, series de carrera, core y rodaje—. Estos retos no piden cifras: se
  * rellenan solos el día que se marca la sesión, y son los que siguen juzgando
  * las semanas anteriores a que el reparto empezara a pedir marca.
  *
