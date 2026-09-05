@@ -199,6 +199,7 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
   const [passAgain, setPassAgain] = useState('');
   const [savingPass, setSavingPass] = useState(false);
 
+  const [confirmDays, setConfirmDays] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [staged, setStaged] = useState<StagedImport | null>(null);
   /** Se lee tras montar: en el servidor no hay `localStorage` que consultar. */
@@ -611,6 +612,18 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
     notify({
       message: 'Datos de ejemplo cargados.',
       icon: '🎲',
+      action: { label: 'Deshacer', onClick: () => store.restore(before) },
+    });
+  };
+
+  const wipeDays = () => {
+    const before = store.snapshot();
+    store.resetEntries();
+    setConfirmDays(false);
+    notify({
+      message: 'Los días registrados se han borrado. Los recados siguen ahí.',
+      icon: '🧹',
+      tone: 'danger',
       action: { label: 'Deshacer', onClick: () => store.restore(before) },
     });
   };
@@ -1243,10 +1256,47 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
               style={{ borderColor: 'var(--danger)', background: 'var(--danger-bg)' }}
             >
               <h3 className="t-danger mb-1 font-bold">Zona peligrosa</h3>
-              <p className="mb-3 text-xs leading-relaxed t-2">
-                Borra {entryCount} {entryCount === 1 ? 'día registrado' : 'días registrados'} y{' '}
-                {taskList.length} {taskList.length === 1 ? 'tarea' : 'tareas'} de todos los
-                perfiles. Podrás deshacerlo mientras el aviso siga en pantalla.
+
+              <p className="mb-2 text-xs leading-relaxed t-2">
+                <strong>Empezar en blanco.</strong> Borra {entryCount}{' '}
+                {entryCount === 1 ? 'día registrado' : 'días registrados'} de todos los perfiles y
+                deja en pie los recados, las semanas del plan y las cuentas. Podrás deshacerlo
+                mientras el aviso siga en pantalla.
+              </p>
+
+              {confirmDays ? (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={wipeDays}
+                    className="btn-danger px-3 py-1.5 text-xs"
+                  >
+                    Sí, borrar los días
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDays(false)}
+                    className="btn-ghost px-3 py-1.5 text-xs"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDays(true)}
+                  className="btn-ghost t-danger mb-4 px-3 py-1.5 text-xs"
+                >
+                  🧹 Borrar sólo los días registrados
+                </button>
+              )}
+
+              <p
+                className="mb-3 border-t pt-3 text-xs leading-relaxed t-2"
+                style={{ borderColor: 'var(--danger)' }}
+              >
+                <strong>Borrarlo todo.</strong> Además de los días, se lleva {taskList.length}{' '}
+                {taskList.length === 1 ? 'recado' : 'recados'} de todos los perfiles.
               </p>
 
               {confirmReset ? (

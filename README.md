@@ -19,6 +19,16 @@ npm run dev
 Abre <http://localhost:3000>. Para probar los resúmenes sin registrar nada a mano:
 **⚙️ Ajustes → 💾 Datos → 🎲 Datos de ejemplo** (genera 28 días simulados para todos los perfiles).
 
+Y para deshacer eso mismo cuando se empieza en serio: **⚙️ Ajustes → 💾 Datos → Zona
+peligrosa → 🧹 Borrar sólo los días registrados**. Borra los días de todos los perfiles y no
+toca nada más: los recados siguen ahí, las cuentas de la economía se guardan aparte y las
+semanas del plan no se guardan —las calcula `lib/challenges.ts` cada vez—, así que el reparto
+de entrenamiento y los retos de la semana aparecen igual, sólo que sin nada marcado.
+
+El borrado viaja por lápidas, no por olvido: cada día borrado deja su `entries:<id>` en
+`tombstones`, y por eso desaparece también del móvil en la siguiente sincronización. Borrarlo
+a mano en Supabase no serviría —el navegador que aún los tuviera los volvería a subir.
+
 Otros comandos:
 
 ```bash

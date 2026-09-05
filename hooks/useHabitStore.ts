@@ -114,6 +114,11 @@ export interface HabitStore {
   saveTask: (task: Task) => void;
   removeTask: (id: string) => void;
   loadDemoData: () => void;
+  /**
+   * Borra los días registrados y deja en pie los recados: es el botón para
+   * empezar de cero un lunes sin perder la cita del dentista.
+   */
+  resetEntries: () => void;
   resetAll: () => void;
   /** Sustituye o fusiona lo que venga de un archivo exportado. */
   importEntries: (
@@ -1609,6 +1614,17 @@ export function useHabitStore(): HabitStore {
     });
   }, []);
 
+  const resetEntries = useCallback(() => {
+    // Los recados no se tocan, y las semanas del plan tampoco: no se guardan,
+    // las calcula `lib/challenges.ts` cada vez. Lo que desaparece es lo
+    // marcado en cada día, que es justo lo que se quería dejar en blanco.
+    setDb((prev) => {
+      let tombstones = prev.tombstones;
+      for (const id of Object.keys(prev.entries)) tombstones = grave(tombstones, 'entries', id);
+      return { ...prev, entries: {}, tombstones };
+    });
+  }, []);
+
   const resetAll = useCallback(() => {
     clearDatabase();
     setDb((prev) => {
@@ -1695,6 +1711,7 @@ export function useHabitStore(): HabitStore {
       saveTask,
       removeTask,
       loadDemoData,
+      resetEntries,
       resetAll,
       importEntries,
       snapshot,
@@ -1736,6 +1753,7 @@ export function useHabitStore(): HabitStore {
       saveTask,
       removeTask,
       loadDemoData,
+      resetEntries,
       resetAll,
       importEntries,
       snapshot,
