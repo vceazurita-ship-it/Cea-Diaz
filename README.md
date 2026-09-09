@@ -70,7 +70,7 @@ components/
   Ambient.tsx          Decoración de fondo, teñida con el color del perfil
   ProfileSelector.tsx  Pantalla inicial con los 6 perfiles, su foto y su estado
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
-  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes (+ Economía en Víctor)
+  Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes (+ GPS en los peques, + Economía en Víctor)
   profile/
     ProfileHeader.tsx  Las cuatro cabeceras de perfil (campo, cuento, editorial, grupo)
   cloud/
@@ -88,6 +88,10 @@ components/
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
   games/
     DailyGameCard.tsx    El juego del día de los peques: la partida y su cromo
+  gps/
+    GpsPanel.tsx       Las sesiones del rastreador y lo que dicen juntas
+    GpsEntry.tsx       Apuntar una sesión: pegando una línea o a mano
+    GpsTrend.tsx       Cómo va cada cifra, sesión a sesión
   team/
     Campograma.tsx       El equipo montado con los cromos: formación, once y banquillo
   learning/
@@ -127,6 +131,7 @@ hooks/
   useAppearance.tsx    Fotos y sintonías que sustituyen a las de fábrica
   useLineup.ts         El equipo guardado de un perfil, atento a lo que llegue de otro móvil
   useWeekPlan.ts       La agenda semanal de un perfil, atenta a lo que llegue de otro móvil
+  useGps.ts            Las sesiones del rastreador de un peque, atentas a lo mismo
 public/
   photos/              Retratos, cabeceras y cromos ya recortados
   audio/               Sintonías de perfil (las pone cada casa)
@@ -146,6 +151,7 @@ lib/
   financePlan.ts       El plan: veredicto del año, palancas y acciones ordenadas
   planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
   planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
+  gps.ts               El GPS de los entrenos: leer una sesión pegada, guardarla y compararla
   learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición, copias en serie y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
@@ -386,7 +392,7 @@ registrado sube solo en cuanto vuelve la conexión.
 npm run comprobar:nube
 ```
 
-Lee las variables de `.env.local` y dice, una por una, si las nueve tablas del
+Lee las variables de `.env.local` y dice, una por una, si las diez tablas del
 `schema.sql` están de verdad, **si tienen las columnas que se fueron añadiendo
 después**, si la clave es la pública y no la de servicio, y —si además pones
 `COMPROBAR_EMAIL` y `COMPROBAR_PASSWORD`— si la cuenta de casa puede leer y si
@@ -423,6 +429,10 @@ que volver a desplegar después de añadirlas.
 > Y ahora también la tabla `replicas`, de una sola fila, que es la que hace posible
 > «dejar todos igual que este». Sin ella la app funciona igual que siempre: ese botón
 > avisa de que no ha podido dar el aviso, y todo lo demás sigue subiendo y bajando.
+>
+> **Y la tabla `gps`**, la de las sesiones del rastreador de los peques. Sin ella la
+> sección funciona en el aparato en el que se pegue cada sesión, pero no viaja al resto:
+> la sincronización lo dice pieza a pieza en Ajustes en vez de darse por buena.
 
 ### Qué sube y qué no
 
@@ -434,6 +444,8 @@ que volver a desplegar después de añadirlas.
 | Ajustes de la casa: modo día/noche, sintonías y PIN | |
 | Los equipos del campograma: formación, once, banquillo y capitán | |
 | Las agendas semanales: los ratos de cada perfil, con su hábito y con quién está | |
+| Las sesiones del GPS de los peques, con sus borrados | |
+| Las cuentas de economía de Víctor | |
 | | El permiso de Google (vive cifrado en el servidor) |
 
 Todo eso sube solo. Cuando lo que hace falta es que **este** aparato mande sobre los
@@ -481,8 +493,8 @@ arrancar hasta que alguien recargaba la página.
 
 El canal de tiempo real necesita que las tablas estén en la publicación
 `supabase_realtime`; de eso se encarga el bloque final de `supabase/schema.sql`, que
-mete las siete: `entries`, `tasks`, `appearance`, `settings`, `lineups`, `agendas` y
-`replicas`. Si no está, no se rompe nada: se nota sólo en que el refresco tarda hasta
+mete las nueve: `entries`, `tasks`, `appearance`, `settings`, `lineups`, `agendas`,
+`finance`, `gps` y `replicas`. Si no está, no se rompe nada: se nota sólo en que el refresco tarda hasta
 el siguiente repaso.
 
 ### Cómo resuelve los conflictos
@@ -1045,6 +1057,87 @@ jugada de táctica es añadir un objeto a la lista, y añadir un tipo de problem
 añadir un generador. Con 42 jugadas y 5 por partida, una jugada no se repite hasta
 pasadas ocho partidas de táctica —unas dos semanas y media—, y en la vuelta siguiente
 el mazo se baraja otra vez.
+
+## El GPS de los entrenamientos
+
+Leo y Hugo entrenan con un rastreador **Footbar**. Después de cada sesión, su
+aplicación enseña unas cifras —lo que han corrido, los esprines, la punta de
+velocidad, los balones tocados— y ahí se acaba: la cuenta gratuita no exporta
+nada, no tiene API y sólo deja mirar sesión por sesión en el móvil. Para saber
+si el crío corre más que en septiembre hay que ir abriendo pantallas y fiarse
+de la memoria, que es como no saberlo.
+
+Esta sección se queda con esas cifras y hace lo único que allí no se puede
+hacer: **mirarlas juntas**. Es una pestaña más —`🛰️ GPS`— y sólo existe en los
+paneles de Leo y de Hugo, que son los que llevan aparato.
+
+### Cómo entra una sesión
+
+De un pegote. Una línea por sesión, en el orden que sea:
+
+```
+2026-09-09 entreno 90min 5,2km 12 sprints 24,3km/h 480 toques
+2026-09-11 partido 60min 4,1km 9 sprints 26,8km/h | jugó de lateral
+```
+
+Se reconocen la fecha (`2026-09-09`, `9/9`, `hoy`, `ayer`), si fue **entreno o
+partido**, y cada cifra por su unidad —`5,2km`, `90min`, `24,3km/h`— o por su
+nombre, en castellano o en inglés: distancia, intensidad, esprines, punta,
+toques, pases, tiros y puntuación. Detrás de `|` o de `nota:` va lo que haga
+falta recordar. Se pueden pegar cinco sesiones de golpe, y **lo que se ha
+entendido se enseña antes de guardarlo**: un pegote que adivina mal en
+silencio es peor que uno que no funciona.
+
+Repetir una sesión del mismo día y del mismo tipo la **corrige** en vez de
+duplicarla —el identificador es `perfil:día:tipo`—, así que arreglar una cifra
+mal copiada es volver a pegar la línea. Y para quien esté en el móvil sin
+ganas de acordarse de ningún formato, la misma tarjeta tiene una pestaña «A
+mano» con sus casillas.
+
+Los números se reparten **por cercanía**, no con una expresión regular por
+cifra: cada número mira primero la unidad que lleva pegada, luego el nombre
+que tiene delante y por último el que tiene detrás, y un nombre sólo se usa
+una vez. Es lo que desenreda las líneas que se escriben de verdad: en
+`8 tiros 60 pases`, el 60 no se queda con «tiros» —que ya tiene el 8— sino con
+«pases»; y en `esprines 9 vmax 27`, el 9 es de los esprines aunque tenga
+«vmax» a la derecha.
+
+### Qué se saca de ellas
+
+| Bloque | Qué contesta |
+| ------ | ------------ |
+| La última | Cómo fue la sesión de hoy **comparada con las suyas**: récord, o cuánto se aparta de su media |
+| Sus marcas | De qué es capaz, con el día en que lo hizo y su media —y, donde tiene sentido, por hora— |
+| Cómo va la cosa | Las últimas doce sesiones de una cifra, con la media marcada. Los partidos, más oscuros |
+| Mirándolas juntas | Tendencias, récords recientes y cuánto cambia un partido respecto a un entreno |
+
+Todo con la misma regla que el resto de la app: **lo que no venga en la sesión
+se queda vacío**. Un cero inventado se cuela en las medias y estropea justo la
+comparación que se buscaba. Y las tendencias no se dicen hasta que hay cuatro
+sesiones: con tres, lo que se dice es cuántas van.
+
+El tiempo jugado no compite. Que un entreno dure noventa minutos es el horario
+del club, no una marca del crío, así que no sale en las tendencias ni en los
+récords —pero sí sirve para dividir: correr cinco kilómetros en una hora y en
+dos no es lo mismo.
+
+### Y el registro del día
+
+Nada se registra solo. Que el GPS diga que hubo noventa minutos de fútbol es
+un hecho, pero pasarlo al día es una decisión, así que cada sesión lleva un
+botón **«Al registro»** que marca la asistencia y los minutos de movimiento de
+ese día, con su «deshacer». Es la misma línea que separa el plan del hecho en
+la agenda: la app quita el trabajo de copiar, no el de decidir.
+
+### Dónde vive
+
+En `localStorage` y en la tabla `gps` de la nube, una fila por peque con todas
+sus sesiones dentro. Con una diferencia respecto a la agenda o a la economía:
+al bajarla **no se adopta entera, se mezcla sesión a sesión**. Pegar el entreno
+del martes en el portátil y el del jueves en el móvil tiene que dejar los dos,
+y con la regla de «gana la última libreta guardada» uno de los dos se perdía
+entero. De ahí que los borrados viajen también (`removed`): sin ellos, una
+sesión quitada volvería en la siguiente bajada.
 
 ## Tareas y Google Calendar
 

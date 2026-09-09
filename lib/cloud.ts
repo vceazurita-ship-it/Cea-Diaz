@@ -3,6 +3,8 @@ import type { ReplicaMark } from '@/lib/replica';
 import type {
   DayEntry,
   FinanceBook,
+  GpsBook,
+  GpsSession,
   HabitDatabase,
   HouseSettings,
   Lineup,
@@ -222,7 +224,7 @@ export async function pushTasks(tasks: Task[], owner: string): Promise<void> {
  * Todas las tablas cuya clave es una columna `id`. Las lápidas sólo hablan
  * de dos, pero la réplica tiene que poder quitar filas de cualquiera.
  */
-export type IdTable = CloudTable | 'lineups' | 'agendas' | 'finance' | 'appearance';
+export type IdTable = CloudTable | 'lineups' | 'agendas' | 'finance' | 'gps' | 'appearance';
 
 /**
  * Borra por identificador, en tandas. El troceo no es un lujo: la lista
@@ -763,6 +765,62 @@ export async function pushFinance(
       throw new Error(error.message);
     }
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * El GPS de los entrenamientos
+ *
+ * Una fila por peque que lleve rastreador, con todas sus sesiones dentro. Se
+ * escribe entera, como la agenda, pero **no se adopta entera**: quien la baja
+ * mezcla sesión a sesión (`applyRemoteGps`). Es lo que permite pegar la del
+ * martes en el portátil y la del jueves en el móvil sin que una se coma a la
+ * otra, y por eso viajan también los borrados.
+ * ------------------------------------------------------------------------- */
+
+interface GpsRow {
+  id: string;
+  owner: string;
+  profile_id: string;
+  sessions: GpsSession[] | null;
+  removed: Record<string, string> | null;
+  updated_at: string;
+}
+
+/** Las sesiones de la cuenta, indexadas por perfil. */
+export async function pullGps(): Promise<Record<string, GpsBook>> {
+  const client = supabase();
+  if (!client) return {};
+
+  const { data, error } = await client.from('gps').select('*');
+  if (error) throw new Error(error.message);
+
+  const out: Record<string, GpsBook> = {};
+
+  for (const row of (data ?? []) as GpsRow[]) {
+    out[row.profile_id] = {
+      sessions: row.sessions ?? [],
+      removed: row.removed ?? {},
+      updatedAt: isoOf(row.updated_at),
+    };
+  }
+
+  return out;
+}
+
+export async function pushGps(profileId: string, book: GpsBook, owner: string): Promise<void> {
+  const client = supabase();
+  if (!client) return;
+
+  const { error } = await client.from('gps').upsert({
+    id: `${owner}:${profileId}`,
+    owner,
+    profile_id: profileId,
+    sessions: book.sessions,
+    removed: book.removed,
+    updated_at: book.updatedAt,
+  });
+
+  if (error) throw new Error(error.message);
 }
 
 /* ---------------------------------------------------------------------------

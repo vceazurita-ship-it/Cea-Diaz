@@ -17,12 +17,14 @@ import {
   pullAll,
   pullLineups,
   pullFinance,
+  pullGps,
   pullPlans,
   pullReplica,
   pullSettings,
   pushEntries,
   pushLineup,
   pushFinance,
+  pushGps,
   pushPlan,
   pushReplica,
   pushSettings,
@@ -32,6 +34,12 @@ import {
   type CloudTable,
 } from '@/lib/cloud';
 import { GAME_NOTE_KEY } from '@/lib/games';
+import {
+  applyRemoteGps,
+  loadGps,
+  replaceGps,
+  subscribeGps,
+} from '@/lib/gps';
 import {
   applyRemoteLineups,
   loadLineups,
@@ -184,7 +192,16 @@ export type CloudStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error';
  * pieza a pieza en vez de dar la sincronización entera por buena.
  */
 export interface CloudPart {
-  id: 'entries' | 'tasks' | 'settings' | 'lineups' | 'plans' | 'finance' | 'photos' | 'replica';
+  id:
+    | 'entries'
+    | 'tasks'
+    | 'settings'
+    | 'lineups'
+    | 'plans'
+    | 'finance'
+    | 'gps'
+    | 'photos'
+    | 'replica';
   label: string;
   ok: boolean;
   /** Lo que dijo la nube cuando no llegó. */
@@ -267,6 +284,7 @@ const LIVE_TABLES = [
   'lineups',
   'agendas',
   'finance',
+  'gps',
   'replicas',
 ] as const;
 
@@ -355,6 +373,27 @@ async function reconcileFinance(owner: string, remember: Remember): Promise<void
  * agendas no puede impedir que lleguen los registros, pero tampoco puede
  * pasar por «al día».
  */
+/**
+ * Las sesiones del rastreador de los peques.
+ *
+ * Se sale del patrón de las tres de arriba en una cosa, y es a propósito: lo
+ * que baja no sustituye a lo de aquí, se mezcla sesión a sesión
+ * (`applyRemoteGps`). Pegar el entreno del martes en el portátil y el del
+ * jueves en el móvil tiene que dejar los dos, y con la regla de «gana la
+ * última libreta guardada» uno de los dos se perdía entero.
+ */
+async function reconcileGps(owner: string, remember: Remember): Promise<void> {
+  const remote = await pullGps();
+  applyRemoteGps(remote);
+
+  for (const [profileId, local] of Object.entries(loadGps())) {
+    const theirs = remote[profileId];
+    if (theirs && Date.parse(theirs.updatedAt) >= Date.parse(local.updatedAt)) continue;
+    await pushGps(profileId, local, owner);
+    remember('gps', `${owner}:${profileId}`, local.updatedAt);
+  }
+}
+
 const PIECES: Array<{
   id: CloudPart['id'];
   label: string;
@@ -364,6 +403,7 @@ const PIECES: Array<{
   { id: 'lineups', label: 'Campogramas', reconcile: reconcileLineups },
   { id: 'plans', label: 'Agendas semanales', reconcile: reconcilePlans },
   { id: 'finance', label: 'Economía', reconcile: reconcileFinance },
+  { id: 'gps', label: 'Sesiones del GPS', reconcile: reconcileGps },
 ];
 
 /** Cómo se cuenta lo que no ha llegado, sin repetir la lista de piezas. */
@@ -529,16 +569,22 @@ export function useHabitStore(): HabitStore {
       return null;
     }
 
-    const [remote, settings, lineups, plans] = await Promise.all([
+    const [remote, settings, lineups, plans, gps] = await Promise.all([
       pullAll(),
       pullSettings(),
       pullLineups(),
       pullPlans(),
+      pullGps(),
     ]);
 
     if (settings) applyRemoteSettings(settings);
     replaceLineups(lineups);
     replacePlans(plans);
+    // Las sesiones del GPS se sustituyen, no se mezclan: en el día a día la
+    // mezcla es lo correcto —cada sesión es un hecho suelto—, pero una
+    // réplica dice «quédate exactamente con lo de arriba», y mezclar dejaría
+    // vivas aquí las sesiones que allí se habían quitado.
+    replaceGps(gps);
 
     // Las lápidas se tiran: lo borrado aquí ya no tiene por qué borrarse
     // allí, porque lo de allí es justamente lo que ahora manda.
@@ -852,6 +898,22 @@ export function useHabitStore(): HabitStore {
       });
     }
 
+    try {
+      const books = Object.entries(loadGps());
+      for (const [profileId, book] of books) {
+        await pushGps(profileId, book, uid);
+        remember('gps', `${uid}:${profileId}`, book.updatedAt);
+      }
+      report.push({ id: 'gps', label: 'Sesiones del GPS', ok: true, sent: books.length });
+    } catch (error) {
+      report.push({
+        id: 'gps',
+        label: 'Sesiones del GPS',
+        ok: false,
+        error: error instanceof Error ? error.message : 'No ha viajado.',
+      });
+    }
+
     const note = failureNote(report);
 
     setParts(report);
@@ -1042,6 +1104,37 @@ export function useHabitStore(): HabitStore {
         report.push({
           id: 'finance',
           label: 'Economía',
+          ok: false,
+          error: error instanceof Error ? error.message : 'No ha viajado.',
+        });
+      }
+
+      try {
+        const mine = loadGps();
+        const there = await pullGps();
+        const gone = Object.keys(there)
+          .filter((profileId) => !mine[profileId])
+          .map((profileId) => `${uid}:${profileId}`);
+
+        await deleteFrom('gps', gone);
+
+        const ids = Object.entries(mine);
+        for (const [profileId, book] of ids) {
+          await pushGps(profileId, book, uid);
+          remember('gps', `${uid}:${profileId}`, book.updatedAt);
+        }
+
+        report.push({
+          id: 'gps',
+          label: 'Sesiones del GPS',
+          ok: true,
+          sent: ids.length,
+          removed: gone.length,
+        });
+      } catch (error) {
+        report.push({
+          id: 'gps',
+          label: 'Sesiones del GPS',
           ok: false,
           error: error instanceof Error ? error.message : 'No ha viajado.',
         });
@@ -1306,6 +1399,33 @@ export function useHabitStore(): HabitStore {
 
           void pushFinance(profileId, book, uid)
             .then(() => remember('finance', id, book.updatedAt))
+            .catch(() => undefined);
+        }
+      }, LINEUP_PUSH_MS);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [session, remember]);
+
+  // Y las sesiones del rastreador: pegar el entreno en el portátil y que
+  // aparezca en el móvil de quien lo llevó es media gracia de tenerlas aquí.
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!uid) return;
+
+    let timer = 0;
+    const unsubscribe = subscribeGps(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        for (const [profileId, book] of Object.entries(loadGps())) {
+          const id = `${uid}:${profileId}`;
+          if (echoes.current[`gps:${id}`] === book.updatedAt) continue;
+
+          void pushGps(profileId, book, uid)
+            .then(() => remember('gps', id, book.updatedAt))
             .catch(() => undefined);
         }
       }, LINEUP_PUSH_MS);

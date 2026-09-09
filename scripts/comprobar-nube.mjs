@@ -6,7 +6,7 @@
  *   1. Si las dos variables están puestas y tienen buena pinta.
  *   2. Si la clave es la pública y no la de servicio (pegar esa por error
  *      abriría la base entera a cualquiera que abra la app).
- *   3. Si las nueve tablas del `schema.sql` existen de verdad.
+ *   3. Si las diez tablas del `schema.sql` existen de verdad.
  *   4. Y si tienen las columnas que se fueron añadiendo después, que es
  *      distinto: una tabla vieja con el esquema a medio lanzar sale verde en
  *      la lista de arriba mientras pierde por el camino todo lo que no cabe,
@@ -155,7 +155,7 @@ if (!carga) {
   ojo(`La clave dice ser de tipo «${carga.role}». Se esperaba «anon».`);
 }
 
-/* --------------------------------------------------- 3. las nueve tablas */
+/* --------------------------------------------------- 3. las diez tablas */
 
 const client = createClient(url, anon, { auth: { persistSession: false } });
 
@@ -167,6 +167,7 @@ const TABLAS = [
   ['lineups', 'los campogramas'],
   ['agendas', 'las agendas semanales'],
   ['finance', 'las cuentas de economía'],
+  ['gps', 'las sesiones del rastreador'],
   ['replicas', 'el «dejar todos igual que este»'],
   ['calendar_links', 'los permisos de Google Calendar'],
 ];
@@ -180,7 +181,7 @@ const ANCHO = 15;
  * número de la respuesta: preguntando sólo por la cuenta, una tabla que
  * existe contesta **200** aunque las políticas no dejen ver ni una fila, y
  * una que no existe contesta **204**. Sin mirar eso, el comprobador daba por
- * buenas hasta las tablas inventadas: nueve verdes y ni una comprobada.
+ * buenas hasta las tablas inventadas: diez verdes y ni una comprobada.
  */
 function noExiste(error, status) {
   if (status === 204 || status === 404) return true;
@@ -294,6 +295,7 @@ const COLUMNAS = [
   ['finance', 'history', 'la serie mensual de las cuentas'],
   ['finance', 'goals', 'las cifras con las que se juzga el objetivo'],
   ['finance', 'pay_months', 'los meses que de verdad se cobra'],
+  ['gps', 'removed', 'las sesiones del GPS que se han borrado'],
 ];
 
 if (conexion) {

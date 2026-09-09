@@ -899,7 +899,15 @@ export interface HouseSettings {
 /* ------------------------------ Navegación ------------------------------ */
 
 export type SummaryRange = 'week' | 'month';
-export type DashboardTab = 'today' | 'plan' | 'challenges' | 'tasks' | 'summary' | 'economia';
+export type DashboardTab =
+  | 'today'
+  | 'plan'
+  | 'challenges'
+  | 'tasks'
+  | 'summary'
+  | 'economia'
+  /** El rastreador de los peques: sólo existe en los paneles de Leo y Hugo. */
+  | 'gps';
 
 /* ------------------------------- Economía ------------------------------- */
 
@@ -1332,4 +1340,64 @@ export interface PlanReview {
   kept: number;
   /** Ratos ya vividos que fallaron: sin registrar, flojos o excedidos. */
   missed: number;
+}
+
+/* ---------------------------------------------------------------------------
+ * El GPS de los entrenamientos
+ *
+ * Leo y Hugo entrenan con un rastreador Footbar, que después de cada sesión
+ * deja unas cifras en su aplicación: lo que han corrido, cuántos esprines,
+ * a qué velocidad, cuántos balones han tocado. La cuenta gratuita no exporta
+ * nada ni tiene API, así que esas cifras entran aquí a mano —de una línea de
+ * texto pegada— y a partir de ahí son de la casa: se guardan, viajan a los
+ * demás aparatos y se comparan entre sí.
+ *
+ * Todas las cifras son opcionales a propósito. Cada versión de la aplicación
+ * enseña unas cuantas y no siempre las mismas, así que se guarda lo que haya
+ * y la pantalla enseña sólo lo que tiene. Inventarse un cero donde no había
+ * dato sería peor que dejarlo en blanco: se colaría en las medias.
+ * ------------------------------------------------------------------------- */
+
+/** Qué era la sesión. Correr en un partido no es lo mismo que en un entreno. */
+export type GpsKind = 'entreno' | 'partido';
+
+/** Las cifras de una sesión, tal y como las da el rastreador. */
+export interface GpsSession {
+  id: string;
+  profileId: ProfileId;
+  date: DateKey;
+  kind: GpsKind;
+  /** Minutos con el rastreador puesto. */
+  minutes?: number;
+  /** Distancia recorrida, en kilómetros. */
+  distance?: number;
+  /** Esprines: los arranques a tope que cuenta el aparato. */
+  sprints?: number;
+  /** Velocidad punta, en km/h. */
+  topSpeed?: number;
+  /** Balones tocados. */
+  touches?: number;
+  /** Tiros. */
+  shots?: number;
+  /** Pases. */
+  passes?: number;
+  /** Distancia a alta intensidad, en metros. */
+  intense?: number;
+  /** La puntuación global que dé la aplicación, si la da. */
+  score?: number;
+  /** Lo que hubiera que recordar de ese día. */
+  note?: string;
+  updatedAt: string;
+}
+
+/** Todas las sesiones de un perfil, con sus borrados anotados. */
+export interface GpsBook {
+  sessions: GpsSession[];
+  /**
+   * Sesiones borradas, por identificador y cuándo. Sin esto, una sesión que
+   * se quita aquí volvería en la siguiente bajada: las sesiones se mezclan
+   * una a una, así que sus borrados también tienen que viajar.
+   */
+  removed: Record<string, string>;
+  updatedAt: string;
 }

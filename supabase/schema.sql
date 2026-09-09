@@ -321,6 +321,39 @@ create policy "economia propia" on public.finance
   using (auth.uid() = owner)
   with check (auth.uid() = owner);
 
+-- ---------------------------------------------------------- GPS (Footbar)
+--  Las sesiones del rastreador que llevan los peques al entrenamiento: lo
+--  corrido, los esprines, la punta de velocidad, los balones tocados.
+--
+--  La cuenta gratuita de Footbar no exporta nada ni tiene API, así que las
+--  cifras se pegan a mano en la app, una línea por sesión. Desde ahí ya son
+--  datos de la casa y viajan como todo lo demás.
+--
+--  Una fila por peque con todas sus sesiones dentro, como la agenda. Con una
+--  diferencia: al bajarla no se adopta entera, se mezcla sesión a sesión —de
+--  ahí `removed`, que es lo que hace que una sesión borrada no vuelva—. Sin
+--  eso, pegar el entreno del martes en el portátil y el del jueves en el
+--  móvil habría dejado sólo uno de los dos.
+
+create table if not exists public.gps (
+  id          text primary key,          -- `${owner}:${profileId}`
+  owner       uuid not null references auth.users (id) on delete cascade,
+  profile_id  text not null,
+  sessions    jsonb not null default '[]'::jsonb,  -- las sesiones, una a una
+  removed     jsonb not null default '{}'::jsonb,  -- las borradas, con su fecha
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists gps_owner_idx on public.gps (owner, profile_id);
+
+alter table public.gps enable row level security;
+
+drop policy if exists "gps propio" on public.gps;
+create policy "gps propio" on public.gps
+  for all to authenticated
+  using (auth.uid() = owner)
+  with check (auth.uid() = owner);
+
 -- ------------------------------------------------------------- réplicas
 --  Una sola fila por cuenta que dice «lo que hay aquí arriba es la copia
 --  exacta de tal aparato, declarada tal día». No lleva datos: es el aviso
@@ -379,7 +412,7 @@ begin
 
   foreach t in array array[
     'entries', 'tasks', 'appearance', 'settings', 'lineups', 'agendas', 'replicas',
-    'finance'
+    'finance', 'gps'
   ] loop
     if not exists (
       select 1 from pg_publication_tables
