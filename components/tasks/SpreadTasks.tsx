@@ -122,7 +122,12 @@ export function SpreadTasks({ tasks, all, linked, onClose, onConfirm }: SpreadTa
     { id: 'finde', label: 'Fines de semana', days: () => weekdayRun(base, [5, 6], weeks) },
   ];
 
-  const repeating = tasks.some((task) => task.repeat !== 'none');
+  /**
+   * La primera que se repita, que no tiene por qué ser la primera de la lista:
+   * copiando un día entero, mirar sólo `tasks[0]` acababa diciendo «se repite
+   * (no se repite)» cuando la que se repetía era otra.
+   */
+  const repeating = tasks.find((task) => task.repeat !== 'none');
 
   return (
     <Modal title="⧉ Copiar a varios días" onClose={onClose} size="lg">
@@ -147,8 +152,9 @@ export function SpreadTasks({ tasks, all, linked, onClose, onConfirm }: SpreadTa
 
           {repeating && (
             <p className="mt-1.5 text-[11px] leading-relaxed t-3">
-              🔁 La original se repite ({REPEAT_LABELS[tasks[0].repeat].toLowerCase()}); las copias
-              no. Cada día marcado es un recado suyo, que se tacha por su cuenta.
+              🔁 {single ? 'La original se repite' : `«${repeating.title}» se repite`} (
+              {REPEAT_LABELS[repeating.repeat].toLowerCase()}); las copias no. Cada día marcado es
+              un recado suyo, que se tacha por su cuenta.
             </p>
           )}
         </section>

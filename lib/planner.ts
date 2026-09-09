@@ -2810,11 +2810,13 @@ export function mirrorBlocks(profileId: ProfileId): PlanBlock[] {
       }
 
       merged.set(key, {
-        ...block,
+        // `withLinks` con la lista vacía los suelta **todos**: el principal y
+        // los añadidos. Quitar sólo `metricId` dejaba pasar los de `extra` —la
+        // lectura de antes de dormir arrastra «sin pantallas», que el adulto sí
+        // tiene en su registro—, y entonces el plan de hoy de María o de Víctor
+        // daba por incumplido un hábito suyo por un rato que era de un peque.
+        ...withLinks(block, []),
         id: `reflejo:${profile.id}:${block.id}`,
-        metricId: undefined,
-        amount: undefined,
-        amountLock: undefined,
         mirror: {
           kids: [kid],
           name: kid.name,

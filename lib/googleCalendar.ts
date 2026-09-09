@@ -332,18 +332,37 @@ const RRULE: Record<string, string | undefined> = {
   monthly: 'RRULE:FREQ=MONTHLY',
 };
 
-/** Suma minutos a un `HH:MM` y devuelve el `HH:MM` resultante del mismo día. */
-function addMinutes(time: string, minutes: number): string {
-  const [hours, mins] = time.split(':').map(Number);
-  const total = Math.min(hours * 60 + mins + minutes, 23 * 60 + 59);
-  return `${`${Math.floor(total / 60)}`.padStart(2, '0')}:${`${total % 60}`.padStart(2, '0')}`;
+/** El día `count` días después, en `YYYY-MM-DD`. */
+function plusDays(day: string, count: number): string {
+  if (count === 0) return day;
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + count);
+  return date.toISOString().slice(0, 10);
 }
 
-/** El día siguiente, en `YYYY-MM-DD`; Google cierra los eventos de día entero así. */
+/** El día siguiente; Google cierra los eventos de día entero así. */
 function dayAfter(day: string): string {
-  const date = new Date(`${day}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date.toISOString().slice(0, 10);
+  return plusDays(day, 1);
+}
+
+/**
+ * Cuándo acaba: el día y la hora que salen de sumarle la duración al
+ * comienzo, cruzando la medianoche si hace falta.
+ *
+ * Antes se recortaba en las 23:59 del mismo día, y eso mentía dos veces: una
+ * cena a las diez que dura tres horas aparecía en el calendario durando una
+ * hora y cincuenta y nueve minutos, y algo apuntado a las 23:59 salía con el
+ * final igual que el principio —un rango vacío que Google rechaza sin más—.
+ */
+function endsAt(day: string, time: string, minutes: number): { day: string; time: string } {
+  const [hours, mins] = time.split(':').map(Number);
+  const total = hours * 60 + mins + Math.max(1, minutes);
+  const rest = ((total % 1440) + 1440) % 1440;
+
+  return {
+    day: plusDays(day, Math.floor(total / 1440)),
+    time: `${`${Math.floor(rest / 60)}`.padStart(2, '0')}:${`${rest % 60}`.padStart(2, '0')}`,
+  };
 }
 
 interface EventTime {
@@ -385,14 +404,12 @@ export function taskToEvent(task: Task, who: string, timeZone: string): EventBod
   // Google fusiona lo que le llega con lo que ya tenía: sin ese `null`, una
   // cita que pasa a durar todo el día conservaría su hora anterior, y una
   // tarea que deja de repetirse seguiría repitiéndose.
-  const timing: Pick<EventBody, 'start' | 'end'> = task.time
+  const end = task.time ? endsAt(day, task.time, task.duration ?? 60) : null;
+
+  const timing: Pick<EventBody, 'start' | 'end'> = end
     ? {
         start: { date: null, dateTime: `${day}T${task.time}:00`, timeZone },
-        end: {
-          date: null,
-          dateTime: `${day}T${addMinutes(task.time, task.duration ?? 60)}:00`,
-          timeZone,
-        },
+        end: { date: null, dateTime: `${end.day}T${end.time}:00`, timeZone },
       }
     : { start: { date: day, dateTime: null }, end: { date: dayAfter(day), dateTime: null } };
 
