@@ -1,5 +1,6 @@
 'use client';
 
+import { headingFont } from '@/lib/profiles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarAccount } from '@/components/tasks/CalendarAccount';
 import { MonthGrid } from '@/components/tasks/MonthGrid';
@@ -379,7 +380,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
     />
   );
 
-  const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
+  const heading = headingFont(skin);
 
   return (
     <div className="space-y-4">

@@ -2,12 +2,14 @@
 
 import { useId, useMemo, useState } from 'react';
 import { MetricControl } from '@/components/controls/MetricControl';
+import { PlanHint } from '@/components/controls/PlanHint';
 import type { ControlVariant } from '@/components/controls/types';
 import { PriorityChip } from '@/components/experts/CriteriaSheet';
 import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
+import type { PlannedMetric } from '@/lib/planToday';
 import { computeCategoryScore, percent } from '@/lib/scoring';
 import type {
   HabitCategory,
@@ -37,6 +39,11 @@ interface CategoryCardProps {
    * historial. La tarjeta sólo los pinta: quien sabe de días es quien la usa.
    */
   hints?: Record<string, MetricHint>;
+  /**
+   * Lo que la semana tipo apartaba hoy, por hábito. Es lo que convierte una
+   * casilla vacía en una casilla que sabe lo que se esperaba de ella.
+   */
+  planned?: Record<string, PlannedMetric>;
 }
 
 export function CategoryCard({
@@ -50,11 +57,15 @@ export function CategoryCard({
   note = '',
   onNoteChange,
   hints,
+  planned,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showWhy, setShowWhy] = useState(false);
   const score = computeCategoryScore(category, values);
   const kid = variant === 'kid';
+  /** El campo y el cuento: las dos secciones que hablan su propio idioma. */
+  const pitch = skin === 'pitch';
+  const royal = skin === 'royal';
   const panelId = useId();
   const whyId = useId();
 
@@ -77,8 +88,24 @@ export function CategoryCard({
   const pending = score.total - score.filled;
   const complete = score.total > 0 && pending === 0;
 
+  /**
+   * De lo que la semana apartaba hoy para esta categoría, cuánto está ya
+   * registrado. Es la cifra que ata la tarjeta a la agenda de un vistazo, sin
+   * tener que abrirla ni ir a la pestaña de la semana.
+   */
+  const fromWeek = useMemo(() => {
+    if (!planned) return null;
+    const ids = category.metrics.filter((metric) => planned[metric.id]).map((m) => m.id);
+    if (ids.length === 0) return null;
+    return { total: ids.length, done: ids.filter((id) => values[id] !== undefined).length };
+  }, [category.metrics, planned, values]);
+
   return (
-    <section className={kid ? 'card-kid overflow-hidden' : 'card overflow-hidden'}>
+    <section className={`relative ${kid ? 'card-kid overflow-hidden' : 'card overflow-hidden'}`}>
+      {/* El hilo de oro rosa que cose la sección de María: aquí también, que
+          es donde pasa la mitad del tiempo. */}
+      {royal && <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[2px]" />}
+
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -97,7 +124,13 @@ export function CategoryCard({
         <span className="min-w-0 flex-1">
           <span
             className={`block truncate font-bold t-1 ${
-              kid ? 'font-display text-lg uppercase tracking-wide' : 'text-base'
+              pitch
+                ? 'font-display text-lg uppercase tracking-wide'
+                : royal
+                  ? 'royal-title text-lg'
+                  : kid
+                    ? 'font-display text-lg uppercase tracking-wide'
+                    : 'text-base'
             }`}
           >
             {category.label}
@@ -107,7 +140,11 @@ export function CategoryCard({
             {open
               ? category.description
               : complete
-                ? '✓ Completa'
+                ? pitch
+                  ? '⚽ Jugada entera'
+                  : royal
+                    ? '👑 Completa'
+                    : '✓ Completa'
                 : pending === 1
                     ? 'Queda 1 por registrar'
                     : `Quedan ${pending} por registrar`}
@@ -115,6 +152,18 @@ export function CategoryCard({
         </span>
 
         <span className="flex shrink-0 items-center gap-3">
+          {/* Lo que la semana apartaba aquí para hoy. Se dice en la propia
+              cabecera porque es lo que decide si esta tarjeta urge o no. */}
+          {fromWeek && (
+            <span
+              className={`hidden rounded-full px-2 py-0.5 text-[10px] font-semibold sm:inline-flex
+                ${fromWeek.done === fromWeek.total ? 'bg-accent-soft t-1' : 'surf-2 t-2'}`}
+              title={`La semana apartaba ${fromWeek.total} de estos hábitos para hoy`}
+            >
+              🗓️ {fromWeek.done}/{fromWeek.total}
+            </span>
+          )}
+
           {/* Plegada, la tarjeta tiene que delatar que ahí dentro hay algo escrito. */}
           {note.trim() && (
             <span className="text-sm" title="Tiene una nota" aria-label="Tiene una nota">
@@ -158,16 +207,26 @@ export function CategoryCard({
                 variant={variant}
                 skin={skin}
                 hints={hints}
+                planned={planned}
               />
             ) : (
               category.metrics.map((metric) => (
-                <MetricControl
-                  key={metric.id}
-                  metric={metric}
-                  value={values[metric.id]}
-                  onChange={(value) => onChange(metric.id, value)}
-                  variant={variant}
-                />
+                <div key={metric.id}>
+                  <MetricControl
+                    metric={metric}
+                    value={values[metric.id]}
+                    onChange={(value) => onChange(metric.id, value)}
+                    variant={variant}
+                  />
+                  {/* Y debajo, lo que la semana decía de esta casilla. */}
+                  <PlanHint
+                    metric={metric}
+                    planned={planned?.[metric.id]}
+                    value={values[metric.id]}
+                    onFill={(value) => onChange(metric.id, value)}
+                    kid={kid}
+                  />
+                </div>
               ))
             )}
           </div>

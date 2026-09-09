@@ -1,5 +1,6 @@
 'use client';
 
+import { headingFont } from '@/lib/profiles';
 import { useMemo } from 'react';
 
 import { challengeLink } from '@/lib/planLink';
@@ -43,7 +44,7 @@ export function PlanChallengesCard({
   onReserve,
   onShow,
 }: PlanChallengesCardProps) {
-  const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
+  const heading = headingFont(skin);
 
   const links = useMemo(
     () =>

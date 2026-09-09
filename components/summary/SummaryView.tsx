@@ -1,5 +1,6 @@
 'use client';
 
+import { kickerFont } from '@/lib/profiles';
 import { useMemo, useState } from 'react';
 import { AchievementsPanel } from '@/components/summary/AchievementsPanel';
 import { MonthHeatmap } from '@/components/summary/MonthHeatmap';
@@ -63,10 +64,9 @@ export function SummaryView({
   const [range, setRange] = useState<SummaryRange>('week');
   const kid = profile.kind === 'kid';
   const today = todayKey();
-  // En la piel de fútbol los rótulos van con la tipografía de marcador.
-  const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
-    skin === 'pitch' ? ' font-display tracking-[0.14em]' : ''
-  }`;
+  // Cada piel rotula lo suyo: marcador de estadio en el campo, serif de
+  // cuento en el de María.
+  const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${kickerFont(skin)}`;
 
   const dates = useMemo(
     () => (range === 'week' ? weekKeys(date) : monthKeys(date)),

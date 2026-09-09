@@ -247,8 +247,11 @@ export const COMPANION_LIST = Object.keys(COMPANIONS) as Companion[];
  * perfil—: sólo el rótulo, el adorno y lo que se dice.
  * ------------------------------------------------------------------------- */
 
-/** Adorno de la cabecera: campo de fútbol, filete dorado, acero, calidez. */
-export type PlanOrnament = 'pitch' | 'gold' | 'steel' | 'warm' | 'rose';
+/**
+ * Adorno de la cabecera: campo de fútbol, corona de cuento, filete dorado,
+ * acero, calidez.
+ */
+export type PlanOrnament = 'pitch' | 'crown' | 'gold' | 'steel' | 'warm' | 'rose';
 
 export interface PlannerTheme {
   title: string;
@@ -307,16 +310,19 @@ export const PLANNER_THEMES: Record<ProfileId, PlannerTheme> = {
   },
   maria: {
     title: 'Mi semana',
-    icon: '🕊️',
-    kicker: 'Aula, cuidado y tiempo propio, cada cosa en su hueco',
+    icon: '🏰',
+    kicker: 'Aula, cuidado y tiempo propio: cada cosa en su hueco del reino',
     blockWord: 'momento',
     blockWords: 'momentos',
-    ornament: 'gold',
+    ornament: 'crown',
     quotes: [
       'Lo que se reserva en la agenda, se vive.',
       'Un hueco para ti también sostiene la casa.',
       'Clases, pausas y lectura: en ese orden se cuida la voz.',
       'La semana no se improvisa: se compone.',
+      'Toda buena historia empieza por ordenar el día.',
+      'La valentía de una semana está en apartarse un rato propio.',
+      'Los cuentos no los salva la prisa: los salva la constancia.',
     ],
   },
   victor: {

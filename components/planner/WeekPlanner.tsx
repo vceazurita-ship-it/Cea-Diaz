@@ -74,7 +74,7 @@ import {
   updatePlan,
   withClockAmount,
 } from '@/lib/planner';
-import type { WeekSource } from '@/lib/planner';
+import type { PlanOrnament, WeekSource } from '@/lib/planner';
 import {
   previewReplica,
   replicaMode,
@@ -86,7 +86,7 @@ import {
   twinOf,
 } from '@/lib/planTwin';
 import type { PlanChange, ReplicaMode, ReplicaPreview, ReplicaResult } from '@/lib/planTwin';
-import { PROFILES } from '@/lib/profiles';
+import { PROFILES, headingFont } from '@/lib/profiles';
 import type {
   DateKey,
   PlanBlock,
@@ -296,7 +296,7 @@ export function WeekPlanner({
   }, [range, soloDay, today]);
   /** Los dos paneles de campo hablan de partidos: goles, palos y actas. */
   const pitch = skin === 'pitch';
-  const heading = pitch ? 'font-display uppercase tracking-wide' : '';
+  const heading = headingFont(skin);
 
   /**
    * Qué ganaría la agenda guardada con las casillas de hoy. Lo lee del
@@ -1606,7 +1606,7 @@ interface HeaderProps {
   title: string;
   icon: string;
   kicker: string;
-  ornament: 'pitch' | 'gold' | 'steel' | 'warm' | 'rose';
+  ornament: PlanOrnament;
   quote: string;
   /**
    * El resultado de la semana: lo cumplido contra lo fallado. En los paneles
@@ -1661,6 +1661,24 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
         />
       )}
 
+      {/* El de María: hilo de oro rosa, destellos al fondo y una corona en la
+          esquina. La semana como el mapa de su reino. */}
+      {ornament === 'crown' && (
+        <>
+          <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[3px]" />
+          <span
+            aria-hidden
+            className="stardust pointer-events-none absolute inset-0 opacity-[0.16]"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-3 -top-2 select-none text-6xl opacity-[0.09]"
+          >
+            👑
+          </span>
+        </>
+      )}
+
       {ornament === 'steel' && (
         <span aria-hidden className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-accent" />
       )}
@@ -1695,7 +1713,13 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
 
           <h2
             className={`mt-0.5 text-xl font-bold t-1 sm:text-2xl
-              ${pitch ? 'font-display uppercase tracking-wide' : 'font-display'}`}
+              ${
+                pitch
+                  ? 'font-display uppercase tracking-wide'
+                  : ornament === 'crown'
+                    ? 'royal-title'
+                    : 'font-display'
+              }`}
           >
             <span aria-hidden>{icon}</span> {title}
           </h2>

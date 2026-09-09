@@ -139,7 +139,7 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
 /* -------------------------------------------------------------- editorial */
 
 /**
- * Cabecera de María y Víctor: composición de revista sobre papel claro.
+ * Cabecera de Víctor: composición de revista sobre papel claro.
  * Nombre en serif, filete fino, retrato a la derecha y una fila de datos
  * separada por hairlines en lugar de tarjetas.
  */
@@ -206,6 +206,113 @@ function EditorialHeader({ profile, date, dayScore, streak, filled }: ProfileHea
             <p className="mt-1 text-2xl font-semibold leading-none tabular-nums t-1">{stat.value}</p>
           </div>
         ))}
+      </div>
+    </header>
+  );
+}
+
+/* ------------------------------------------------------------------ royal */
+
+/** Cómo va el día de María, dicho como se cuenta un cuento. */
+function spell(ratio: number, empty: boolean): string {
+  if (empty) return 'El cuento de hoy está sin escribir';
+  if (ratio >= 0.95) return 'Día de corona: has cuidado de todo y de ti';
+  if (ratio >= 0.8) return 'Casi un día perfecto';
+  if (ratio >= 0.6) return 'Buen día, y aún queda cuento por delante';
+  if (ratio >= 0.3) return 'El día está a medias: elige lo siguiente';
+  return 'Empieza por lo pequeño y lo demás vendrá';
+}
+
+/**
+ * Cabecera de María: el mismo aire de revista, vestido de cuento.
+ *
+ * Es lo que pidió: su sección entera con estética de princesas. Aquí eso son
+ * tres cosas y ninguna es un dibujo pegado encima —los dibujos envejecen mal
+ * y se ven fuera de sitio en una app que también usa para trabajar—: el polvo
+ * de destellos del fondo, el filete de oro rosa que cose la sección, y el
+ * retrato en un arco de ventana de castillo. Los colores siguen saliendo de
+ * su tinte, así que sigue siendo su panel y no el de otra.
+ */
+function RoyalHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
+  const stats = [
+    { label: 'Del día', value: dayScore.empty ? '—' : percent(dayScore.ratio) },
+    { label: 'Registros', value: `${filled}` },
+    { label: 'Racha', value: `${streak} ${streak === 1 ? 'día' : 'días'}` },
+  ];
+
+  return (
+    <header className="card relative mb-5 overflow-hidden p-6 sm:p-8">
+      {/* Polvo de destellos, muy tenue: se nota sin llamar la atención. */}
+      <span aria-hidden className="stardust pointer-events-none absolute inset-0 opacity-[0.18]" />
+      {/* Y el hilo de oro rosa, arriba del todo. */}
+      <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[3px]" />
+
+      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] t-3">
+            <span aria-hidden>✨</span> Érase una vez · {capitalize(formatLong(date))}
+          </p>
+
+          <h1 className="royal-title mt-2 text-5xl leading-[0.95] t-1 sm:text-6xl">
+            <span aria-hidden className="mr-2 align-middle text-3xl sm:text-4xl">
+              👑
+            </span>
+            {profile.name}
+          </h1>
+
+          <span aria-hidden className="gilt mt-4 block h-[3px] w-20 rounded-full" />
+
+          <p className="mt-4 text-sm font-medium t-2">{profile.role}</p>
+          <p className="mt-1 text-sm t-3">{profile.tagline}</p>
+          <p className="mt-3 text-sm font-semibold t-accent">
+            {spell(dayScore.ratio, dayScore.empty)}
+          </p>
+        </div>
+
+        {/* Retrato en arco: la ventana de la torre, con su marco dorado. */}
+        <div className="relative shrink-0 self-start">
+          <span
+            aria-hidden
+            className="absolute -bottom-2 -right-2 h-full w-full rounded-b-2xl rounded-t-full border-2"
+            style={{ borderColor: '#e8b4b8' }}
+          />
+          <div className="relative h-36 w-32 overflow-hidden rounded-b-2xl rounded-t-full sm:h-44 sm:w-40">
+            {profile.hero ? (
+              <Photo
+                src={profile.hero}
+                alt={`Retrato de ${profile.name}`}
+                fill
+                sizes="(min-width: 640px) 160px, 128px"
+                className="object-cover"
+                priority
+              />
+            ) : (
+              <Avatar profile={profile} size={160} shape="squircle" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Fila de datos */}
+      <div className="relative mt-7 flex flex-wrap items-center gap-x-8 gap-y-5 border-t pt-5 hairline">
+        <ProgressRing ratio={dayScore.ratio} size={72} stroke={5}>
+          <span className="text-lg font-semibold tabular-nums t-1" aria-live="polite">
+            {Math.round(dayScore.ratio * 100)}
+            <span className="text-[10px]">%</span>
+          </span>
+        </ProgressRing>
+
+        {stats.map((stat) => (
+          <div key={stat.label} className="min-w-[92px]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] t-3">{stat.label}</p>
+            <p className="royal-title mt-1 text-2xl leading-none tabular-nums t-1">{stat.value}</p>
+          </div>
+        ))}
+
+        {/* Las estrellas del día, que aquí son el broche del vestido. */}
+        <div className="ml-auto">
+          <Stars value={dayScore.stars} size="md" animate />
+        </div>
       </div>
     </header>
   );
@@ -287,6 +394,8 @@ export function ProfileHeader(props: ProfileHeaderProps) {
       return <PitchHeader {...props} />;
     case 'editorial':
       return <EditorialHeader {...props} />;
+    case 'royal':
+      return <RoyalHeader {...props} />;
     default:
       return <GroupHeader {...props} />;
   }

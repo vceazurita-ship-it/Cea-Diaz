@@ -72,7 +72,7 @@ components/
   TopBar.tsx           Conmutador de perfiles siempre visible, con retratos
   Dashboard.tsx        Cabecera del perfil + pestañas Registro / Semana / Retos / Tareas / Resúmenes (+ Economía en Víctor)
   profile/
-    ProfileHeader.tsx  Las tres cabeceras de perfil (fútbol, editorial, grupo)
+    ProfileHeader.tsx  Las cuatro cabeceras de perfil (campo, cuento, editorial, grupo)
   cloud/
     SignIn.tsx         Entrada con la cuenta de casa
   finance/
@@ -1330,9 +1330,32 @@ cinco, ¿quién los lleva?
 ### En la pantalla de registro
 
 Debajo de la cabecera del día aparece **lo que la semana tenía previsto para hoy**, ya
-contrastado con lo apuntado. Marcar la casilla deja de ser un trámite: se ve al lado lo
-que se había apartado y si se ha cumplido, se ha quedado corto o se ha pasado. Si la
-agenda está sin estrenar, no se pinta nada.
+contrastado con lo apuntado. Si la agenda está sin estrenar, no se pinta nada.
+
+Pero la costura de verdad está más abajo, en las propias casillas. Cada una sabe lo que
+la semana esperaba de ella:
+
+- **Debajo de cada hábito**, una línea dice qué aparta hoy la agenda y a qué hora
+  —«la semana aparta 20 min · 21:00 – 21:20»—, con un botón que lo registra de un toque.
+  Lo que **ya tocaba** y sigue en blanco se resalta; lo que aún no ha llegado se dice en
+  gris, porque a las ocho de la mañana la cena está prevista, no incumplida. Y en cuanto
+  hay algo apuntado, la línea deja de ofrecer nada y se limita a decir si cubre lo
+  previsto.
+- **En la cabecera de cada categoría**, un `🗓️ 2/3`: de los hábitos que la semana
+  apartaba ahí para hoy, cuántos están ya registrados.
+- **En la barra del día**, un botón `🗓️ Según la semana (N)` que rellena de una vez todo
+  lo previsto que sigue vacío, con su deshacer.
+
+Nada se registra solo, y es a propósito: un plan no es un hecho, y dar por bebidos seis
+vasos porque estaban apartados ensuciaría el historial con el que después se decide qué
+cambiar. Lo que se quita es el trabajo de copiar a mano lo que la app ya sabía. Por lo
+mismo quedan fuera del relleno automático las escalas y las elecciones —cómo fue el
+entreno no lo sabe la agenda— y los techos: tener dos horas de pantallas previstas no es
+motivo para apuntar que se han visto.
+
+En las tarjetas de deporte la pista es aún más directa: si hoy había entreno o partido,
+la propia tarjeta lo dice antes de tocarla. Todo sale de `lib/planToday.ts`, que cruza la
+semana tipo con el día que se está mirando.
 
 ### Cada casa, la suya
 
@@ -1340,8 +1363,8 @@ La mecánica es la misma para los seis; lo que cambia es el rótulo y el adorno.
 
 | Perfil | Se llama | Adorno |
 | ------ | -------- | ------ |
-| **Leo y Hugo** | Alineación de la semana | Césped y línea de cal, banda blanca y dorada del Madrid, dorsal en el aro de oro y una frase de Oliver y Benji distinta cada día |
-| **María** | Mi semana | Filete dorado, serif de revista y frase en cursiva |
+| **Leo y Hugo** | Alineación de la semana | Césped y línea de cal, banda blanca y dorada del Madrid, red de portería, dorsal en el aro de oro, marcador con el resultado de la semana y una frase de Oliver y Benji distinta cada día |
+| **María** | Mi semana | Hilo de oro rosa, polvo de destellos, corona al fondo y serif de cuento |
 | **Víctor** | Plan semanal | Regla de acero, versalitas espaciadas, cifras tabulares |
 | **Familia** | Semana en familia | Halo cálido del tinte naranja |
 | **Pareja** | Nuestra semana | Halo rosado, tono íntimo |
@@ -1564,9 +1587,20 @@ La piel ya no decide colores: sólo cómo se compone la página.
 
 | Piel | Perfiles | Registro visual |
 | ---- | -------- | --------------- |
-| `pitch` | Leo · Hugo | Franjas de siega, líneas de cal, tipografía de dorsal, marcador de estadio, cromo y foto de acción a sangre. El fútbol ocupa fila completa en el desglose deportivo. |
-| `editorial` | María · Víctor | Serif de titular, filetes finos, mucho aire y retrato enmarcado. |
+| `pitch` | Leo · Hugo | Franjas de siega, líneas de cal, tipografía de dorsal, marcador de estadio, red de portería, cromo y foto de acción a sangre. El fútbol ocupa fila completa en el desglose deportivo, y las marcas se cuentan como un partido: gol, al palo, fuera, sin acta. |
+| `royal` | María | Cuento de princesas: polvo de destellos, filete de oro rosa, retrato en arco de ventana, siluetas de torres al fondo y serif rotulada despacio. Sus secciones se llaman Mi día, Mi semana, Deseos, Recados y Mi historia. |
+| `editorial` | Víctor | Serif de titular, filetes finos, mucho aire y retrato enmarcado. |
 | `night` | Familia · Pareja · selector | Composición neutra con foto lateral en la cabecera. |
+
+Las tres decoraciones son **CSS y emoji**, nunca imágenes: un castillo dibujado
+con siete rectángulos y sus tejados pesa cero, se tiñe con el color del perfil y
+no envejece como envejecería un PNG de hace dos años.
+
+Y ninguna piel se queda en la cabecera. `headingFont()` y `kickerFont()`, en
+`lib/profiles.ts`, deciden cómo se rotula un titular en cada una, y de ahí beben
+la agenda, los retos, los recados y los resúmenes: si el título de los retos se
+rotulara distinto que el de los resúmenes, la piel dejaría de ser una piel y
+pasaría a ser un adorno suelto.
 
 Los componentes **nunca** usan colores literales: emplean `t-1`/`t-2`/`t-3` (texto),
 `surf-1`/`surf-2`/`surf-3` (superficies), `hairline` (bordes) y `track` (carriles).

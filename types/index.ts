@@ -17,9 +17,12 @@ export type ProfileKind = 'kid' | 'adult' | 'group';
  * (fondo, superficies, texto) en `app/globals.css`.
  *  - `night`     selector y módulos compartidos: oscuro, neutro.
  *  - `pitch`     Leo y Hugo: verde césped, marcador de estadio, tipografía de dorsal.
- *  - `editorial` María y Víctor: claro premium, serif, mucho aire.
+ *  - `editorial` Víctor: claro premium, serif, mucho aire.
+ *  - `royal`     María: cuento de princesas. Corona, destellos y oro rosa
+ *                sobre la misma maquetación de revista. Es su sección entera
+ *                —el día, la semana, los retos—, no un adorno de la cabecera.
  */
-export type ProfileSkin = 'night' | 'pitch' | 'editorial';
+export type ProfileSkin = 'night' | 'pitch' | 'editorial' | 'royal';
 
 /**
  * Modo de la app, elegido en Ajustes y válido para todos los perfiles.

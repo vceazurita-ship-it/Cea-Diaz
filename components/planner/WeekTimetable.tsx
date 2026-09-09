@@ -133,6 +133,16 @@ const LOOKS: Record<PlanOrnament, Look> = {
     rail: 'linear-gradient(90deg, transparent, #d4af37 30%, #f4e2a1 50%, #d4af37 70%, transparent)',
     head: 'font-display tracking-wide',
   },
+  /* El de María: el mismo oro, en rosa, y las columnas rotuladas despacio. */
+  crown: {
+    fill: 'wash',
+    column: 'rounded-[1.25rem] border',
+    chip: 'rounded-2xl border shadow-sm',
+    title: 'royal-title',
+    turf: false,
+    rail: 'linear-gradient(90deg, transparent, #e8b4b8 20%, #f4e2a1 50%, #e8b4b8 80%, transparent)',
+    head: 'royal-title tracking-wide',
+  },
   steel: {
     fill: 'wash',
     column: 'rounded-lg border',

@@ -16,6 +16,7 @@ import { SummaryView } from '@/components/summary/SummaryView';
 import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
+import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, markHints } from '@/lib/challenges';
 import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys, weekdayIndex } from '@/lib/dates';
 import {
@@ -30,10 +31,14 @@ import {
 import { getCategories } from '@/lib/habits';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
+import { clockNow, planFills, plannedToday, planProgress } from '@/lib/planToday';
 import { skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import { dueCount } from '@/lib/tasks';
-import type { DashboardTab, DateKey, Metric, PlanBlock, Profile } from '@/types';
+import type { DashboardTab, DateKey, Metric, MetricValue, PlanBlock, Profile } from '@/types';
+
+/** Un día sin registrar. Siempre el mismo, para no recalcular por su culpa. */
+const EMPTY_VALUES: Record<string, MetricValue> = {};
 
 interface DashboardProps {
   profile: Profile;
@@ -90,7 +95,9 @@ export function Dashboard({
 
   const categories = getCategories(profile.id);
   const entry = store.getEntry(profile.id, date);
-  const values = entry?.values ?? {};
+  /* El objeto vacío se memoriza: si no, un día sin registrar devuelve uno
+     nuevo en cada pintada y todo lo que dependa de él se recalcula entero. */
+  const values = useMemo(() => entry?.values ?? EMPTY_VALUES, [entry]);
 
   const dayScore = useMemo(
     () => computeDayScore(profile.id, date, entry),
@@ -128,6 +135,37 @@ export function Dashboard({
   const filled = dayScore.categories.reduce((sum, category) => sum + category.filled, 0);
   const total = dayScore.categories.reduce((sum, category) => sum + category.total, 0);
   const pending = total - filled;
+
+  /* ---------------------------------------------- el registro y la semana
+   *
+   * Las dos mitades de la app se miraban de lejos: la agenda sabía que hoy
+   * hay veinte minutos de lectura a las nueve, y la casilla de lectura, tres
+   * dedos más abajo, no sabía nada de aquello. Aquí se cruzan, y con eso cada
+   * casilla puede decir lo que se esperaba de ella y rellenarse de un toque.
+   */
+  const plan = useWeekPlan(profile.id);
+
+  /**
+   * La hora, para poder distinguir lo que ya tocaba de lo que aún no. Se
+   * arranca en nulo y se corrige tras montar —en el servidor no hay reloj— y
+   * se repasa cada minuto, que es a lo que se mueve una agenda.
+   */
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(clockNow());
+    tick();
+    const timer = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const planned = useMemo(() => plannedToday(plan, date, now), [plan, date, now]);
+  const planDone = useMemo(() => planProgress(planned, values), [planned, values]);
+
+  /** Lo que la semana apartaba hoy y sigue en blanco, listo para ponerlo. */
+  const fills = useMemo(
+    () => planFills(profile.id, planned, values),
+    [profile.id, planned, values],
+  );
 
   /** Cumplimiento por categoría, para saber cuáles quedan a medias. */
   const scoreById = useMemo(
@@ -179,6 +217,34 @@ export function Dashboard({
   }, [tab, date, onDateChange]);
 
   /* ------------------------------------------------------- acciones */
+
+  /**
+   * Registrar de una vez lo que la semana daba por previsto y sigue vacío.
+   *
+   * No se hace solo, y por eso hay un botón: un plan no es un hecho, y dar
+   * por bebidos seis vasos porque estaban apartados ensuciaría el historial
+   * con el que después se decide. Lo que quita es el trabajo de copiar a mano
+   * lo que la propia app ya sabía, que es distinto.
+   *
+   * Fuera quedan las escalas y las elecciones —cómo fue el entreno no lo sabe
+   * la agenda— y los techos: tener dos horas de pantallas previstas no es
+   * motivo para apuntar que se han visto.
+   */
+  const fillFromWeek = () => {
+    if (fills.length === 0) return;
+    const before = store.snapshot();
+
+    for (const fill of fills) store.setValue(profile.id, date, fill.metricId, fill.value);
+
+    notify({
+      message:
+        fills.length === 1
+          ? `«${fills[0].label}», registrado según la semana. Corrígelo si no fue así.`
+          : `${fills.length} casillas puestas según la semana. Corrige las que no fueran así.`,
+      icon: '🗓️',
+      action: { label: 'Deshacer', onClick: () => store.restore(before) },
+    });
+  };
 
   const copyYesterday = () => {
     const from = addDays(date, -1);
@@ -237,7 +303,17 @@ export function Dashboard({
           { id: 'tasks', label: 'Recados', icon: '📋' },
           { id: 'summary', label: 'Estadísticas', icon: '📊' },
         ]
-      : [
+      : // El panel de María se lee como un cuento, y sus secciones también:
+        // el día es su jornada, la semana su reino, los retos sus deseos.
+        skin === 'royal'
+        ? [
+            { id: 'today', label: 'Mi día', icon: '👑' },
+            { id: 'plan', label: 'Mi semana', icon: '🏰' },
+            { id: 'challenges', label: 'Deseos', icon: '🌟' },
+            { id: 'tasks', label: 'Recados', icon: '📜' },
+            { id: 'summary', label: 'Mi historia', icon: '📖' },
+          ]
+        : [
           { id: 'today', label: 'Registro', icon: '📝' },
           { id: 'plan', label: 'Semana', icon: '🗓️' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
@@ -292,7 +368,8 @@ export function Dashboard({
               className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-1.5
                 py-2.5 text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
                 ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}
-                ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}`}
+                ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}
+                ${skin === 'royal' ? 'royal-title' : ''}`}
             >
               <span aria-hidden>{option.icon}</span>
               <span className="truncate">{option.label}</span>
@@ -331,6 +408,20 @@ export function Dashboard({
               📋 Copiar del día anterior
             </button>
 
+            {/* Lo que la semana daba por previsto, puesto de una vez. Sólo
+                aparece cuando hay algo que poner: un botón que no hace nada
+                es peor que no tenerlo. */}
+            {fills.length > 0 && (
+              <button
+                type="button"
+                onClick={fillFromWeek}
+                className="btn border bg-accent-soft border-accent px-3 py-1.5 text-xs font-semibold t-1"
+                title={fills.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+              >
+                🗓️ Según la semana ({fills.length})
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setOnlyPending((v) => !v)}
@@ -368,6 +459,11 @@ export function Dashboard({
             )}
 
             <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
+              {planDone.total > 0 && (
+                <span className="mr-2" title="De lo que la semana apartaba para hoy">
+                  🗓️ {planDone.done}/{planDone.total} ·
+                </span>
+              )}
               {pending > 0
                 ? `${filled}/${total} · ${pending === 1 ? 'queda 1' : `quedan ${pending}`}`
                 : `${total}/${total} · día completo 🎉`}
@@ -393,9 +489,15 @@ export function Dashboard({
           {visibleCategories.length === 0 ? (
             <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
               <p className="text-4xl" aria-hidden>
-                🎉
+                {skin === 'pitch' ? '🏆' : skin === 'royal' ? '👑' : '🎉'}
               </p>
-              <p className="mt-2 font-bold t-1">No queda nada por registrar</p>
+              <p className="mt-2 font-bold t-1">
+                {skin === 'pitch'
+                  ? 'Partido completo: no queda nada por apuntar'
+                  : skin === 'royal'
+                    ? 'Cuento terminado: no queda nada por registrar'
+                    : 'No queda nada por registrar'}
+              </p>
               <p className="mt-1 text-sm t-3">
                 Has completado las {total} métricas de{' '}
                 {friendlyDateLabel(date).toLowerCase()}.
@@ -420,6 +522,7 @@ export function Dashboard({
                 skin={skin}
                 defaultOpen={kid ? index === 0 : true}
                 hints={marks}
+                planned={planned}
                 note={notes[category.id] ?? ''}
                 onNoteChange={(text) => writeNote(category.id, text)}
               />

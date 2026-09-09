@@ -1,5 +1,6 @@
 'use client';
 
+import { headingFont } from '@/lib/profiles';
 import { useState } from 'react';
 
 import { DAY_NAMES } from '@/lib/planner';
@@ -50,7 +51,7 @@ interface PlanAlertsProps {
 
 export function PlanAlerts({ alerts, skin, onDay }: PlanAlertsProps) {
   const [open, setOpen] = useState(false);
-  const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
+  const heading = headingFont(skin);
 
   const visible = open ? alerts : alerts.slice(0, 3);
   const hidden = alerts.length - visible.length;

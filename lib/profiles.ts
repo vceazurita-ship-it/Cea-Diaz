@@ -68,7 +68,7 @@ export const PROFILES: Profile[] = [
     accent: '#f472b6',
     accentDeep: '#be3a6e',
     tint: '#db2777',
-    skin: 'editorial',
+    skin: 'royal',
     photo: '/photos/av-maria.jpg',
     hero: '/photos/hero-maria.jpg',
     cover: '/photos/cover-maria.jpg',
@@ -146,6 +146,27 @@ export function getProfile(id: ProfileId): Profile {
 /** Piel efectiva de un perfil (los que no la declaran usan la nocturna). */
 export function skinOf(profile: Profile | null | undefined): ProfileSkin {
   return profile?.skin ?? 'night';
+}
+
+/**
+ * Cómo se rotula un titular en cada piel.
+ *
+ * Vive aquí y no en cada pantalla porque «toda la sección» significa
+ * exactamente eso: si el título de los retos se rotula distinto que el de los
+ * resúmenes, la piel deja de ser una piel y pasa a ser un adorno suelto. Cada
+ * panel llama a esto y se olvida.
+ */
+export function headingFont(skin: ProfileSkin): string {
+  if (skin === 'pitch') return 'font-display uppercase tracking-wide';
+  if (skin === 'royal') return 'royal-title tracking-wide';
+  return '';
+}
+
+/** Lo mismo para los rótulos pequeños en versalitas de cada sección. */
+export function kickerFont(skin: ProfileSkin): string {
+  if (skin === 'pitch') return ' font-display tracking-[0.14em]';
+  if (skin === 'royal') return ' royal-title tracking-[0.18em] normal-case';
+  return '';
 }
 
 /**

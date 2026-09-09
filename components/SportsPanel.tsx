@@ -1,7 +1,9 @@
 'use client';
 
 import { MetricControl } from '@/components/controls/MetricControl';
+import { PlanHint } from '@/components/controls/PlanHint';
 import type { ControlVariant } from '@/components/controls/types';
+import type { PlannedMetric } from '@/lib/planToday';
 import type { HabitCategory, MetricHint, MetricValue, ProfileSkin } from '@/types';
 
 interface SportsPanelProps {
@@ -12,6 +14,8 @@ interface SportsPanelProps {
   skin?: ProfileSkin;
   /** Apunte al pie de una casilla: la marca que hay que batir hoy. */
   hints?: Record<string, MetricHint>;
+  /** Lo que la semana tipo apartaba hoy, por hábito. */
+  planned?: Record<string, PlannedMetric>;
 }
 
 /**
@@ -30,6 +34,7 @@ export function SportsPanel({
   variant,
   skin = 'night',
   hints,
+  planned,
 }: SportsPanelProps) {
   const groups = category.groups ?? [];
   const pitch = skin === 'pitch';
@@ -88,6 +93,21 @@ export function SportsPanel({
                     ? (sport.on ?? (pitch ? 'Convocado y jugado' : 'Asistencia registrada'))
                     : (sport.off ?? (pitch ? 'Toca para alinearte hoy' : 'Toca si has entrenado hoy'))}
                 </span>
+
+                {/* Lo que decía la semana. En una tarjeta de deporte es la
+                    frase que más se busca —«¿hoy tocaba?»— y hasta ahora
+                    había que ir a la agenda a mirarlo. */}
+                {attendance && planned?.[attendance.id] && (
+                  <span
+                    className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5
+                      text-[10px] font-semibold
+                      ${attended ? 'surf-2 t-2' : 'bg-accent-soft t-1'}`}
+                  >
+                    <span aria-hidden>🗓️</span>
+                    {pitch ? 'Hoy hay partido o entreno' : 'Hoy estaba previsto'} ·{' '}
+                    {planned[attendance.id].when}
+                  </span>
+                )}
               </span>
 
               <span
@@ -137,13 +157,21 @@ export function SportsPanel({
       {loose.length > 0 && (
         <div className={variant === 'kid' ? 'space-y-3' : 'divide-y divide-[var(--border)]'}>
           {loose.map((metric) => (
-            <MetricControl
-              key={metric.id}
-              metric={metric}
-              value={values[metric.id]}
-              onChange={(value) => onChange(metric.id, value)}
-              variant={variant}
-            />
+            <div key={metric.id}>
+              <MetricControl
+                metric={metric}
+                value={values[metric.id]}
+                onChange={(value) => onChange(metric.id, value)}
+                variant={variant}
+              />
+              <PlanHint
+                metric={metric}
+                planned={planned?.[metric.id]}
+                value={values[metric.id]}
+                onFill={(value) => onChange(metric.id, value)}
+                kid={variant === 'kid'}
+              />
+            </div>
           ))}
         </div>
       )}

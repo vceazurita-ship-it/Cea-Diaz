@@ -107,9 +107,16 @@
   --font-display: var(--font-pitch);
 }
 
-/* editorial — María y Víctor: serif de revista */
+/* editorial — Víctor: serif de revista */
 [data-skin='editorial'] {
   --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+}
+
+/* royal — María: la misma serif, con más aire entre letras. Un cuento se
+   rotula despacio. */
+[data-skin='royal'] {
+  --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --letter-royal: 0.02em;
 }
 
 html,
@@ -285,6 +292,46 @@ button:active:not(:disabled),
         transparent 1px,
         transparent 9px
       );
+  }
+
+  /* Destellos: el polvo de hada del cuento. Tres luces suaves repartidas, del
+     color del perfil, para el fondo de las cabeceras de María. No lleva
+     color literal: sale de su tinte, así que si mañana cambia, cambia esto. */
+  .stardust {
+    background-image:
+      radial-gradient(
+        circle at 12% 18%,
+        color-mix(in srgb, var(--tint) 38%, transparent) 0%,
+        transparent 42%
+      ),
+      radial-gradient(
+        circle at 82% 12%,
+        color-mix(in srgb, #f4e2a1 55%, transparent) 0%,
+        transparent 38%
+      ),
+      radial-gradient(
+        circle at 68% 88%,
+        color-mix(in srgb, var(--tint) 26%, transparent) 0%,
+        transparent 46%
+      );
+  }
+
+  /* Filete de oro rosa: el hilo que cose la sección de María. */
+  .gilt {
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      #e8b4b8 20%,
+      #f4e2a1 50%,
+      #e8b4b8 80%,
+      transparent
+    );
+  }
+
+  /* Rotulación de cuento: la serif con su aire. */
+  .royal-title {
+    font-family: var(--font-display);
+    letter-spacing: var(--letter-royal, 0.02em);
   }
 
   /* Marcador de estadio: el resultado de la semana con los dígitos de un

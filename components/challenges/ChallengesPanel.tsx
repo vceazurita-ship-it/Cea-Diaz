@@ -1,5 +1,6 @@
 'use client';
 
+import { kickerFont } from '@/lib/profiles';
 import { useMemo } from 'react';
 import { MarksTracker } from '@/components/challenges/MarksTracker';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
@@ -264,9 +265,7 @@ export function ChallengesPanel({
   onReserve,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
-  const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${
-    skin === 'pitch' ? ' font-display tracking-[0.14em]' : ''
-  }`;
+  const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${kickerFont(skin)}`;
 
   const week = useMemo(() => buildChallengeWeek(profile, date, entries), [profile, date, entries]);
   const history = useMemo(
