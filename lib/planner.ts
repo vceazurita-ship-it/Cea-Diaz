@@ -5,6 +5,7 @@ import type {
   Metric,
   PlanBlock,
   PlanKind,
+  PlanLink,
   PlanMirrorKid,
   ProfileId,
   WeekPlan,
@@ -267,7 +268,7 @@ export const PLANNER_THEMES: Record<ProfileId, PlannerTheme> = {
   leo: {
     title: 'Alineación de la semana',
     icon: '🏟️',
-    kicker: 'Tu once semanal: dónde estás, qué toca y quién está contigo',
+    kicker: 'Tu once semanal: dónde juegas, qué toca y quién está contigo',
     blockWord: 'jugada',
     blockWords: 'jugadas',
     ornament: 'pitch',
@@ -279,12 +280,15 @@ export const PLANNER_THEMES: Record<ProfileId, PlannerTheme> = {
       'Un buen delantero también empieza por dormir bien.',
       'Nada es imposible si le pones corazón.',
       'Semana bien planteada, medio partido ganado.',
+      'Los grandes partidos se preparan de lunes a sábado.',
+      'Tocar, correr, levantarse. Y otra vez.',
+      'El que no tira, no marca: apunta el rato y ve a por él.',
     ],
   },
   hugo: {
     title: 'Alineación de la semana',
     icon: '🏟️',
-    kicker: 'Tu once semanal: dónde estás, qué toca y quién está contigo',
+    kicker: 'Tu once semanal: dónde juegas, qué toca y quién está contigo',
     blockWord: 'jugada',
     blockWords: 'jugadas',
     ornament: 'pitch',
@@ -296,6 +300,9 @@ export const PLANNER_THEMES: Record<ProfileId, PlannerTheme> = {
       'Constancia de lunes a domingo, como en el Bernabéu.',
       'El que llega antes al entreno ya va ganando.',
       'Cada semana, un peldaño más.',
+      'Un portero seguro empieza por dormir sus horas.',
+      'La portería se defiende toda la semana, no sólo el domingo.',
+      'Paradón hoy, entreno mañana.',
     ],
   },
   maria: {
@@ -406,6 +413,16 @@ export interface PlanPreset {
   duration: number;
   metricId?: string;
   amount?: number;
+  /**
+   * Los demás hábitos que este rato alimenta a la vez.
+   *
+   * El entreno del martes no es sólo «he ido a fútbol»: es también la hora
+   * de movimiento del día, y la lectura de antes de dormir es además el rato
+   * sin pantallas. Aquí sólo van los que se pueden dar por buenos con el
+   * mismo rato entero; la cantidad la pone luego el reloj, como en el
+   * principal.
+   */
+  also?: string[];
   companion?: Companion;
 }
 
@@ -461,6 +478,9 @@ const kidPresets: PlanPreset[] = [
     duration: 20,
     metricId: 'lectura',
     amount: 20,
+    // Leer antes de dormir es también el rato sin pantallas: el mismo rato
+    // da por buenas las dos casillas.
+    also: ['sin_pantallas_noche'],
     companion: 'papa',
   },
 
@@ -473,6 +493,9 @@ const kidPresets: PlanPreset[] = [
     start: '17:30',
     duration: 90,
     metricId: 'sport.futbol.asistencia',
+    // Un entreno es «he ido» y es, a la vez, la hora de movimiento que pide
+    // el día. Antes había que elegir una de las dos.
+    also: ['actividad_diaria'],
     companion: 'papa',
   },
   {
@@ -483,6 +506,7 @@ const kidPresets: PlanPreset[] = [
     start: '11:00',
     duration: 90,
     metricId: 'sport.futbol.asistencia',
+    also: ['actividad_diaria'],
     companion: 'papa',
   },
   {
@@ -493,6 +517,7 @@ const kidPresets: PlanPreset[] = [
     start: '18:00',
     duration: 60,
     metricId: 'sport.natacion.asistencia',
+    also: ['actividad_diaria'],
     companion: 'mama',
   },
   {
@@ -503,6 +528,7 @@ const kidPresets: PlanPreset[] = [
     start: '18:00',
     duration: 60,
     metricId: 'sport.marcial.asistencia',
+    also: ['actividad_diaria'],
     companion: 'mama',
   },
   {
@@ -513,6 +539,7 @@ const kidPresets: PlanPreset[] = [
     start: '18:00',
     duration: 60,
     metricId: 'sport.gimnasio.asistencia',
+    also: ['actividad_diaria'],
     companion: 'papa',
   },
   {
@@ -523,6 +550,7 @@ const kidPresets: PlanPreset[] = [
     start: '18:00',
     duration: 60,
     metricId: 'sport.atletismo.asistencia',
+    also: ['actividad_diaria'],
     companion: 'papa',
   },
   {
@@ -1931,18 +1959,21 @@ export function plannedForMetric(plan: WeekPlan, metricId: string): MetricPlan {
   if (!metricId) return NO_METRIC_PLAN;
 
   const sport = metricId.startsWith('sport.');
-  const blocks = plan.blocks.filter((block) => {
-    if (!block.metricId) return false;
-    if (block.metricId === metricId) return true;
-    return sport && block.metricId.startsWith('sport.');
-  });
+  const blocks = plan.blocks.filter((block) =>
+    blockMetricIds(block).some(
+      (id) => id === metricId || (sport && id.startsWith('sport.')),
+    ),
+  );
 
   if (blocks.length === 0) return NO_METRIC_PLAN;
 
   return {
     blocks: sortBlocks(blocks),
     minutes: blocks.reduce((total, block) => total + block.duration, 0),
-    amount: blocks.reduce((total, block) => total + (block.amount ?? 0), 0),
+    // La cantidad es la de **ese** hábito, no la del rato: la hora de entreno
+    // aporta 60 min de deporte y 2 vasos de agua, y sumarlas juntas daría una
+    // cifra que no significa nada.
+    amount: blocks.reduce((total, block) => total + (amountFor(block, metricId) ?? 0), 0),
     days: Array.from(new Set(blocks.map((block) => block.day))).sort((a, b) => a - b),
   };
 }
@@ -2028,7 +2059,7 @@ export function blockFromPreset(preset: PlanPreset, day: number, profileId?: Pro
     amountScale(metric) !== null &&
     amountForDuration(metric, preset.duration) !== preset.amount;
 
-  return {
+  const block: PlanBlock = {
     id: newId(),
     day,
     start: preset.start,
@@ -2041,6 +2072,21 @@ export function blockFromPreset(preset: PlanPreset, day: number, profileId?: Pro
     amountLock: pinned ? true : undefined,
     companion: preset.companion,
   };
+
+  if (!preset.also || preset.also.length === 0) return block;
+
+  // Los añadidos sólo se cuelgan si el perfil los tiene: el mismo rato de
+  // siempre vale para un peque y para un adulto, y no siempre comparten
+  // casilla. La cantidad se la pone el reloj justo después.
+  const extra = preset.also
+    .filter((id) => id !== preset.metricId)
+    .filter((id) => !profileId || Boolean(findMetric(profileId, id)))
+    .map((metricId) => ({ metricId }));
+
+  if (extra.length === 0) return block;
+
+  const linked = withLinks(block, [...blockLinks(block), ...extra]);
+  return profileId ? withClockAmount(profileId, linked) : linked;
 }
 
 export function emptyBlock(day: number, start = '17:00'): PlanBlock {
@@ -2122,6 +2168,97 @@ export function metricOf(profileId: ProfileId, block: PlanBlock): Metric | undef
   return block.metricId ? findMetric(profileId, block.metricId) : undefined;
 }
 
+/* ---------------------------------------------------------------------------
+ * Un rato, varios hábitos
+ *
+ * El entreno del martes es fútbol, es movimiento y son los vasos de agua que
+ * se beben allí. Durante mucho tiempo había que elegir uno: los otros dos se
+ * quedaban sin comprobar, o se apartaba el mismo rato tres veces y entonces
+ * la semana decía que se entrenan nueve horas donde hay tres.
+ *
+ * El bloque sigue llevando su hábito **principal** suelto —`metricId`, y con
+ * él toda la app de siempre— y los demás en `extra`. Estas funciones son la
+ * puerta por la que se leen los dos a la vez, para que nadie tenga que
+ * acordarse de sumar el array a mano y dejarse la mitad de los hábitos sin
+ * mirar en una pantalla cualquiera.
+ * ------------------------------------------------------------------------- */
+
+/** Cuántos hábitos puede tocar un rato. Más que esto no cabe ni se lee. */
+export const MAX_LINKS = 4;
+
+/**
+ * Todos los hábitos del rato, el principal el primero, sin repetidos.
+ *
+ * Un rato sin atar devuelve la lista vacía, así que quien recorra esto no
+ * tiene que preguntar antes si había algo atado.
+ */
+export function blockLinks(block: PlanBlock): PlanLink[] {
+  const links: PlanLink[] = [];
+  const seen = new Set<string>();
+
+  if (block.metricId) {
+    seen.add(block.metricId);
+    links.push({
+      metricId: block.metricId,
+      amount: block.amount,
+      amountLock: block.amountLock,
+    });
+  }
+
+  for (const link of block.extra ?? []) {
+    if (!link.metricId || seen.has(link.metricId)) continue;
+    seen.add(link.metricId);
+    links.push(link);
+  }
+
+  return links;
+}
+
+/** Los identificadores de sus hábitos, en el mismo orden. */
+export function blockMetricIds(block: PlanBlock): string[] {
+  return blockLinks(block).map((link) => link.metricId);
+}
+
+/** ¿Este rato trabaja para ese hábito, como principal o como añadido? */
+export function blockHasMetric(block: PlanBlock, metricId: string): boolean {
+  if (!metricId) return false;
+  if (block.metricId === metricId) return true;
+  return (block.extra ?? []).some((link) => link.metricId === metricId);
+}
+
+/** Lo que el rato aporta a ese hábito, o `undefined` si no lo declara. */
+export function amountFor(block: PlanBlock, metricId: string): number | undefined {
+  if (block.metricId === metricId) return block.amount;
+  return (block.extra ?? []).find((link) => link.metricId === metricId)?.amount;
+}
+
+/**
+ * El rato con esa lista de hábitos, repartida como la guarda el bloque: el
+ * primero suelto y el resto en `extra`. Es la única forma de escribirlos, y
+ * por eso normaliza —quita repetidos y vacíos— antes de guardar nada.
+ */
+export function withLinks(block: PlanBlock, links: PlanLink[]): PlanBlock {
+  const clean: PlanLink[] = [];
+  const seen = new Set<string>();
+
+  for (const link of links) {
+    if (!link.metricId || seen.has(link.metricId)) continue;
+    seen.add(link.metricId);
+    clean.push(link);
+    if (clean.length === MAX_LINKS) break;
+  }
+
+  const [first, ...rest] = clean;
+
+  return {
+    ...block,
+    metricId: first?.metricId,
+    amount: first?.amount,
+    amountLock: first?.amountLock,
+    extra: rest.length > 0 ? rest : undefined,
+  };
+}
+
 /** Unidad en la que se mide lo que aporta el rato («min», «vasos»…). */
 export function amountUnit(metric: Metric | undefined): string | null {
   if (!metric) return null;
@@ -2187,13 +2324,25 @@ export function amountForDuration(metric: Metric, duration: number): number {
  * duración y cuya cantidad prevista digan cosas distintas.
  */
 export function withClockAmount(profileId: ProfileId, block: PlanBlock): PlanBlock {
-  if (!block.metricId || block.amountLock) return block;
+  /** Lo que le toca a un hábito con esta duración, o el mismo enlace. */
+  const tick = (link: PlanLink): PlanLink => {
+    if (link.amountLock) return link;
+    const metric = findMetric(profileId, link.metricId);
+    if (!metric || amountScale(metric) === null) return link;
 
-  const metric = findMetric(profileId, block.metricId);
-  if (!metric || amountScale(metric) === null) return block;
+    const amount = amountForDuration(metric, block.duration);
+    return amount === link.amount ? link : { ...link, amount };
+  };
 
-  const amount = amountForDuration(metric, block.duration);
-  return amount === block.amount ? block : { ...block, amount };
+  const links = blockLinks(block);
+  if (links.length === 0) return block;
+
+  const ticked = links.map(tick);
+  // Se compara enlace a enlace para no reescribir el bloque —y con él la
+  // agenda entera— cuando no ha cambiado nada: hay pantallas que llaman a
+  // esto en cada repaso.
+  const same = ticked.every((link, index) => link === links[index]);
+  return same ? block : withLinks(block, ticked);
 }
 
 /**
@@ -2423,6 +2572,36 @@ const listeners = new Set<() => void>();
 const KIND_SET = new Set<string>(PLAN_KIND_LIST);
 const COMPANION_SET = new Set<string>(COMPANION_LIST);
 
+/**
+ * Los hábitos añadidos de un rato, saneados: sin el principal repetido, sin
+ * vacíos y con el tope puesto. Una agenda de antes no los trae, y entonces
+ * esto devuelve `undefined` y el bloque se queda como estaba.
+ */
+function normalizeLinks(value: unknown, mainId: string | undefined): PlanLink[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const seen = new Set<string>(mainId ? [mainId] : []);
+  const links: PlanLink[] = [];
+
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const link = raw as Partial<PlanLink>;
+    if (typeof link.metricId !== 'string' || !link.metricId) continue;
+    if (seen.has(link.metricId)) continue;
+    seen.add(link.metricId);
+
+    const amount = Number(link.amount);
+    links.push({
+      metricId: link.metricId,
+      amount: link.amount !== undefined && Number.isFinite(amount) ? amount : undefined,
+      amountLock: link.amountLock === true ? true : undefined,
+    });
+    if (links.length === MAX_LINKS - 1) break;
+  }
+
+  return links.length > 0 ? links : undefined;
+}
+
 /** Deja pasar sólo lo que tiene forma de rato; lo demás se descarta. */
 function normalizeBlock(value: unknown, index: number, profileId?: string): PlanBlock | null {
   if (!value || typeof value !== 'object') return null;
@@ -2469,6 +2648,8 @@ function normalizeBlock(value: unknown, index: number, profileId?: string): Plan
     metricId,
     amount: declared,
     amountLock: raw.amountLock === true || drifted ? true : undefined,
+    extra: normalizeLinks(raw.extra, metricId),
+    twin: typeof raw.twin === 'string' && raw.twin ? raw.twin.slice(0, 60) : undefined,
     companion:
       typeof raw.companion === 'string' && COMPANION_SET.has(raw.companion)
         ? (raw.companion as Companion)
@@ -2858,9 +3039,15 @@ export interface CopyResult {
 
 const NO_COPY: CopyResult = { copied: 0, cleared: 0, dropped: 0 };
 
-/** Copia suelta de un rato: identificador propio y, si se dice, otro día. */
+/**
+ * Copia suelta de un rato: identificador propio y, si se dice, otro día.
+ *
+ * El hermanamiento no se copia. El entreno del martes de Leo es el mismo que
+ * el de Hugo; su copia del jueves es otro rato, y si arrastrara la marca,
+ * cambiar uno cambiaría dos ratos distintos en la semana del hermano.
+ */
 function copyOf(block: PlanBlock, day = block.day, start = block.start): PlanBlock {
-  return { ...block, id: newId(), day, start };
+  return { ...block, id: newId(), day, start, twin: undefined };
 }
 
 /**
@@ -3194,7 +3381,9 @@ export function copyableWeeks(profileId: ProfileId): WeekSource[] {
       blocks: plan.blocks.length,
       days: daysFilled(plan),
       unlinked: plan.blocks.filter(
-        (block) => block.metricId && !findMetric(profileId, block.metricId),
+        (block) =>
+          block.metricId &&
+          !blockMetricIds(block).some((id) => Boolean(findMetric(profileId, id))),
       ).length,
       updatedAt: plan.updatedAt,
     });
@@ -3222,16 +3411,13 @@ export function copyWeekFrom(from: ProfileId, to: ProfileId): CopyWeekResult {
   let unlinked = 0;
 
   const blocks = source.slice(0, MAX_BLOCKS).map((block) => {
-    const keeps = !block.metricId || Boolean(findMetric(to, block.metricId));
-    if (!keeps) unlinked += 1;
+    // Cada hábito del rato viaja por su cuenta: el que reciba puede tener la
+    // hora de movimiento y no la casilla de natación, y eso no tiene por qué
+    // dejar el rato entero suelto.
+    const kept = blockLinks(block).filter((link) => Boolean(findMetric(to, link.metricId)));
+    if (kept.length === 0 && block.metricId) unlinked += 1;
 
-    return {
-      ...block,
-      id: newId(),
-      metricId: keeps ? block.metricId : undefined,
-      // Sin hábito al que aportar, la cantidad no significa nada.
-      amount: keeps ? block.amount : undefined,
-    };
+    return withLinks({ ...block, id: newId(), twin: undefined }, kept);
   });
 
   updatePlan(to, blocks);

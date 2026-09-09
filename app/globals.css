@@ -266,6 +266,37 @@ button:active:not(:disabled),
     border-color: var(--chalk);
   }
 
+  /* Red de la portería: la trama de rombos del fondo de un remate. Va sobre
+     el césped, en la cabecera de los peques, y no lleva color propio —usa la
+     misma cal que las líneas del campo—, así que sirve de día y de noche. */
+  .net {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        var(--chalk) 0px,
+        var(--chalk) 1px,
+        transparent 1px,
+        transparent 9px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        var(--chalk) 0px,
+        var(--chalk) 1px,
+        transparent 1px,
+        transparent 9px
+      );
+  }
+
+  /* Marcador de estadio: el resultado de la semana con los dígitos de un
+     videomarcador. El fondo es oscuro en los dos modos a propósito —un
+     marcador claro no es un marcador— y el texto va en el oro del escudo. */
+  .scoreboard {
+    background-color: #0b0f14;
+    color: #febe10;
+    border-color: rgba(254, 190, 16, 0.45);
+    text-shadow: 0 0 10px rgba(254, 190, 16, 0.35);
+  }
+
   /* Halo del tinte del perfil, para los fondos decorativos. */
   .bg-tint-halo {
     background-color: color-mix(in srgb, var(--tint) 45%, transparent);

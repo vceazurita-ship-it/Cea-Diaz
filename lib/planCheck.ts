@@ -4,6 +4,9 @@ import { findMetric } from '@/lib/habits';
 import {
   COMPANIONS,
   DAY_NAMES,
+  amountFor,
+  blockLinks,
+  blockMetricIds,
   busyMinutes,
   clashing,
   durationLabel,
@@ -18,6 +21,7 @@ import type {
   PlanAlert,
   PlanBlock,
   PlanBlockCheck,
+  PlanBlockPart,
   PlanReview,
   PlanStatus,
   Profile,
@@ -74,17 +78,41 @@ export const SILENT: ReadonlySet<PlanStatus> = new Set<PlanStatus>([
   'sinDia',
 ]);
 
-export function statusIcon(status: PlanStatus): string {
-  return STATUS_META[status].icon;
+/**
+ * Lo mismo, contado como se cuenta un partido.
+ *
+ * A un peque de ocho años «por debajo de lo previsto» no le dice nada; «al
+ * palo» le dice exactamente eso, y además le apetece leerlo. No cambia
+ * ningún cálculo: son las mismas siete marcas con otras palabras, y sólo se
+ * usan en los dos paneles de campo —Leo y Hugo—, donde la app entera habla
+ * así desde las pestañas («Partido», «Estadísticas») hacia abajo.
+ */
+const PITCH_META: Record<PlanStatus, { icon: string; label: string; short: string }> = {
+  sinMetrica: { icon: '·', label: 'Sin casilla que mirar', short: '—' },
+  futuro: { icon: '○', label: 'Aún no se ha jugado', short: 'Por jugar' },
+  sinDia: { icon: '·', label: 'Día sin acta', short: 'Sin acta' },
+  sinRegistrar: { icon: '?', label: 'No se apuntó en el acta', short: 'Sin acta' },
+  cumplido: { icon: '⚽', label: '¡Gol!', short: 'Gol' },
+  flojo: { icon: '↓', label: 'Al palo: se quedó cerca', short: 'Al palo' },
+  excedido: { icon: '↑', label: 'Fuera: se pasó del máximo', short: 'Fuera' },
+};
+
+/** Las marcas de un panel: las de siempre, o las de campo para los peques. */
+function metaOf(pitch: boolean): Record<PlanStatus, { icon: string; label: string; short: string }> {
+  return pitch ? PITCH_META : STATUS_META;
 }
 
-export function statusLabel(status: PlanStatus): string {
-  return STATUS_META[status].label;
+export function statusIcon(status: PlanStatus, pitch = false): string {
+  return metaOf(pitch)[status].icon;
+}
+
+export function statusLabel(status: PlanStatus, pitch = false): string {
+  return metaOf(pitch)[status].label;
 }
 
 /** Lo mismo en una palabra, para las casillas estrechas de la semana. */
-export function statusShort(status: PlanStatus): string {
-  return STATUS_META[status].short;
+export function statusShort(status: PlanStatus, pitch = false): string {
+  return metaOf(pitch)[status].short;
 }
 
 /**
@@ -98,9 +126,14 @@ export function checkBlock(
   date: DateKey,
   entry: DayEntry | undefined,
 ): PlanBlockCheck {
-  const metric = block.metricId ? findMetric(profile.id, block.metricId) : undefined;
+  const parts = blockLinks(block)
+    .map((link) => {
+      const metric = findMetric(profile.id, link.metricId);
+      return metric ? judgePart(metric, link.amount, date, entry) : null;
+    })
+    .filter((part): part is PlanBlockPart => part !== null);
 
-  if (!metric) {
+  if (parts.length === 0) {
     return {
       block,
       date,
@@ -110,22 +143,68 @@ export function checkBlock(
       text: block.metricId
         ? 'El hábito que tenía atado ya no existe en el registro.'
         : 'Sin hábito atado: no se comprueba.',
+      parts,
     };
   }
 
+  // El resumen es el peor de todos: un entreno que se hizo pero cuya hora de
+  // movimiento se quedó a medias no está cumplido del todo, y la pastilla del
+  // horario sólo tiene sitio para una marca. El detalle, hábito a hábito, va
+  // en `parts` y se enseña al abrir el rato.
+  const worst = parts.reduce((a, b) => (SEVERITY[b.status] > SEVERITY[a.status] ? b : a));
+
+  return {
+    block,
+    date,
+    metric: parts[0].metric,
+    status: worst.status,
+    ratio: parts[0].ratio,
+    reading: parts[0].reading,
+    text:
+      parts.length === 1
+        ? parts[0].text
+        : worst.status === 'cumplido'
+          ? `Los ${parts.length} hábitos de este rato, cumplidos.`
+          : `${worst.text} (${parts.length} hábitos en este rato)`,
+    parts,
+  };
+}
+
+/**
+ * De peor a mejor, para poder resumir un rato de varios hábitos en una sola
+ * marca. Lo que no se puede juzgar —el futuro, el día sin registrar— queda
+ * por debajo de lo cumplido a propósito: si de tres hábitos uno se cumplió y
+ * los otros dos no se pueden mirar, el rato se cuenta cumplido y no en el
+ * limbo.
+ */
+const SEVERITY: Record<PlanStatus, number> = {
+  sinMetrica: 0,
+  futuro: 1,
+  sinDia: 2,
+  cumplido: 3,
+  flojo: 4,
+  excedido: 5,
+  sinRegistrar: 6,
+};
+
+/** Qué ha pasado con **uno** de los hábitos del rato. */
+function judgePart(
+  metric: Metric,
+  declared: number | undefined,
+  date: DateKey,
+  entry: DayEntry | undefined,
+): PlanBlockPart {
   const value = entry?.values[metric.id];
   const ratio = metricRatio(metric, value);
   const reading = formatMetricValue(metric, value);
+  const base = { metric, amount: declared, reading };
 
   if (ratio === null) {
     if (isFuture(date) || date === todayKey()) {
       return {
-        block,
-        date,
-        metric,
+        ...base,
         status: 'futuro',
         ratio: null,
-        reading,
         text: `Cuando pase, se comprueba con «${metric.label}».`,
       };
     }
@@ -137,23 +216,17 @@ export function checkBlock(
     // desanimado está quien acaba de montarla.
     if (!entry || Object.keys(entry.values).length === 0) {
       return {
-        block,
-        date,
-        metric,
+        ...base,
         status: 'sinDia',
         ratio: null,
-        reading,
         text: `Ese día no se registró nada, así que no hay con qué comprobarlo.`,
       };
     }
 
     return {
-      block,
-      date,
-      metric,
+      ...base,
       status: 'sinRegistrar',
       ratio: null,
-      reading,
       text: `Estaba planificado y «${metric.label}» quedó sin registrar.`,
     };
   }
@@ -164,34 +237,25 @@ export function checkBlock(
     const registered = Number(value);
     const over = registered > metric.target;
     return {
-      block,
-      date,
-      metric,
+      ...base,
       status: over ? 'excedido' : 'cumplido',
       ratio,
-      reading,
       text: over
         ? `${reading} frente al máximo de ${metric.target} ${metric.unit}.`
         : `${reading}, dentro del máximo (${metric.target} ${metric.unit}).`,
     };
   }
 
-  // Suelo: si el rato declaraba cuánto pretendía aportar, se compara con eso;
-  // si no, con el objetivo del propio hábito.
-  if (
-    block.amount !== undefined &&
-    (metric.type === 'counter' || metric.type === 'duration')
-  ) {
-    const goal = Math.min(block.amount, metric.target);
+  // Suelo: si el rato declaraba cuánto pretendía aportar a **este** hábito, se
+  // compara con eso; si no, con el objetivo del propio hábito.
+  if (declared !== undefined && (metric.type === 'counter' || metric.type === 'duration')) {
+    const goal = Math.min(declared, metric.target);
     const registered = Number(value);
     const met = registered >= goal;
     return {
-      block,
-      date,
-      metric,
+      ...base,
       status: met ? 'cumplido' : 'flojo',
       ratio,
-      reading,
       text: met
         ? `${reading}: cubre lo previsto (${goal} ${metric.unit}).`
         : `${reading} de los ${goal} ${metric.unit} previstos.`,
@@ -200,12 +264,9 @@ export function checkBlock(
 
   const met = ratio >= KEPT_THRESHOLD;
   return {
-    block,
-    date,
-    metric,
+    ...base,
     status: met ? 'cumplido' : 'flojo',
     ratio,
-    reading,
     text: met ? `${metric.label}: ${reading}.` : `${metric.label} se quedó en ${reading}.`,
   };
 }
@@ -216,9 +277,7 @@ export function checkBlock(
 
 /** Suma de lo que el plan aporta a una métrica ese día. */
 function plannedAmount(blocks: PlanBlock[], metricId: string): number {
-  return blocks
-    .filter((block) => block.metricId === metricId)
-    .reduce((total, block) => total + (block.amount ?? 0), 0);
+  return blocks.reduce((total, block) => total + (amountFor(block, metricId) ?? 0), 0);
 }
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
@@ -296,9 +355,12 @@ export function planAlerts(
   const ceilingSeen = new Set<string>();
 
   for (let day = 0; day < 7; day += 1) {
-    for (const block of byDay[day]) {
-      if (!block.metricId || block.amount === undefined) continue;
-      const metric = findMetric(profile.id, block.metricId);
+    // Todos los hábitos de cada rato, no sólo el principal: si las pantallas
+    // van colgadas de «Consola con los amigos» como hábito añadido, el techo
+    // se pasa igual.
+    for (const link of byDay[day].flatMap(blockLinks)) {
+      if (link.amount === undefined) continue;
+      const metric = findMetric(profile.id, link.metricId);
       if (!metric || !isCeiling(metric)) continue;
       if (metric.type !== 'counter' && metric.type !== 'duration') continue;
 
@@ -351,9 +413,7 @@ export function planAlerts(
 
   // Hábitos clave sin un solo rato en toda la semana. Es la carencia de
   // verdad: no que un día flojee, sino que no esté previsto en ningún sitio.
-  const planned = new Set(
-    plan.blocks.map((block) => block.metricId).filter((id): id is string => Boolean(id)),
-  );
+  const planned = new Set(plan.blocks.flatMap(blockMetricIds));
 
   const missingKey = guidanceOf(profile.id)
     .filter((entry) => entry.guidance.priority === 'clave')
@@ -394,11 +454,11 @@ export function planAlerts(
   for (let day = 0; day < 7; day += 1) {
     const seen = new Set<string>();
 
-    for (const block of byDay[day]) {
-      if (!block.metricId || block.amount === undefined) continue;
-      if (seen.has(block.metricId)) continue;
+    for (const link of byDay[day].flatMap(blockLinks)) {
+      if (link.amount === undefined) continue;
+      if (seen.has(link.metricId)) continue;
 
-      const metric = findMetric(profile.id, block.metricId);
+      const metric = findMetric(profile.id, link.metricId);
       if (!metric || isCeiling(metric)) continue;
       if (metric.type !== 'counter' && metric.type !== 'duration') continue;
 

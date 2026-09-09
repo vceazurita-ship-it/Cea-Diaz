@@ -1,18 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DayChips } from '@/components/planner/DayChips';
 import {
   COMPANIONS,
   COMPANION_LIST,
   DAY_NAMES,
+  MAX_LINKS,
   PLAN_KINDS,
   PLAN_KIND_LIST,
   amountForDuration,
   amountScale,
   amountUnit,
   blockFromPreset,
+  blockLinks,
   clashing,
   durationLabel,
   linkableMetrics,
@@ -22,10 +24,19 @@ import {
   presetsOf,
   simultaneous,
   timeOf,
+  withLinks,
 } from '@/lib/planner';
 import type { PlanPreset, PresetGroupId } from '@/lib/planner';
 import { targetWord } from '@/lib/scoring';
-import type { Companion, Metric, PlanBlock, PlanKind, Profile, WeekPlan } from '@/types';
+import type {
+  Companion,
+  Metric,
+  PlanBlock,
+  PlanKind,
+  PlanLink,
+  Profile,
+  WeekPlan,
+} from '@/types';
 
 /* =========================================================================
  *  Alta y edición de un rato de la semana.
@@ -66,9 +77,19 @@ interface BlockEditorProps {
   plan: WeekPlan;
   /** Al guardar uno nuevo pueden salir varios: uno por día marcado. */
   onSave: (block: PlanBlock, days: number[]) => void;
+  /**
+   * El autoguardado. Se llama solo, un momento después de dejar de teclear,
+   * con el rato tal y como está: es lo que hace que cerrar sin darle a
+   * «Guardar» ya no pierda nada.
+   */
+  onAutoSave?: (block: PlanBlock, days: number[]) => void;
+  /** Cuándo se guardó solo por última vez, para poder decirlo. */
+  savedAt?: number | null;
   onDelete?: () => void;
   /** Abre la hoja de copiar; sólo tiene sentido en un rato que ya existe. */
   onCopy?: () => void;
+  /** Devuelve la agenda a como estaba al abrir el editor. */
+  onRevert?: () => void;
   onCancel: () => void;
 }
 
@@ -78,8 +99,11 @@ export function BlockEditor({
   isNew,
   plan,
   onSave,
+  onAutoSave,
+  savedAt,
   onDelete,
   onCopy,
+  onRevert,
   onCancel,
 }: BlockEditorProps) {
   const [draft, setDraft] = useState<PlanBlock>(block);
@@ -131,29 +155,82 @@ export function BlockEditor({
     return index;
   }, [groups]);
 
-  const metric: Metric | undefined = draft.metricId ? byId.get(draft.metricId) : undefined;
-
-  const unit = amountUnit(metric);
-  /** `true` cuando el hábito se mide en tiempo y la cantidad puede ir sola. */
-  const clock = amountScale(metric) !== null;
+  /** Los hábitos de este rato, el principal el primero. */
+  const links = useMemo(() => blockLinks(draft), [draft]);
 
   /**
    * Cualquier cambio del formulario pasa por aquí, y aquí es donde la cantidad
    * prevista sigue al reloj: subir la lectura de veinte a cuarenta minutos
    * sube lo previsto sin tener que acordarse de bajar a corregirlo. Deja de
    * hacerlo en cuanto la cifra se escribe a mano, que es lo que pone
-   * `amountLock`.
+   * `amountLock`, y vale para los tres hábitos de un rato igual que valía
+   * para uno.
    */
   const patch = (values: Partial<PlanBlock>) =>
     setDraft((prev) => {
       const next = { ...prev, ...values };
-      if (next.amountLock || !next.metricId) return next;
-
-      const tied = byId.get(next.metricId);
-      if (!tied || amountScale(tied) === null) return next;
-
-      return { ...next, amount: amountForDuration(tied, next.duration) };
+      const tied = blockLinks(next).map((link) => {
+        if (link.amountLock) return link;
+        const item = byId.get(link.metricId);
+        if (!item || amountScale(item) === null) return link;
+        return { ...link, amount: amountForDuration(item, next.duration) };
+      });
+      return withLinks(next, tied);
     });
+
+  /** Añadir, quitar o retocar un hábito del rato. */
+  const setLinks = (next: PlanLink[]) => patch(withLinks(draft, next));
+
+  /* -------------------------------------------------------- autoguardado */
+
+  /**
+   * El rato se guarda solo poco después de dejar de tocarlo.
+   *
+   * Es la respuesta a la única forma segura de perder trabajo aquí: montar la
+   * tarde entera, cerrar la hoja de un manotazo y descubrir que nada de eso
+   * existía porque faltaba el botón. Ahora existe desde el primer momento en
+   * que tiene nombre; «Guardar» pasa a ser lo que cierra, no lo que salva.
+   *
+   * Espera un momento a propósito: guardar en cada tecla escribiría la agenda
+   * entera veinte veces por palabra, y la nube detrás.
+   */
+  const armed = useRef(false);
+  /**
+   * El guardado, en una caja que no cambia de identidad.
+   *
+   * Es lo que impide la pescadilla: guardar cambia la agenda, cambiar la
+   * agenda vuelve a pintar la pantalla de la semana, y si el efecto mirara la
+   * función que llega de allí —nueva en cada pintada— volvería a armar el
+   * reloj y a guardar, cada novecientos milisegundos, para siempre.
+   */
+  const save = useRef(onAutoSave);
+  save.current = onAutoSave;
+
+  /** Lo último que se dejó guardado, para no repetir la misma escritura. */
+  const written = useRef('');
+
+  useEffect(() => {
+    if (!save.current) return;
+    // El primer repaso es el de abrir la hoja: ahí no hay nada que guardar.
+    if (!armed.current) {
+      armed.current = true;
+      return;
+    }
+
+    const title = draft.title.trim();
+    if (!title) return;
+
+    const targets = isNew ? (days.length > 0 ? days : [draft.day]) : [draft.day];
+    const signature = JSON.stringify([draft, targets]);
+    if (signature === written.current) return;
+
+    const timer = window.setTimeout(() => {
+      written.current = signature;
+      save.current?.({ ...draft, title }, targets);
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [draft, days, isNew]);
 
   const counts = useMemo(
     () => [0, 1, 2, 3, 4, 5, 6].map((day) => plan.blocks.filter((item) => item.day === day).length),
@@ -523,96 +600,81 @@ export function BlockEditor({
         </section>
       )}
 
-      {/* Lo que ata este rato al registro */}
+      {/* Lo que ata este rato al registro. Puede ser más de una cosa: el
+          entreno es fútbol y es la hora de movimiento del día. */}
       <section className="rounded-2xl border hairline surf-1 p-3">
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wide t-3">
-            🔗 Hábito con el que se comprueba
-          </span>
-          <select
-            value={draft.metricId ?? ''}
-            onChange={(event) =>
-              patch({
-                metricId: event.target.value || undefined,
-                amount: undefined,
-                amountLock: undefined,
-              })
-            }
-            className="field w-full"
-          >
-            <option value="">Sin atar (no se comprueba)</option>
-            {groups.map((group) => (
-              <optgroup key={group.categoryLabel} label={`${group.categoryIcon} ${group.categoryLabel}`}>
-                {group.metrics.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.icon} {item.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide t-3">
+          🔗 Hábitos que este rato alimenta
+        </p>
 
-        {unit && (
-          <label className="mt-3 block">
-            <span className="mb-1 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide t-3">
-              Cuánto aporta este rato
-              {clock && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] normal-case tracking-normal
-                    ${draft.amountLock ? 'surf-2 t-2' : 'bg-accent-soft t-1'}`}
-                >
-                  {draft.amountLock ? '✏️ a mano' : '⏱️ lo lleva el reloj'}
-                </span>
-              )}
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="number"
-                min={0}
-                step={metric && 'step' in metric ? metric.step : 1}
-                value={draft.amount ?? ''}
-                onChange={(event) =>
-                  patch({
-                    amount: event.target.value === '' ? undefined : Number(event.target.value),
-                    // Escribirla a mano es decir que esta cifra manda: a partir
-                    // de aquí, estirar el rato ya no la toca.
-                    amountLock: clock ? true : undefined,
-                  })
+        {links.length === 0 ? (
+          <p className="mb-2 text-xs leading-relaxed t-3">
+            Sin ninguno, el rato se aparta igual, pero la agenda no podrá comprobar nada de él.
+          </p>
+        ) : (
+          <ul className="mb-2 space-y-2">
+            {links.map((link, index) => (
+              <LinkRow
+                key={link.metricId}
+                link={link}
+                metric={byId.get(link.metricId)}
+                main={index === 0}
+                duration={draft.duration}
+                onChange={(next) =>
+                  setLinks(links.map((item, i) => (i === index ? next : item)))
                 }
-                placeholder="—"
-                className="field w-28 tabular-nums"
+                onRemove={() => setLinks(links.filter((_, i) => i !== index))}
+                onPromote={() =>
+                  setLinks([link, ...links.filter((_, i) => i !== index)])
+                }
               />
-              <span className="text-sm t-2">{unit}</span>
-              {metric && (metric.type === 'counter' || metric.type === 'duration') && (
-                <span className="text-xs t-3">
-                  ({targetWord(metric)} del día: {metric.target} {metric.unit})
-                </span>
-              )}
-              {clock && draft.amountLock && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    patch({
-                      amountLock: undefined,
-                      amount: amountForDuration(metric!, draft.duration),
-                    })
-                  }
-                  className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
-                >
-                  ⏱️ Que lo lleve el reloj
-                </button>
-              )}
-            </div>
+            ))}
+          </ul>
+        )}
+
+        {links.length < MAX_LINKS && (
+          <label className="block">
+            <span className="sr-only">Añadir un hábito a este rato</span>
+            <select
+              value=""
+              onChange={(event) => {
+                const id = event.target.value;
+                if (id) setLinks([...links, { metricId: id }]);
+              }}
+              className="field w-full"
+            >
+              <option value="">
+                {links.length === 0 ? '＋ Atar a un hábito…' : '＋ Añadir otro hábito…'}
+              </option>
+              {groups.map((group) => {
+                const free = group.metrics.filter(
+                  (item) => !links.some((link) => link.metricId === item.id),
+                );
+                if (free.length === 0) return null;
+
+                return (
+                  <optgroup
+                    key={group.categoryLabel}
+                    label={`${group.categoryIcon} ${group.categoryLabel}`}
+                  >
+                    {free.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.icon} {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
           </label>
         )}
 
         <p className="mt-2 text-xs leading-relaxed t-3">
-          {!draft.metricId
-            ? 'Sin hábito atado el rato se apunta igual, pero la agenda no podrá comprobar nada de él.'
-            : clock && !draft.amountLock
-              ? `Se mide en tiempo, así que la cantidad va sola: lo que dure el rato es lo que se pretende dedicarle. Cambia la duración —aquí o estirándolo en la cuadrícula— y esto va detrás. Escríbela a mano si en este rato no coincide.`
-              : 'Con esto, la semana puede decir si lo previsto se cumplió, se quedó corto o se pasó del máximo.'}
+          {links.length === 0
+            ? 'Un rato atado es un rato que la semana puede comprobar: dirá si se cumplió, si se quedó corto o si se pasó del máximo.'
+            : links.length === 1
+              ? 'Puedes atarle más de uno: el entreno es «he ido» y es, además, la hora de movimiento del día. Cada uno lleva su propia cantidad.'
+              : `Este rato da por buenos ${links.length} hábitos a la vez. Se comprueban por separado, y el rato sale bien cuando salen todos.`}
         </p>
       </section>
 
@@ -629,31 +691,176 @@ export function BlockEditor({
         />
       </label>
 
-      <div className="flex flex-wrap items-center gap-2 border-t pt-3 hairline">
-        <button type="submit" className="btn-primary px-4" disabled={!draft.title.trim()}>
-          {isNew
-            ? days.length > 1
-              ? `Apartar en ${days.length} días`
-              : 'Añadir a la semana'
-            : 'Guardar'}
-        </button>
-
-        <button type="button" onClick={onCancel} className="btn-ghost px-3 text-sm">
-          Cancelar
-        </button>
-
-        {onCopy && (
-          <button type="button" onClick={onCopy} className="btn-ghost px-3 text-sm">
-            ⧉ Copiar o mover
-          </button>
+      <div className="space-y-2 border-t pt-3 hairline">
+        {/* Que se guarda solo hay que decirlo donde antes estaba el miedo a
+            perderlo: al lado del botón. */}
+        {onAutoSave && (
+          <p className="text-[11px] leading-relaxed t-3" aria-live="polite">
+            {savedAt
+              ? '💾 Guardado solo. Puedes cerrar cuando quieras.'
+              : draft.title.trim()
+                ? '💾 Se guarda solo en cuanto dejes de escribir.'
+                : '💾 Ponle nombre y empieza a guardarse solo.'}
+          </p>
         )}
 
-        {onDelete && (
-          <button type="button" onClick={onDelete} className="btn-danger ml-auto px-3 text-sm">
-            🗑️ Quitar
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="submit" className="btn-primary px-4" disabled={!draft.title.trim()}>
+            {isNew
+              ? days.length > 1
+                ? `Apartar en ${days.length} días`
+                : 'Añadir a la semana'
+              : 'Listo'}
           </button>
-        )}
+
+          {/* Con autoguardado, «cancelar» ya no es no guardar: es deshacer. Se
+              dice con esa palabra para no prometer algo que no se cumple. */}
+          {onAutoSave && savedAt && onRevert ? (
+            <button type="button" onClick={onRevert} className="btn-ghost px-3 text-sm">
+              ↩️ Deshacer los cambios
+            </button>
+          ) : (
+            <button type="button" onClick={onCancel} className="btn-ghost px-3 text-sm">
+              Cancelar
+            </button>
+          )}
+
+          {onCopy && (
+            <button type="button" onClick={onCopy} className="btn-ghost px-3 text-sm">
+              ⧉ Copiar o mover
+            </button>
+          )}
+
+          {onDelete && (
+            <button type="button" onClick={onDelete} className="btn-danger ml-auto px-3 text-sm">
+              🗑️ Quitar
+            </button>
+          )}
+        </div>
       </div>
     </form>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Un hábito del rato
+ *
+ * Cada fila es una casilla del registro que este rato da por trabajada, con
+ * lo que pretende aportarle. La primera manda: es la que da nombre al rato en
+ * el resto de la app, y por eso se puede ascender otra a ese sitio sin tener
+ * que quitarlas todas y volver a ponerlas.
+ * ------------------------------------------------------------------------- */
+
+interface LinkRowProps {
+  link: PlanLink;
+  metric: Metric | undefined;
+  /** `true` en el hábito principal. */
+  main: boolean;
+  /** Lo que dura el rato: de ahí sale la cantidad cuando la lleva el reloj. */
+  duration: number;
+  onChange: (link: PlanLink) => void;
+  onRemove: () => void;
+  onPromote: () => void;
+}
+
+function LinkRow({ link, metric, main, duration, onChange, onRemove, onPromote }: LinkRowProps) {
+  const unit = amountUnit(metric);
+  /** `true` cuando el hábito se mide en tiempo y la cantidad puede ir sola. */
+  const clock = amountScale(metric) !== null;
+
+  return (
+    <li className="rounded-xl border p-2.5 hairline surf-2">
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="text-base">
+          {metric?.icon ?? '🔗'}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold t-1">
+            {metric?.label ?? 'Hábito que ya no existe'}
+          </span>
+          {main && (
+            <span className="block text-[10px] uppercase tracking-wide t-3">
+              Principal · da nombre al rato
+            </span>
+          )}
+        </span>
+
+        {!main && (
+          <button
+            type="button"
+            onClick={onPromote}
+            title="Hacerlo el principal"
+            className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
+          >
+            ⬆︎
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Quitar ${metric?.label ?? 'este hábito'} del rato`}
+          className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
+        >
+          ✕
+        </button>
+      </div>
+
+      {unit && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            step={metric && 'step' in metric ? metric.step : 1}
+            value={link.amount ?? ''}
+            onChange={(event) =>
+              onChange({
+                ...link,
+                amount: event.target.value === '' ? undefined : Number(event.target.value),
+                // Escribirla a mano es decir que esta cifra manda: a partir de
+                // aquí, estirar el rato ya no la toca.
+                amountLock: clock ? true : undefined,
+              })
+            }
+            placeholder="—"
+            className="field w-24 py-1.5 tabular-nums"
+            aria-label={`Cuánto aporta a ${metric?.label ?? 'este hábito'}`}
+          />
+          <span className="text-xs t-2">{unit}</span>
+
+          {metric && (metric.type === 'counter' || metric.type === 'duration') && (
+            <span className="text-[11px] t-3">
+              ({targetWord(metric)} del día: {metric.target} {metric.unit})
+            </span>
+          )}
+
+          {clock && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px]
+                ${link.amountLock ? 'surf-3 t-2' : 'bg-accent-soft t-1'}`}
+            >
+              {link.amountLock ? '✏️ a mano' : '⏱️ lo lleva el reloj'}
+            </span>
+          )}
+
+          {clock && link.amountLock && metric && (
+            <button
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...link,
+                  amountLock: undefined,
+                  amount: amountForDuration(metric, duration),
+                })
+              }
+              className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
+            >
+              ⏱️ Que lo lleve el reloj
+            </button>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

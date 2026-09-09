@@ -1165,6 +1165,48 @@ export interface PlanBlock {
    * viajar a la nube.
    */
   mirror?: PlanMirror;
+  /**
+   * Los **demás** hábitos que toca este mismo rato, además del principal.
+   *
+   * Una actividad casi nunca alimenta una sola casilla. El entreno del
+   * martes es fútbol, es movimiento y son, de paso, los vasos de agua que
+   * se beben allí; la tarde de deberes es estudio y es lectura. Antes había
+   * que elegir uno —y los otros se quedaban sin comprobar— o apartar el
+   * mismo rato tres veces, y entonces la semana decía que se entrenan nueve
+   * horas donde hay tres.
+   *
+   * El principal sigue siendo `metricId`: es el que da nombre al rato y el
+   * que llevaba solo toda la app. Aquí van los añadidos, cada uno con su
+   * cantidad prevista, porque no coinciden: una hora de entreno son 60 min
+   * de deporte y 2 vasos de agua.
+   */
+  extra?: PlanLink[];
+  /**
+   * Identificador compartido con el mismo rato en la semana del hermano.
+   *
+   * Leo y Hugo hacen casi la misma semana, y copiarla creaba ratos sueltos:
+   * mover el entreno en la de Leo dejaba el de Hugo donde estaba y a las dos
+   * semanas ya no se parecían. Esta marca es lo que permite decir «éste y
+   * aquél son el mismo entreno», y por tanto ofrecer al guardar que el
+   * cambio caiga en los dos. No hace nada por sí sola: sin réplica, un rato
+   * con `twin` se comporta como cualquier otro.
+   */
+  twin?: string;
+}
+
+/**
+ * Un hábito atado a un rato, con lo que ese rato pretende aportarle.
+ *
+ * Es la misma tripleta que el bloque lleva suelta para el hábito principal
+ * —`metricId`, `amount`, `amountLock`—, así que se lee igual: la cantidad la
+ * lleva el reloj mientras no se escriba a mano.
+ */
+export interface PlanLink {
+  metricId: string;
+  /** Cuánto aporta este rato a ese hábito. */
+  amount?: number;
+  /** `true` cuando la cantidad se escribió a mano y el reloj ya no la toca. */
+  amountLock?: boolean;
 }
 
 /** Un peque de los que traen un rato reflejado a esta agenda. */
@@ -1231,7 +1273,7 @@ export type PlanStatus =
 export interface PlanBlockCheck {
   block: PlanBlock;
   date: DateKey;
-  /** Métrica atada, si la hay y sigue existiendo en el catálogo. */
+  /** Métrica principal, si la hay y sigue existiendo en el catálogo. */
   metric?: Metric;
   status: PlanStatus;
   /** Cumplimiento de esa métrica ese día, o `null` si no hay dato. */
@@ -1239,6 +1281,25 @@ export interface PlanBlockCheck {
   /** Lo registrado ese día, ya legible («35 min», «Sí»). */
   reading: string;
   /** Qué decir del bloque en una línea. */
+  text: string;
+  /**
+   * Cada hábito del rato por separado, el principal el primero.
+   *
+   * El `status` de arriba es el resumen —el peor de todos, que es lo que
+   * cabe en una pastilla del horario—, pero al abrir el rato hay que poder
+   * ver cuál de los tres falló: el entreno se hizo y el agua no.
+   */
+  parts: PlanBlockPart[];
+}
+
+/** Un hábito del rato, mirado contra lo registrado ese día. */
+export interface PlanBlockPart {
+  metric: Metric;
+  /** Lo que este rato pretendía aportarle, si lo declaraba. */
+  amount?: number;
+  status: PlanStatus;
+  ratio: number | null;
+  reading: string;
   text: string;
 }
 

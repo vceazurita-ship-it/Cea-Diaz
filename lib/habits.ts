@@ -146,7 +146,9 @@ function kidCategories(): HabitCategory[] {
       id: 'nutricion',
       label: 'Nutrición e Hidratación',
       icon: '🍎',
-      description: 'Beber agua y comer de todo, sin complicarse.',
+      // Los peques leen su panel como un partido —así se llaman sus
+      // pestañas—, y una descripción que hable ese idioma se lee de verdad.
+      description: 'La gasolina del partido: beber agua y comer de todo.',
       gradient: 'from-lime-400 to-emerald-500',
       metrics: [
         {
@@ -197,7 +199,7 @@ function kidCategories(): HabitCategory[] {
       id: 'sueno',
       label: 'Sueño y Recuperación',
       icon: '😴',
-      description: 'Dormir bien para rendir y crecer.',
+      description: 'El que duerme, corre: dormir bien para rendir y crecer.',
       gradient: 'from-indigo-400 to-violet-600',
       metrics: [
         {
@@ -269,9 +271,9 @@ function kidCategories(): HabitCategory[] {
     },
     {
       id: 'cognitivo',
-      label: 'Cognitivo / Académico',
+      label: 'Cabeza y estudio',
       icon: '🧠',
-      description: 'Lo que haces en casa (el cole diario no cuenta aquí).',
+      description: 'La visión de juego se entrena en casa (el cole no cuenta aquí).',
       gradient: 'from-cyan-400 to-sky-600',
       metrics: [
         {

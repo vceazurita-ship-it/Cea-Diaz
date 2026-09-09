@@ -8,6 +8,7 @@ import { PlanAlerts } from '@/components/planner/PlanAlerts';
 import { PlanChallengesCard } from '@/components/planner/PlanChallengesCard';
 import { PlanCopySheet } from '@/components/planner/PlanCopySheet';
 import type { CopyRequest, CopyTarget } from '@/components/planner/PlanCopySheet';
+import { ReplicaAsk } from '@/components/planner/ReplicaAsk';
 import { WeekTimetable } from '@/components/planner/WeekTimetable';
 import type { TimetableZoom } from '@/components/planner/WeekTimetable';
 import { Modal } from '@/components/ui/Modal';
@@ -31,6 +32,7 @@ import {
   DAY_SHORT,
   PLAN_KINDS,
   addPlanBlocks,
+  blockLinks,
   blockPalette,
   blocksOfDay,
   clearDayPlan,
@@ -64,13 +66,26 @@ import {
   savePlanBlock,
   showMirrors,
   spreadBlock,
+  subscribePlans,
   swapDays,
   takesMirrors,
   themeOf,
   timeOf,
   updatePlan,
+  withClockAmount,
 } from '@/lib/planner';
 import type { WeekSource } from '@/lib/planner';
+import {
+  previewReplica,
+  replicaMode,
+  replicate,
+  setReplicaMode,
+  syncWeeks,
+  twinCount,
+  twinName,
+  twinOf,
+} from '@/lib/planTwin';
+import type { PlanChange, ReplicaMode, ReplicaPreview, ReplicaResult } from '@/lib/planTwin';
 import { PROFILES } from '@/lib/profiles';
 import type {
   DateKey,
@@ -279,7 +294,9 @@ export function WeekPlanner({
     if (range === 'dia') return [soloDay ?? today];
     return RANGES.find((item) => item.id === range)?.days ?? [0, 1, 2, 3, 4, 5, 6];
   }, [range, soloDay, today]);
-  const heading = skin === 'pitch' ? 'font-display uppercase tracking-wide' : '';
+  /** Los dos paneles de campo hablan de partidos: goles, palos y actas. */
+  const pitch = skin === 'pitch';
+  const heading = pitch ? 'font-display uppercase tracking-wide' : '';
 
   /**
    * Qué ganaría la agenda guardada con las casillas de hoy. Lo lee del
@@ -322,16 +339,178 @@ export function WeekPlanner({
     return true;
   };
 
+  /* ------------------------------------------------------- autoguardado */
+
+  /**
+   * El rato abierto se va guardando solo mientras se escribe.
+   *
+   * Para que eso no sea un lío hay que acordarse de dos cosas: cómo estaba la
+   * agenda **antes** de abrir el editor —para poder deshacerlo entero de un
+   * toque— y qué ratos ha creado el propio autoguardado, que son los que hay
+   * que barrer y volver a poner en cada repaso mientras el rato siga siendo
+   * nuevo, porque los días marcados pueden cambiar sobre la marcha.
+   */
+  const baseline = useRef<PlanBlock[] | null>(null);
+  const autoIds = useRef<string[]>([]);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    baseline.current = planOf(profile.id).blocks;
+    autoIds.current = [];
+    setSavedAt(null);
+    // Se rearma con cada rato que se abre, no con cada tecla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing?.block.id, editing?.isNew, profile.id]);
+
+  const autoSave = (block: PlanBlock, days: number[]) => {
+    if (!editing) return;
+
+    if (editing.isNew) {
+      // Se rehacen: si se marca un día más, el rato tiene que aparecer en él.
+      const rest = planOf(profile.id).blocks.filter((item) => !autoIds.current.includes(item.id));
+      const wanted = spreadBlock(block, days).map((item) => withClockAmount(profile.id, item));
+      autoIds.current = wanted.map((item) => item.id);
+      updatePlan(profile.id, [...rest, ...wanted]);
+    } else {
+      savePlanBlock(profile.id, block);
+    }
+
+    setSavedAt(Date.now());
+  };
+
+  /**
+   * La semana como la ve el editor: la de verdad menos los ratos que el
+   * autoguardado ha ido dejando de este mismo rato. Se recalcula con cada
+   * cambio de la agenda, que es justo cuando cambia esa lista.
+   */
+  const editorPlan = useMemo(
+    () =>
+      autoIds.current.length === 0
+        ? plan
+        : { ...plan, blocks: plan.blocks.filter((item) => !autoIds.current.includes(item.id)) },
+    [plan],
+  );
+
+  /** Deja la agenda como estaba al abrir el editor, y cierra. */
+  const revert = () => {
+    if (baseline.current) updatePlan(profile.id, baseline.current);
+    autoIds.current = [];
+    setEditing(null);
+    notify({ message: 'Como estaba.', icon: '↩️' });
+  };
+
+  /* ------------------------------------------------- réplica al hermano */
+
+  /** El hermano cuya semana va casi siempre a la par de ésta. */
+  const twin = twinOf(profile.id);
+  const twinLabel = twin ? twinName(twin) : 'su hermano';
+  /** El cambio que está esperando un sí o un no. */
+  const [ask, setAsk] = useState<{ change: PlanChange; preview: ReplicaPreview } | null>(null);
+  /** Ratos hermanados, para poder decirlo en la cabecera. Se lee tras montar. */
+  const [twinned, setTwinned] = useState(0);
+  /**
+   * Qué se hace al guardar. Se arranca en «preguntar» y se corrige tras
+   * montar, como todo lo que vive en `localStorage`: en el servidor no lo hay
+   * y adivinarlo aquí desajustaría la hidratación.
+   */
+  const [mode, setMode] = useState<ReplicaMode>('preguntar');
+
+  useEffect(() => {
+    if (!twin) return;
+    setMode(replicaMode(profile.id));
+    const read = () => setTwinned(twinCount(profile.id));
+    read();
+    return subscribePlans(read);
+  }, [profile.id, twin]);
+
+  /** Lo que se dice después de replicar, con su deshacer. */
+  const toldReplica = (result: ReplicaResult) => {
+    const bits: string[] = [];
+    if (result.added > 0) bits.push(result.added === 1 ? '1 nuevo' : `${result.added} nuevos`);
+    if (result.changed > 0) {
+      bits.push(result.changed === 1 ? '1 igualado' : `${result.changed} igualados`);
+    }
+    if (result.removed > 0) {
+      bits.push(result.removed === 1 ? '1 quitado' : `${result.removed} quitados`);
+    }
+
+    notify({
+      message: `En la semana de ${twinLabel}: ${bits.join(', ')}.`,
+      icon: '👯',
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          if (twin) updatePlan(twin, result.before);
+          notify({ message: `La semana de ${twinLabel}, como estaba.`, icon: '↩️' });
+        },
+      },
+    });
+  };
+
+  const applyReplica = (change: PlanChange) => {
+    if (!twin) return;
+    setAsk(null);
+    toldReplica(replicate(profile.id, twin, change));
+  };
+
+  /**
+   * El cambio que se acaba de hacer aquí, ofrecido para la semana del otro.
+   *
+   * Se llama **después** de guardar, con lo que ha quedado: preguntar antes
+   * obligaría a describir algo que todavía puede cambiar de opinión. Y no se
+   * pregunta por lo que allí no cambiaría nada.
+   */
+  const propagate = (change: PlanChange) => {
+    if (!twin) return;
+
+    const mode = replicaMode(profile.id);
+    if (mode === 'nunca') return;
+
+    const preview = previewReplica(profile.id, twin, change);
+    if (preview.empty) return;
+
+    if (mode === 'siempre') {
+      toldReplica(replicate(profile.id, twin, change));
+      return;
+    }
+
+    setAsk({ change, preview });
+  };
+
+  /** Hermanar las dos semanas de arriba abajo. */
+  const syncTwin = () => {
+    if (!twin) return;
+    const result = syncWeeks(profile.id, twin);
+    if (result.empty) {
+      notify({ message: `La semana de ${twinLabel} ya está igual que ésta.`, icon: '👯' });
+      return;
+    }
+    toldReplica(result);
+  };
+
   /** Un rato nuevo puede salir en varios días de una sentada. */
   const save = (block: PlanBlock, days: number[]) => {
-    const before = planOf(profile.id).blocks;
     const isNew = editing?.isNew ?? false;
+    const before = baseline.current ?? planOf(profile.id).blocks;
+    // Lo que el autoguardado hubiera dejado puesto se retira: manda lo que se
+    // acaba de confirmar, y si no, el rato saldría dos veces.
+    const auto = autoIds.current;
+    autoIds.current = [];
     setEditing(null);
 
     if (!isNew) {
       savePlanBlock(profile.id, block);
       notify({ message: 'Cambiado.', icon: '🗓️' });
+      propagate({ upsert: [block], what: `«${block.title}»` });
       return;
+    }
+
+    if (auto.length > 0) {
+      updatePlan(
+        profile.id,
+        planOf(profile.id).blocks.filter((item) => !auto.includes(item.id)),
+      );
     }
 
     const wanted = spreadBlock(block, days);
@@ -347,12 +526,24 @@ export function WeekPlanner({
       icon: added === 0 ? '🚧' : '🗓️',
       action: added > 0 ? { label: 'Deshacer', onClick: undoTo(before) } : undefined,
     });
+
+    if (added > 0) {
+      // Los que de verdad han entrado, ya con su identificador definitivo.
+      const saved = planOf(profile.id).blocks.filter((item) =>
+        wanted.some((candidate) => candidate.id === item.id),
+      );
+      propagate({
+        upsert: saved,
+        what: added === 1 ? `«${block.title}»` : `«${block.title}» en ${added} días`,
+      });
+    }
   };
 
   const remove = (block: PlanBlock) => {
     if (borrowedBlock(block)) return;
     const before = planOf(profile.id).blocks;
     removePlanBlock(profile.id, block.id);
+    autoIds.current = [];
     setEditing(null);
     notify({
       message: `«${block.title}» fuera de la semana.`,
@@ -360,6 +551,7 @@ export function WeekPlanner({
       tone: 'danger',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
+    propagate({ remove: [block], what: `quitar «${block.title}»` });
   };
 
   /**
@@ -382,6 +574,10 @@ export function WeekPlanner({
       icon: '✋',
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
+
+    // Arrastrar también es cambiar la semana, y en la del hermano el entreno
+    // suele ser el mismo entreno: se ofrece igual que al guardar.
+    propagate({ upsert: [{ ...block, day, start }], what: `mover «${title}»` });
   };
 
   /**
@@ -406,6 +602,11 @@ export function WeekPlanner({
       )}, ${durationLabel(duration)}.${tied ? ` Lo previsto, ${tied.label}.` : ''}`,
       icon: '↕️',
       action: { label: 'Deshacer', onClick: undoTo(before) },
+    });
+
+    propagate({
+      upsert: [{ ...block, duration, start: at }],
+      what: `la duración de «${block.title || 'el rato'}»`,
     });
   };
 
@@ -589,6 +790,7 @@ export function WeekPlanner({
         kicker={theme.kicker}
         ornament={theme.ornament}
         quote={quote}
+        score={{ kept: review.kept, missed: review.missed }}
       />
 
       {/* Lo que la semana tipo dice de sí misma */}
@@ -1066,7 +1268,24 @@ export function WeekPlanner({
                                     className={`rounded-full px-1.5 text-[10px] font-bold ${STATUS_STYLE[status]}`}
                                     title={check?.text}
                                   >
-                                    {statusIcon(status)} {statusShort(status)}
+                                    {statusIcon(status, pitch)} {statusShort(status, pitch)}
+                                  </span>
+                                )}
+
+                                {/* Un rato puede alimentar varios hábitos. Al
+                                    pasar por encima se dice qué ha pasado con
+                                    cada uno, que es donde se ve cuál de los
+                                    tres falló. */}
+                                {blockLinks(block).length > 1 && (
+                                  <span
+                                    className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-2"
+                                    title={
+                                      check?.parts
+                                        .map((part) => `${part.metric.icon} ${part.text}`)
+                                        .join('\n') ?? undefined
+                                    }
+                                  >
+                                    🔗 {blockLinks(block).length} hábitos
                                   </span>
                                 )}
 
@@ -1173,6 +1392,45 @@ export function WeekPlanner({
         </div>
       )}
 
+      {/* La semana del hermano. Sólo sale donde tiene sentido: en la de Leo y
+          en la de Hugo, que son las dos que van casi a la par. */}
+      {twin && (
+        <section className="card p-3" aria-label={`La semana de ${twinLabel}`}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide t-3">
+              👯 La semana de {twinLabel}
+            </p>
+
+            <button type="button" onClick={syncTwin} className="btn-ghost px-3 py-1.5 text-xs">
+              ⇄ Dejarla igual que ésta
+            </button>
+
+            <label className="ml-auto flex items-center gap-1.5 text-[11px] t-3">
+              <span>Al guardar:</span>
+              <select
+                value={mode}
+                onChange={(event) => {
+                  const next = event.target.value as ReplicaMode;
+                  setReplicaMode(profile.id, next);
+                  setMode(next);
+                }}
+                className="field min-h-0 py-1 text-[11px]"
+              >
+                <option value="preguntar">preguntar</option>
+                <option value="siempre">replicar siempre</option>
+                <option value="nunca">no replicar</option>
+              </select>
+            </label>
+          </div>
+
+          <p className="mt-2 text-[11px] leading-relaxed t-3">
+            {twinned > 0
+              ? `${twinned} ${twinned === 1 ? 'rato va hermanado' : 'ratos van hermanados'} con los de ${twinLabel}: al cambiarlos aquí se ofrece cambiarlos allí. Lo suyo —con quién está, sus notas— se respeta siempre.`
+              : `Todavía no hay ningún rato hermanado. En cuanto aceptes la primera réplica, los dos ratos quedan atados y los siguientes cambios se ofrecen solos.`}
+          </p>
+        </section>
+      )}
+
       {/* Lo que se puede hacer con la semana entera */}
       <section className="card flex flex-wrap items-center gap-x-2 gap-y-2 p-3">
         <p className="text-xs font-bold uppercase tracking-wide t-3">La semana entera</p>
@@ -1214,9 +1472,9 @@ export function WeekPlanner({
                 <span
                   className={`rounded-full px-1.5 text-[10px] font-bold ${STATUS_STYLE[status]}`}
                 >
-                  {statusIcon(status)}
+                  {statusIcon(status, pitch)}
                 </span>
-                {statusLabel(status)}
+                {statusLabel(status, pitch)}
               </span>
             ),
           )}
@@ -1263,8 +1521,13 @@ export function WeekPlanner({
             profile={profile}
             block={editing.block}
             isNew={editing.isNew}
-            plan={plan}
+            /* Sin lo que el propio autoguardado acaba de dejar puesto: si no,
+               el editor avisaría de que el rato se pisa consigo mismo. */
+            plan={editorPlan}
             onSave={save}
+            onAutoSave={autoSave}
+            savedAt={savedAt}
+            onRevert={revert}
             onCancel={() => setEditing(null)}
             onDelete={editing.isNew ? undefined : () => remove(editing.block)}
             onCopy={
@@ -1276,6 +1539,35 @@ export function WeekPlanner({
                     setSheet({ kind: 'block', block });
                   }
             }
+          />
+        </Modal>
+      )}
+
+      {/* La pregunta de los hermanos. Sale después de guardar, con lo que de
+          verdad ha quedado apartado aquí. */}
+      {ask && twin && (
+        <Modal title={`👯 ¿También en la semana de ${twinLabel}?`} onClose={() => setAsk(null)}>
+          <ReplicaAsk
+            profile={profile}
+            twinName={twinLabel}
+            change={ask.change}
+            preview={ask.preview}
+            onReplicate={() => applyReplica(ask.change)}
+            onAlways={() => {
+              setReplicaMode(profile.id, 'siempre');
+              setMode('siempre');
+              applyReplica(ask.change);
+            }}
+            onSkip={() => setAsk(null)}
+            onNever={() => {
+              setReplicaMode(profile.id, 'nunca');
+              setMode('nunca');
+              setAsk(null);
+              notify({
+                message: `Las dos semanas van por su cuenta. Se cambia desde 👯 en la agenda.`,
+                icon: '🙅',
+              });
+            }}
           />
         </Modal>
       )}
@@ -1316,9 +1608,15 @@ interface HeaderProps {
   kicker: string;
   ornament: 'pitch' | 'gold' | 'steel' | 'warm' | 'rose';
   quote: string;
+  /**
+   * El resultado de la semana: lo cumplido contra lo fallado. En los paneles
+   * de campo se pinta como el marcador de un estadio, que es la forma en que
+   * un peque de ocho años lee una cifra sin que nadie se la explique.
+   */
+  score?: { kept: number; missed: number };
 }
 
-function PlannerHeader({ profile, title, icon, kicker, ornament, quote }: HeaderProps) {
+function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }: HeaderProps) {
   const pitch = ornament === 'pitch';
 
   return (
@@ -1342,6 +1640,12 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote }: Header
           <span
             aria-hidden
             className="pointer-events-none absolute -right-12 -top-10 h-40 w-40 rounded-full border-2 chalk opacity-40"
+          />
+          {/* Y la red de la portería al fondo, que es lo que se ve detrás de
+              un remate. Muy tenue: es un adorno, no un estampado. */}
+          <span
+            aria-hidden
+            className="net pointer-events-none absolute inset-y-0 right-0 w-32 opacity-20"
           />
         </>
       )}
@@ -1406,12 +1710,32 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote }: Header
           </p>
         </div>
 
+        {/* El marcador. Sin nada jugado todavía no se enseña un 0–0 que no
+            significa nada: se dice que el partido no ha empezado. */}
         {pitch && (
-          <span className="chip-soft hidden shrink-0 text-[10px] uppercase sm:inline-flex">
-            ⚪ Hala Madrid
-          </span>
+          <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] t-3">
+              Marcador
+            </span>
+            {score && score.kept + score.missed > 0 ? (
+              <span className="scoreboard rounded-lg border px-3 py-1 font-display text-xl tabular-nums">
+                {score.kept}–{score.missed}
+              </span>
+            ) : (
+              <span className="scoreboard rounded-lg border px-3 py-1 font-display text-[10px] uppercase">
+                Por jugar
+              </span>
+            )}
+            <span className="text-[9px] uppercase tracking-wide t-3">Goles · fallos</span>
+          </div>
         )}
       </div>
+
+      {pitch && (
+        <p className="relative mt-3 text-[10px] font-semibold uppercase tracking-[0.2em] t-3">
+          ⚪ Hala Madrid · el balón es tu amigo
+        </p>
+      )}
     </header>
   );
 }

@@ -7,6 +7,7 @@ import {
   DAY_NAMES,
   DAY_SHORT,
   PLAN_KINDS,
+  blockLinks,
   blockPalette,
   blocksOfDay,
   durationLabel,
@@ -1076,7 +1077,7 @@ export function WeekTimetable({
                             </span>
                             {status && !SILENT.has(status) && (
                               <span className="ml-auto shrink-0 text-[10px]" aria-hidden>
-                                {statusIcon(status)}
+                                {statusIcon(status, ornament === 'pitch')}
                               </span>
                             )}
                           </span>
@@ -1118,12 +1119,15 @@ export function WeekTimetable({
                             </span>
                           )}
 
+                          {/* La cadena dice que el rato se comprueba, y el
+                              número, cuántas casillas del registro da por
+                              trabajadas de una vez. */}
                           {roomy && block.metricId && (
                             <span
                               aria-hidden
                               className={`rato-detalle absolute bottom-0.5 right-1 text-[9px] ${wash ? 't-3' : 'opacity-70'}`}
                             >
-                              🔗
+                              🔗{blockLinks(block).length > 1 ? blockLinks(block).length : ''}
                             </span>
                           )}
                         </span>

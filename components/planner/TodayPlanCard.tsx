@@ -181,6 +181,7 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan }: TodayPl
                 check={check}
                 now={now}
                 current={running.some((item) => item.block.id === check.block.id)}
+                pitch={kid}
               />
             ))}
           </ul>
@@ -220,10 +221,13 @@ function PlanLine({
   check,
   now,
   current,
+  pitch,
 }: {
   check: PlanBlockCheck;
   now: number | null;
   current: boolean;
+  /** En los paneles de campo las marcas se cuentan como un partido. */
+  pitch: boolean;
 }) {
   const done = now !== null && endOf(check.block) <= now;
   /** De un peque, traído a esta agenda porque hoy le toca a quien mira. */
@@ -269,8 +273,27 @@ function PlanLine({
           className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_STYLE[check.status]}`}
           title={check.text}
         >
-          {statusIcon(check.status)} {statusLabel(check.status)}
+          {statusIcon(check.status, pitch)} {statusLabel(check.status, pitch)}
         </span>
+      )}
+
+      {/* Un rato puede dar por trabajadas varias casillas: el entreno es «he
+          ido» y es la hora de movimiento. Aquí, que es donde se registra, se
+          dice cuáles y cómo va cada una: si el rato sale flojo, esto contesta
+          por qué sin tener que ir a buscarlo. */}
+      {check.parts.length > 1 && (
+        <ul className="flex w-full flex-wrap gap-1 pl-1">
+          {check.parts.map((part) => (
+            <li
+              key={part.metric.id}
+              className={`rounded-full px-1.5 text-[10px] ${STATUS_STYLE[part.status]}`}
+              title={part.text}
+            >
+              <span aria-hidden>{part.metric.icon}</span> {part.metric.label}
+              {!SILENT.has(part.status) && ` ${statusIcon(part.status, pitch)}`}
+            </li>
+          ))}
+        </ul>
       )}
     </li>
   );
