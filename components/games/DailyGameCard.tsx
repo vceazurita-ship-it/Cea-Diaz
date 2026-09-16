@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { PenaltyShootout } from '@/components/games/PenaltyShootout';
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
 import { addDays, friendlyDateLabel, isToday } from '@/lib/dates';
@@ -12,12 +13,19 @@ import {
   gameResultFor,
   isGameDone,
 } from '@/lib/games';
+import {
+  PENALTY_SHOTS,
+  isPenaltyDone,
+  penaltyResultFor,
+  penaltyVerdict,
+} from '@/lib/penalties';
 import { gameRewardId, rarityLabel } from '@/lib/rewards';
 import type {
   DateKey,
   DayEntry,
   GameQuestion,
   GameResult,
+  PenaltyResult,
   Profile,
   ProfileId,
   Reward,
@@ -36,6 +44,11 @@ import type {
  *  regla del juego. Así cerrar la app en mitad de una pregunta fallada no
  *  regala otro intento, y a la vez se puede volver más tarde y seguir por
  *  donde se dejó.
+ *
+ *  Y el pleno abre una cosa más: la tanda de cinco penaltis. No da cromo ni
+ *  puntos —el cromo ya lo dio el pleno—, da el derecho a tirar, que a esta
+ *  edad es el premio que de verdad se quiere. Cuatro de cinco no la abren:
+ *  lo que se premia es no fallar ninguna.
  * ========================================================================= */
 
 interface DailyGameCardProps {
@@ -48,6 +61,8 @@ interface DailyGameCardProps {
   headingClass: string;
   /** Anota la partida en el día. */
   onResult: (result: GameResult) => void;
+  /** Anota la tanda de penaltis que abre el pleno. */
+  onPenalty?: (result: PenaltyResult) => void;
 }
 
 /** El cromo, en una línea. */
@@ -65,12 +80,15 @@ export function DailyGameCard({
   kid,
   headingClass,
   onResult,
+  onPenalty,
 }: DailyGameCardProps) {
   const [open, setOpen] = useState(false);
   /** Pregunta que se está viendo. */
   const [index, setIndex] = useState(0);
   /** Opción tocada en esta pregunta; mientras es `null`, no se ha contestado. */
   const [chosen, setChosen] = useState<string | null>(null);
+  /** La tanda de penaltis, que se abre encima de la partida. */
+  const [shooting, setShooting] = useState(false);
 
   const round = useMemo(() => buildGameRound(profile, date), [profile, date]);
   const total = round.questions.length;
@@ -83,6 +101,15 @@ export function DailyGameCard({
   /** Sólo se juega el día que es: el juego de ayer ya pasó. */
   const today = isToday(date);
   const tomorrow = GAME_META[gameForDate(addDays(date, 1))];
+
+  /**
+   * La tanda de penaltis: la abre el pleno y sólo el pleno. Lo tirado se lee
+   * del día como todo lo demás, así que una tanda a medias se retoma.
+   */
+  const perfect = done && correct === total;
+  const penalties = penaltyResultFor(entries, profile.id, date);
+  const penaltiesDone = penalties ? isPenaltyDone(penalties) : false;
+  const canShoot = Boolean(onPenalty) && perfect && today;
 
   /** El cromo de esta partida, si cayó alguno. */
   const won = rewards.find((item) => item.challengeId === gameRewardId(round.game, date))?.reward;
@@ -184,6 +211,31 @@ export function DailyGameCard({
                     : `Hoy no ha caído cromo: hacen falta ${GAME_PASS} aciertos. Mañana hay otra.`}
                 </p>
 
+                {/* El pleno abre la tanda. Se enseña aquí y no dentro de la
+                    partida porque se puede venir a tirarla más tarde. */}
+                {canShoot && (
+                  <div className="mt-2 rounded-xl border p-2 border-accent bg-accent-faint">
+                    <p className="text-[11px] font-semibold leading-snug t-1">
+                      🥅 Pleno: te has ganado una tanda de {PENALTY_SHOTS} penaltis.
+                      {penaltiesDone
+                        ? ` Marcaste ${penalties?.scored} de ${penalties?.total}.`
+                        : penalties
+                          ? ` Vas por el ${penalties.taken + 1}.`
+                          : ''}
+                    </p>
+
+                    {!penaltiesDone && (
+                      <button
+                        type="button"
+                        onClick={() => setShooting(true)}
+                        className="btn-primary mt-2 px-4 text-sm"
+                      >
+                        {penalties ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -207,6 +259,8 @@ export function DailyGameCard({
                 {result
                   ? `El ${friendlyDateLabel(date).toLowerCase()} se jugó esta partida: ${correct}/${total} aciertos.`
                   : `El juego se juega el mismo día, y el ${friendlyDateLabel(date).toLowerCase()} ya pasó. Vuelve a hoy para jugar.`}
+                {penalties &&
+                  ` Y la tanda de penaltis acabó ${penalties.scored}/${penalties.total}.`}
               </p>
             )}
           </div>
@@ -224,6 +278,15 @@ export function DailyGameCard({
               won={won}
               profileId={profile.id}
               tomorrow={`${tomorrow.icon} ${tomorrow.title}`}
+              penalties={penalties}
+              onShoot={
+                canShoot && !penaltiesDone
+                  ? () => {
+                      setOpen(false);
+                      setShooting(true);
+                    }
+                  : undefined
+              }
               onClose={() => setOpen(false)}
             />
           ) : (
@@ -237,6 +300,19 @@ export function DailyGameCard({
               onNext={next}
             />
           )}
+        </Modal>
+      )}
+
+      {/* ------------------------------------------------- la tanda del pleno */}
+      {shooting && onPenalty && (
+        <Modal title="Tanda de penaltis" size="lg" onClose={() => setShooting(false)}>
+          <PenaltyShootout
+            profileId={profile.id}
+            date={date}
+            result={penalties}
+            onShot={onPenalty}
+            onClose={() => setShooting(false)}
+          />
         </Modal>
       )}
     </>
@@ -351,10 +427,24 @@ interface ScoreboardProps {
   won?: Reward;
   profileId: ProfileId;
   tomorrow: string;
+  /** La tanda que abrió el pleno, si ya se tiró alguna. */
+  penalties: PenaltyResult | null;
+  /** Abre la tanda; ausente cuando no hay pleno o ya se tiró entera. */
+  onShoot?: () => void;
   onClose: () => void;
 }
 
-function Scoreboard({ correct, total, icon, won, profileId, tomorrow, onClose }: ScoreboardProps) {
+function Scoreboard({
+  correct,
+  total,
+  icon,
+  won,
+  profileId,
+  tomorrow,
+  penalties,
+  onShoot,
+  onClose,
+}: ScoreboardProps) {
   const perfect = correct === total;
 
   return (
@@ -395,6 +485,27 @@ function Scoreboard({ correct, total, icon, won, profileId, tomorrow, onClose }:
             <p className="mt-1 text-sm font-semibold t-1">«{won.text}»</p>
           )}
         </div>
+      )}
+
+      {/* El pleno no se queda en el marcador: se cobra tirando. */}
+      {onShoot && (
+        <div className="rounded-2xl border p-4 border-accent bg-accent-faint">
+          <p className="text-sm font-black t-1">🥅 Y ahora, penaltis</p>
+          <p className="mt-1 text-[11px] leading-snug t-2">
+            El pleno te da una tanda de cinco. Eliges el sitio y la fuerza; el portero ya ha
+            decidido adónde se tira.
+          </p>
+          <button type="button" onClick={onShoot} className="btn-primary mt-3 w-full">
+            {penalties ? 'Seguir la tanda' : 'Tirar la tanda'}
+          </button>
+        </div>
+      )}
+
+      {penalties && !onShoot && (
+        <p className="text-sm font-semibold t-1">
+          🥅 Tanda de penaltis: {penalties.scored} de {penalties.total}.{' '}
+          <span className="font-normal t-2">{penaltyVerdict(penalties.scored, penalties.total)}</span>
+        </p>
       )}
 
       <p className="text-[11px] t-3">Mañana toca {tomorrow}.</p>

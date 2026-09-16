@@ -34,6 +34,7 @@ import {
   type CloudTable,
 } from '@/lib/cloud';
 import { GAME_NOTE_KEY } from '@/lib/games';
+import { PENALTY_NOTE_KEY } from '@/lib/penalties';
 import {
   applyRemoteGps,
   loadGps,
@@ -1627,23 +1628,30 @@ export function useHabitStore(): HabitStore {
   );
 
   /**
-   * Borra el día entero. Con una excepción: la partida del juego del día se
-   * queda. Es lo único del registro que no se puede volver a hacer, y borrar
-   * el día sería la manera fácil de jugar dos veces; en ese caso, en vez de
-   * quitar la fila, se deja con la partida y nada más.
+   * Borra el día entero. Con dos excepciones: la partida del juego del día y
+   * la tanda de penaltis que abre su pleno. Son lo único del registro que no
+   * se puede volver a hacer, y borrar el día sería la manera fácil de jugar
+   * dos veces; en ese caso, en vez de quitar la fila, se deja con lo jugado y
+   * nada más.
    */
   const clearDay = useCallback((profileId: ProfileId, date: DateKey) => {
     setDb((prev) => {
       const key = entryKey(profileId, date);
       const entries = { ...prev.entries };
-      const played = prev.entries[key]?.notes?.[GAME_NOTE_KEY];
+      const before = prev.entries[key]?.notes;
 
-      if (played) {
+      const played: Record<string, string> = {};
+      for (const noteKey of [GAME_NOTE_KEY, PENALTY_NOTE_KEY]) {
+        const value = before?.[noteKey];
+        if (value) played[noteKey] = value;
+      }
+
+      if (Object.keys(played).length > 0) {
         entries[key] = {
           date,
           profileId,
           values: {},
-          notes: { [GAME_NOTE_KEY]: played },
+          notes: played,
           updatedAt: new Date().toISOString(),
         };
         return { ...prev, entries };

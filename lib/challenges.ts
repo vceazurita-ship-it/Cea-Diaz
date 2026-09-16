@@ -1107,41 +1107,64 @@ const BALON: Ladder = {
 };
 
 /**
- * La de gimnasio, que rota cada lunes. Rota porque a los ocho años uno se
+ * Las de gimnasio, que rotan cada lunes. Rotan porque a los ocho años uno se
  * cansa antes de la prueba que del esfuerzo, y porque cada una guarda su
  * propio peldaño: la que no toca esta semana sigue esperando donde se quedó.
+ *
+ * Cada turno es una lista y no una escalera suelta porque el de piernas son
+ * dos: la sentadilla empuja y el peso muerto tira, y partirlos en dos semanas
+ * dejaría medio movimiento a medio aprender. Las semanas de piernas hay un
+ * reto más, y está bien que se note.
  */
-const GIMNASIO: Ladder[] = [
-  {
-    id: 'flexiones',
-    metricId: 'reto.flexiones',
-    icon: '💪',
-    tier: 'reto',
-    name: 'Escalera de flexiones',
-    detail: (n) => `${n} flexiones seguidas, sin apoyar las rodillas y sin parar a mitad.`,
-    base: 5,
-    step: 2,
-  },
-  {
-    id: 'plancha',
-    metricId: 'reto.plancha',
-    icon: '🧘',
-    tier: 'reto',
-    name: 'Escalera de plancha',
-    detail: (n) => `${n} segundos de plancha, con la cadera arriba y la barriga apretada.`,
-    base: 20,
-    step: 5,
-  },
-  {
-    id: 'comba',
-    metricId: 'reto.comba',
-    icon: '🨢',
-    tier: 'reto',
-    name: 'Escalera de comba',
-    detail: (n) => `${n} saltos a la comba seguidos, sin engancharse ni pararse.`,
-    base: 20,
-    step: 5,
-  },
+const GIMNASIO: Ladder[][] = [
+  [
+    {
+      id: 'flexiones',
+      metricId: 'reto.flexiones',
+      icon: '💪',
+      tier: 'reto',
+      name: 'Escalera de flexiones',
+      detail: (n) => `${n} flexiones seguidas, sin apoyar las rodillas y sin parar a mitad.`,
+      base: 5,
+      step: 2,
+    },
+  ],
+  [
+    {
+      id: 'plancha',
+      metricId: 'reto.plancha',
+      icon: '🧘',
+      tier: 'reto',
+      name: 'Escalera de plancha',
+      detail: (n) => `${n} segundos de plancha, con la cadera arriba y la barriga apretada.`,
+      base: 20,
+      step: 5,
+    },
+  ],
+  [
+    {
+      id: 'sentadillas',
+      metricId: 'reto.sentadillas',
+      icon: '🦵',
+      tier: 'reto',
+      name: 'Escalera de sentadilla',
+      detail: (n) =>
+        `${n} sentadillas seguidas, bajando hasta que el muslo quede plano y con los talones en el suelo.`,
+      base: 10,
+      step: 3,
+    },
+    {
+      id: 'peso-muerto',
+      metricId: 'reto.peso_muerto',
+      icon: '🏋️',
+      tier: 'reto',
+      name: 'Escalera de peso muerto',
+      detail: (n) =>
+        `${n} pesos muertos seguidos, con la espalda recta y muy poco peso —o ninguno—.`,
+      base: 8,
+      step: 2,
+    },
+  ],
 ];
 
 /** Semanas entre dos lunes, para hacer girar la rotación. */
@@ -1154,14 +1177,14 @@ function weeksBetween(from: DateKey, to: DateKey): number {
 const ROTATION_EPOCH = '2026-01-05';
 
 function kidLadders({ profileId, start, entries }: RoutineContext): Challenge[] {
-  // La prueba de gimnasio gira una por semana, en orden y no por sorteo: con
+  // El turno de gimnasio gira uno por semana, en orden y no por sorteo: con
   // una semilla salían cuatro semanas de flexiones de cada seis y la plancha no
   // aparecía. Los dos hermanos hacen la misma prueba la misma semana —cada uno
   // por su peldaño—, que es media competición gratis.
   const turn = weeksBetween(ROTATION_EPOCH, start);
   const gym = GIMNASIO[((turn % GIMNASIO.length) + GIMNASIO.length) % GIMNASIO.length];
 
-  return [BALON, gym]
+  return [BALON, ...gym]
     .map((ladder) => ladderChallenge(profileId, ladder, start, entries))
     .filter((challenge): challenge is Challenge => challenge !== null);
 }

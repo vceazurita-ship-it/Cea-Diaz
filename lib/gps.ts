@@ -87,6 +87,16 @@ export interface GpsField {
   keys: string[];
   /** Unidades que pueden ir pegadas al número. */
   units?: string[];
+  /**
+   * Entre qué dos valores puede estar esta cifra en una sesión de verdad.
+   *
+   * No sirve para corregir a nadie que escriba a mano —lo que se teclea se
+   * guarda— sino para leer capturas de pantalla: ahí los números salen de
+   * reconocer formas, y un «24,3 km/h» leído como «243 km/h» no es una marca
+   * excepcional, es un error. Lo que cae fuera de la horquilla no se guarda y
+   * se dice cuál era, que es lo contrario de tragárselo en silencio.
+   */
+  sane: [number, number];
 }
 
 /**
@@ -108,6 +118,7 @@ export const GPS_FIELDS: GpsField[] = [
     record: false,
     keys: ['minutos', 'minutes', 'tiempo', 'duración', 'duracion', 'playing time', 'min'],
     units: ['min', "'"],
+    sane: [1, 300],
   },
   {
     id: 'distance',
@@ -123,6 +134,7 @@ export const GPS_FIELDS: GpsField[] = [
     // de alta intensidad se dice por su nombre, que además es como lo escribe
     // esta misma app al copiar una sesión.
     units: ['km', 'kms', 'm', 'metros'],
+    sane: [0.1, 30],
   },
   {
     id: 'intense',
@@ -140,6 +152,7 @@ export const GPS_FIELDS: GpsField[] = [
       'sprint distance',
       'hid',
     ],
+    sane: [1, 9000],
   },
   {
     id: 'sprints',
@@ -150,6 +163,7 @@ export const GPS_FIELDS: GpsField[] = [
     decimals: 0,
     perHour: true,
     keys: ['esprines', 'esprints', 'sprints', 'sprint', 'aceleraciones'],
+    sane: [0, 300],
   },
   {
     id: 'topSpeed',
@@ -169,6 +183,7 @@ export const GPS_FIELDS: GpsField[] = [
       'punta',
     ],
     units: ['km/h', 'kmh'],
+    sane: [3, 45],
   },
   {
     id: 'touches',
@@ -179,6 +194,7 @@ export const GPS_FIELDS: GpsField[] = [
     decimals: 0,
     perHour: true,
     keys: ['toques', 'balones', 'balones tocados', 'touches', 'ball touches', 'kicks', 'contactos'],
+    sane: [0, 4000],
   },
   {
     id: 'passes',
@@ -188,6 +204,7 @@ export const GPS_FIELDS: GpsField[] = [
     unit: '',
     decimals: 0,
     keys: ['pases', 'passes'],
+    sane: [0, 1500],
   },
   {
     id: 'shots',
@@ -197,6 +214,7 @@ export const GPS_FIELDS: GpsField[] = [
     unit: '',
     decimals: 0,
     keys: ['tiros', 'disparos', 'shots'],
+    sane: [0, 300],
   },
   {
     id: 'score',
@@ -206,6 +224,7 @@ export const GPS_FIELDS: GpsField[] = [
     unit: '',
     decimals: 0,
     keys: ['puntuación', 'puntuacion', 'score', 'rating', 'nota footbar'],
+    sane: [0, 100],
   },
 ];
 
@@ -370,6 +389,74 @@ interface Reading {
 }
 
 /**
+ * Los meses escritos con letras, por sus tres primeras.
+ *
+ * Hacen falta para las capturas de pantalla: nadie escribe «2026-09-09» a
+ * mano, pero la aplicación del rastreador pone «9 sept 2026» en la cabecera
+ * de cada sesión, y ésa es la fecha buena —la del entrenamiento— frente a la
+ * de hoy, que es la del día en que a uno le da por ponerse a apuntar.
+ *
+ * Van el castellano y el inglés porque la aplicación cambia de idioma con el
+ * móvil, y una captura del móvil de casa puede venir en cualquiera de los dos.
+ */
+const MONTHS = new Map<string, number>([
+  ['ene', 1],
+  ['jan', 1],
+  ['feb', 2],
+  ['mar', 3],
+  ['abr', 4],
+  ['apr', 4],
+  ['may', 5],
+  ['jun', 6],
+  ['jul', 7],
+  ['ago', 8],
+  ['aug', 8],
+  ['sep', 9],
+  ['set', 9],
+  ['oct', 10],
+  ['nov', 11],
+  ['dic', 12],
+  ['dec', 12],
+]);
+
+/** `2026-09-09` a partir de sus tres números, sin pasar por `Date`. */
+function written(year: number, month: number, day: number): DateKey {
+  return `${year}-${`${month}`.padStart(2, '0')}-${`${day}`.padStart(2, '0')}`;
+}
+
+/**
+ * La primera fecha con el mes en letra que haya en el texto, recorriendo
+ * todas las candidatas que encuentre el patrón. `dayFirst` dice cuál de los
+ * dos primeros grupos es el día.
+ *
+ * El año, si no viene, es el de hoy —salvo que eso cayera en el futuro, en
+ * cuyo caso es el del año pasado—, igual que con las fechas de barras.
+ */
+function firstNamedDate(
+  text: string,
+  pattern: RegExp,
+  dayFirst: boolean,
+  today: DateKey,
+): { date: DateKey; matched: string } | null {
+  for (const found of text.matchAll(pattern)) {
+    const day = Number(dayFirst ? found[1] : found[2]);
+    const month = MONTHS.get(plain(dayFirst ? found[2] : found[1]).slice(0, 3));
+
+    if (month === undefined || day < 1 || day > 31) continue;
+
+    const year = found[3] ? Number(found[3]) : Number(today.slice(0, 4));
+    const key = written(year, month, day);
+
+    return {
+      date: !found[3] && key > today ? written(year - 1, month, day) : key,
+      matched: found[0],
+    };
+  }
+
+  return null;
+}
+
+/**
  * La fecha de la línea y el trozo de texto del que ha salido.
  *
  * Lo segundo importa tanto como lo primero: el «9/9» hay que quitarlo de la
@@ -379,6 +466,19 @@ interface Reading {
 function dateIn(text: string, today: DateKey): { date: DateKey; matched: string } | null {
   const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (iso) return { date: `${iso[1]}-${iso[2]}-${iso[3]}`, matched: iso[0] };
+
+  // «9 sept 2026», «9 de septiembre», «sept 9, 2026»: así fecha sus sesiones
+  // la aplicación del rastreador, y es lo único que permite que una captura
+  // de hace tres semanas se guarde en su día y no en el de hoy.
+  //
+  // Se miran **todas** las parejas de número y palabra de la línea, no la
+  // primera: en «12 sprints … 9 sept» la primera pareja es «12 sprints», que
+  // no nombra ningún mes, y quedarse ahí sería perder la fecha de verdad.
+  const named =
+    firstNamedDate(text, /\b(\d{1,2})\s*(?:de\s+)?([a-zñáéíóú]{3,10})\.?\s*(?:de\s+)?(\d{4})?\b/gi, true, today) ??
+    firstNamedDate(text, /\b([a-zñáéíóú]{3,10})\.?\s+(\d{1,2})\b[,\s]*(\d{4})?/gi, false, today);
+
+  if (named) return named;
 
   // 9/9, 09-09, 9/9/2026: el año, si no viene, es el del día de hoy… salvo
   // que eso cayera en el futuro, en cuyo caso es del año pasado. Pegar en
@@ -391,11 +491,12 @@ function dateIn(text: string, today: DateKey): { date: DateKey; matched: string 
 
     const raw = slash[3];
     const year = raw ? (raw.length === 2 ? 2000 + Number(raw) : Number(raw)) : Number(today.slice(0, 4));
-    const written = (value: number) =>
-      `${value}-${`${month}`.padStart(2, '0')}-${`${day}`.padStart(2, '0')}`;
 
-    const key = written(year);
-    return { date: !raw && key > today ? written(year - 1) : key, matched: slash[0] };
+    const key = written(year, month, day);
+    return {
+      date: !raw && key > today ? written(year - 1, month, day) : key,
+      matched: slash[0],
+    };
   }
 
   const word = text.match(/\b(hoy|ayer|anteayer)\b/i);
@@ -484,16 +585,137 @@ export function parsePaste(
       continue;
     }
 
-    let id = `${profileId}:${date}:${kind}`;
-    let suffix = 1;
-    while (used.has(id)) id = `${profileId}:${date}:${kind}:${(suffix += 1)}`;
-    used.add(id);
-    session.id = id;
-
+    session.id = claimId(profileId, date, kind, used);
     sessions.push(session);
   }
 
   return { sessions, ignored };
+}
+
+/**
+ * El identificador de una sesión: perfil, día y tipo.
+ *
+ * Que sea el mismo para el mismo día y tipo es lo que hace que volver a meter
+ * una sesión —porque se corrigió una cifra, o porque se pegó y además se
+ * fotografió— la actualice en vez de duplicarla. `used` recoge las que ya se
+ * han repartido en esta misma tanda, para que dos entrenos del mismo día no
+ * se pisen entre ellos.
+ */
+export function claimId(
+  profileId: ProfileId,
+  date: DateKey,
+  kind: GpsKind,
+  used: Set<string>,
+): string {
+  let id = `${profileId}:${date}:${kind}`;
+  let suffix = 1;
+  while (used.has(id)) id = `${profileId}:${date}:${kind}:${(suffix += 1)}`;
+  used.add(id);
+  return id;
+}
+
+/* ---------------------------------------------------------------------------
+ * Leer una captura de pantalla
+ *
+ * Es el mismo problema de antes y una situación distinta. Escribir la línea
+ * obliga a mirar la pantalla del móvil y teclear seis números sin equivocarse,
+ * y eso se hace la primera semana; a la tercera, las sesiones se quedan sin
+ * apuntar. La captura, en cambio, ya está hecha: sale sola al mirar la sesión
+ * en la aplicación del rastreador.
+ *
+ * El texto de la captura lo reconoce el navegador (`lib/gpsOcr.ts`) y llega
+ * aquí tal cual, con sus saltos de línea y sus erratas. La diferencia con un
+ * pegote es una y grande: **una captura es una sesión**, no una por línea. Lo
+ * que en la pantalla está en dos renglones —«Distancia» arriba y «5,20 km»
+ * debajo— es una sola cifra, así que la captura entera se aplana y se reparte
+ * de una vez, con las mismas reglas de vecindad de siempre.
+ *
+ * Y una precaución que el pegote no necesita: lo que se lee de una imagen
+ * puede salir mal leído, así que cada cifra se contrasta con la horquilla de
+ * lo posible y lo que no cabe se aparta —diciéndolo—, en vez de guardarse.
+ * ------------------------------------------------------------------------- */
+
+/** Lo que ha salido de una captura, con lo que se ha tenido que descartar. */
+export interface ScreenRead {
+  session: GpsSession;
+  /** `true` si la fecha venía en la propia captura y no es la de hoy por defecto. */
+  dated: boolean;
+  /** Cifras leídas pero imposibles; se enseñan para que se corrijan a mano. */
+  dropped: { id: GpsFieldId; value: number }[];
+}
+
+/** ¿Cabe esta cifra en una sesión de verdad? */
+export function plausible(id: GpsFieldId, value: number): boolean {
+  const [low, high] = fieldOf(id).sane;
+  return Number.isFinite(value) && value >= low && value <= high;
+}
+
+/**
+ * Lo que la pantalla enseña y no es del rastreador: la hora del móvil, la
+ * batería, el «3 de 5» de un carrusel. Se quitan antes de repartir números
+ * porque son justo del tamaño de una cifra de verdad.
+ */
+function withoutChrome(text: string): string {
+  return text
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ')
+    .replace(/\d+\s*%/g, ' ')
+    .replace(/\b\d+\s*\/\s*\d+\b/g, ' ');
+}
+
+/**
+ * Convierte el texto reconocido de una captura en una sesión.
+ *
+ * Devuelve siempre una ficha, aunque salga sin una sola cifra: quien ha
+ * adjuntado la foto tiene derecho a ver qué se ha entendido de ella y a
+ * rellenar a mano lo que falte, que es mejor que un «no se ha podido leer».
+ */
+export function readScreen(
+  profileId: ProfileId,
+  text: string,
+  today: DateKey = todayKey(),
+): ScreenRead {
+  const clean = withoutChrome(text);
+
+  const kind: GpsKind = /\b(partido|match|game|competici[oó]n|amistoso)\b/i.test(clean)
+    ? 'partido'
+    : 'entreno';
+
+  const found = dateIn(clean, today);
+  const date = found?.date ?? today;
+
+  const session: GpsSession = {
+    id: '',
+    profileId,
+    date,
+    kind,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // La captura entera, en una línea: el rótulo y su número viven en renglones
+  // distintos, y separados no se reconocen.
+  const flat = (found ? clean.replace(found.matched, ' ') : clean).replace(/\s+/g, ' ');
+  const numbers = readNumbers(flat);
+  const dropped: ScreenRead['dropped'] = [];
+
+  for (const field of GPS_FIELDS) {
+    const read = numbers[field.id];
+    if (read === undefined) continue;
+
+    const metres =
+      field.id === 'distance' &&
+      (read.unit === 'm' || read.unit === 'metros' || (!read.unit && read.value > 100));
+
+    const value = metres ? read.value / 1000 : read.value;
+
+    if (!plausible(field.id, value)) {
+      dropped.push({ id: field.id, value });
+      continue;
+    }
+
+    session[field.id] = value;
+  }
+
+  return { session, dated: found !== null, dropped };
 }
 
 /**
@@ -993,6 +1215,127 @@ export function notesOf(sessions: GpsSession[]): GpsNote[] {
   }
 
   return out.slice(0, 5);
+}
+
+/* ---------------------------------------------------------------------------
+ * El resumen de una tanda
+ *
+ * Meter seis capturas de golpe —las de un mes que se quedó sin apuntar— no
+ * es lo mismo que meter la sesión de ayer: lo que uno quiere saber entonces
+ * no es cómo fue una, sino qué ha pasado en ese mes. Esto es lo que contesta
+ * esa pregunta, y sólo tiene sentido justo después de guardar la tanda.
+ * ------------------------------------------------------------------------- */
+
+/** Una cifra de la tanda frente a lo que ya había apuntado antes de ella. */
+export interface DigestCompare {
+  id: GpsFieldId;
+  /** Media en las sesiones recién metidas. */
+  now: number;
+  /** Media en las que ya había, anteriores a la primera de la tanda. */
+  before: number;
+  /** Diferencia, en tanto por uno. */
+  change: number;
+}
+
+export interface GpsDigest {
+  count: number;
+  from: DateKey;
+  to: DateKey;
+  /** Días distintos con sesión. */
+  days: number;
+  /** Minutos y kilómetros sumados, de lo que los traiga. */
+  minutes: number;
+  distance: number;
+  /** Récords que ha dejado la tanda, mirando sólo lo anterior a cada sesión. */
+  records: { id: GpsFieldId; value: number; on: DateKey }[];
+  stats: FieldStat[];
+  notes: GpsNote[];
+  versus: DigestCompare[];
+  /** Con cuántas sesiones anteriores se ha comparado. */
+  versusCount: number;
+}
+
+/** Media de una cifra en un puñado de sesiones, o `null` si ninguna la trae. */
+function meanOf(sessions: GpsSession[], id: GpsFieldId): number | null {
+  const values = sessions
+    .map((session) => valueOf(session, id))
+    .filter((value): value is number => value !== undefined);
+
+  return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+}
+
+/**
+ * Lo que dicen juntas las sesiones que se acaban de meter, y cómo quedan
+ * frente a las que ya estaban.
+ *
+ * La comparación se hace contra lo **anterior** a la primera de la tanda, no
+ * contra todo lo demás: metiendo hoy las sesiones de marzo, lo interesante es
+ * cómo fue marzo frente a lo de antes de marzo, no frente a lo de después.
+ *
+ * Y se calla donde no hay con qué hablar: hacen falta al menos dos sesiones a
+ * cada lado para comparar medias, y un 5 % de diferencia para que merezca la
+ * pena decirlo.
+ */
+export function digestOf(batch: GpsSession[], all: GpsSession[]): GpsDigest | null {
+  if (batch.length === 0) return null;
+
+  const order = [...batch].sort((a, b) => a.date.localeCompare(b.date));
+  const from = order[0].date;
+  const to = order[order.length - 1].date;
+
+  const ids = new Set(batch.map((session) => session.id));
+  const before = all.filter((session) => !ids.has(session.id) && session.date < from);
+
+  const versus: DigestCompare[] = [];
+
+  if (before.length >= 2 && batch.length >= 2) {
+    for (const field of GPS_FIELDS) {
+      if (field.record === false) continue;
+
+      const now = meanOf(order, field.id);
+      const past = meanOf(before, field.id);
+      if (now === null || past === null || past <= 0) continue;
+
+      const change = now / past - 1;
+      if (Math.abs(change) < 0.05) continue;
+
+      versus.push({ id: field.id, now, before: past, change });
+    }
+  }
+
+  // Los récords se miran sesión a sesión y contra todo lo que la precede,
+  // que es la única manera de que una tanda de sesiones viejas no invente
+  // récords por el simple hecho de haberse apuntado la última.
+  //
+  // De cada cifra se guarda sólo el último, que es el que sigue en pie: una
+  // tanda en la que la distancia subió tres veces dejó un récord de distancia,
+  // no tres, y enumerar los escalones intermedios sólo lo enturbia.
+  const best = new Map<GpsFieldId, { id: GpsFieldId; value: number; on: DateKey }>();
+  for (const session of order) {
+    for (const mark of marksOf(session, all)) {
+      if (mark.record) best.set(mark.id, { id: mark.id, value: mark.value, on: session.date });
+    }
+  }
+
+  const records = GPS_FIELD_LIST.map((id) => best.get(id)).filter(
+    (record): record is { id: GpsFieldId; value: number; on: DateKey } => record !== undefined,
+  );
+
+  return {
+    count: batch.length,
+    from,
+    to,
+    days: new Set(order.map((session) => session.date)).size,
+    minutes: order.reduce((sum, session) => sum + (valueOf(session, 'minutes') ?? 0), 0),
+    distance: order.reduce((sum, session) => sum + (valueOf(session, 'distance') ?? 0), 0),
+    records,
+    stats: statsOf(order),
+    // Sin el «van tres sesiones apuntadas»: aquí se está mirando una tanda,
+    // no la libreta entera, y contar las de la tanda ya lo hace la cabecera.
+    notes: notesOf(order).filter((note) => note.id !== 'pocas'),
+    versus,
+    versusCount: before.length,
+  };
 }
 
 /** Sesiones de un periodo, para poder mirar el mes o el curso entero. */

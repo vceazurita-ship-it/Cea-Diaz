@@ -31,6 +31,7 @@ import type {
   DayEntry,
   GameResult,
   Metric,
+  PenaltyResult,
   Profile,
   ProfileId,
   ProfileSkin,
@@ -51,6 +52,8 @@ interface ChallengesPanelProps {
   onNoteChange: (text: string) => void;
   /** Anota la partida del juego del día; sólo la tienen los peques. */
   onGameResult?: (result: GameResult) => void;
+  /** Anota la tanda de penaltis que abre el pleno de esa partida. */
+  onPenaltyResult?: (result: PenaltyResult) => void;
   /**
    * Apartarle un rato en la semana a lo que pide un reto. Sin esto, los retos
    * dicen adónde hay que llegar y nadie dice cuándo.
@@ -262,6 +265,7 @@ export function ChallengesPanel({
   note,
   onNoteChange,
   onGameResult,
+  onPenaltyResult,
   onReserve,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
@@ -346,6 +350,7 @@ export function ChallengesPanel({
           kid={kid}
           headingClass={headingClass}
           onResult={onGameResult}
+          onPenalty={onPenaltyResult}
         />
       )}
 

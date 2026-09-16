@@ -32,14 +32,15 @@ export const SPORTS: MetricGroup[] = [
 ];
 
 /**
- * Las marcas de las dos escaleras semanales de Leo y Hugo: la del balón y la
- * de gimnasio, que rota entre flexiones, plancha y comba (`lib/challenges.ts`).
+ * Las marcas de las escaleras semanales de Leo y Hugo: la del balón y la de
+ * gimnasio, que rota entre flexiones, plancha y el turno de piernas
+ * —sentadilla y peso muerto juntos— (`lib/challenges.ts`).
  * Aquí sólo se apunta la mejor marca del día; el peldaño que toca superar lo
  * pone el reto, y sube solo la semana siguiente a conseguirlo.
  *
- * Van con `weight: 0`: son contexto, no cumplimiento. Nadie hace las cuatro
- * pruebas cada día, y un lunes de comba no puede salir suspendido por las tres
- * que ese día no tocaban.
+ * Van con `weight: 0`: son contexto, no cumplimiento. Nadie hace las cinco
+ * pruebas cada día, y un lunes de piernas no puede salir suspendido por las
+ * tres que ese día no tocaban.
  *
  * Son `duration` y no `counter` aunque cuenten toques o flexiones: el contador
  * de los peques pinta una ficha tocable por unidad, y cuarenta pelotitas en fila
@@ -85,18 +86,34 @@ const kidMarkMetrics: Metric[] = [
     weight: 0,
     help: 'Segundos aguantando sin que baje la cadera.',
   },
+  // El turno de piernas va en pareja a propósito: la sentadilla empuja y el
+  // peso muerto tira, y a esta edad los dos se aprenden juntos o no se aprende
+  // ninguno. Por eso son dos marcas y no una.
   {
-    id: 'reto.comba',
-    label: 'Saltos a la comba seguidos',
-    icon: '🨢',
+    id: 'reto.sentadillas',
+    label: 'Sentadillas seguidas',
+    icon: '🦵',
     type: 'duration',
-    target: 30,
+    target: 15,
     min: 0,
-    max: 200,
-    step: 5,
-    unit: 'saltos',
+    max: 80,
+    step: 1,
+    unit: 'sentadillas',
     weight: 0,
-    help: 'Seguidos, sin engancharse. Se vuelve a empezar si se para.',
+    help: 'Sin peso, bajando hasta que el muslo quede plano y con los talones en el suelo.',
+  },
+  {
+    id: 'reto.peso_muerto',
+    label: 'Peso muerto seguidos',
+    icon: '🏋️',
+    type: 'duration',
+    target: 10,
+    min: 0,
+    max: 60,
+    step: 1,
+    unit: 'repes',
+    weight: 0,
+    help: 'Espalda recta y muy poco peso, o ninguno. Cuentan sólo las que salen bien hechas.',
   },
 ];
 

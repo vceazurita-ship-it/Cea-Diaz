@@ -31,6 +31,7 @@ import {
 } from '@/lib/games';
 import { gpsEnabledFor } from '@/lib/gps';
 import { getCategories } from '@/lib/habits';
+import { PENALTY_NOTE_KEY, encodePenaltyResult } from '@/lib/penalties';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
 import { clockNow, planFills, plannedToday, planProgress } from '@/lib/planToday';
@@ -570,6 +571,9 @@ export function Dashboard({
             onNoteChange={(text) => writeNote(CHALLENGE_NOTE_KEY, text)}
             onGameResult={(result) =>
               store.setEntryNote(profile.id, date, GAME_NOTE_KEY, encodeGameResult(result))
+            }
+            onPenaltyResult={(result) =>
+              store.setEntryNote(profile.id, date, PENALTY_NOTE_KEY, encodePenaltyResult(result))
             }
             onReserve={reserveForMetric}
           />

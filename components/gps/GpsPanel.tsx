@@ -13,6 +13,7 @@ import {
   KIND_META,
   TRACKER,
   bookOf,
+  digestOf,
   fieldOf,
   formatValue,
   marksOf,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/gps';
 import { findMetric } from '@/lib/habits';
 import { headingFont } from '@/lib/profiles';
+import type { GpsDigest } from '@/lib/gps';
 import type { GpsSession, Profile, ProfileSkin } from '@/types';
 
 /* =========================================================================
@@ -63,6 +65,15 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
   /** Qué se está mirando: todo, sólo entrenos o sólo partidos. */
   const [filter, setFilter] = useState<'todo' | 'entreno' | 'partido'>('todo');
 
+  /**
+   * Las sesiones que se acaban de meter, para poder decir qué dicen juntas.
+   *
+   * Se guardan los identificadores y no las sesiones: lo que se enseña tiene
+   * que ser lo que ha quedado guardado —corregido y todo—, no lo que se
+   * mandó guardar.
+   */
+  const [batch, setBatch] = useState<string[]>([]);
+
   const shown = useMemo(
     () => (filter === 'todo' ? sessions : sessions.filter((item) => item.kind === filter)),
     [sessions, filter],
@@ -76,6 +87,17 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
   // se ha pedido al filtrar.
   const marks = useMemo(() => (last ? marksOf(last, shown) : []), [last, shown]);
 
+  /**
+   * El resumen de la última tanda. Se calcula sobre todas las sesiones y no
+   * sobre las filtradas: lo que se acaba de meter se compara con todo lo que
+   * había, que es lo que hace de esto una interpretación y no un recuento.
+   */
+  const digest = useMemo(() => {
+    const ids = new Set(batch);
+    const mine = sessions.filter((session) => ids.has(session.id));
+    return mine.length > 0 ? digestOf(mine, sessions) : null;
+  }, [batch, sessions]);
+
   /* --------------------------------------------------------- acciones */
 
   const add = (incoming: GpsSession[]) => {
@@ -84,6 +106,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
     const fresh = incoming.filter((item) => !known.has(item.id)).length;
 
     saveSessions(profile.id, incoming);
+    setBatch(incoming.map((item) => item.id));
 
     notify({
       message:
@@ -93,7 +116,13 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
             : 'Sesión corregida: ya había una de ese día.'
           : `${incoming.length} sesiones apuntadas${fresh < incoming.length ? ` (${incoming.length - fresh} corregidas)` : ''}.`,
       icon: '🛰️',
-      action: { label: 'Deshacer', onClick: () => restoreBook(profile.id, before) },
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          restoreBook(profile.id, before);
+          setBatch([]);
+        },
+      },
     });
   };
 
@@ -184,6 +213,14 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
           </div>
         )}
       </div>
+
+      {digest && (
+        <ImportDigest
+          digest={digest}
+          kid={kid}
+          onClose={() => setBatch([])}
+        />
+      )}
 
       {sessions.length === 0 ? (
         <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
@@ -323,6 +360,153 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
       )}
 
       <GpsEntry profileId={profile.id} name={profile.name} kid={kid} onSave={add} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Lo que dice la tanda que se acaba de meter
+ *
+ * Apuntar la sesión de ayer y volcar el mes de marzo entero son dos cosas
+ * distintas, y la segunda merece una respuesta distinta. Cuando entran varias
+ * sesiones de golpe —que es lo que pasa adjuntando capturas— la pregunta ya
+ * no es «¿qué tal fue ésta?» sino «¿qué ha pasado en todo esto?», y eso es lo
+ * que contesta esta tarjeta: cuánto se ha corrido en total, qué récords han
+ * caído, y cómo queda ese trozo frente a lo que ya había apuntado antes.
+ * ------------------------------------------------------------------------- */
+
+function ImportDigest({
+  digest,
+  kid,
+  onClose,
+}: {
+  digest: GpsDigest;
+  kid: boolean;
+  onClose: () => void;
+}) {
+  const span =
+    digest.from === digest.to
+      ? formatShort(digest.from)
+      : `del ${formatShort(digest.from)} al ${formatShort(digest.to)}`;
+
+  return (
+    <section className={`${kid ? 'card-kid' : 'card'} border-accent bg-accent-faint p-4`}>
+      <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="text-sm font-bold t-1">
+          📊 {digest.count === 1 ? 'La sesión recién apuntada' : `Las ${digest.count} recién apuntadas`}
+        </h3>
+        <span className="text-[11px] t-3">{span}</span>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-ghost ml-auto min-h-0 px-2 py-1 text-[11px]"
+        >
+          Ocultar
+        </button>
+      </header>
+
+      {/* Lo que suma la tanda: los dos números que se piensan de cabeza. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Tile label="Sesiones" value={`${digest.count}`} hint={`en ${digest.days} ${digest.days === 1 ? 'día' : 'días'}`} />
+        {digest.minutes > 0 && (
+          <Tile
+            label="⏱️ Tiempo"
+            value={formatValue('minutes', digest.minutes)}
+            hint="sumando todas"
+          />
+        )}
+        {digest.distance > 0 && (
+          <Tile
+            label="🛣️ Distancia"
+            value={formatValue('distance', digest.distance)}
+            hint="sumando todas"
+          />
+        )}
+        {digest.records.length > 0 && (
+          <Tile
+            label="🏅 Récords"
+            value={`${digest.records.length}`}
+            hint={digest.records.length === 1 ? 'marca nueva' : 'marcas nuevas'}
+          />
+        )}
+      </div>
+
+      {/* Las marcas de la tanda, cifra a cifra. */}
+      {digest.stats.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+          {digest.stats
+            .filter((stat) => fieldOf(stat.id).record !== false)
+            .map((stat) => (
+              <span key={stat.id} className="text-[11px] tabular-nums t-2">
+                <span aria-hidden>{fieldOf(stat.id).icon}</span>{' '}
+                <span className="font-bold t-1">{formatValue(stat.id, stat.best)}</span> la mejor ·{' '}
+                {formatValue(stat.id, stat.average)} de media
+              </span>
+            ))}
+        </div>
+      )}
+
+      {/* La comparación con lo de antes: la única que no puede hacer Footbar. */}
+      {digest.versus.length > 0 && (
+        <div className="mt-3 rounded-2xl border p-3 hairline surf-1">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide t-3">
+            Frente a las {digest.versusCount} sesiones anteriores
+          </p>
+          <ul className="space-y-1">
+            {digest.versus.map((item) => (
+              <li key={item.id} className="text-xs leading-relaxed t-2">
+                <span aria-hidden>{fieldOf(item.id).icon}</span>{' '}
+                <span className="font-semibold t-1">{fieldOf(item.id).label}</span>{' '}
+                {item.change > 0 ? '▲' : '▼'}{' '}
+                <span className="font-bold tabular-nums">
+                  {Math.abs(Math.round(item.change * 100))} %
+                </span>
+                : de {formatValue(item.id, item.before)} a {formatValue(item.id, item.now)} de media.
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Los récords, con el día en que cayeron. */}
+      {digest.records.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed t-2">
+          🏅 Marcas nuevas:{' '}
+          {digest.records
+            .map(
+              (record) =>
+                `${fieldOf(record.id).label.toLowerCase()} ${formatValue(record.id, record.value)} el ${formatShort(record.on)}`,
+            )
+            .join('; ')}
+          .
+        </p>
+      )}
+
+      {/* Y lo que se puede decir de la tanda por sí sola. */}
+      {digest.notes.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {digest.notes.map((note) => (
+            <li key={note.id} className="flex gap-2 text-xs leading-relaxed">
+              <span aria-hidden className="shrink-0">
+                {note.icon}
+              </span>
+              <span className={note.tone === 'aviso' ? 't-2' : 't-1'}>{note.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Un número grande con su rótulo: los de arriba del resumen. */
+function Tile({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-2xl border p-3 hairline surf-1">
+      <p className="truncate text-[11px] font-bold uppercase tracking-wide t-3">{label}</p>
+      <p className="text-lg font-black tabular-nums t-accent">{value}</p>
+      <p className="text-[11px] t-3">{hint}</p>
     </div>
   );
 }

@@ -88,9 +88,11 @@ components/
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
   games/
     DailyGameCard.tsx    El juego del día de los peques: la partida y su cromo
+    PenaltyShootout.tsx  La tanda de cinco penaltis que abre el pleno
   gps/
     GpsPanel.tsx       Las sesiones del rastreador y lo que dicen juntas
-    GpsEntry.tsx       Apuntar una sesión: pegando una línea o a mano
+    GpsEntry.tsx       Apuntar una sesión: por foto, pegando una línea o a mano
+    GpsPhotos.tsx      Capturas del rastreador: se leen aquí y salen fichas revisables
     GpsTrend.tsx       Cómo va cada cifra, sesión a sesión
   team/
     Campograma.tsx       El equipo montado con los cromos: formación, once y banquillo
@@ -145,13 +147,15 @@ lib/
   rewards.ts           Mazos de cromos y frases, y su reparto por reto y por partida
   cromoArt.ts          Equipaciones y rasgos con los que se dibuja el retrato de cada cromo
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
+  penalties.ts         La tanda de penaltis del pleno: portería, portero y reglas del tiro
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   finance.ts           Economía: las seis libretas, sus cuentas y su guardado local
   financeExperts.ts    El criterio de las cuentas: quién lo sostiene y qué avisar
   financePlan.ts       El plan: veredicto del año, palancas y acciones ordenadas
   planner.ts           La agenda semanal: catálogo de ratos, semanas de ejemplo y guardado
   planCheck.ts         Cruce entre lo planificado y lo registrado: desenlaces y avisos
-  gps.ts               El GPS de los entrenos: leer una sesión pegada, guardarla y compararla
+  gps.ts               El GPS de los entrenos: leer una sesión —pegada o fotografiada—, guardarla y compararla
+  gpsOcr.ts            Reconocer el texto de una captura, en el propio navegador
   learning.ts          Catálogo del bonus del día y elección según el interés
   tasks.ts             Recados: montones por urgencia, repetición, copias en serie y etiquetas
   calendar.ts          Lo que el navegador le pide al servidor sobre el calendario
@@ -206,7 +210,7 @@ pertenece a una fecha concreta del historial. Tampoco entran en el cumplimiento.
 
 | Perfil                  | Categorías                                                                        |
 | ----------------------- | --------------------------------------------------------------------------------- |
-| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus dos escaleras: toques, flexiones, plancha y comba) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
+| **Leo** (8), **Hugo** (9) | Nutrición e Hidratación · Sueño y Recuperación · Rendimiento Deportivo (Fútbol, Natación, Arte Marcial, Gimnasio, Atletismo, con asistencia/esfuerzo/sensaciones, más el movimiento del día y las marcas de sus escaleras: toques, flexiones, plancha, sentadillas y peso muerto) · Cognitivo-Académico (época de exámenes, lectura en casa, escritura, techo de pantallas) |
 | **María** (39)          | Sueño y Descanso · Nutrición e Hidratación · Movimiento y Fuerza · Desarrollo Personal · Profesional (clases de español online) |
 | **Víctor** (42)         | Sueño y Descanso · Nutrición e Hidratación (con su protocolo: el arranque de la mañana, la suplementación, el escudo de las comidas fuera y el tránsito) · Movimiento y Fuerza (con su reparto semanal: pierna, pecho, dorsal, flexiones, series de carrera, core y rodaje, cada una con su marca) · Cuerpo y Composición (la medición de la mañana: peso, grasa, músculo, pulso en reposo y variabilidad) · Desarrollo Personal (lectura, escritura, máster, formación) · Profesional (preparación de sesiones, análisis táctico, cultura de equipo, microciclo, cuerpo técnico y alto rendimiento) · Casa y Vínculos (tiempo con los hijos y con María, la gente de uno, su parte de la casa, recados y la semana organizada) · Economía (gasto del día apuntado, compras impulsivas, revisión de cuentas) |
 | **Hábitos en Familia**  | Rutinas en Familia · Tiempo Juntos                                                 |
@@ -819,22 +823,31 @@ cada una, con qué acompañante salió y las últimas anotadas, con las que fuer
 el día que se hicieron señaladas. El reto dice lo que hay que superar; esto dice si la
 cosa sube o lleva un mes clavada.
 
-##### Las dos escaleras de Leo y Hugo
+##### Las escaleras de Leo y Hugo
 
-Leo y Hugo llevan dos retos más cada semana, y los dos **suben un peldaño cada vez
-que se superan**:
+Leo y Hugo llevan dos retos más cada semana —tres las semanas de piernas—, y todos
+**suben un peldaño cada vez que se superan**:
 
 | Escalera | Prueba | Primer peldaño | Sube |
 | -------- | ------ | -------------- | ---- |
 | **Del balón** (`maximo`) | Toques seguidos sin que caiga | 5 toques | +3 |
 | **De gimnasio** (`reto`) | Flexiones seguidas | 5 flexiones | +2 |
 |  | Plancha aguantada | 20 s | +5 |
-|  | Saltos a la comba seguidos | 20 saltos | +5 |
+|  | Sentadillas seguidas | 10 sentadillas | +3 |
+|  | Peso muerto seguidos | 8 repeticiones | +2 |
 
-La del balón no cambia nunca, porque es su deporte. La de gimnasio **gira una prueba
-por semana** —flexiones, plancha, comba— en orden y no por sorteo: con una semilla
-salían cuatro semanas de flexiones de cada seis y la plancha no aparecía. Los dos
-hermanos hacen la misma prueba la misma semana, cada uno por su peldaño.
+La del balón no cambia nunca, porque es su deporte. La de gimnasio **gira un turno por
+semana** —flexiones, plancha, y sentadilla con peso muerto— en orden y no por sorteo:
+con una semilla salían cuatro semanas de flexiones de cada seis y la plancha no
+aparecía. Los dos hermanos hacen la misma prueba la misma semana, cada uno por su
+peldaño.
+
+El turno de piernas trae **dos escaleras a la vez** y no una: la sentadilla empuja y el
+peso muerto tira, y partirlos en dos semanas distintas dejaría medio movimiento a medio
+aprender. Esas semanas hay un reto más, y está bien que se note. Los dos se piden con
+poco peso o ninguno y con la forma por delante de la cifra —talones en el suelo en la
+sentadilla, espalda recta en el peso muerto—, que a los ocho años es lo único que
+importa de verdad.
 
 El peldaño **no se guarda en ningún sitio**, como todo lo demás: se cuenta mirando
 las 16 semanas anteriores y sumando una por cada semana en la que se alcanzó el
@@ -1034,6 +1047,33 @@ baraja** —así una partida ganada no adelanta el turno de los cromos de los re
 revés— y los cromos que deja **también se alinean en el campograma**, como cualquier
 otro.
 
+### Y con el pleno, penaltis
+
+Las cinco acertadas —las cinco, no cuatro— abren además una **tanda de cinco
+penaltis**. No da cromos ni puntos: el cromo ya lo dio el pleno. Da el derecho a
+tirar, que a los ocho años es exactamente el premio que uno quiere.
+
+Tirar bien un penalti es elegir dos cosas, y el juego son esas dos:
+
+- **Dónde.** Seis sitios: arriba y abajo, por los dos palos y por el centro. El
+  portero se tira a uno de los seis, **decidido de antemano** y no al ver el tiro, así
+  que acertar el sitio es acertar el hueco.
+- **Con cuánta fuerza.** Una barra que sube y baja sola y hay que parar en su franja
+  buena. Pasarse es mandarla por encima del larguero, tires donde tires. Quedarse
+  corto es un tiro blando que el portero alcanza si se ha tirado a tu mismo lado,
+  aunque haya errado la altura: el sitio no salva un tiro flojo.
+
+Las reglas se aplican en ese orden —fuera, parada en tu zona, parada blanda, gol— y
+cada tiro se explica al acabar, como las preguntas.
+
+Vale aquí todo lo de la partida: el portero de cada tiro sale de una semilla hecha con
+el perfil, el día y el número de tiro, así que recargar no cambia adónde vuela; cada
+penalti se anota en cuanto se ejecuta, así que uno fallado es uno fallado; y la tanda
+se puede retomar pero no repetir. Se guarda en su propia línea de las notas del día
+(`penaltis|goles|tirados|total|momento`), y borrar el día la respeta igual que respeta
+la partida —si no, borrar sería la manera fácil de volver a tirar—.
+
+
 ### Una vez al día, y de verdad
 
 - **Cada respuesta se anota en cuanto se toca.** No es un detalle técnico, es la regla:
@@ -1047,7 +1087,8 @@ otro.
   exactamente lo mismo: no hay manera de barajar de nuevo hasta que salgan fáciles.
 
 Del juego **se guarda una sola línea** en las notas del día
-(`juego|aciertos|contestadas|total|momento`), que es lo único que no se puede deducir.
+(`juego|aciertos|contestadas|total|momento`), y otra de la tanda si la hubo, que es lo
+único que no se puede deducir.
 Como cabe en lo que ya viaja a la nube, el juego no necesitó ninguna tabla nueva ni
 ningún cambio en el esquema: sincroniza entre móviles con el resto del día. Todo lo
 demás —las preguntas, el premio, la racha de plenos— se recalcula.
@@ -1073,6 +1114,49 @@ paneles de Leo y de Hugo, que son los que llevan aparato.
 
 ### Cómo entra una sesión
 
+Tres caminos, y el primero es el que hace que las sesiones no se queden sin apuntar.
+
+#### 📷 Adjuntando la captura
+
+La captura ya está hecha: sale sola al mirar la sesión en la aplicación del
+rastreador. Se adjuntan **las que sean, de los días que sean** —las cinco de la
+semana pasada, las doce del mes que se quedó atrás— y el navegador las lee una
+a una.
+
+El reconocimiento se hace **en el propio aparato**, con Tesseract compilado a
+WebAssembly: ninguna foto de los críos sale de ahí, no hay servidor que las
+reciba, no hay clave que configurar y no hay nada que pagar. Es la misma regla
+con la que funciona el resto de la casa cuando no hay Supabase ni Google. La
+primera foto tarda un poco más —se descarga el lector, un par de megas que se
+quedan en la caché—; las siguientes, no.
+
+Antes de leerla, la imagen **se prepara**: se agranda, se pasa a grises, se
+invierte si el fondo es oscuro y se le estira el contraste. Sin esa pasada,
+Tesseract —que está pensado para papel escaneado— lee a medias una pantalla de
+móvil en modo oscuro.
+
+La fecha es la razón de ser de este camino: se busca **en la propia captura**
+—la aplicación la escribe en la cabecera de cada sesión, «9 sept 2026»— y la
+ficha se va a su día aunque sea de hace tres semanas. Cuando no aparece se pone
+la de hoy y **se avisa de que se ha puesto**, que no es lo mismo.
+
+Y lo que sale de ahí no se guarda a ciegas. Cada foto queda convertida en una
+**ficha revisable**: el día, el tipo y todas las cifras en casillas que se
+corrigen de un toque, con la miniatura al lado y un botón para ver el texto
+crudo que se ha reconocido. Reconocer texto de una imagen falla —a veces lee
+243 donde pone 24,3—, así que además cada cifra se contrasta con la horquilla
+de lo posible: lo que no cabe en una sesión de verdad **se aparta y se dice**,
+en vez de colarse en las medias.
+
+Al guardar una tanda de varias, la pantalla contesta la pregunta que se hace
+quien acaba de volcar un mes entero: **qué ha pasado en todo eso**. Cuántas
+sesiones y en cuántos días, el tiempo y los kilómetros sumados, las marcas de
+la tanda, los récords que ha dejado —mirando cada sesión contra lo anterior a
+ella, no contra lo que vino después— y cómo queda ese trozo frente a las
+sesiones que ya había antes de la primera.
+
+#### ⌨️ Pegando la línea
+
 De un pegote. Una línea por sesión, en el orden que sea:
 
 ```
@@ -1090,9 +1174,12 @@ silencio es peor que uno que no funciona.
 
 Repetir una sesión del mismo día y del mismo tipo la **corrige** en vez de
 duplicarla —el identificador es `perfil:día:tipo`—, así que arreglar una cifra
-mal copiada es volver a pegar la línea. Y para quien esté en el móvil sin
-ganas de acordarse de ningún formato, la misma tarjeta tiene una pestaña «A
-mano» con sus casillas.
+mal copiada es volver a pegar la línea.
+
+#### ✍️ A mano
+
+Casillas de toda la vida, en la tercera pestaña de la misma tarjeta, para el
+día en que no apetece acordarse de ningún formato ni buscar la captura.
 
 Los números se reparten **por cercanía**, no con una expresión regular por
 cifra: cada número mira primero la unidad que lleva pegada, luego el nombre
@@ -1110,6 +1197,7 @@ una vez. Es lo que desenreda las líneas que se escriben de verdad: en
 | Sus marcas | De qué es capaz, con el día en que lo hizo y su media —y, donde tiene sentido, por hora— |
 | Cómo va la cosa | Las últimas doce sesiones de una cifra, con la media marcada. Los partidos, más oscuros |
 | Mirándolas juntas | Tendencias, récords recientes y cuánto cambia un partido respecto a un entreno |
+| La tanda recién metida | Qué dicen juntas las que se acaban de adjuntar, y cómo quedan frente a las anteriores |
 
 Todo con la misma regla que el resto de la app: **lo que no venga en la sesión
 se queda vacío**. Un cero inventado se cuela en las medias y estropea justo la

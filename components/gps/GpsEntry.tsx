@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { GpsPhotos } from '@/components/gps/GpsPhotos';
 import {
   GPS_FIELDS,
   KIND_META,
@@ -18,19 +19,24 @@ import type { GpsKind, GpsSession, ProfileId } from '@/types';
 /* =========================================================================
  *  Meter una sesión.
  *
- *  Dos caminos para lo mismo, porque hay dos situaciones distintas:
+ *  Tres caminos para lo mismo, porque hay tres situaciones distintas:
  *
- *   · **Pegar**. Es el camino corto y el que se usa casi siempre: una línea
- *     por sesión, en el orden que sea, y se pueden pegar cinco de golpe. Es
- *     lo que permite que alguien mire la aplicación del rastreador, escriba
- *     los números en una línea y los tenga aquí dentro para siempre.
+ *   · **Foto**. El más corto de todos, y el único que aguanta un mes entero
+ *     atrasado: se adjuntan las capturas de la aplicación del rastreador
+ *     —las que sean, de los días que sean— y el navegador las lee. Cada foto
+ *     sale convertida en una ficha, con su día sacado de la propia captura.
+ *
+ *   · **Pegar**. Una línea por sesión, en el orden que sea, y se pueden pegar
+ *     cinco de golpe. Es el camino de quien prefiere teclear a fotografiar, y
+ *     el que sigue funcionando cuando la captura sale ilegible.
  *
  *   · **A mano**. Casillas de toda la vida, para el móvil y para el día en
  *     que no apetece acordarse de ningún formato.
  *
- *  Lo pegado se enseña **antes** de guardarlo. Un pegote que se traga en
- *  silencio y adivina mal es peor que uno que no funciona: aquí se ve qué ha
- *  entendido, sesión a sesión, y sólo entonces se guarda.
+ *  Lo leído se enseña **antes** de guardarlo, venga de donde venga. Una
+ *  lectura que se traga en silencio y adivina mal es peor que una que no
+ *  funciona: aquí se ve qué se ha entendido, sesión a sesión, y sólo
+ *  entonces se guarda.
  * ========================================================================= */
 
 interface GpsEntryProps {
@@ -40,8 +46,18 @@ interface GpsEntryProps {
   onSave: (sessions: GpsSession[]) => void;
 }
 
+const MODES = [
+  { id: 'foto', label: 'Foto' },
+  { id: 'pegar', label: 'Pegar' },
+  { id: 'mano', label: 'A mano' },
+] as const;
+
+type Mode = (typeof MODES)[number]['id'];
+
 export function GpsEntry({ profileId, name, kid, onSave }: GpsEntryProps) {
-  const [mode, setMode] = useState<'pegar' | 'mano'>('pegar');
+  // La foto va primero porque es la que menos pide: la captura ya existe,
+  // sólo hay que adjuntarla.
+  const [mode, setMode] = useState<Mode>('foto');
 
   return (
     <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
@@ -52,22 +68,24 @@ export function GpsEntry({ profileId, name, kid, onSave }: GpsEntryProps) {
         </span>
 
         <div className="ml-auto flex rounded-xl border p-0.5 hairline surf-1">
-          {(['pegar', 'mano'] as const).map((option) => (
+          {MODES.map((option) => (
             <button
-              key={option}
+              key={option.id}
               type="button"
-              onClick={() => setMode(option)}
-              aria-pressed={mode === option}
+              onClick={() => setMode(option.id)}
+              aria-pressed={mode === option.id}
               className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors
-                ${mode === option ? 'bg-accent t-on-accent' : 't-3 hover-soft'}`}
+                ${mode === option.id ? 'bg-accent t-on-accent' : 't-3 hover-soft'}`}
             >
-              {option === 'pegar' ? 'Pegar' : 'A mano'}
+              {option.label}
             </button>
           ))}
         </div>
       </header>
 
-      {mode === 'pegar' ? (
+      {mode === 'foto' ? (
+        <GpsPhotos profileId={profileId} name={name} onSave={onSave} />
+      ) : mode === 'pegar' ? (
         <PasteBox profileId={profileId} name={name} onSave={onSave} />
       ) : (
         <ByHand profileId={profileId} onSave={onSave} />

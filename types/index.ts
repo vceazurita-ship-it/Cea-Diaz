@@ -610,6 +610,23 @@ export interface GameResult {
   at: string;
 }
 
+/**
+ * La tanda de penaltis que abre un pleno en el juego del día.
+ *
+ * Se guarda igual que la partida y por lo mismo: es lo único que queda de
+ * ella, y `taken` permite retomar una tanda que se dejó a medias sin poder
+ * volver a tirar los penaltis que ya se tiraron.
+ */
+export interface PenaltyResult {
+  /** Goles marcados. */
+  scored: number;
+  /** Penaltis ya tirados. */
+  taken: number;
+  total: number;
+  /** Momento del último tiro (ISO). */
+  at: string;
+}
+
 /* -------------------------------- Campograma ---------------------------- */
 
 /**
