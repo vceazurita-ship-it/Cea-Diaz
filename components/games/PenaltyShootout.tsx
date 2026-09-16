@@ -1,35 +1,48 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Chutador, Impacto, Portero } from '@/components/games/PenaltyArt';
 import {
   PENALTY_SHOTS,
   PENALTY_ZONES,
   POWER_GOOD,
+  keeperTell,
   keeperZone,
   penaltyVerdict,
   resolveShot,
   zoneOf,
 } from '@/lib/penalties';
-import type { PenaltyOutcome, PenaltyShot, PenaltyZoneId } from '@/lib/penalties';
+import type { PenaltyAim, PenaltyOutcome, PenaltyShot, PenaltyZoneId } from '@/lib/penalties';
+import { hashSeed } from '@/lib/challenges';
+import type { Casero } from '@/lib/cromoArt';
+import { playCue } from '@/lib/sound';
 import type { DateKey, PenaltyResult, ProfileId } from '@/types';
 
 /* =========================================================================
  *  Tirar los cinco penaltis.
  *
- *  Cada penalti son tres momentos y se ven los tres: se elige el sitio, se
- *  para la barra de fuerza y se mira lo que pasa. Ni el portero ni el
- *  resultado se saben antes de disparar —el portero se tapa hasta que sale
- *  el balón—, que es lo que hace que la elección valga algo.
+ *  Un penalti son tres gestos y los tres se ven en la pantalla: **colocar**
+ *  la mira donde uno quiera de la portería, **mantener pulsado** para cargar
+ *  la fuerza y **soltar** para chutar. Ni el resultado se sabe antes de
+ *  soltar ni el portero espera quieto: se coloca, y ahí está el juego.
  *
- *  Y una regla que no es de adorno: **el tiro se anota al dispararse**. Lo
- *  mismo que la partida de preguntas. Cerrar la aplicación con un penalti
+ *  La pieza que lo convierte en habilidad y no en sorteo es **el aviso del
+ *  portero**: antes de cada tiro se carga hacia el lado por el que va a
+ *  volar, y se dice con todas las letras. Leerlo y tirar al otro lado es la
+ *  lección entera del penalti, la misma que se grita desde la banda, y es lo
+ *  que hace que la segunda tanda salga mejor que la primera.
+ *
+ *  El que tira es el crío: la misma cara de su cromo, su color y su dorsal
+ *  (`PenaltyArt`). Y una regla que no es de adorno: **el tiro se anota al
+ *  dispararse**, igual que las preguntas. Cerrar la aplicación con un penalti
  *  fallado a medias no devuelve el penalti; volver más tarde sigue la tanda
  *  por donde iba.
  * ========================================================================= */
 
 interface PenaltyShootoutProps {
   profileId: ProfileId;
+  name: string;
   date: DateKey;
   /** Lo tirado hasta ahora; `null` si la tanda está por empezar. */
   result: PenaltyResult | null;
@@ -41,8 +54,15 @@ interface PenaltyShootoutProps {
 /** En qué momento del penalti se está. */
 type Step = 'apuntar' | 'fuerza' | 'visto';
 
+/** Cuánto tarda el balón en llegar, y cuánto se queda el resultado en pantalla. */
+const VUELO_MS = 620;
+
+/** Dónde está el punto de penalti dentro de la escena, en tanto por ciento. */
+const PUNTO = { x: 50, y: 88 };
+
 export function PenaltyShootout({
   profileId,
+  name,
   date,
   result,
   onShot,
@@ -53,7 +73,7 @@ export function PenaltyShootout({
   const done = taken >= PENALTY_SHOTS;
 
   const [step, setStep] = useState<Step>(done ? 'visto' : 'apuntar');
-  const [aim, setAim] = useState<PenaltyZoneId | null>(null);
+  const [aim, setAim] = useState<PenaltyAim>({ x: 50, y: 50 });
   const [power, setPower] = useState(0);
 
   /**
@@ -66,24 +86,32 @@ export function PenaltyShootout({
    */
   const [fired, setFired] = useState<{ keeper: PenaltyZoneId; shot: PenaltyShot } | null>(null);
 
-  /** El portero de este penalti: decidido de antemano, tapado hasta el tiro. */
+  /** Por dónde va el balón: en el punto, subiendo, o ya donde acabó. */
+  const [flight, setFlight] = useState<0 | 1 | 2>(0);
+
+  /** El portero de este penalti: decidido de antemano, y con su aviso. */
   const keeper = keeperZone(profileId, date, taken);
+  const tell = keeperTell(keeper);
 
   /* ------------------------------------------------------ la barra de fuerza */
 
-  // La barra va y viene sola mientras se está apuntando a la fuerza. Se mueve
-  // con el reloj del navegador y no con un temporizador de pasos para que
-  // corra igual en un móvil viejo que en un portátil.
+  // La barra va y viene sola mientras se mantiene pulsado. Se mueve con el
+  // reloj del navegador y no con un temporizador de pasos para que corra
+  // igual en un móvil viejo que en un portátil.
   const frame = useRef<number>();
+  const charged = useRef(0);
+
   useEffect(() => {
     if (step !== 'fuerza') return undefined;
 
     const started = performance.now();
-    const sweep = 1400;
+    const sweep = 1250;
 
     const tick = (now: number) => {
       const phase = ((now - started) % (sweep * 2)) / sweep;
-      setPower(Math.round((phase <= 1 ? phase : 2 - phase) * 100));
+      const value = Math.round((phase <= 1 ? phase : 2 - phase) * 100);
+      charged.current = value;
+      setPower(value);
       frame.current = requestAnimationFrame(tick);
     };
 
@@ -95,13 +123,33 @@ export function PenaltyShootout({
 
   /* ------------------------------------------------------------- el disparo */
 
-  const fire = () => {
-    if (!aim || step !== 'fuerza') return;
+  const charge = useCallback(() => {
+    if (step !== 'apuntar') return;
+    charged.current = 0;
+    setStep('fuerza');
+  }, [step]);
+
+  const fire = useCallback(() => {
+    if (step !== 'fuerza') return;
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
 
-    const outcome = resolveShot(aim, power, keeper);
+    // La semilla del tiro decide hacia qué lado se abre un balón reventado.
+    // Va con el perfil, el día y el número de tiro para que el mismo penalti
+    // dé siempre lo mismo, como las preguntas.
+    const seed = hashSeed(`${profileId}:desvio:${date}:${taken}`);
+    const outcome = resolveShot(aim, charged.current, keeper, seed);
+
+    setPower(charged.current);
     setFired({ keeper, shot: outcome });
     setStep('visto');
+    setFlight(1);
+    playCue('tiro');
+
+    window.setTimeout(() => setFlight(2), 140);
+    window.setTimeout(
+      () => playCue(outcome.outcome === 'gol' ? 'gol' : outcome.outcome === 'parada' ? 'parada' : 'fuera'),
+      VUELO_MS,
+    );
 
     onShot({
       scored: scored + (outcome.outcome === 'gol' ? 1 : 0),
@@ -109,63 +157,108 @@ export function PenaltyShootout({
       total: PENALTY_SHOTS,
       at: new Date().toISOString(),
     });
-  };
+  }, [aim, date, keeper, onShot, profileId, scored, step, taken]);
 
   const next = () => {
-    setAim(null);
+    setAim({ x: 50, y: 50 });
     setFired(null);
+    setFlight(0);
     setPower(0);
     setStep('apuntar');
   };
 
   /* ---------------------------------------------------------------- pintura */
 
-  if (done && !fired) return <Final scored={scored} onClose={onClose} />;
+  if (done && !fired) return <Final scored={scored} name={name} onClose={onClose} />;
 
   const [low, high] = POWER_GOOD;
+  const shooting = taken + (fired ? 0 : 1);
 
   return (
-    <div className="space-y-4">
-      {/* Por dónde va la tanda */}
+    <div className="space-y-3">
+      {/* Por dónde va la tanda: los cinco huecos, siempre a la vista. */}
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-black uppercase tracking-wide t-3">
-          Penalti {Math.min(fired ? taken : taken + 1, PENALTY_SHOTS)} de {PENALTY_SHOTS}
+          Penalti {Math.min(shooting, PENALTY_SHOTS)} de {PENALTY_SHOTS}
         </span>
-        <span className="ml-auto text-sm font-black tabular-nums t-1">
-          {scored} {scored === 1 ? 'gol' : 'goles'}
-        </span>
+        <Marcador taken={taken} scored={scored} last={fired?.shot.outcome ?? null} />
       </div>
 
-      <Goal
+      <Escena
+        who={profileId as Casero}
         aim={aim}
-        keeper={fired?.keeper ?? null}
-        outcome={fired?.shot.outcome ?? null}
-        pickable={step === 'apuntar'}
-        onPick={(zone) => {
-          setAim(zone);
-          setStep('fuerza');
-        }}
+        onAim={setAim}
+        step={step}
+        tell={tell}
+        fired={fired}
+        flight={flight}
       />
 
-      {step === 'apuntar' && (
-        <p className="text-center text-sm font-semibold leading-snug t-2">
-          Elige el sitio. El portero ya ha decidido adónde se tira, así que piénsalo: lo que
-          buscas es el hueco, no el centro de la portería.
-        </p>
-      )}
-
-      {step === 'fuerza' && (
+      {/* Apuntar y coger fuerza comparten **el mismo bloque y el mismo botón**,
+          y no son dos pantallas que se sustituyen. Es deliberado: quien
+          mantiene el dedo en un botón que desaparece y es reemplazado por otro
+          se queda con el tiro a medias, porque al soltar ya no hay debajo lo
+          que había al pulsar. Un solo botón que cambia de rótulo, y la barra
+          siempre en su sitio aunque todavía no corra, quitan de en medio los
+          dos saltos. */}
+      {step !== 'visto' && (
         <div className="space-y-3">
-          <p className="text-center text-sm font-semibold leading-snug t-2">
-            Ahora la fuerza. Para la barra dentro de la franja: pasarte es mandarla fuera, y
-            quedarte corto deja llegar al portero si se tira a tu lado.
+          <p className="rounded-xl border p-3 text-center text-sm font-bold leading-snug
+                        border-accent bg-accent-faint t-1">
+            {tell === 'centro' ? (
+              <>
+                👀 Se queda en el centro.{' '}
+                <span className="font-semibold t-2">Tira pegado a un palo.</span>
+              </>
+            ) : (
+              <>
+                👀 Se está cargando hacia tu {tell}.{' '}
+                <span className="font-semibold t-2">Tira al otro lado.</span>
+              </>
+            )}
           </p>
 
-          <div className="relative h-8 overflow-hidden rounded-xl border hairline surf-1">
+          {/* Puntería rápida: seis sitios de un toque. Es además el camino
+              del teclado, porque la mira libre se mueve con el dedo. */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {PENALTY_ZONES.map((zone) => (
+              <button
+                key={zone.id}
+                type="button"
+                disabled={step !== 'apuntar'}
+                onClick={() => setAim({ x: zone.x, y: zone.y })}
+                aria-label={`Apuntar ${zone.label}`}
+                className={`btn min-h-[3rem] justify-center border text-xl font-black transition-colors
+                  disabled:opacity-60
+                  ${
+                    Math.abs(aim.x - zone.x) < 6 && Math.abs(aim.y - zone.y) < 6
+                      ? 'border-accent bg-accent-faint t-1'
+                      : 'hairline surf-1 t-2 hover-soft'
+                  }`}
+              >
+                {zone.arrow}
+              </button>
+            ))}
+          </div>
+
+          <div
+            className={`relative h-10 overflow-hidden rounded-xl border hairline surf-1
+                        ${step === 'apuntar' ? 'opacity-45' : ''}`}
+            role="progressbar"
+            aria-label="Fuerza del tiro"
+            aria-valuenow={power}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             {/* La franja buena, siempre a la vista: esto no es adivinar. */}
             <div
-              className="absolute inset-y-0 bg-emerald-400/25"
+              className="absolute inset-y-0 bg-emerald-400/30"
               style={{ left: `${low}%`, width: `${high - low}%` }}
+              aria-hidden
+            />
+            <div
+              className="absolute inset-y-0 left-0 bg-accent/30"
+              style={{ width: `${power}%` }}
               aria-hidden
             />
             <div
@@ -173,27 +266,53 @@ export function PenaltyShootout({
               style={{ left: `calc(${power}% - 3px)` }}
               aria-hidden
             />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-black t-1">
+              {step === 'apuntar' ? 'fuerza' : power < low ? 'flojo' : power > high ? '¡pasado!' : 'buena'}
+            </span>
           </div>
 
-          <button type="button" onClick={fire} className="btn-primary w-full text-base">
-            ⚽ ¡Dispara!
+          <button
+            type="button"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              // El dedo se queda atado a este botón: aunque se mueva o se
+              // suelte fuera, el disparo vuelve aquí en vez de perderse.
+              event.currentTarget.setPointerCapture(event.pointerId);
+              charge();
+            }}
+            onPointerUp={fire}
+            onPointerCancel={fire}
+            onKeyDown={(event) => {
+              if (event.key === ' ' || event.key === 'Enter') {
+                event.preventDefault();
+                charge();
+              }
+            }}
+            onKeyUp={(event) => {
+              if (event.key === ' ' || event.key === 'Enter') fire();
+            }}
+            className="btn-primary w-full touch-none text-base"
+          >
+            {step === 'apuntar' ? '⚽ Mantén pulsado para coger fuerza' : '🔥 Suelta para chutar'}
           </button>
+
+          <p className="text-center text-[11px] leading-snug t-3">
+            {step === 'apuntar'
+              ? 'Toca la portería para mover la mira adonde quieras, o usa los seis botones.'
+              : 'Suelta dentro de la franja verde. Pasarte sube y abre el balón; quedarte corto le da tiempo al portero.'}
+          </p>
         </div>
       )}
 
       {step === 'visto' && fired && (
         <div className="animate-floatUp space-y-3">
           <p
-            className={`text-center text-lg font-black ${
+            className={`text-center text-xl font-black ${
               fired.shot.outcome === 'gol' ? 't-accent' : 't-1'
             }`}
             aria-live="polite"
           >
-            {fired.shot.outcome === 'gol'
-              ? '🥅 ¡GOL!'
-              : fired.shot.outcome === 'parada'
-                ? '🧤 ¡Parada!'
-                : '🚀 ¡Fuera!'}
+            {TITULAR[fired.shot.outcome]}
           </p>
 
           <p className="rounded-xl border p-3 text-[13px] leading-snug hairline surf-1 t-2">
@@ -215,99 +334,262 @@ export function PenaltyShootout({
   );
 }
 
+const TITULAR: Record<PenaltyOutcome, string> = {
+  gol: '🥅 ¡GOOOL!',
+  parada: '🧤 ¡La ha parado!',
+  fuera: '🚀 ¡Fuera!',
+  poste: '🪵 ¡Al palo!',
+};
+
+const MARCA: Record<PenaltyOutcome, string> = {
+  gol: '⚽',
+  parada: '🧤',
+  fuera: '🚀',
+  poste: '🪵',
+};
+
 /* ---------------------------------------------------------------------------
- * La portería
+ * El marcador de la tanda
  * ------------------------------------------------------------------------- */
 
-function Goal({
-  aim,
-  keeper,
-  outcome,
-  pickable,
-  onPick,
+function Marcador({
+  taken,
+  scored,
+  last,
 }: {
-  aim: PenaltyZoneId | null;
-  keeper: PenaltyZoneId | null;
-  outcome: PenaltyOutcome | null;
-  pickable: boolean;
-  onPick: (zone: PenaltyZoneId) => void;
+  taken: number;
+  scored: number;
+  last: PenaltyOutcome | null;
 }) {
-  const target = aim ? zoneOf(aim) : null;
-  const glove = keeper ? zoneOf(keeper) : null;
+  return (
+    <span className="ml-auto flex items-center gap-2">
+      <span className="flex gap-1" aria-hidden>
+        {Array.from({ length: PENALTY_SHOTS }, (_, i) => (
+          <span
+            key={i}
+            className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px]
+              ${
+                i < taken
+                  ? 'border-accent bg-accent-faint'
+                  : i === taken
+                    ? 'border-accent border-dashed'
+                    : 'hairline surf-2 opacity-50'
+              }`}
+          >
+            {i === taken - 1 && last ? MARCA[last] : i < taken ? '•' : ''}
+          </span>
+        ))}
+      </span>
+      <span className="text-sm font-black tabular-nums t-1">
+        {scored} {scored === 1 ? 'gol' : 'goles'}
+      </span>
+    </span>
+  );
+}
 
-  // Un tiro que se va fuera sube por encima del larguero; el resto acaba
-  // donde se apuntó. Es el único sitio donde el balón no va a su zona.
-  const ballY = outcome === 'fuera' ? -12 : target?.y ?? 50;
+/* ---------------------------------------------------------------------------
+ * La escena
+ *
+ * Cielo de atardecer, grada, campo, portería y los dos muñecos. Todo lo que
+ * pasa dentro de la portería va en tanto por ciento de la boca, que es el
+ * mismo sistema con el que piensan las reglas en `lib/penalties.ts`: así lo
+ * que se ve y lo que se calcula son lo mismo, sin conversiones por el medio.
+ * ------------------------------------------------------------------------- */
+
+/** Dónde vive la boca de la portería dentro de la escena, en tanto por ciento. */
+const BOCA = { left: 9, top: 15, width: 82, height: 44 };
+
+/** Un punto de la portería, llevado a coordenadas de la escena. */
+function enEscena(point: PenaltyAim): { x: number; y: number } {
+  return {
+    x: BOCA.left + (point.x / 100) * BOCA.width,
+    y: BOCA.top + (point.y / 100) * BOCA.height,
+  };
+}
+
+function Escena({
+  who,
+  aim,
+  onAim,
+  step,
+  tell,
+  fired,
+  flight,
+}: {
+  who: Casero;
+  aim: PenaltyAim;
+  onAim: (aim: PenaltyAim) => void;
+  step: Step;
+  tell: 'izquierda' | 'centro' | 'derecha';
+  fired: { keeper: PenaltyZoneId; shot: PenaltyShot } | null;
+  flight: 0 | 1 | 2;
+}) {
+  const mouth = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+
+  /** Mueve la mira al punto que se está tocando, sin salirse de la portería. */
+  const point = (event: React.PointerEvent) => {
+    const box = mouth.current?.getBoundingClientRect();
+    if (!box) return;
+
+    onAim({
+      x: Math.max(3, Math.min(97, ((event.clientX - box.left) / box.width) * 100)),
+      y: Math.max(3, Math.min(97, ((event.clientY - box.top) / box.height) * 100)),
+    });
+  };
+
+  const mira = enEscena(aim);
+  const ball =
+    flight === 0
+      ? { ...PUNTO, scale: 1 }
+      : flight === 1
+        ? { x: (PUNTO.x + mira.x) / 2, y: (PUNTO.y + mira.y) / 2 - 7, scale: 0.72 }
+        : { ...enEscena(fired?.shot.landing ?? aim), scale: 0.45 };
+
+  // El portero: quieto y cargado hacia su lado mientras se apunta, y volando
+  // adonde le tocaba en cuanto sale el balón.
+  //
+  // Al volar **no se le pone encima de la esquina**: se le lleva a medio
+  // camino entre donde estaba y la esquina, que es donde queda el cuerpo de
+  // un portero que estira el brazo. Poniéndole el ombligo en la escuadra, la
+  // cabeza se le salía por encima del larguero.
+  const flying = fired !== null;
+  const target = flying ? zoneOf(fired.keeper) : null;
+  const dive = target
+    ? enEscena({ x: 50 + (target.x - 50) * 0.55, y: 68 + (target.y - 68) * 0.55 })
+    : null;
+  const lean = tell === 'izquierda' ? -7 : tell === 'derecha' ? 7 : 0;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-emerald-900/40 bg-emerald-800">
-      <div className="relative aspect-[16/9]">
-        {/* La red: dos rejillas cruzadas, que es todo lo que hace falta para
-            que aquello se lea como una portería. */}
+    <div className="relative overflow-hidden rounded-2xl border border-emerald-950/40">
+      <div className="relative aspect-[4/3]">
+        {/* Cielo de atardecer y grada: el fondo de las tardes de merienda. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#ffb765] via-[#ff8f6b] to-[#6d4aa8]" />
+        <div className="absolute inset-x-0 top-0 h-[10%] bg-[#4c2f7a]/60" />
         <div
           aria-hidden
-          className="absolute inset-x-[6%] inset-y-[8%] rounded-sm border-[5px] border-white
-                     bg-emerald-950/30
-                     bg-[linear-gradient(90deg,rgba(255,255,255,0.3)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.3)_1px,transparent_1px)]
-                     bg-[length:7%_11%]"
+          className="absolute inset-x-0 top-[8%] h-[8%] bg-[#3b2360]
+                     bg-[radial-gradient(circle,rgba(255,255,255,0.35)_1px,transparent_1px)]
+                     bg-[length:6px_6px]"
         />
 
-        {/* Las seis casillas */}
-        {PENALTY_ZONES.map((zone) => {
-          const picked = aim === zone.id;
+        {/* Césped, con sus franjas de siega. */}
+        <div
+          className="absolute inset-x-0 bottom-0 top-[56%] bg-emerald-700
+                     bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.06)_0_7%,transparent_7%_14%)]"
+        />
 
-          return (
-            <button
-              key={zone.id}
-              type="button"
-              disabled={!pickable}
-              onClick={() => onPick(zone.id)}
-              aria-label={`Tirar ${zone.label}`}
-              aria-pressed={picked}
-              className={`absolute flex items-center justify-center rounded-lg border-2
-                          text-2xl font-black transition-colors
-                          ${
-                            picked
-                              ? 'border-white bg-white/35 text-white'
-                              : 'border-white/45 bg-white/5 text-white/70'
-                          }
-                          ${pickable ? 'hover:border-white hover:bg-white/25 hover:text-white' : ''}`}
-              style={{
-                left: `${zone.x - 13}%`,
-                top: `${zone.y - 15}%`,
-                width: '26%',
-                height: '30%',
-              }}
-            >
-              {zone.arrow}
-            </button>
-          );
-        })}
-
-        {/* El portero, sólo cuando ya ha volado */}
-        {glove && (
-          <span
+        {/* Los rayos del anime, detrás de todo, cuando se carga la fuerza. */}
+        {step === 'fuerza' && (
+          <div
             aria-hidden
-            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-4xl
-                       transition-all duration-300"
-            style={{ left: `${glove.x}%`, top: `${glove.y}%` }}
-          >
-            🧤
-          </span>
+            className="absolute inset-0 opacity-30
+                       bg-[repeating-conic-gradient(from_0deg_at_50%_62%,rgba(255,255,255,0.5)_0deg_5deg,transparent_5deg_16deg)]"
+          />
         )}
 
-        {/* Y el balón: en el punto hasta que se dispara */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-2xl
-                     transition-all duration-500 ease-out"
+        {/* La boca de la portería: red, marco y superficie de puntería. */}
+        <div
+          ref={mouth}
+          role="group"
+          aria-label={`Portería. La mira está en ${Math.round(aim.x)} por ciento de izquierda a derecha y ${Math.round(aim.y)} por ciento de arriba abajo.`}
+          onPointerDown={(event) => {
+            if (step !== 'apuntar') return;
+            dragging.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            point(event);
+          }}
+          onPointerMove={(event) => {
+            if (step === 'apuntar' && dragging.current) point(event);
+          }}
+          onPointerUp={() => {
+            dragging.current = false;
+          }}
+          className={`absolute rounded-sm border-[6px] border-white bg-slate-900/85
+                      bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.28)_1px,transparent_1px)]
+                      bg-[length:7%_11%] ${step === 'apuntar' ? 'cursor-crosshair touch-none' : ''}`}
           style={{
-            left: `${outcome ? target?.x ?? 50 : 50}%`,
-            top: `${outcome ? ballY : 93}%`,
+            left: `${BOCA.left}%`,
+            top: `${BOCA.top}%`,
+            width: `${BOCA.width}%`,
+            height: `${BOCA.height}%`,
+          }}
+        />
+
+        {/* El portero. Cuando espera, los pies en la línea de gol y cargado
+            hacia su lado; cuando vuela, girado y estirado hacia su esquina. */}
+        <div
+          className="pointer-events-none absolute transition-all duration-500 ease-out"
+          style={{
+            left: `${dive ? dive.x : BOCA.left + BOCA.width / 2 + lean}%`,
+            top: `${dive ? dive.y : BOCA.top + BOCA.height * 0.68}%`,
+            width: '28%',
+            transform: `translate(-50%, -50%) rotate(${
+              target ? (target.x < 50 ? -58 : target.x > 50 ? 58 : 0) : 0
+            }deg) scale(${flying ? 1.08 : 1})`,
+          }}
+        >
+          <Portero className="h-full w-full" />
+        </div>
+
+        {/* La mira. Va con doble aro —tinta fuera, blanco dentro— porque tiene
+            que leerse igual sobre la red oscura que sobre la camiseta del
+            portero, que es justo donde uno querría ponerla y no verla. */}
+        {step !== 'visto' && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute transition-all duration-150"
+            style={{ left: `${mira.x}%`, top: `${mira.y}%`, transform: 'translate(-50%, -50%)' }}
+          >
+            <span className="relative flex h-11 w-11 items-center justify-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+              <span className="absolute inset-0 animate-ping rounded-full border-2 border-amber-300/80" />
+              <span className="absolute inset-0 rounded-full border-[3px] border-[#241a14]" />
+              <span className="absolute inset-[3px] rounded-full border-[3px] border-amber-300" />
+              <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-amber-300" />
+              <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-amber-300" />
+              <span className="relative h-2 w-2 rounded-full bg-white" />
+            </span>
+          </div>
+        )}
+
+        {/* El balón. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute text-2xl transition-all ease-out"
+          style={{
+            left: `${ball.x}%`,
+            top: `${ball.y}%`,
+            transform: `translate(-50%, -50%) scale(${ball.scale})`,
+            transitionDuration: `${VUELO_MS / 2}ms`,
           }}
         >
           ⚽
-        </span>
+        </div>
+
+        {/* El que tira, en primer plano y a su tamaño de protagonista: grande
+            y pegado al borde, como en el anime, que es lo que da la sensación
+            de estar detrás de él. */}
+        <div
+          className="pointer-events-none absolute bottom-[-3%] left-[1%] h-[58%] drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)]"
+          style={{ aspectRatio: '120 / 210' }}
+        >
+          <Chutador
+            who={who}
+            pose={step === 'apuntar' ? 'espera' : step === 'fuerza' ? 'carrera' : 'golpeo'}
+            className="h-full w-full"
+          />
+        </div>
+
+        {/* Y el estallido del golpeo, medio segundo. */}
+        {flight === 1 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-[26%] top-[80%] h-[26%] w-[26%]
+                       animate-pop -translate-x-1/2 -translate-y-1/2"
+          >
+            <Impacto className="h-full w-full" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -317,7 +599,15 @@ function Goal({
  * Cómo quedó la tanda
  * ------------------------------------------------------------------------- */
 
-function Final({ scored, onClose }: { scored: number; onClose: () => void }) {
+function Final({
+  scored,
+  name,
+  onClose,
+}: {
+  scored: number;
+  name: string;
+  onClose: () => void;
+}) {
   return (
     <div className="space-y-4 text-center">
       <p className="animate-pop text-5xl" aria-hidden>
@@ -328,7 +618,9 @@ function Final({ scored, onClose }: { scored: number; onClose: () => void }) {
         {scored} de {PENALTY_SHOTS}
       </p>
 
-      <p className="text-sm t-2">{penaltyVerdict(scored, PENALTY_SHOTS)}</p>
+      <p className="text-sm t-2">
+        {name}: {penaltyVerdict(scored, PENALTY_SHOTS)}
+      </p>
 
       <p className="text-[11px] leading-snug t-3">
         Una tanda por pleno, y un pleno al día como mucho. Mañana hay otras cinco preguntas.

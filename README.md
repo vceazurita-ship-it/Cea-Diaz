@@ -1053,18 +1053,47 @@ Las cinco acertadas —las cinco, no cuatro— abren además una **tanda de cinc
 penaltis**. No da cromos ni puntos: el cromo ya lo dio el pleno. Da el derecho a
 tirar, que a los ocho años es exactamente el premio que uno quiere.
 
-Tirar bien un penalti es elegir dos cosas, y el juego son esas dos:
+Está montado como el penalti de un videojuego de fútbol y no como un sorteo con
+botones, porque la gracia está en las tres cosas que hay que hacer bien, que son
+las tres del penalti de verdad:
 
-- **Dónde.** Seis sitios: arriba y abajo, por los dos palos y por el centro. El
-  portero se tira a uno de los seis, **decidido de antemano** y no al ver el tiro, así
-  que acertar el sitio es acertar el hueco.
-- **Con cuánta fuerza.** Una barra que sube y baja sola y hay que parar en su franja
-  buena. Pasarse es mandarla por encima del larguero, tires donde tires. Quedarse
-  corto es un tiro blando que el portero alcanza si se ha tirado a tu mismo lado,
-  aunque haya errado la altura: el sitio no salva un tiro flojo.
+1. **Leer al portero.** Antes de tirar, el portero **se coloca**: se carga hacia
+   el lado por el que va a volar, se ve en el dibujo y se dice con todas las
+   letras —«se está cargando hacia tu izquierda»—. Es la habilidad principal del
+   juego, la misma que se grita desde la banda, y es lo que hace que la segunda
+   tanda salga mejor que la primera. El aviso da **el lado, nunca la altura**.
+2. **Colocar el tiro.** La puntería es libre: la mira se mueve con el dedo por
+   toda la portería. Los seis botones de arriba y abajo por los dos palos y el
+   centro siguen ahí para colocarla de un toque —y para poder jugar con el
+   teclado—, pero no son las únicas posiciones. Cuanto más lejos del portero
+   caiga el balón, mejor; pegarse al palo o al larguero se paga.
+3. **Medir la fuerza.** Se mantiene pulsado y se suelta. Pasarse hace que el
+   balón **se suba y se abra** —cuanto más pasado, más—, así que el mismo tiro a
+   la escuadra entra bien medido y se va a las nubes reventado. Quedarse corto le
+   da tiempo al portero a llegar a casi media portería.
 
-Las reglas se aplican en ese orden —fuera, parada en tu zona, parada blanda, gol— y
-cada tiro se explica al acabar, como las preguntas.
+Las reglas se aplican en ese orden —fuera, palo, parada, gol— y cada tiro se
+explica al acabar, como las preguntas.
+
+Un detalle de manejo que no es un detalle: **apuntar y coger fuerza son el mismo
+botón**, que sólo cambia de rótulo, y la barra está siempre en su sitio aunque
+todavía no corra. Cuando eran dos pantallas distintas, el botón que se pulsaba
+desaparecía y lo sustituía otro, y quien mantenía el dedo se quedaba con el tiro
+a medias porque al soltar ya no había debajo lo que había al pulsar.
+
+### Y el que tira es él
+
+El penalti lo lanza **el crío**, dibujado con las mismas piezas que su cromo
+(`components/games/PenaltyArt.tsx`): la misma cara, el color de su perfil y su
+dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—. Es el
+estilo de Oliver y Benji del resto de la casa, con el cielo de atardecer, la
+grada, los rayos de fondo mientras se coge carrerilla y el estallido del golpeo.
+
+El muñeco entero se monta con **articulaciones y no con siluetas**: cada pose
+—esperando, corriendo y golpeando— es una lista de puntos (cadera, rodilla, pie,
+hombro, codo, mano) y los miembros se pintan como trazos gruesos con la línea de
+tinta por debajo. Cambiar una pose es mover un punto, que es lo que permite tener
+tres sin dibujar tres muñecos.
 
 Vale aquí todo lo de la partida: el portero de cada tiro sale de una semilla hecha con
 el perfil, el día y el número de tiro, así que recargar no cambia adónde vuela; cada
@@ -1139,6 +1168,24 @@ La fecha es la razón de ser de este camino: se busca **en la propia captura**
 —la aplicación la escribe en la cabecera de cada sesión, «9 sept 2026»— y la
 ficha se va a su día aunque sea de hace tres semanas. Cuando no aparece se pone
 la de hoy y **se avisa de que se ha puesto**, que no es lo mismo.
+
+**Una sesión no es una foto.** La aplicación del rastreador reparte los números
+de un mismo entrenamiento por varias pantallas —lo corrido en una, el balón en
+otra—, así que lo normal es fotografiar dos o tres cosas del mismo día. Por eso
+las capturas que traen **el mismo día y el mismo tipo se juntan solas en una
+sola ficha**, completándose entre ellas: lo que no venía en la primera lo pone
+la segunda. Cuando dos fotos dicen cosas distintas de la misma cifra, no se pisa
+ninguna: **se queda la primera y se avisa de la discrepancia**, porque casi
+siempre significa que no eran la misma sesión.
+
+Sólo se juntan solas las que traen fecha en la captura. Las que no la traen se
+quedan cada una por su lado —juntar por «hoy» cinco fotos sin fecha sería
+inventarse que son la misma sesión—, y para ésas hay arriba un **día por
+defecto** que se les pone a todas de un toque.
+
+Y cuando el juntado no acierta, se deshace: **✂️** separa una foto en su propia
+sesión y **🔗** une una ficha con la de arriba. El que estuvo allí sabe mejor
+que nadie cuántos entrenamientos hubo.
 
 Y lo que sale de ahí no se guarda a ciegas. Cada foto queda convertida en una
 **ficha revisable**: el día, el tipo y todas las cifras en casillas que se

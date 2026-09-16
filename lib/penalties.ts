@@ -11,18 +11,25 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId } from '@/types';
  *  penalti se tira. No da cromos ni puntos. Se gana el derecho a tirar, que
  *  a los ocho años es exactamente el premio que uno quiere.
  *
- *  Tirar bien un penalti es elegir dos cosas: **dónde** y **con cuánta
- *  fuerza**. Por eso el juego son esas dos, y no un sorteo con botones:
+ *  Está montado como el penalti de un videojuego de fútbol, y no como un
+ *  sorteo con botones, porque la gracia está en las tres cosas que hay que
+ *  hacer bien y que son las tres del penalti de verdad:
  *
- *   · **Dónde.** Seis sitios: arriba y abajo, por los dos palos y por el
- *     centro. El portero se tira a uno de los seis, decidido de antemano —no
- *     al ver el tiro—, así que acertar el sitio es acertar el hueco.
+ *   1. **Leer al portero.** Antes de tirar, el portero **se coloca**: se
+ *      carga hacia el lado por el que va a volar. No es una trampa ni un
+ *      adorno, es la habilidad principal del juego —mirar dónde se pone y
+ *      tirar al otro lado—, y es justo lo que se le dice a un crío desde la
+ *      banda. El aviso da el lado, nunca la altura.
  *
- *   · **Con cuánta fuerza.** Una barra que sube y baja sola y hay que parar
- *     en su franja buena. Pasarse es mandarla fuera; quedarse corto es un
- *     tiro blando que el portero alcanza si se ha tirado a ese lado, aunque
- *     no haya acertado la altura. Es la lección entera del penalti en una
- *     regla: el sitio no salva un tiro flojo.
+ *   2. **Colocar el tiro.** La puntería es libre: la mira se mueve por toda
+ *      la portería, no hay seis botones y ya. Cuanto más lejos del portero
+ *      caiga el balón, mejor; pero pegarse al palo o al larguero se paga.
+ *
+ *   3. **Medir la fuerza.** Se mantiene pulsado y se suelta. Pasarse hace
+ *      que el balón **se suba y se abra** —cuanto más pasado, más— y por eso
+ *      un tiro a la escuadra reventado se va fuera y el mismo tiro medido
+ *      entra. Quedarse corto le da tiempo al portero a llegar a casi media
+ *      portería.
  *
  *  El portero de cada tiro sale de una semilla hecha con el perfil, el día y
  *  el número de tiro, igual que las preguntas del juego. Y por la misma
@@ -39,7 +46,18 @@ export const PENALTY_SHOTS = 5;
 
 /* ---------------------------------------------------------------------------
  * La portería
+ *
+ * Todo lo que ocurre dentro de la portería se mide en **tanto por ciento de
+ * la boca**: 0 es el palo izquierdo y 100 el derecho, 0 el larguero y 100 la
+ * línea de gol. Así el mismo número vale para la pantalla del móvil y para la
+ * del portátil, y las reglas no dependen de cuántos píxeles mida nada.
  * ------------------------------------------------------------------------- */
+
+/** Un punto de la portería: dónde apunta uno, dónde vuela el portero. */
+export interface PenaltyAim {
+  x: number;
+  y: number;
+}
 
 export type PenaltyZoneId = 'ai' | 'ac' | 'ad' | 'bi' | 'bc' | 'bd';
 
@@ -47,32 +65,35 @@ export interface PenaltyZone {
   id: PenaltyZoneId;
   /** Cómo se dice en voz alta. */
   label: string;
-  /** La flecha de la casilla. */
+  /** La flecha del botón de puntería rápida. */
   arrow: string;
-  /** Centro de la zona, en tanto por ciento de la portería. */
+  /** Centro de la zona. */
   x: number;
   y: number;
-  /** Por qué palo cae, para saber si el portero se ha tirado a ese lado. */
-  side: 'izquierda' | 'centro' | 'derecha';
-  /** A qué altura, que es lo que decide si un tiro blando llega o no. */
+  /** Por qué palo cae. Es lo único que el portero deja ver antes de tirar. */
+  side: PenaltySide;
+  /** A qué altura. */
   height: 'arriba' | 'abajo';
 }
 
+export type PenaltySide = 'izquierda' | 'centro' | 'derecha';
+
 /**
- * Las seis zonas, en el orden en que se leen: la fila de arriba de izquierda
- * a derecha y luego la de abajo. Es catálogo editable como todo lo demás: una
- * portería de nueve casillas sería añadir tres objetos aquí.
+ * Las seis zonas. Ya no son las únicas posiciones posibles —la puntería es
+ * libre— pero siguen haciendo dos trabajos: son los seis sitios a los que
+ * puede volar el portero, y son los botones de puntería rápida, que es lo
+ * que hace que esto se pueda jugar con el teclado y con un dedo gordo.
  *
  * La izquierda y la derecha son las del que mira la portería —las del que
  * tira—, que es lo que se ve en la pantalla.
  */
 export const PENALTY_ZONES: PenaltyZone[] = [
-  { id: 'ai', label: 'a la escuadra izquierda', arrow: '↖', x: 20, y: 30, side: 'izquierda', height: 'arriba' },
-  { id: 'ac', label: 'arriba por el centro', arrow: '↑', x: 50, y: 30, side: 'centro', height: 'arriba' },
-  { id: 'ad', label: 'a la escuadra derecha', arrow: '↗', x: 80, y: 30, side: 'derecha', height: 'arriba' },
-  { id: 'bi', label: 'abajo al palo izquierdo', arrow: '↙', x: 20, y: 68, side: 'izquierda', height: 'abajo' },
-  { id: 'bc', label: 'abajo por el centro', arrow: '↓', x: 50, y: 68, side: 'centro', height: 'abajo' },
-  { id: 'bd', label: 'abajo al palo derecho', arrow: '↘', x: 80, y: 68, side: 'derecha', height: 'abajo' },
+  { id: 'ai', label: 'a la escuadra izquierda', arrow: '↖', x: 16, y: 26, side: 'izquierda', height: 'arriba' },
+  { id: 'ac', label: 'arriba por el centro', arrow: '↑', x: 50, y: 22, side: 'centro', height: 'arriba' },
+  { id: 'ad', label: 'a la escuadra derecha', arrow: '↗', x: 84, y: 26, side: 'derecha', height: 'arriba' },
+  { id: 'bi', label: 'abajo al palo izquierdo', arrow: '↙', x: 16, y: 74, side: 'izquierda', height: 'abajo' },
+  { id: 'bc', label: 'abajo por el centro', arrow: '↓', x: 50, y: 78, side: 'centro', height: 'abajo' },
+  { id: 'bd', label: 'abajo al palo derecho', arrow: '↘', x: 84, y: 74, side: 'derecha', height: 'abajo' },
 ];
 
 const ZONE_BY_ID = new Map(PENALTY_ZONES.map((zone) => [zone.id, zone]));
@@ -80,6 +101,33 @@ const ZONE_BY_ID = new Map(PENALTY_ZONES.map((zone) => [zone.id, zone]));
 export function zoneOf(id: PenaltyZoneId): PenaltyZone {
   return ZONE_BY_ID.get(id)!;
 }
+
+/**
+ * Una portería es tres veces más ancha que alta, pero aquí los dos lados van
+ * de 0 a 100. Al medir distancias hay que deshacer esa mentira, o subir el
+ * balón medio metro contaría lo mismo que cruzarlo dos metros.
+ *
+ * No es el 0,33 exacto de la geometría sino algo más: para un portero de
+ * ocho años la altura cuesta un poco más de lo que dice la regla, y el juego
+ * tiene que premiar el tiro alto, que es el que de verdad no se para.
+ */
+const ALTO_SOBRE_ANCHO = 0.45;
+
+/** Distancia entre dos puntos de la portería, ya corregida. */
+function reach(from: PenaltyAim, to: PenaltyAim): number {
+  const dx = from.x - to.x;
+  const dy = (from.y - to.y) * ALTO_SOBRE_ANCHO;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/** Lo que alcanza el portero volando bien. */
+const ALCANCE = 34;
+
+/** Lo que alcanza si el balón va blando: le sobra tiempo. */
+const ALCANCE_BLANDO = 50;
+
+/** Margen del palo y del larguero. Rozarlo es mala suerte, no mal tiro. */
+const MADERA = 5;
 
 /* ---------------------------------------------------------------------------
  * La fuerza
@@ -89,9 +137,9 @@ export function zoneOf(id: PenaltyZoneId): PenaltyZone {
  * La franja buena de la barra de potencia, de 0 a 100.
  *
  * Es ancha a propósito —cuarenta y tres de cada cien— porque esto no es un
- * juego de reflejos: lo que tiene que decidir la tanda es dónde se tira, y la
- * barra está para que no se pueda tirar sin pensar en la fuerza. Pasarse es
- * lo único que se castiga sin remedio, que es justo lo que pasa en un campo.
+ * juego de reflejos: lo que tiene que decidir la tanda es dónde se tira y si
+ * se ha leído bien al portero. La barra está para que no se pueda tirar sin
+ * pensar en la fuerza, no para que la tanda la gane el que tenga mejor pulso.
  */
 export const POWER_GOOD: [number, number] = [45, 88];
 
@@ -100,7 +148,7 @@ export const POWER_GOOD: [number, number] = [45, 88];
  * ------------------------------------------------------------------------- */
 
 /**
- * Adónde se tira el portero en ese penalti. Se decide con la semilla del
+ * Adónde vuela el portero en ese penalti. Se decide con la semilla del
  * perfil, el día y el número de tiro: siempre el mismo, se recargue lo que se
  * recargue, y distinto para Leo y para Hugo el mismo día.
  */
@@ -109,68 +157,131 @@ export function keeperZone(profileId: ProfileId, date: DateKey, shot: number): P
   return PENALTY_ZONES[seed % PENALTY_ZONES.length].id;
 }
 
+/**
+ * Lo que el portero deja ver antes del tiro: **el lado, no la altura**.
+ *
+ * Es la pieza que convierte la tanda en un juego de habilidad en vez de en
+ * un sorteo de uno entre seis. Con el lado sabido, el tiro al palo contrario
+ * entra siempre que la fuerza sea la buena; y si uno no mira, tira a ciegas.
+ */
+export function keeperTell(id: PenaltyZoneId): PenaltySide {
+  return zoneOf(id).side;
+}
+
 /* ---------------------------------------------------------------------------
  * Qué pasa con el tiro
  * ------------------------------------------------------------------------- */
 
-export type PenaltyOutcome = 'gol' | 'parada' | 'fuera';
+export type PenaltyOutcome = 'gol' | 'parada' | 'fuera' | 'poste';
 
 export interface PenaltyShot {
   outcome: PenaltyOutcome;
+  /** Dónde ha acabado el balón de verdad, que no es siempre adonde se apuntó. */
+  landing: PenaltyAim;
+  /** Cuánto se ha desviado por pasarse de fuerza, de 0 a 1. */
+  drift: number;
   /** Por qué ha acabado así, para decirlo y que se aprenda algo. */
   why: string;
 }
 
 /**
- * Las cuatro reglas, en el orden en que mandan:
+ * De cuánto se pasó, en tanto por uno sobre lo que se podía pasar. Cero si la
+ * fuerza estaba dentro de la franja.
+ */
+function overshoot(power: number): number {
+  const [, high] = POWER_GOOD;
+  return power <= high ? 0 : (power - high) / (100 - high);
+}
+
+/**
+ * Adónde va de verdad el balón.
  *
- *  1. pasarse de fuerza es mandarla por encima del larguero, tires donde
- *     tires: el sitio no arregla un tiro descontrolado;
- *  2. si el portero está en tu zona, la para;
- *  3. un tiro blando lo alcanza si se ha tirado a tu mismo lado, aunque haya
- *     errado la altura, porque le da tiempo a estirarse;
- *  4. y si no, gol.
+ * Con la fuerza justa, adonde se apuntó. Pasándose, **se sube y se abre**: es
+ * el fallo clásico del penalti reventado, y hace que el mismo tiro a la
+ * escuadra entre bien medido y se vaya a las nubes reventado. El lado hacia
+ * el que se abre no es al azar: sale de la semilla del tiro, así que repetir
+ * el mismo penalti da el mismo resultado.
+ */
+function landingOf(aim: PenaltyAim, power: number, seed: number): { at: PenaltyAim; drift: number } {
+  const drift = overshoot(power);
+  if (drift === 0) return { at: aim, drift: 0 };
+
+  const away = seed % 2 === 0 ? 1 : -1;
+
+  return {
+    at: {
+      x: aim.x + drift * 26 * away,
+      // Hacia arriba, que en esta portería es hacia el 0.
+      y: aim.y - drift * 42,
+    },
+    drift,
+  };
+}
+
+/**
+ * Las reglas, en el orden en que mandan:
+ *
+ *  1. lo que se va de la portería es fuera, tires donde tires y aunque el
+ *     portero estuviera vendido;
+ *  2. lo que da en la madera es palo, que no es gol pero tampoco es del
+ *     portero;
+ *  3. lo que le cae cerca lo para —y si el tiro va blando, «cerca» es media
+ *     portería, porque le sobra tiempo—;
+ *  4. y lo demás es gol.
  */
 export function resolveShot(
-  zoneId: PenaltyZoneId,
+  aim: PenaltyAim,
   power: number,
   keeperId: PenaltyZoneId,
+  seed = 0,
 ): PenaltyShot {
-  const zone = zoneOf(zoneId);
   const keeper = zoneOf(keeperId);
-  const [low, high] = POWER_GOOD;
+  const [low] = POWER_GOOD;
+  const { at, drift } = landingOf(aim, power, seed);
 
-  if (power > high) {
+  if (at.x < 0 || at.x > 100 || at.y < 0) {
     return {
       outcome: 'fuera',
-      why: 'Demasiada fuerza: se te ha ido por encima del larguero. El penalti se coloca, no se revienta.',
+      landing: at,
+      drift,
+      why: drift
+        ? 'Demasiada fuerza: al reventarla se te ha subido y abierto, y se ha ido fuera. El penalti se coloca.'
+        : 'Se ha ido fuera por muy poco. Apunta un poco más dentro: el palo no perdona.',
     };
   }
 
-  if (keeperId === zoneId) {
+  if (at.x < MADERA || at.x > 100 - MADERA || at.y < MADERA) {
+    return {
+      outcome: 'poste',
+      landing: at,
+      drift,
+      why: '¡A la madera! Dos dedos más adentro y era gol. Buen sitio, mala suerte.',
+    };
+  }
+
+  const covered = power < low ? ALCANCE_BLANDO : ALCANCE;
+  const gap = reach(at, keeper);
+
+  if (gap < covered) {
     return {
       outcome: 'parada',
-      why: `El portero se ha tirado justo ahí, ${zone.label}. Mala suerte: el sitio era bueno, estaba él.`,
-    };
-  }
-
-  if (power < low && keeper.side === zone.side) {
-    return {
-      outcome: 'parada',
-      why: `Tiro blando y al mismo lado al que se tiraba: le ha dado tiempo a estirarse y llegar ${zone.label}.`,
-    };
-  }
-
-  if (power < low) {
-    return {
-      outcome: 'gol',
-      why: `¡Gol! Flojito, pero el portero se fue ${keeper.label} y no llegaba ni queriendo.`,
+      landing: at,
+      drift,
+      why:
+        power < low
+          ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
+          : `El portero voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
     };
   }
 
   return {
     outcome: 'gol',
-    why: `¡Gol! Tú ${zone.label} y él ${keeper.label}. Bien elegido y bien golpeado.`,
+    landing: at,
+    drift,
+    why:
+      gap > 55
+        ? `¡Golazo! Él se fue ${keeper.label} y tú a la otra punta. Eso es leerle la intención.`
+        : `¡Gol! Justo fuera de su alcance: voló ${keeper.label} y no llegaba.`,
   };
 }
 

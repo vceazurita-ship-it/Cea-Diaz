@@ -72,6 +72,68 @@ export function stopAnthem(): void {
   audio.currentTime = 0;
 }
 
+/* ---------------------------------------------------------------------------
+ * Golpes sueltos
+ *
+ * La sintonía es un archivo; esto no. Son cuatro ruiditos —el golpeo, el gol,
+ * la parada, el balón que se va— y ponerlos como archivos obligaría a grabar,
+ * a licenciar y a descargar cuatro cosas más. Se sintetizan en el momento con
+ * el propio navegador: pesan cero, no hay nada que subir a `public/` y suenan
+ * igual en todos los aparatos.
+ *
+ * Obedecen el mismo interruptor que la sintonía, y se disparan siempre dentro
+ * de un gesto —al soltar el tiro—, que es lo único que los navegadores dejan.
+ * ------------------------------------------------------------------------- */
+
+type Cue = 'tiro' | 'gol' | 'parada' | 'fuera';
+
+/** Cada ruido: forma de onda, de qué nota a qué nota, y cuánto dura. */
+const CUES: Record<Cue, { wave: OscillatorType; from: number; to: number; ms: number }> = {
+  // Un golpe seco y grave: el balón contra la bota.
+  tiro: { wave: 'triangle', from: 220, to: 60, ms: 120 },
+  // Y hacia arriba, que es como suena una alegría.
+  gol: { wave: 'square', from: 520, to: 1040, ms: 420 },
+  // Cortado y sordo: el guante.
+  parada: { wave: 'sawtooth', from: 300, to: 120, ms: 200 },
+  // El silbido de lo que se va por arriba.
+  fuera: { wave: 'sine', from: 880, to: 180, ms: 380 },
+};
+
+let audioContext: AudioContext | null = null;
+
+export function playCue(cue: Cue): void {
+  if (typeof window === 'undefined' || !soundEnabled()) return;
+
+  try {
+    const Ctor = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+
+    audioContext ??= new Ctor();
+    const ctx = audioContext;
+    void ctx.resume();
+
+    const { wave, from, to, ms } = CUES[cue];
+    const now = ctx.currentTime;
+    const seconds = ms / 1000;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = wave;
+    osc.frequency.setValueAtTime(from, now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(30, to), now + seconds);
+
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + seconds);
+  } catch {
+    // Un ruidito es un adorno: si el navegador no quiere, no pasa nada.
+  }
+}
+
 /**
  * Arranca la sintonía de un perfil. Hay que llamarla **dentro** del gesto
  * que abre el perfil: si no, el navegador bloquea el sonido.

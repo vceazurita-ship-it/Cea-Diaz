@@ -308,6 +308,7 @@ export function DailyGameCard({
         <Modal title="Tanda de penaltis" size="lg" onClose={() => setShooting(false)}>
           <PenaltyShootout
             profileId={profile.id}
+            name={profile.name}
             date={date}
             result={penalties}
             onShot={onPenalty}
