@@ -1363,8 +1363,8 @@ export interface PlanReview {
  * El GPS de los entrenamientos
  *
  * Leo y Hugo entrenan con un rastreador Footbar, que después de cada sesión
- * deja unas cifras en su aplicación: lo que han corrido, cuántos esprines,
- * a qué velocidad, cuántos balones han tocado. La cuenta gratuita no exporta
+ * deja unas cifras en su aplicación: lo que han corrido, cuántos cambios de
+ * ritmo, a qué velocidad, con cuánta potencia tiran, cuántos balones tocan. La cuenta gratuita no exporta
  * nada ni tiene API, así que esas cifras entran aquí a mano —de una línea de
  * texto pegada— y a partir de ahí son de la casa: se guardan, viajan a los
  * demás aparatos y se comparan entre sí.
@@ -1388,8 +1388,14 @@ export interface GpsSession {
   minutes?: number;
   /** Distancia recorrida, en kilómetros. */
   distance?: number;
-  /** Esprines: los arranques a tope que cuenta el aparato. */
-  sprints?: number;
+  /**
+   * Aceleraciones y deceleraciones: la cantidad de cambios de ritmo que
+   * cuenta el aparato, arranques y frenadas juntos. Las sesiones guardadas
+   * antes traían esto mismo como `sprints`, y se leen igual.
+   */
+  accels?: number;
+  /** Potencia del tiro, en km/h. */
+  shotPower?: number;
   /** Velocidad punta, en km/h. */
   topSpeed?: number;
   /** Balones tocados. */

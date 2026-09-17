@@ -1131,8 +1131,8 @@ el mazo se baraja otra vez.
 ## El GPS de los entrenamientos
 
 Leo y Hugo entrenan con un rastreador **Footbar**. Después de cada sesión, su
-aplicación enseña unas cifras —lo que han corrido, los esprines, la punta de
-velocidad, los balones tocados— y ahí se acaba: la cuenta gratuita no exporta
+aplicación enseña unas cifras —lo que han corrido, los cambios de ritmo, la
+punta de velocidad, la potencia del tiro, los balones tocados— y ahí se acaba: la cuenta gratuita no exporta
 nada, no tiene API y sólo deja mirar sesión por sesión en el móvil. Para saber
 si el crío corre más que en septiembre hay que ir abriendo pantallas y fiarse
 de la memoria, que es como no saberlo.
@@ -1207,14 +1207,17 @@ sesiones que ya había antes de la primera.
 De un pegote. Una línea por sesión, en el orden que sea:
 
 ```
-2026-09-09 entreno 90min 5,2km 12 sprints 24,3km/h 480 toques
-2026-09-11 partido 60min 4,1km 9 sprints 26,8km/h | jugó de lateral
+2026-09-09 entreno 90min 5,2km 154 aceleraciones 24,3km/h 480 toques
+2026-09-11 partido 60min 4,1km 96 aceleraciones 68 potencia | jugó de lateral
 ```
 
 Se reconocen la fecha (`2026-09-09`, `9/9`, `hoy`, `ayer`), si fue **entreno o
 partido**, y cada cifra por su unidad —`5,2km`, `90min`, `24,3km/h`— o por su
-nombre, en castellano o en inglés: distancia, intensidad, esprines, punta,
-toques, pases, tiros y puntuación. Detrás de `|` o de `nota:` va lo que haga
+nombre, en castellano o en inglés: distancia, intensidad, aceleraciones,
+punta, toques, pases, tiros, potencia y puntuación. Los km/h los comparten la
+punta de velocidad y la potencia del tiro, así que la potencia se dice por su
+nombre —`68 potencia`— y ésa es también la forma en la que la app escribe la
+sesión al copiarla. Detrás de `|` o de `nota:` va lo que haga
 falta recordar. Se pueden pegar cinco sesiones de golpe, y **lo que se ha
 entendido se enseña antes de guardarlo**: un pegote que adivina mal en
 silencio es peor que uno que no funciona.
@@ -1233,8 +1236,13 @@ cifra: cada número mira primero la unidad que lleva pegada, luego el nombre
 que tiene delante y por último el que tiene detrás, y un nombre sólo se usa
 una vez. Es lo que desenreda las líneas que se escriben de verdad: en
 `8 tiros 60 pases`, el 60 no se queda con «tiros» —que ya tiene el 8— sino con
-«pases»; y en `esprines 9 vmax 27`, el 9 es de los esprines aunque tenga
-«vmax» a la derecha.
+«pases»; y en `aceleraciones 9 vmax 27`, el 9 es de las aceleraciones aunque
+tenga «vmax» a la derecha.
+
+Una unidad puede tener dos dueños —los km/h son la punta de velocidad y también
+la potencia del tiro—, y entonces manda el rótulo: en `Potencia de tiro 68 km/h`
+el 68 es la potencia aunque la punta esté todavía libre. Sin rótulo, se queda
+con la primera cifra de esa unidad que no esté cogida.
 
 ### Qué se saca de ellas
 

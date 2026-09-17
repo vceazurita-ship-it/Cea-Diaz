@@ -254,6 +254,17 @@ export function DailyGameCard({
               </>
             )}
 
+            {/* La tanda existe también antes de ganarla, y hay que verlo: un
+                premio que no se sabe que está ahí no tira de nadie. Se dice
+                cerrado mientras no haya pleno, como el premio de la semana. */}
+            {onPenalty && today && !canShoot && (
+              <p className="mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug
+                            hairline surf-1 t-2">
+                🔒 Tanda de {PENALTY_SHOTS} penaltis: se abre al acertar las {total} preguntas.
+                {done ? ' Hoy se queda a medias; mañana hay otra partida.' : ''}
+              </p>
+            )}
+
             {state === 'otro-dia' && (
               <p className="mt-2 text-[11px] leading-snug t-3">
                 {result

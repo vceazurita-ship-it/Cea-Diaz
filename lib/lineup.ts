@@ -48,6 +48,36 @@ export const LINE_ICON: Record<CromoLine, string> = {
   del: '🎯',
 };
 
+/**
+ * Dónde más puede jugar cada uno, fuera de su línea.
+ *
+ * En el fútbol de verdad esto pasa todos los domingos: al central le falta un
+ * compañero y sube al medio, y el extremo acaba de lateral. Así que un cromo
+ * puede jugar **en su línea o en la de al lado**, y en la app se dice que está
+ * fuera de su puesto en vez de prohibírselo.
+ *
+ * Las dos reglas que no se saltan: la portería es sólo para porteros —un
+ * delantero de ocho años bajo palos no es una variante táctica— y nadie salta
+ * dos líneas de golpe: el central no aparece de nueve.
+ */
+export const NEAR_LINES: Record<CromoLine, CromoLine[]> = {
+  por: [],
+  def: ['med'],
+  med: ['def', 'del'],
+  del: ['med'],
+};
+
+/** ¿Puede este cromo ocupar una ranura de esa línea? */
+export function canPlayIn(line: CromoLine | null, slot: CromoLine): boolean {
+  if (!line) return false;
+  return line === slot || NEAR_LINES[line].includes(slot);
+}
+
+/** ¿Está jugando fuera de su puesto? Sirve para marcarlo, no para impedirlo. */
+export function outOfPosition(line: CromoLine | null, slot: CromoLine): boolean {
+  return !!line && line !== slot && canPlayIn(line, slot);
+}
+
 export const FORMATIONS: Formation[] = [
   {
     id: '4-3-3',
@@ -347,6 +377,11 @@ export function releaseCromo(lineup: Lineup, cromoId: string): Patch {
  * Cambia de formación conservando lo posible: cada cromo se queda si su nueva
  * ranura admite su línea, y si no baja al banquillo. Cambiar de dibujo no
  * debería costar volver a montar el equipo entero.
+ *
+ * Se reparte en tres pasadas y el orden importa: primero el que conserva su
+ * ranura de siempre, luego el que encuentra hueco **en su línea** y sólo al
+ * final el que tiene que jugar en la de al lado. Al revés, un medio ocuparía
+ * la plaza de defensa que le hacía falta a un defensa de verdad.
  */
 export function switchFormation(
   lineup: Lineup,
@@ -368,16 +403,27 @@ export function switchFormation(
     if (!cromoId) continue;
 
     const same = after.slots.find((next) => next.id === slot.id);
-    if (same && lineOf(cromoId) === same.line && !eleven[same.id]) {
+    if (same && canPlayIn(lineOf(cromoId), same.line) && !eleven[same.id]) {
       eleven[same.id] = cromoId;
     } else {
       pending.push(cromoId);
     }
   }
 
+  const homeless: string[] = [];
+
   for (const cromoId of pending) {
     const line = lineOf(cromoId);
     const free = after.slots.find((slot) => slot.line === line && !eleven[slot.id]);
+    if (free) eleven[free.id] = cromoId;
+    else homeless.push(cromoId);
+  }
+
+  // Los que ya no tienen sitio en su línea: antes de sentarlos, se les ofrece
+  // la de al lado, que es lo que haría cualquier entrenador.
+  for (const cromoId of homeless) {
+    const line = lineOf(cromoId);
+    const free = after.slots.find((slot) => canPlayIn(line, slot.line) && !eleven[slot.id]);
     if (free) eleven[free.id] = cromoId;
     else bench = pushBench(bench, cromoId);
   }

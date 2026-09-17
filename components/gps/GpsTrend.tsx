@@ -13,7 +13,7 @@ import type { GpsSession } from '@/types';
  *  sola en su pantalla, así que saber si el crío corre más que en septiembre
  *  exige ir abriendo entrenos y acordarse de memoria. Aquí se ven las últimas
  *  doce de un vistazo, con la media marcada, y se cambia de cifra con un
- *  toque: distancia, esprines, punta de velocidad, balones tocados.
+ *  toque: distancia, aceleraciones, punta de velocidad, balones tocados.
  *
  *  Sin biblioteca de gráficas: son barras de CSS. Una dependencia entera para
  *  pintar doce rectángulos sería justo lo contrario de lo que hace esta app.

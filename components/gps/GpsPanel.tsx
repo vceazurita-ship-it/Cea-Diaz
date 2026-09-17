@@ -228,7 +228,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
           <p className="text-sm leading-relaxed t-3">
             El rastreador de {profile.name} deja las cifras en la aplicación de {TRACKER} y allí se
             quedan: una sesión por pantalla, sin manera de compararlas ni de exportarlas con la
-            cuenta gratuita. Apuntando aquí lo que enseña —lo que corrió, los esprines, la punta de
+            cuenta gratuita. Apuntando aquí lo que enseña —lo que corrió, los cambios de ritmo, la punta
             velocidad— se puede empezar a ver lo que allí no se ve: si va a más, cuáles fueron sus
             mejores días y cuánto cambia un partido respecto a un entreno.
           </p>

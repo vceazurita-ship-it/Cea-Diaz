@@ -10,7 +10,9 @@ import {
   MAX_BENCH,
   addToBench,
   benchSlot,
+  canPlayIn,
   formationOf,
+  outOfPosition,
   placeInSlot,
   releaseCromo,
   switchFormation,
@@ -35,9 +37,10 @@ import type {
  *  las veces, así que se toca la ranura y se elige de una lista. Dos toques
  *  siempre funcionan.
  *
- *  Un cromo sólo puede estar en un sitio, y sólo puede ocupar una ranura de
- *  su línea: un portero no juega de extremo. Esa regla vive en `lib/lineup.ts`
- *  y aquí sólo se pinta.
+ *  Un cromo sólo puede estar en un sitio, y puede ocupar una ranura de su
+ *  línea o de la de al lado —un central juega de medio, un extremo de lateral,
+ *  y se dice que está fuera de su puesto—; la portería, sólo los porteros.
+ *  Esa regla vive en `lib/lineup.ts` y aquí sólo se pinta.
  * ========================================================================= */
 
 /** Colores del cromo según su mazo. Los mismos que en el álbum. */
@@ -62,6 +65,9 @@ interface SpotProps {
 }
 
 function Spot({ slot, cromo, captain, onPick }: SpotProps) {
+  /** Está jugando aquí, pero no es lo suyo. Se marca, no se impide. */
+  const adapted = !!cromo && outOfPosition(cromo.line ?? null, slot.line);
+
   return (
     <button
       type="button"
@@ -69,7 +75,9 @@ function Spot({ slot, cromo, captain, onPick }: SpotProps) {
       style={{ left: `${slot.x}%`, bottom: `${slot.y}%` }}
       aria-label={
         cromo
-          ? `${slot.label}: ${cromo.name}. Tocar para cambiar.`
+          ? `${slot.label}: ${cromo.name}${
+              adapted ? `, fuera de su puesto, que es ${cromo.position}` : ''
+            }. Tocar para cambiar.`
           : `${slot.label} libre. Tocar para poner un cromo.`
       }
       className="absolute flex w-[19%] min-w-[58px] -translate-x-1/2 translate-y-1/2 flex-col
@@ -77,12 +85,26 @@ function Spot({ slot, cromo, captain, onPick }: SpotProps) {
                  focus-visible:scale-105"
     >
       {cromo ? (
-        <CromoPortrait
-          cromo={cromo}
-          size="sm"
-          round
-          className={`border-2 shadow-md ${chipStyle(cromo.rarity)}`}
-        />
+        <span className="relative">
+          <CromoPortrait
+            cromo={cromo}
+            size="sm"
+            round
+            className={`border-2 shadow-md ${
+              adapted ? 'border-dashed border-amber-300/80' : chipStyle(cromo.rarity)
+            }`}
+          />
+          {/* La chincheta de «aquí está apañándose»: su puesto de verdad. */}
+          {adapted && (
+            <span
+              className="absolute -right-1 -top-1 rounded-full bg-amber-300 px-1 text-[8px]
+                         font-black uppercase leading-[1.4] text-amber-950 shadow"
+              title={`Fuera de su puesto: es ${cromo.position}`}
+            >
+              {cromo.position}
+            </span>
+          )}
+        </span>
       ) : (
         <span
           className="flex h-11 w-11 items-center justify-center rounded-full border-2
@@ -143,6 +165,53 @@ function Tag({
 }
 
 /* -------------------------------------------------------------------------
+ * Lista de candidatos para una ranura
+ * ----------------------------------------------------------------------- */
+
+interface PickListProps {
+  cromos: CromoReward[];
+  profileId: ProfileId;
+  /** `true` en la lista de los que vienen de otra línea: se pinta distinta. */
+  adapted?: boolean;
+  onPick: (cromoId: string) => void;
+}
+
+function PickList({ cromos, profileId, adapted, onPick }: PickListProps) {
+  return (
+    <ul className="grid gap-1.5 sm:grid-cols-2">
+      {cromos.map((cromo) => (
+        <li key={cromo.id}>
+          <button
+            type="button"
+            onClick={() => onPick(cromo.id)}
+            aria-label={
+              adapted
+                ? `${cromo.name}, ${cromo.position}, fuera de su puesto. Ponerlo aquí.`
+                : `${cromo.name}, ${cromo.position}. Ponerlo aquí.`
+            }
+            className={`flex w-full min-h-11 items-center gap-2 rounded-xl border
+              bg-gradient-to-br px-2.5 py-2 text-left ${
+                adapted ? 'border-dashed hairline surf-1' : chipStyle(cromo.rarity)
+              }`}
+          >
+            <CromoPortrait cromo={cromo} size="xs" round />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-bold t-1">{cromo.name}</span>
+              <span className="block truncate text-[10px] t-2">
+                {cromo.team} · {cromo.position}
+              </span>
+            </span>
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-wide t-3">
+              {adapted ? '🔁' : rarityLabel(profileId, cromo.rarity)}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* -------------------------------------------------------------------------
  * Panel
  * ----------------------------------------------------------------------- */
 
@@ -190,7 +259,7 @@ export function Campograma({
 
     for (const slot of formation.slots) {
       const cromo = squad.get(lineup.eleven[slot.id] ?? '');
-      if (cromo && cromo.line === slot.line) out.set(slot.id, cromo);
+      if (cromo && canPlayIn(cromo.line ?? null, slot.line)) out.set(slot.id, cromo);
     }
 
     return out;
@@ -214,13 +283,26 @@ export function Campograma({
 
   const lineOf = (cromoId: string): CromoLine | null => squad.get(cromoId)?.line ?? null;
 
-  /** Candidatos para la ranura abierta: los de su línea que no juegan ya ahí. */
+  /**
+   * Candidatos para la ranura abierta, en dos grupos: primero los de esa
+   * línea y después los que pueden apañarse viniendo de la de al lado. Van
+   * separados y no revueltos porque la lista tiene que seguir contestando
+   * «¿quién juega aquí?» antes de «¿quién puede jugar aquí si hace falta?».
+   */
   const candidates = useMemo(() => {
-    if (!picking) return [];
+    if (!picking) return { own: [] as CromoReward[], adapted: [] as CromoReward[] };
+
     const current = onPitch.get(picking.id)?.id;
-    return [...squad.values()].filter(
-      (cromo) => cromo.line === picking.line && cromo.id !== current,
-    );
+    const own: CromoReward[] = [];
+    const adapted: CromoReward[] = [];
+
+    for (const cromo of squad.values()) {
+      if (cromo.id === current) continue;
+      if (cromo.line === picking.line) own.push(cromo);
+      else if (canPlayIn(cromo.line ?? null, picking.line)) adapted.push(cromo);
+    }
+
+    return { own, adapted };
   }, [picking, squad, onPitch]);
 
   const placed = onPitch.size;
@@ -356,8 +438,10 @@ export function Campograma({
           )}
 
           <p className="text-[11px] leading-relaxed t-3">
-            Cada cromo sólo juega en su puesto: el portero, en la portería. Toca una posición del
-            campo para elegir quién la ocupa; toca un cromo del banquillo para devolverlo al álbum.
+            Cada cromo juega en su puesto o en uno de al lado —un central de medio, un extremo
+            de lateral—, y ahí sale marcado con lo que es él en realidad. En la portería, sólo
+            porteros. Toca una posición del campo para elegir quién la ocupa; toca un cromo del
+            banquillo para devolverlo al álbum.
           </p>
         </div>
       )}
@@ -397,37 +481,44 @@ export function Campograma({
               </div>
             )}
 
-            {candidates.length === 0 ? (
+            {candidates.own.length === 0 && candidates.adapted.length === 0 ? (
               <p className="py-4 text-center text-sm t-3">
                 Todavía no tienes ningún cromo para este puesto. Sigue superando retos.
               </p>
             ) : (
-              <ul className="grid gap-1.5 sm:grid-cols-2">
-                {candidates.map((cromo) => (
-                  <li key={cromo.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        save(placeInSlot(lineup, picking.id, cromo.id));
+              <>
+                {candidates.own.length > 0 && (
+                  <PickList
+                    cromos={candidates.own}
+                    profileId={profileId}
+                    onPick={(cromoId) => {
+                      save(placeInSlot(lineup, picking.id, cromoId));
+                      setPicking(null);
+                    }}
+                  />
+                )}
+
+                {candidates.adapted.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide t-2">
+                      🔁 Fuera de su puesto
+                    </p>
+                    <p className="mb-1.5 text-[11px] leading-snug t-3">
+                      No es su sitio, pero pueden jugar aquí: se quedan marcados en el campo
+                      con el puesto que es suyo de verdad.
+                    </p>
+                    <PickList
+                      cromos={candidates.adapted}
+                      profileId={profileId}
+                      adapted
+                      onPick={(cromoId) => {
+                        save(placeInSlot(lineup, picking.id, cromoId));
                         setPicking(null);
                       }}
-                      className={`flex w-full min-h-11 items-center gap-2 rounded-xl border
-                        bg-gradient-to-br px-2.5 py-2 text-left ${chipStyle(cromo.rarity)}`}
-                    >
-                      <CromoPortrait cromo={cromo} size="xs" round />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-bold t-1">{cromo.name}</span>
-                        <span className="block truncate text-[10px] t-2">
-                          {cromo.team} · {cromo.position}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[9px] font-black uppercase tracking-wide t-3">
-                        {rarityLabel(profileId, cromo.rarity)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </Modal>

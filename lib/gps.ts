@@ -5,7 +5,7 @@ import type { DateKey, GpsBook, GpsKind, GpsSession, Profile, ProfileId } from '
  *  El GPS de los entrenamientos de Leo y Hugo.
  *
  *  Los dos entrenan con un rastreador Footbar. Después de cada sesión, su
- *  aplicación enseña unas cifras —lo corrido, los esprines, la punta de
+ *  aplicación enseña unas cifras —lo corrido, los cambios de ritmo, la punta de
  *  velocidad, los balones tocados— y ahí se quedan: la cuenta gratuita no
  *  exporta nada, no tiene API y sólo deja mirar sesión por sesión en el
  *  móvil. Para saber si el crío corre más que hace tres meses hay que ir
@@ -15,7 +15,7 @@ import type { DateKey, GpsBook, GpsKind, GpsSession, Profile, ProfileId } from '
  *  sesión, con los números en el orden que sea y en castellano o en inglés.
  *  El formato de casa es éste, y es el que se pega tal cual:
  *
- *      2026-09-09 entreno 90min 5,2km 12 sprints 24,3km/h 480 toques
+ *      2026-09-09 entreno 90min 5,2km 154 aceleraciones 24,3km/h 480 toques
  *
  *  A partir de ahí ya son datos de la casa: se guardan, viajan al resto de
  *  aparatos como todo lo demás y —esto es lo que no da Footbar— se comparan
@@ -56,11 +56,12 @@ export type GpsFieldId =
   | 'minutes'
   | 'distance'
   | 'intense'
-  | 'sprints'
+  | 'accels'
   | 'topSpeed'
   | 'touches'
   | 'passes'
   | 'shots'
+  | 'shotPower'
   | 'score';
 
 export interface GpsField {
@@ -87,6 +88,14 @@ export interface GpsField {
   keys: string[];
   /** Unidades que pueden ir pegadas al número. */
   units?: string[];
+  /**
+   * `true` cuando la unidad no basta para saber de qué cifra se habla: los
+   * km/h son la punta de velocidad y también la potencia del tiro. Lo que las
+   * separa es el rótulo, así que al escribir la sesión esta cifra se dice por
+   * su nombre —«68 potencia»— en vez de pegarle la unidad, que volvería a
+   * leerse como la otra.
+   */
+  sharedUnit?: boolean;
   /**
    * Entre qué dos valores puede estar esta cifra en una sesión de verdad.
    *
@@ -155,15 +164,36 @@ export const GPS_FIELDS: GpsField[] = [
     sane: [1, 9000],
   },
   {
-    id: 'sprints',
-    label: 'Esprines',
-    short: 'Esprines',
+    // Lo que el rastreador cuenta de verdad no son esprines, sino cambios de
+    // ritmo: cada arranque y cada frenada. Se llamó «esprines» mientras se
+    // leyó de una línea escrita a mano, pero la aplicación lo da junto y por
+    // su nombre, así que así se llama aquí. Las sesiones que se guardaron con
+    // el nombre viejo se leen igual —`normalizeSession` las traduce— y las
+    // líneas que digan «12 sprints» siguen entrando, que es lo que hay
+    // escrito en las capturas en inglés.
+    id: 'accels',
+    label: 'Aceleraciones y deceleraciones',
+    short: 'Aceleraciones',
     icon: '💨',
     unit: '',
     decimals: 0,
     perHour: true,
-    keys: ['esprines', 'esprints', 'sprints', 'sprint', 'aceleraciones'],
-    sane: [0, 300],
+    keys: [
+      'aceleraciones',
+      'deceleraciones',
+      'aceleraciones y deceleraciones',
+      'acelerones',
+      'accelerations',
+      'decelerations',
+      'accels',
+      'esprines',
+      'esprints',
+      'sprints',
+      'sprint',
+    ],
+    // Son dos cuentas sumadas y suben deprisa: un partido entero pasa de
+    // sobra de los cien, y la horquilla de los esprines se quedaba corta.
+    sane: [0, 800],
   },
   {
     id: 'topSpeed',
@@ -215,6 +245,31 @@ export const GPS_FIELDS: GpsField[] = [
     decimals: 0,
     keys: ['tiros', 'disparos', 'shots'],
     sane: [0, 300],
+  },
+  {
+    // La potencia del tiro se mide en km/h como la punta de velocidad, y ésa
+    // es toda su dificultad: en una captura hay dos números con los mismos
+    // km/h detrás y sólo el rótulo dice cuál es cuál. De ahí `sharedUnit`.
+    id: 'shotPower',
+    label: 'Potencia de tiro',
+    short: 'Potencia',
+    icon: '💥',
+    unit: 'km/h',
+    decimals: 0,
+    keys: [
+      'potencia',
+      'potencia de tiro',
+      'potencia de disparo',
+      'potencia tiro',
+      'tiro potencia',
+      'shot power',
+      'power',
+    ],
+    units: ['km/h', 'kmh'],
+    sharedUnit: true,
+    // Un crío de ocho años no pasa de cien; por arriba se deja aire para
+    // cuando lo hagan, y por abajo se descarta lo que es un mal reconocido.
+    sane: [5, 160],
   },
   {
     id: 'score',
@@ -274,7 +329,7 @@ export function hasNumbers(session: GpsSession): boolean {
 
 /** El ejemplo que se enseña en la caja de pegar y en la ayuda. */
 export const PASTE_EXAMPLE =
-  '2026-09-09 entreno 90min 5,2km 12 sprints 24,3km/h 480 toques';
+  '2026-09-09 entreno 90min 5,2km 154 aceleraciones 24,3km/h 480 toques';
 
 /**
  * Palabra suelta → cifra a la que nombra. Las de dos palabras se guardan tal
@@ -282,11 +337,24 @@ export const PASTE_EXAMPLE =
  * ninguna de tres.
  */
 const KEY_OF = new Map<string, GpsFieldId>();
-const UNIT_OF = new Map<string, GpsFieldId>();
+
+/**
+ * Unidad → cifras que puede nombrar, en el orden del catálogo. Es una lista y
+ * no una cifra sola porque los km/h los comparten la punta de velocidad y la
+ * potencia del tiro: quien decide entre las dos es el rótulo, y si no hay
+ * rótulo, la primera que esté libre.
+ */
+const UNIT_OF = new Map<string, GpsFieldId[]>();
 
 for (const field of GPS_FIELDS) {
   for (const key of field.keys) KEY_OF.set(plain(key), field.id);
-  for (const unit of field.units ?? []) UNIT_OF.set(plain(unit), field.id);
+
+  for (const unit of field.units ?? []) {
+    const word = plain(unit);
+    const owners = UNIT_OF.get(word);
+    if (owners) owners.push(field.id);
+    else UNIT_OF.set(word, [field.id]);
+  }
 }
 
 /** Sin mayúsculas ni acentos: «Máxima» y «maxima» son la misma palabra. */
@@ -315,25 +383,47 @@ function tokenize(text: string): Token[] {
   return out;
 }
 
-/** La palabra —o las dos palabras— que hay en esa posición, si las hay. */
+/**
+ * Las palabras que hay pegadas a esa posición, de una en una, de dos en dos y
+ * de tres en tres. Tres hacen falta por «potencia de tiro»: con dos, lo único
+ * que se veía junto al número era «de tiro», que no nombra nada.
+ */
 function wordsAt(tokens: Token[], index: number, back: boolean): string[] {
   const one = tokens[index];
   if (!one || !('word' in one)) return [];
 
-  const two = tokens[back ? index - 1 : index + 1];
-  if (!two || !('word' in two)) return [one.word];
+  const out = [one.word];
 
-  return back ? [one.word, `${two.word} ${one.word}`] : [one.word, `${one.word} ${two.word}`];
+  const two = tokens[back ? index - 1 : index + 1];
+  if (!two || !('word' in two)) return out;
+  out.push(back ? `${two.word} ${one.word}` : `${one.word} ${two.word}`);
+
+  const three = tokens[back ? index - 2 : index + 2];
+  if (!three || !('word' in three)) return out;
+  out.push(back ? `${three.word} ${two.word} ${one.word}` : `${one.word} ${two.word} ${three.word}`);
+
+  return out;
 }
+
+/** De más larga a más corta: «alta intensidad» antes que «intensidad». */
+const longestFirst = (words: string[]) => [...words].sort((a, b) => b.length - a.length);
 
 /** La cifra que nombran esas palabras, o `undefined` si no nombran ninguna. */
 function fieldOfWords(words: string[], table: Map<string, GpsFieldId>): GpsFieldId | undefined {
-  // De más larga a más corta: «alta intensidad» antes que «intensidad».
-  for (const word of [...words].sort((a, b) => b.length - a.length)) {
+  for (const word of longestFirst(words)) {
     const found = table.get(word);
     if (found) return found;
   }
   return undefined;
+}
+
+/** Las cifras que puede nombrar la unidad que haya en esas palabras. */
+function unitFields(words: string[]): GpsFieldId[] {
+  for (const word of longestFirst(words)) {
+    const found = UNIT_OF.get(word);
+    if (found) return found;
+  }
+  return [];
 }
 
 /**
@@ -342,14 +432,17 @@ function fieldOfWords(words: string[], table: Map<string, GpsFieldId>): GpsField
  * Es una pasada de izquierda a derecha, número a número, y cada número mira
  * a los lados en este orden:
  *
- *  1. **la unidad pegada detrás** —«5,2 km», «90 min»—, que no admite duda;
- *  2. **el nombre de delante** —«esprines 14», «vmax 27»—;
- *  3. **el nombre de detrás** —«12 sprints», «480 toques»—.
+ *  1. **la unidad pegada detrás** —«5,2 km», «90 min»—, que no admite duda…
+ *     salvo cuando esa unidad la comparten dos cifras: los km/h son la punta
+ *     de velocidad y también la potencia del tiro, y entonces decide el
+ *     rótulo de delante y, si no hay rótulo, la primera que esté libre;
+ *  2. **el nombre de delante** —«aceleraciones 14», «vmax 27»—;
+ *  3. **el nombre de detrás** —«154 aceleraciones», «480 toques»—.
  *
  * Y un nombre sólo se usa una vez. Ésa es la regla que desenreda las líneas
  * que se escriben de verdad: en «8 tiros 60 pases», el 60 no se queda con
- * «tiros» —que ya tiene el 8— sino con «pases»; y en «esprines 9 vmax 27»,
- * el 9 es de los esprines aunque tenga «vmax» a la derecha, porque «esprines»
+ * «tiros» —que ya tiene el 8— sino con «pases»; y en «aceleraciones 9 vmax 27»,
+ * el 9 es de las aceleraciones aunque tenga «vmax» a la derecha, porque el rótulo
  * lo está reclamando desde la izquierda y todavía está libre.
  *
  * Mirar cada cifra por su cuenta con una expresión regular no valía: cada una
@@ -373,9 +466,20 @@ function readNumbers(text: string): Partial<Record<GpsFieldId, Reading>> {
     const ahead = wordsAt(tokens, i + 1, false);
     const behind = wordsAt(tokens, i - 1, true);
 
-    const unit = fieldOfWords(ahead, UNIT_OF);
-    if (claim(unit, token.number, ahead[0])) continue;
-    if (claim(fieldOfWords(behind, KEY_OF), token.number)) continue;
+    const named = fieldOfWords(behind, KEY_OF);
+    const byUnit = unitFields(ahead);
+
+    // La unidad con un solo dueño manda, como siempre. La compartida pregunta
+    // primero al rótulo —«potencia de tiro 68 km/h» es la potencia, no la
+    // punta— y sólo si no hay rótulo se queda con la primera libre.
+    if (byUnit.length === 1) {
+      if (claim(byUnit[0], token.number, ahead[0])) continue;
+    } else if (byUnit.length > 1) {
+      if (named && byUnit.includes(named) && claim(named, token.number, ahead[0])) continue;
+      if (byUnit.some((id) => claim(id, token.number, ahead[0]))) continue;
+    }
+
+    if (claim(named, token.number)) continue;
     claim(fieldOfWords(ahead, KEY_OF), token.number);
   }
 
@@ -461,7 +565,7 @@ function firstNamedDate(
  *
  * Lo segundo importa tanto como lo primero: el «9/9» hay que quitarlo de la
  * línea antes de repartir los números, o el nueve del día acabaría contado
- * como esprines.
+ * como aceleraciones.
  */
 function dateIn(text: string, today: DateKey): { date: DateKey; matched: string } | null {
   const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
@@ -472,8 +576,9 @@ function dateIn(text: string, today: DateKey): { date: DateKey; matched: string 
   // de hace tres semanas se guarde en su día y no en el de hoy.
   //
   // Se miran **todas** las parejas de número y palabra de la línea, no la
-  // primera: en «12 sprints … 9 sept» la primera pareja es «12 sprints», que
-  // no nombra ningún mes, y quedarse ahí sería perder la fecha de verdad.
+  // primera: en «154 aceleraciones … 9 sept» la primera pareja es «154
+  // aceleraciones», que no nombra ningún mes, y quedarse ahí sería perder la
+  // fecha de verdad.
   const named =
     firstNamedDate(text, /\b(\d{1,2})\s*(?:de\s+)?([a-zñáéíóú]{3,10})\.?\s*(?:de\s+)?(\d{4})?\b/gi, true, today) ??
     firstNamedDate(text, /\b([a-zñáéíóú]{3,10})\.?\s+(\d{1,2})\b[,\s]*(\d{4})?/gi, false, today);
@@ -734,7 +839,9 @@ export function sessionAsLine(session: GpsSession): string {
     if (value === undefined) continue;
 
     const number = `${Number(value.toFixed(field.decimals))}`.replace('.', ',');
-    const unit = field.units?.[0];
+    // La unidad se pega sólo si es suya: «68km/h» se volvería a leer como la
+    // punta de velocidad, así que la potencia se escribe «68 potencia».
+    const unit = field.sharedUnit ? undefined : field.units?.[0];
     bits.push(unit ? `${number}${unit}` : `${number} ${field.short.toLowerCase()}`);
   }
 
@@ -759,9 +866,19 @@ export function emptyBook(): GpsBook {
 let cache: Record<string, GpsBook> | null = null;
 const listeners = new Set<() => void>();
 
+/**
+ * Cifra del catálogo → nombre con el que se guardó antes de llamarse así.
+ *
+ * Las sesiones viven en el aparato y en la nube desde antes de este cambio,
+ * así que renombrar una cifra no puede significar perderla: lo que se guardó
+ * como `sprints` es lo mismo que ahora se cuenta como aceleraciones y
+ * deceleraciones, y se adopta al leer si la nueva viene vacía.
+ */
+const RENAMED: Partial<Record<GpsFieldId, string>> = { accels: 'sprints' };
+
 function normalizeSession(value: unknown): GpsSession | null {
   if (!value || typeof value !== 'object') return null;
-  const raw = value as Partial<GpsSession>;
+  const raw = value as Partial<GpsSession> & Record<string, unknown>;
 
   if (typeof raw.id !== 'string' || !raw.id) return null;
   if (typeof raw.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return null;
@@ -776,8 +893,11 @@ function normalizeSession(value: unknown): GpsSession | null {
   };
 
   for (const field of GPS_FIELDS) {
-    const value = Number(raw[field.id]);
-    if (raw[field.id] !== undefined && Number.isFinite(value) && value >= 0) {
+    const old = RENAMED[field.id];
+    const stored = raw[field.id] !== undefined || !old ? raw[field.id] : raw[old];
+
+    const value = Number(stored);
+    if (stored !== undefined && Number.isFinite(value) && value >= 0) {
       session[field.id] = value;
     }
   }

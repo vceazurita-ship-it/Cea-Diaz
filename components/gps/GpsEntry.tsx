@@ -128,7 +128,7 @@ function PasteBox({
           onChange={(event) => setText(event.target.value)}
           rows={4}
           spellCheck={false}
-          placeholder={`${PASTE_EXAMPLE}\n2026-09-11 partido 60min 4,1km 9 sprints 26,8km/h`}
+          placeholder={`${PASTE_EXAMPLE}\n2026-09-11 partido 60min 4,1km 96 aceleraciones 68 potencia`}
           className="field w-full resize-y p-3 font-mono text-xs leading-relaxed"
         />
       </label>

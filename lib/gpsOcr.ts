@@ -37,7 +37,7 @@ import type { Worker } from 'tesseract.js';
  * porque cada idioma es otra descarga, los números —que es lo que importa—
  * se leen igual con cualquiera, y los rótulos que trae la aplicación en
  * inglés los reconoce igual el lector de cifras: `lib/gps.ts` entiende
- * «distance» y «sprints» tan bien como «distancia» y «esprines».
+ * «distance» y «accelerations» tan bien como «distancia» y «aceleraciones».
  */
 const LANG = 'spa';
 

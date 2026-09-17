@@ -323,7 +323,7 @@ create policy "economia propia" on public.finance
 
 -- ---------------------------------------------------------- GPS (Footbar)
 --  Las sesiones del rastreador que llevan los peques al entrenamiento: lo
---  corrido, los esprines, la punta de velocidad, los balones tocados.
+--  corrido, los cambios de ritmo, la punta de velocidad, los balones tocados.
 --
 --  La cuenta gratuita de Footbar no exporta nada ni tiene API, así que las
 --  cifras se pegan a mano en la app, una línea por sesión. Desde ahí ya son
