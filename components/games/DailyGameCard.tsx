@@ -329,7 +329,7 @@ export function DailyGameCard({
 
       {/* ----------------------------------------------------- la tanda */}
       {shooting && onPenalty && (
-        <Modal title="Tanda de penaltis" size="lg" onClose={() => setShooting(false)}>
+        <Modal title="Penaltis contra Benji" size="lg" onClose={() => setShooting(false)}>
           <PenaltyShootout
             profileId={profile.id}
             name={profile.name}
@@ -579,7 +579,7 @@ function Scoreboard({
         <div className="rounded-2xl border p-4 border-accent bg-accent-faint">
           <p className="text-sm font-black t-1">🥅 Y ahora, penaltis</p>
           <p className="mt-1 text-[11px] leading-snug t-2">
-            Te has ganado una tanda de cinco. Eliges el sitio y la fuerza; el portero ya ha
+            Te has ganado una tanda de cinco contra Benji. Eliges el sitio y la fuerza; él ya ha
             decidido adónde se tira.
           </p>
           <button type="button" onClick={onShoot} className="btn-primary mt-3 w-full">

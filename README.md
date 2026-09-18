@@ -88,7 +88,7 @@ components/
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
   games/
     DailyGameCard.tsx    El juego del día de los peques: la partida y su cromo
-    PenaltyShootout.tsx  La tanda de cinco penaltis: el tiro, el especial y el estadio
+    PenaltyShootout.tsx  La tanda de cinco penaltis contra Benji: el tiro, el especial y el marcador
   gps/
     GpsPanel.tsx       Las sesiones del rastreador y lo que dicen juntas
     GpsEntry.tsx       Apuntar una sesión: por foto, pegando una línea o a mano
@@ -1093,17 +1093,20 @@ Está montado como el penalti de un videojuego de fútbol y no como un sorteo co
 botones, porque la gracia está en las tres cosas que hay que hacer bien, que son
 las tres del penalti de verdad:
 
-1. **Leer al portero.** Antes de tirar, el portero **se coloca**: se carga hacia
-   el lado por el que va a volar, se ve en el dibujo y se dice con todas las
-   letras —«se está cargando hacia tu izquierda»—. Es la habilidad principal del
+1. **Leer al portero.** Antes de tirar, Benji **se coloca**: se carga hacia el
+   lado por el que va a volar, se le ven dos flechas a los pies y lo dice el
+   narrador —«Benji se carga hacia tu izquierda»—. Es la habilidad principal del
    juego, la misma que se grita desde la banda, y es lo que hace que la segunda
    tanda salga mejor que la primera. El aviso da **el lado, nunca la altura**.
-2. **Colocar el tiro.** La puntería es libre: la mira se mueve con el dedo por
-   toda la portería. Los seis botones de arriba y abajo por los dos palos y el
-   centro siguen ahí para colocarla de un toque —y para poder jugar con el
-   teclado—, pero no son las únicas posiciones. Cuanto más lejos del portero
-   caiga el balón, mejor; pegarse al palo o al larguero se paga.
-3. **Medir la fuerza.** Se mantiene pulsado y se suelta. Pasarse hace que el
+2. **Colocar el tiro.** La puntería es libre: se toca o se arrastra la mira por
+   toda la portería, y con el teclado se mueve con las flechas. Los seis botones
+   de puntería que había debajo se han quitado: repetían lo que ya hace el dedo
+   sobre la portería y eran seis cosas más que leer antes de tirar. Cuanto más
+   lejos del portero caiga el balón, mejor; pegarse al palo o al larguero se paga.
+3. **Medir la fuerza.** Se mantiene pulsado y se suelta. La barra está dentro
+   del campo, de pie junto al que tira, y **el botón dice cuándo soltar**: gris
+   con «más fuerza…», verde y latiendo con «¡suelta ahora!», rojo con «¡te
+   pasas!». Pasarse hace que el
    balón **se suba y se abra** —cuanto más pasado, más—, así que el mismo tiro a
    la escuadra entra bien medido y se va a las nubes reventado. Quedarse corto le
    da tiempo al portero a llegar a casi media portería.
@@ -1120,39 +1123,59 @@ salga, y eso se guarda con la tanda: cerrar la app entre dos penaltis no regala
 otro.
 
 Un detalle de manejo que no es un detalle: **apuntar y coger fuerza son el mismo
-botón**, que sólo cambia de rótulo, y la barra está siempre en su sitio aunque
-todavía no corra. Cuando eran dos pantallas distintas, el botón que se pulsaba
+botón**, que sólo cambia de rótulo y de color, y la barra está siempre en su sitio
+aunque todavía no corra. Cuando eran dos pantallas distintas, el botón que se pulsaba
 desaparecía y lo sustituía otro, y quien mantenía el dedo se quedaba con el tiro
 a medias porque al soltar ya no había debajo lo que había al pulsar.
 
-### Y el que tira es él
+### Él contra Benji
 
 El penalti lo lanza **el crío**, dibujado con las mismas piezas que su cromo
 (`components/games/PenaltyArt.tsx`): la misma cara, el color de su perfil y su
-dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—.
+dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—. Y bajo
+los palos está **Benji**, con su gorra roja, la visera tapándole media ceja, el 1
+en el pecho y los guantes por delante: el rival de la serie, que es lo que
+convierte cinco penaltis en un capítulo. El marcador lo cuenta así, como un
+partido: los goles del que tira a un lado y los que ha salvado Benji al otro.
 
-El cuadro es el del anime de fútbol de las tardes de merienda, y cada cosa
-aparece cuando el juego tiene algo que decir:
+El cuadro es el de *Oliver y Benji*, y cada cosa aparece cuando el juego tiene
+algo que decir:
 
-- **el estadio** —cielo plano con sus nubes duras, dos alturas de grada llena,
-  la valla de publicidad y el césped con sus franjas de siega—, con la portería
-  delante y no comiéndose el cuadro;
-- **el portero se mueve en la línea** mientras se apunta, cargado hacia su lado;
-  uno quieto como un poste no da ninguna tensión;
-- **el primer plano de su cara**, en su recuadro con las rayas convergentes,
-  mientras se coge fuerza: es el plano del anime y además dice sin palabras que
-  la barra está corriendo y hay que soltar;
-- **las rayas de velocidad** girando detrás, blancas normalmente y de fuego con
-  el relámpago armado, que es también cuando el balón vuela envuelto en llamas;
-- **el rótulo del final** —¡GOOOL!, ¡La ha parado!— en su banda torcida, que
-  entra de golpe, se pasa de tamaño y se asienta. Va por debajo de la portería a
-  propósito: tapando el gol no se veía dónde había entrado el balón.
+- **el cara a cara** antes del primer penalti: las dos caras partidas en
+  diagonal con el «VS» en medio y, debajo, cómo se juega en tres gestos —apunta,
+  mantén, suelta— y el truco de leer a Benji. Sale una vez por tanda, no entre
+  penalti y penalti;
+- **el marcador de la tele** encima de la escena, con las dos caras, los cinco
+  huecos (✓ o ✕ según acabó cada uno) y en qué penalti se va. Mientras el balón
+  vuela no se mueve: enseñarlo antes de que llegue chivaría el final;
+- **el estadio**, un único dibujo: cielo con nubes de algodón, torres de luz, la
+  grada entera de puntos de colores con la pancarta del que tira, la valla de
+  publicidad, el césped a franjas que se ensanchan hacia uno y una portería **con
+  fondo, laterales, red y sombra**, que es lo que hace que un gol se vea entrar;
+- **Benji se balancea en la línea** mientras se apunta, cargado hacia su lado, y
+  al tirarse cambia de pose de verdad —estirada a una escuadra, al palo de abajo,
+  salto arriba por el centro o agachado abajo— en lugar de girar el muñeco de pie;
+- **el narrador**, pegado debajo de la escena como el rótulo de la tele: dice
+  hacia dónde se carga Benji, grita el disparo y explica cómo ha acabado;
+- **el primer plano de la cara** en su viñeta mientras se coge fuerza, y las
+  rayas de velocidad girando detrás;
+- **el corte del tiro relámpago**: la pantalla se va al fuego, entra la cara del
+  que tira y el nombre del tiro a gritos, antes del golpeo;
+- **el balón dibujado** —no un emoji, que sale distinto en cada móvil— con su
+  estela, que sube, llega y, si no entra, rebota en el guante o en el palo;
+- **el resultado**: fogonazo, red que se hincha donde ha entrado, pantalla que
+  tiembla, el que tira celebrándolo con los brazos arriba y el rótulo
+  —¡GOOOOL!, ¡PARADÓN DE BENJI!, ¡AL PALO!, ¡FUERA!— en su banda torcida;
+- **el final**, con el resultado como en la tele (4–1), el que tira celebrando si
+  ha ganado y un balón o una cruz por cada penalti.
 
-El muñeco entero se monta con **articulaciones y no con siluetas**: cada pose
-—esperando, corriendo y golpeando— es una lista de puntos (cadera, rodilla, pie,
-hombro, codo, mano) y los miembros se pintan como trazos gruesos con la línea de
-tinta por debajo. Cambiar una pose es mover un punto, que es lo que permite tener
-tres sin dibujar tres muñecos.
+Los muñecos se montan con **articulaciones y no con siluetas**: cada pose es una
+lista de puntos (cadera, rodilla, pie, hombro, codo, mano) y los miembros se
+pintan como trazos gruesos con la línea de tinta por debajo. El tronco de Benji
+se construye **a lo largo de la columna** y no como un rectángulo de pie, que es
+lo que permite tumbarlo en una estirada. Y al volar a la izquierda el dibujo se
+espeja aparte de la caja que se mueve: un `scaleX` que pasa de 1 a -1 con
+transición vale cero a medio camino, y Benji se quedaba en una raya.
 
 Vale aquí todo lo de la partida: el portero de cada tiro sale de una semilla hecha con
 el perfil, el día y el número de tiro, así que recargar no cambia adónde vuela; cada
