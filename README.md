@@ -1089,6 +1089,14 @@ con los ajustes de la casa, así que se abre desde el móvil de Víctor y le apa
 al crío en su tableta. Se queda abierto hasta que se cierre ahí: no se apaga solo
 cada noche.
 
+Y debajo de cada interruptor está **🔁 Otra tanda**, para que tire otra vez el
+mismo día, tantas veces como se quiera: la tanda vuelve a cero —cinco penaltis y
+la energía entera— y cuenta como dada a mano, se la haya ganado o no. Cada tanda
+repetida lleva su número en la línea del día (`goles|tirados|total|momento|especiales|tanda`,
+y sin la última columna cuando es la primera, que queda como era), y ese número
+entra en la semilla de Benji: la segunda tanda no se puede tirar de memoria. El
+aviso trae **Deshacer**, por si se ha tocado sin querer.
+
 Está montado como el penalti de un videojuego de fútbol y no como un sorteo con
 botones, porque la gracia está en las tres cosas que hay que hacer bien, que son
 las tres del penalti de verdad:

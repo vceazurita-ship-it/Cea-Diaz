@@ -635,6 +635,13 @@ export interface PenaltyResult {
    * penalti devolvería lo gastado.
    */
   specials?: ShotKind[];
+  /**
+   * Qué tanda del día es: 0 la primera, y una más cada vez que quien lleva
+   * la casa la reinicia desde los ajustes. Entra en la semilla del portero,
+   * para que la tanda repetida no tenga a Benji tirándose a los mismos
+   * sitios que la anterior.
+   */
+  round?: number;
 }
 
 /* -------------------------------- Campograma ---------------------------- */

@@ -434,8 +434,10 @@ export function shotAvailability(
  * perfil, el día y el número de tiro: siempre el mismo, se recargue lo que se
  * recargue, y distinto para Leo y para Hugo el mismo día.
  */
-export function keeperZone(profileId: ProfileId, date: DateKey, shot: number): PenaltyZoneId {
-  const seed = hashSeed(`${profileId}:penaltis:${date}:${shot}`);
+export function keeperZone(profileId: ProfileId, date: DateKey, shot: number, round = 0): PenaltyZoneId {
+  // La primera tanda del día conserva la semilla de siempre; las repetidas
+  // llevan su número, y así Benji no se tira a los mismos sitios.
+  const seed = hashSeed(`${profileId}:penaltis:${date}:${shot}${round ? `:r${round}` : ''}`);
   return PENALTY_ZONES[seed % PENALTY_ZONES.length].id;
 }
 
@@ -642,13 +644,16 @@ export function encodePenaltyResult(result: PenaltyResult): string {
     result.at,
     // Los especiales gastados, separados por comas: `halcon,tigre`.
     (result.specials ?? []).join(','),
+    // Y qué tanda del día es, sólo si no es la primera: así la línea de
+    // una tanda normal queda exactamente como era.
+    ...(result.round ? [String(result.round)] : []),
   ].join('|');
 }
 
 export function parsePenaltyResult(text: string | undefined | null): PenaltyResult | null {
   if (!text) return null;
 
-  const [scored, taken, total, at, specials] = text.split('|');
+  const [scored, taken, total, at, specials, round] = text.split('|');
   const numbers = [scored, taken, total].map(Number);
   if (numbers.some((value) => !Number.isFinite(value)) || numbers[2] <= 0) return null;
 
@@ -661,6 +666,7 @@ export function parsePenaltyResult(text: string | undefined | null): PenaltyResu
     // especial que hubo, el relámpago, traen una «S»: era un tiro de pura
     // potencia, así que cuenta como el del Tigre ya gastado.
     specials: parseSpecials(specials),
+    round: Math.max(0, Math.floor(Number(round) || 0)),
   };
 }
 
@@ -677,6 +683,22 @@ export function penaltyResultFor(
   date: DateKey,
 ): PenaltyResult | null {
   return parsePenaltyResult(entries[entryKey(profileId, date)]?.notes?.[PENALTY_NOTE_KEY]);
+}
+
+/**
+ * La línea con la que se reinicia la tanda del día desde los ajustes: una
+ * tanda nueva, sin tirar y con su energía entera, y con el número de tanda
+ * uno más alto, que es lo que cambia adónde se tira Benji.
+ */
+export function restartedPenaltyNote(current: PenaltyResult | null): string {
+  return encodePenaltyResult({
+    scored: 0,
+    taken: 0,
+    total: PENALTY_SHOTS,
+    at: new Date().toISOString(),
+    specials: [],
+    round: (current?.round ?? 0) + 1,
+  });
 }
 
 /** ¿Tirados los cinco? */

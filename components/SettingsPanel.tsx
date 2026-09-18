@@ -11,6 +11,15 @@ import type { EntryMap, HabitStore, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_OWNER, photoMaxSide } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
+import { todayKey } from '@/lib/dates';
+import {
+  PENALTY_NOTE_KEY,
+  PENALTY_SHOTS,
+  isPenaltyDone,
+  penaltyResultFor,
+  restartedPenaltyNote,
+} from '@/lib/penalties';
+import { entryKey } from '@/lib/storage';
 import { PROFILES } from '@/lib/profiles';
 import {
   DEFAULT_PIN,
@@ -1034,32 +1043,61 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
             </div>
 
             {PLAYERS.map((player) => (
-              <Switch
-                key={player.id}
-                checked={openPenalties[player.id] === true}
-                onChange={(next) => {
-                  const penalties = { ...loadSettings().penalties };
-                  if (next) penalties[player.id] = true;
-                  else delete penalties[player.id];
+              <div key={player.id} className="space-y-1.5">
+                <Switch
+                  checked={openPenalties[player.id] === true}
+                  onChange={(next) => {
+                    const penalties = { ...loadSettings().penalties };
+                    if (next) penalties[player.id] = true;
+                    else delete penalties[player.id];
 
-                  setOpenPenalties(penalties);
-                  updateSettings({ penalties });
-                }}
-                icon={penaltyIcon(openPenalties[player.id] === true)}
-                label={`${player.name}: penaltis ${
-                  openPenalties[player.id] === true ? 'abiertos' : 'como se ganen'
-                }`}
-                hint={
-                  openPenalties[player.id] === true
-                    ? 'Puede tirar la tanda aunque no le salgan las cuentas del día.'
-                    : 'Tendrá que ganársela: tres aciertos y más del 60 % del día.'
-                }
-              />
+                    setOpenPenalties(penalties);
+                    updateSettings({ penalties });
+                  }}
+                  icon={penaltyIcon(openPenalties[player.id] === true)}
+                  label={`${player.name}: penaltis ${
+                    openPenalties[player.id] === true ? 'abiertos' : 'como se ganen'
+                  }`}
+                  hint={
+                    openPenalties[player.id] === true
+                      ? 'Puede tirar la tanda aunque no le salgan las cuentas del día.'
+                      : 'Tendrá que ganársela: tres aciertos y más del 60 % del día.'
+                  }
+                />
+                <TandaDeHoy
+                  name={player.name}
+                  note={store.entries[entryKey(player.id, todayKey())]?.notes?.[PENALTY_NOTE_KEY]}
+                  result={penaltyResultFor(store.entries, player.id, todayKey())}
+                  onRestart={(previous) => {
+                    const date = todayKey();
+                    store.setEntryNote(
+                      player.id,
+                      date,
+                      PENALTY_NOTE_KEY,
+                      restartedPenaltyNote(penaltyResultFor(store.entries, player.id, date)),
+                    );
+                    notify({
+                      message: `${player.name} puede tirar otra tanda.`,
+                      icon: '🔁',
+                      action: {
+                        label: 'Deshacer',
+                        onClick: () => store.setEntryNote(player.id, date, PENALTY_NOTE_KEY, previous ?? ''),
+                      },
+                    });
+                  }}
+                />
+              </div>
             ))}
 
             <p className="text-[11px] leading-relaxed t-3">
               Abierta de par en par se queda hasta que se cierre aquí: no se apaga sola cada
               noche. Si es para un día suelto, acuérdate de volver a bajarla.
+            </p>
+            <p className="text-[11px] leading-relaxed t-3">
+              <strong>Otra tanda</strong> le deja volver a tirar hoy desde cero, tantas veces como
+              quieras y aunque hoy no se la haya ganado: los cinco penaltis, la energía entera y
+              Benji tirándose a sitios nuevos, para que la repetida no sea la misma de memoria. Se
+              guarda en su día, que viaja a su móvil como todo lo demás.
             </p>
           </section>
         )}
@@ -1400,5 +1438,54 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
         />
       )}
     </Modal>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * La tanda de hoy de un peque
+ *
+ * Cómo va la de hoy y el botón para darle otra. El botón se enseña siempre,
+ * aunque no haya tirado nada, pero sólo hace algo cuando hay tanda empezada:
+ * reiniciar una que está por estrenar no cambiaría nada.
+ * ------------------------------------------------------------------------- */
+
+function TandaDeHoy({
+  name,
+  note,
+  result,
+  onRestart,
+}: {
+  name: string;
+  /** La línea tal cual está guardada, para poder deshacer el reinicio. */
+  note: string | undefined;
+  result: ReturnType<typeof penaltyResultFor>;
+  onRestart: (previous: string | undefined) => void;
+}) {
+  const taken = result?.taken ?? 0;
+  const round = (result?.round ?? 0) + 1;
+  const status =
+    taken === 0
+      ? round > 1
+        ? `Tanda ${round} de hoy, sin empezar.`
+        : 'Hoy aún no ha tirado.'
+      : result && isPenaltyDone(result)
+        ? `Hoy: ${result.scored} de ${PENALTY_SHOTS} dentro${round > 1 ? ` en la tanda ${round}` : ''}.`
+        : `Hoy: va por el penalti ${taken + 1}, con ${result?.scored ?? 0} dentro.`;
+
+  return (
+    <div className="ml-1 flex items-center gap-2 rounded-xl border px-3 py-2 hairline surf-2">
+      <p className="min-w-0 flex-1 text-[11px] leading-snug t-2">
+        {status}
+      </p>
+      <button
+        type="button"
+        onClick={() => onRestart(note)}
+        disabled={taken === 0}
+        aria-label={`Dar otra tanda a ${name} hoy`}
+        className="btn-ghost shrink-0 px-3 py-1.5 text-xs font-bold"
+      >
+        🔁 Otra tanda
+      </button>
+    </div>
   );
 }

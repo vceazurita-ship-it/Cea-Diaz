@@ -139,9 +139,13 @@ export function DailyGameCard({
     () => computeDayScore(profile.id, date, entries[entryKey(profile.id, date)]).ratio,
     [profile.id, date, entries],
   );
-  const gate = penaltyGate({ correct, total, dayRatio, granted });
-
   const penalties = penaltyResultFor(entries, profile.id, date);
+
+  // Una tanda repetida hoy —la que se da desde los ajustes con «Otra tanda»—
+  // cuenta como abierta a mano: si quien lleva la casa se la ha dado, es que
+  // puede tirarla, se la haya ganado o no.
+  const replayed = (penalties?.round ?? 0) > 0;
+  const gate = penaltyGate({ correct, total, dayRatio, granted: granted || replayed });
   const penaltiesDone = penalties ? isPenaltyDone(penalties) : false;
   const canShoot = Boolean(onPenalty) && gate.open && today;
 
@@ -392,14 +396,14 @@ function Penaltis({
         penaltis.
         {done
           ? ` Marcaste ${result?.scored} de ${result?.total}.`
-          : result
+          : result && result.taken > 0
             ? ` Vas por el ${result.taken + 1}.`
             : ''}
       </p>
 
       {!done && (
         <button type="button" onClick={onShoot} className="btn-primary mt-2 px-4 text-sm">
-          {result ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
+          {result && result.taken > 0 ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
         </button>
       )}
     </div>
@@ -583,7 +587,7 @@ function Scoreboard({
             decidido adónde se tira.
           </p>
           <button type="button" onClick={onShoot} className="btn-primary mt-3 w-full">
-            {penalties ? 'Seguir la tanda' : 'Tirar la tanda'}
+            {penalties && penalties.taken > 0 ? 'Seguir la tanda' : 'Tirar la tanda'}
           </button>
         </div>
       )}

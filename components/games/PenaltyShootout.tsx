@@ -228,7 +228,8 @@ export function PenaltyShootout({
   const [firstShown] = useState(taken);
 
   /** El portero de este penalti: decidido de antemano, y con su aviso. */
-  const keeper = keeperZone(profileId, date, taken);
+  const round = result?.round ?? 0;
+  const keeper = keeperZone(profileId, date, taken, round);
   const tell = keeperTell(keeper);
 
   /* ------------------------------------------------------- los relojes */
@@ -284,7 +285,7 @@ export function PenaltyShootout({
     // La semilla del tiro decide hacia qué lado se abre un balón reventado.
     // Va con el perfil, el día y el número de tiro para que el mismo penalti
     // dé siempre lo mismo, como las preguntas.
-    const seed = hashSeed(`${profileId}:desvio:${date}:${taken}`);
+    const seed = hashSeed(`${profileId}:desvio:${date}:${taken}${round ? `:r${round}` : ''}`);
     const outcome = resolveShot(aim, charged.current, keeper, seed, kind);
     const flight = SHOT_TYPES[kind].flight;
 
@@ -322,10 +323,11 @@ export function PenaltyShootout({
       // tanda para que cerrar la app entre dos penaltis no devuelva la
       // energía ni deje repetirlo.
       specials: special ? [...(result?.specials ?? []), kind] : (result?.specials ?? []),
+      round,
     });
     // `later` sólo empuja a una lista: no cambia entre pintadas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aim, date, keeper, kind, onShot, profileId, result, scored, special, step, taken]);
+  }, [aim, date, keeper, kind, onShot, profileId, result, round, scored, special, step, taken]);
 
   const next = () => {
     setAim({ x: 50, y: 50 });
