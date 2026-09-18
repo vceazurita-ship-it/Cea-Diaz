@@ -528,6 +528,8 @@ export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'juli
 export interface Tirador {
   /** Cómo se llama, para el narrador. Los de casa lo reciben de su perfil. */
   name?: string;
+  /** Cómo se le llama en la ficha pequeña, donde no cabe el nombre entero. */
+  short?: string;
   face: Face;
   kit: string;
   shorts: string;
@@ -564,6 +566,7 @@ export interface Tirador {
 export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   oliver: {
     name: 'Oliver',
+    short: 'Oliver',
     face: faceOf('serie:oliver', { skin: 1, hairColor: 'negro', hair: 'corto', beard: 'no', eyes: 'marrón' }),
     kit: '#f8fafc',
     shorts: '#f8fafc',
@@ -580,6 +583,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
     // Kojiro Hyuga del Tiro del Tigre. Se le llama por el nombre con el que
     // lo pidió Víctor, y el otro va debajo.
     name: 'Steve Hyuga',
+    short: 'Hyuga',
     face: faceOf('serie:mark', { skin: 3, hairColor: 'negro', hair: 'rizado', beard: 'no', eyes: 'marrón' }),
     kit: '#1e2a78',
     shorts: '#f4f4f2',
@@ -593,6 +597,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   },
   tom: {
     name: 'Tom',
+    short: 'Tom',
     face: faceOf('serie:tom', { skin: 1, hairColor: 'castaño claro', hair: 'corto', beard: 'no', eyes: 'miel' }),
     kit: '#1d4ed8',
     shorts: '#f4f4f2',
@@ -605,6 +610,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   },
   derrick: {
     name: 'Los gemelos Derrick',
+    short: 'Derrick',
     face: faceOf('serie:derrick', { skin: 2, hairColor: 'castaño', hair: 'corto', beard: 'no', eyes: 'marrón' }),
     kit: '#facc15',
     shorts: '#1f2937',
@@ -617,6 +623,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   },
   julian: {
     name: 'Julian Ross',
+    short: 'Julian',
     face: faceOf('serie:julian', { skin: 1, hairColor: 'castaño claro', hair: 'tupé', beard: 'no', eyes: 'azul' }),
     kit: '#38bdf8',
     shorts: '#f4f4f2',
@@ -628,6 +635,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   },
   philip: {
     name: 'Philip Callaghan',
+    short: 'Philip',
     face: faceOf('serie:philip', { skin: 2, hairColor: 'negro', hair: 'corto', beard: 'no', eyes: 'marrón' }),
     kit: '#0f766e',
     shorts: '#f4f4f2',
@@ -640,6 +648,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   },
   bruce: {
     name: 'Bruce Harper',
+    short: 'Bruce',
     face: faceOf('serie:bruce', { skin: 2, hairColor: 'negro', hair: 'rapado', beard: 'no', eyes: 'marrón' }),
     kit: '#f8fafc',
     shorts: '#1d4ed8',
@@ -655,6 +664,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   // guantes puestos, que es lo que dice que es portero.
   ed: {
     name: 'Ed Warner',
+    short: 'Ed',
     face: faceOf('serie:ed', { skin: 2, hairColor: 'negro', hair: 'largo', beard: 'no', eyes: 'marrón' }),
     kit: '#f97316',
     shorts: '#18181b',
@@ -672,6 +682,7 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   // podido mirar, así que lleva un dibujo propio hasta que Víctor diga quién es.
   kevin: {
     name: 'Kevin Owen',
+    short: 'Kevin',
     face: faceOf('serie:kevin', { skin: 1, hairColor: 'castaño claro', hair: 'corto', beard: 'no', eyes: 'verde' }),
     kit: '#b91c1c',
     shorts: '#f4f4f2',
@@ -1456,7 +1467,7 @@ export function Estadio({
         <path d={`M${x} ${line} L${back.l} ${back.b} H${back.r} L${right} ${line} Z`} fill="#1f7a37" />
         {/* El fondo, con la red y un velo oscuro para que la mira y el
             balón se lean encima. */}
-        <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="#0c1c2e" opacity="0.66" />
+        <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="#0c1c2e" opacity="0.48" />
         <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="url(#red)" />
         {/* Laterales y techo, con una red más apretada y más sombra. */}
         <path d={`M${x} ${y} L${back.l} ${back.t} V${back.b} L${x} ${line} Z`} fill="#0b1b2c" opacity="0.55" />

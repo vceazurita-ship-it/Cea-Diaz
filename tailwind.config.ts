@@ -12,6 +12,8 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'var(--font-sans)', 'sans-serif'],
+        // La de los rótulos del penalti; ver components/games/mangaFont.ts.
+        manga: ['var(--font-manga)', 'var(--font-display)', 'sans-serif'],
       },
       // Aquí vivía una escala de grises («ink») de cuando la app era sólo
       // oscura. Ya no hace falta: los grises salen de los tokens del modo, que

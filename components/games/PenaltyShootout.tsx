@@ -33,6 +33,7 @@ import {
   zoneOf,
 } from '@/lib/penalties';
 import type { PenaltyAim, PenaltyOutcome, PenaltyShot, PenaltySide, PenaltyZoneId } from '@/lib/penalties';
+import { manga } from '@/components/games/mangaFont';
 import { hashSeed } from '@/lib/challenges';
 import { ROPA_FAMILIA, type Casero } from '@/lib/cromoArt';
 import { playCue } from '@/lib/sound';
@@ -377,7 +378,7 @@ export function PenaltyShootout({
   const pending = step === 'corte' || step === 'vuelo';
 
   return (
-    <div className="mx-auto max-w-xl space-y-2.5" onKeyDown={onKeys}>
+    <div className={`${manga.variable} mx-auto max-w-xl space-y-2.5`} onKeyDown={onKeys}>
       {/* Mientras el balón va de camino, el marcador sigue como estaba: el
           tiro ya está anotado, pero enseñarlo antes de que llegue a la
           portería chivaría el final. */}
@@ -570,7 +571,7 @@ function Marcador({
         <span className="block truncate text-[10px] font-black uppercase leading-none tracking-wider text-white/70">
           {name}
         </span>
-        <span className="block font-display text-2xl font-black leading-none tabular-nums">{scored}</span>
+        <span className="block font-manga text-3xl leading-none tracking-wide tabular-nums">{scored}</span>
       </span>
 
       <span className="mx-auto flex flex-col items-center gap-1">
@@ -606,7 +607,7 @@ function Marcador({
 
       <span className="min-w-0 text-right">
         <span className="block text-[10px] font-black uppercase leading-none tracking-wider text-white/70">Benji</span>
-        <span className="block font-display text-2xl font-black leading-none tabular-nums">{saved}</span>
+        <span className="block font-manga text-3xl leading-none tracking-wide tabular-nums">{saved}</span>
       </span>
       <Vineta who="benji" rayas={false} className="h-9 w-9 shrink-0 rounded-lg border-2 border-white/80" />
     </div>
@@ -1051,8 +1052,8 @@ function Escena({
             <Vineta who={who} className="h-full w-full border-4 border-[#241a14] shadow-[5px_5px_0_#241a14]" />
           </div>
           <p
-            className="absolute inset-x-[4%] bottom-[8%] animate-golpe text-right font-display text-[clamp(20px,6.4vw,38px)]
-                       font-black italic leading-none text-white [paint-order:stroke] [-webkit-text-stroke:6px_#241a14]"
+            className="absolute inset-x-[4%] bottom-[8%] animate-golpe text-right font-manga text-[clamp(26px,8.4vw,48px)]
+                       leading-[0.95] tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]"
           >
             {SHOT_TYPES[kind].shout}
           </p>
@@ -1073,7 +1074,7 @@ function Escena({
           <div
             aria-hidden
             className={`pointer-events-none absolute inset-x-[-4%] top-[60%] z-30 animate-golpe border-y-4 border-[#241a14]
-                        py-1.5 text-center font-display text-[clamp(26px,8.5vw,46px)] font-black italic leading-none
+                        py-1 text-center font-manga text-[clamp(34px,11vw,60px)] leading-none tracking-wide
                         tracking-tight text-white [paint-order:stroke] [-webkit-text-stroke:6px_#241a14]
                         ${
                           outcome === 'gol'
@@ -1113,19 +1114,15 @@ function CaraACara({
   name: string;
   onStart: () => void;
 }) {
-  const shooterName = shooter === who ? name : (tiradorDe(shooter).name ?? name);
-  const options: { id: TiradorId; label: string; tagline: string }[] = [
-    { id: who, label: name, tagline: 'Tú mismo' },
-    ...SERIE_ORDER.map((id) => ({
-      id,
-      label: DE_LA_SERIE[id].name ?? id,
-      tagline: DE_LA_SERIE[id].tagline ?? '',
-    })),
-  ];
+  const player = tiradorDe(shooter);
+  const shooterName = shooter === who ? name : (player.name ?? name);
+  const tagline = shooter === who ? 'Tú mismo, con tu dorsal' : player.tagline;
+  const options: TiradorId[] = [who, ...SERIE_ORDER];
 
   return (
-    <div className="space-y-4">
-      <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14]">
+    <div className={`${manga.variable} mx-auto max-w-xl space-y-3`}>
+      {/* El cara a cara de la serie: las dos caras partidas en diagonal. */}
+      <div className="relative aspect-[16/9] overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14] shadow-lg">
         <div className="absolute inset-0 animate-entra [clip-path:polygon(0_0,62%_0,38%_100%,0_100%)]">
           <div className="absolute inset-y-0 left-0 w-[62%]">
             <Vineta key={shooter} who={shooter} fill className="h-full w-full" />
@@ -1136,44 +1133,50 @@ function CaraACara({
             <Vineta who="benji" fill className="h-full w-full" />
           </div>
         </div>
-        {/* La raya del medio, de tinta, y el VS encima. */}
         <div className="absolute inset-0 [clip-path:polygon(61%_0,63%_0,39%_100%,37%_100%)] bg-[#241a14]" />
         <p
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-golpe font-display text-5xl font-black
-                     italic text-amber-300 [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-golpe font-manga text-6xl tracking-wide
+                     text-amber-300 [paint-order:stroke] [-webkit-text-stroke:8px_#241a14]"
           aria-hidden
         >
           VS
         </p>
-        <p className="absolute bottom-2 left-3 font-display text-2xl font-black uppercase italic text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
-          {shooterName}
-        </p>
-        <p className="absolute bottom-2 right-3 font-display text-2xl font-black uppercase italic text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
+        <div className="absolute bottom-2 left-3 max-w-[48%]">
+          <p className="font-manga text-[clamp(20px,6.5vw,32px)] leading-none tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
+            {shooterName}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-black uppercase tracking-wider text-white [paint-order:stroke] [-webkit-text-stroke:3px_#241a14]">
+            {tagline}
+          </p>
+        </div>
+        <p className="absolute bottom-2 right-3 text-right font-manga text-[clamp(20px,6.5vw,32px)] leading-none tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
           Benji
         </p>
       </div>
 
-      {/* Quién tira: él mismo o uno de la serie, cada uno con su dibujo. */}
+      {/* Quién tira: diez fichas pequeñas, todas a la vista. */}
       <div>
-        <p className="mb-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] t-3">¿Quién tira?</p>
-        <div className="grid grid-cols-4 gap-2">
-          {options.map((option) => {
-            const picked = option.id === shooter;
+        <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] t-3">¿Quién tira contra Benji?</p>
+        <div className="grid grid-cols-5 gap-1.5">
+          {options.map((id) => {
+            const picked = id === shooter;
+            const label = id === who ? name : (tiradorDe(id).short ?? tiradorDe(id).name ?? id);
             return (
               <button
-                key={option.id}
+                key={id}
                 type="button"
-                onClick={() => onPick(option.id)}
+                onClick={() => onPick(id)}
                 aria-pressed={picked}
-                className={`overflow-hidden rounded-xl border-2 text-center transition-transform
-                  ${picked ? 'scale-[1.04] border-amber-300 shadow-[0_3px_0_#241a14]' : 'border-[#241a14] opacity-80'}`}
+                aria-label={id === who ? `${name}, tú mismo` : tiradorDe(id).name}
+                className={`group overflow-hidden rounded-xl border-2 transition-transform
+                  ${picked ? 'z-10 scale-[1.07] border-amber-300 shadow-[0_3px_0_#241a14]' : 'border-[#241a14] hover:scale-[1.03]'}`}
               >
-                <Vineta who={option.id} rayas={picked} className="aspect-square w-full" />
-                <span className={`block px-1 pt-1 text-[11px] font-black leading-tight ${picked ? 'bg-amber-300 text-[#241a14]' : 'surf-2 t-1'}`}>
-                  {option.label}
-                </span>
-                <span className={`block px-1 pb-1 text-[10px] leading-tight ${picked ? 'bg-amber-300 text-[#241a14]' : 'surf-2 t-3'}`}>
-                  {option.tagline}
+                <Vineta who={id} rayas={picked} className={`aspect-square w-full ${picked ? '' : 'opacity-85'}`} />
+                <span
+                  className={`block truncate px-0.5 py-0.5 text-center text-[10px] font-black leading-tight
+                    ${picked ? 'bg-amber-300 text-[#241a14]' : 'bg-[#101826] text-white/85'}`}
+                >
+                  {label}
                 </span>
               </button>
             );
@@ -1181,48 +1184,19 @@ function CaraACara({
         </div>
       </div>
 
-      <div className="text-center">
-        <p className="font-display text-xl font-black leading-tight t-1">Cinco penaltis contra Benji</p>
-        <p className="mt-1 text-[13px] leading-snug t-2">El mejor portero de la serie. ¿Cuántos le metes?</p>
-      </div>
-
-      <ol className="grid grid-cols-3 gap-2 text-center">
-        {[
-          ['👆', 'Apunta', 'toca la portería'],
-          ['✊', 'Mantén', 'el botón para cargar'],
-          ['🖐️', 'Suelta', 'cuando se ponga verde'],
-        ].map(([icon, title, text], i) => (
-          <li key={title} className="rounded-xl border hairline surf-1 px-1.5 py-2">
-            <span className="block text-2xl" aria-hidden>
-              {icon}
-            </span>
-            <span className="mt-1 block text-xs font-black t-1">
-              {i + 1}. {title}
-            </span>
-            <span className="block text-[11px] leading-tight t-3">{text}</span>
-          </li>
-        ))}
-      </ol>
-
-      <p className="rounded-xl border border-amber-300/60 bg-amber-300/10 p-3 text-[13px] font-semibold leading-snug t-1">
-        👀 <span className="font-black">El truco:</span> antes de tirarse, Benji se carga hacia un lado. Míralo… y
-        tira al otro.
-      </p>
-
-      <div className="rounded-xl border hairline surf-1 p-3">
-        <p className="text-[13px] font-semibold leading-snug t-1">
-          ⚡ Empiezas con {ENERGY_START} de energía y cada gol te da otra. Gástala en los tiros de la serie:
+      {/* Cómo se juega, en una línea, y el truco. */}
+      <div className="rounded-2xl border-2 border-[#241a14] bg-[#101826] p-3 text-white">
+        <p className="flex items-center justify-between gap-1 text-[12px] font-black">
+          <span>👆 Apunta</span>
+          <span className="text-white/40" aria-hidden>›</span>
+          <span>✊ Mantén</span>
+          <span className="text-white/40" aria-hidden>›</span>
+          <span>🖐️ Suelta en verde</span>
         </p>
-        <p className="mt-2 flex flex-wrap gap-1.5">
-          {SHOT_ORDER.filter((id) => id !== 'normal').map((id) => (
-            <span
-              key={id}
-              className="rounded-full border-2 border-[#241a14] px-2 py-0.5 text-[11px] font-black text-[#241a14]"
-              style={{ backgroundColor: SHOT_TYPES[id].color }}
-            >
-              {SHOT_TYPES[id].icon} {SHOT_TYPES[id].name}
-            </span>
-          ))}
+        <p className="mt-2 text-[12px] leading-snug text-white/85">
+          <span className="font-black text-amber-300">El truco:</span> Benji se carga hacia un lado antes de tirarse; tira
+          al otro. Cada gol da <span className="font-black text-amber-300">⚡</span> para los tiros de la serie (empiezas
+          con {ENERGY_START}).
         </p>
       </div>
 
@@ -1231,10 +1205,10 @@ function CaraACara({
         onClick={onStart}
         autoFocus
         className="flex min-h-[3.75rem] w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#241a14]
-                   bg-white px-4 text-lg font-black uppercase tracking-wide text-[#241a14] shadow-[0_4px_0_#241a14]
+                   bg-amber-300 px-4 font-manga text-3xl tracking-wide text-[#241a14] shadow-[0_4px_0_#241a14]
                    active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]"
       >
-        ⚽ ¡A por él!
+        ¡A por él!
       </button>
     </div>
   );
@@ -1260,7 +1234,7 @@ function Final({
   const saved = PENALTY_SHOTS - scored;
 
   return (
-    <div className="space-y-4 text-center">
+    <div className={`${manga.variable} mx-auto max-w-xl space-y-4 text-center`}>
       <div
         className="relative mx-auto aspect-[4/3] overflow-hidden rounded-2xl border-2 border-[#241a14]"
         style={{ backgroundColor: good ? (kit === '#f8fafc' ? '#2563eb' : kit) : '#1f2a37' }}
@@ -1278,7 +1252,7 @@ function Final({
             {name} — Benji
           </p>
           <p
-            className="animate-golpe font-display text-[clamp(52px,17vw,88px)] font-black italic leading-none tabular-nums
+            className="animate-golpe font-manga text-[clamp(64px,21vw,110px)] leading-none tracking-wide tabular-nums
                        text-amber-300 [paint-order:stroke] [-webkit-text-stroke:8px_#241a14]"
           >
             {scored}–{saved}
@@ -1364,7 +1338,7 @@ function SelectorTiros({
         </span>
       </div>
 
-      <div className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+      <div className="grid grid-cols-4 gap-1.5">
         {SHOT_ORDER.map((id) => {
           const shot = SHOT_TYPES[id];
           const { ok, reason } = shotAvailability(id, result);
@@ -1380,19 +1354,19 @@ function SelectorTiros({
               aria-label={`${shot.name}${shot.cost ? `, cuesta ${shot.cost} de energía` : ''}${
                 reason === 'usado' ? ', ya usado' : reason === 'energia' ? ', falta energía' : ''
               }`}
-              className={`relative flex w-[4.6rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl border-2 px-1 pb-1.5
-                pt-1 text-center transition-transform
+              className={`relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl border-2 px-0.5 pb-1 pt-1
+                text-center transition-transform
                 ${picked ? 'scale-[1.04] border-white' : 'border-white/15'}
                 ${!ok ? 'opacity-40' : ''}`}
               style={{ backgroundColor: picked ? shot.color : 'rgba(255,255,255,0.06)' }}
             >
-              <span className="text-2xl leading-none" aria-hidden>
+              <span className="text-xl leading-none" aria-hidden>
                 {shot.icon}
               </span>
               <span
-                className={`text-[10px] font-black leading-[1.1] ${picked ? 'text-[#241a14]' : 'text-white'}`}
+                className={`w-full truncate text-[10px] font-black leading-[1.1] ${picked ? 'text-[#241a14]' : 'text-white'}`}
               >
-                {id === 'normal' ? 'Normal' : shot.name.replace(/^Tiro de(l)? /, '')}
+                {shot.short}
               </span>
               <span className={`text-[10px] font-black leading-none ${picked ? 'text-[#241a14]' : 'text-amber-300'}`}>
                 {reason === 'usado' ? 'usado' : shot.cost ? '⚡'.repeat(shot.cost) : 'gratis'}

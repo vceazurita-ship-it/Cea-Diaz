@@ -1183,6 +1183,13 @@ tira. Y chutan como en la serie: **la pierna armada** atrás hasta
 arriba con los brazos abiertos mientras corre la barra, y **el latigazo** con la
 pierna estirada hacia arriba y la estela blanca del barrido detrás.
 
+Lo que se grita —el VS, el nombre del tiro, el ¡GOOOOL!, los goles del marcador— va
+en **Bangers**, una letra de manga que `next/font` descarga al compilar y sirve el
+propio despliegue (`components/games/mangaFont.ts`); lo que hay que leer con calma
+sigue en la letra de la app. El cara a cara cabe en una pantalla de móvil: las
+diez fichas de quién tira en dos filas, cómo se juega en una línea, y el botón a
+la vista sin bajar. Y los ocho tiros se ven de golpe, en dos filas de cuatro.
+
 El cuadro es el de *Oliver y Benji*, y cada cosa aparece cuando el juego tiene
 algo que decir:
 

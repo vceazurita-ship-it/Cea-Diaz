@@ -243,6 +243,8 @@ export interface ShotType {
   name: string;
   /** Su artículo: «el» Tiro del Tigre, «la» Parábola de Messi. */
   article: 'el' | 'la';
+  /** Cómo cabe en la ficha del selector. */
+  short: string;
   /** Cómo se grita en el corte. */
   shout: string;
   icon: string;
@@ -268,6 +270,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   normal: {
     id: 'normal',
     name: 'Tiro normal',
+    short: 'Normal',
     article: 'el',
     shout: '',
     icon: '⚽',
@@ -283,6 +286,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   halcon: {
     id: 'halcon',
     name: 'Tiro del Halcón',
+    short: 'Halcón',
     article: 'el',
     shout: '¡TIRO DEL HALCÓN!',
     icon: '🦅',
@@ -298,6 +302,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   efecto: {
     id: 'efecto',
     name: 'Efecto Roberto Carlos',
+    short: 'Efecto RC',
     article: 'el',
     shout: '¡EFECTO ROBERTO CARLOS!',
     icon: '🌀',
@@ -313,6 +318,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   parabola: {
     id: 'parabola',
     name: 'Parábola de Messi',
+    short: 'Parábola',
     article: 'la',
     shout: '¡LA PARÁBOLA DE MESSI!',
     icon: '🌈',
@@ -328,6 +334,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   fuego: {
     id: 'fuego',
     name: 'Tiro de Fuego',
+    short: 'Fuego',
     article: 'el',
     shout: '¡TIRO DE FUEGO!',
     icon: '🔥',
@@ -343,6 +350,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   canon: {
     id: 'canon',
     name: 'Cañón de CR7',
+    short: 'Cañón CR7',
     article: 'el',
     shout: '¡EL CAÑÓN DE CR7!',
     icon: '💣',
@@ -358,6 +366,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   catapulta: {
     id: 'catapulta',
     name: 'Catapulta Infernal',
+    short: 'Catapulta',
     article: 'la',
     shout: '¡CATAPULTA INFERNAL!',
     icon: '🚀',
@@ -373,6 +382,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
   tigre: {
     id: 'tigre',
     name: 'Tiro del Tigre',
+    short: 'Tigre',
     article: 'el',
     shout: '¡TIRO DEL TIGRE!',
     icon: '🐯',
@@ -599,7 +609,7 @@ export function resolveShot(
       why: soft
         ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
         : special
-          ? `Ni con ${type.article} ${type.name}: voló ${keeper.label} y se lo has puesto en las manos. Al lado contrario.`
+          ? `Ni con ${type.article} ${type.name}: Benji voló ${keeper.label} y se lo has puesto en las manos. Al lado contrario.`
           : `Benji voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
     };
   }
