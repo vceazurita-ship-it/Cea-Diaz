@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Chutador, Impacto, Portero } from '@/components/games/PenaltyArt';
+import { Chutador, Impacto, Portero, Primerplano } from '@/components/games/PenaltyArt';
 import {
   PENALTY_SHOTS,
   PENALTY_ZONES,
-  POWER_GOOD,
+  SUPER_FROM,
+  SUPER_NAME,
   keeperTell,
   keeperZone,
   penaltyVerdict,
+  powerBand,
   resolveShot,
+  superReady,
   zoneOf,
 } from '@/lib/penalties';
 import type { PenaltyAim, PenaltyOutcome, PenaltyShot, PenaltyZoneId } from '@/lib/penalties';
@@ -32,6 +35,18 @@ import type { DateKey, PenaltyResult, ProfileId } from '@/types';
  *  volar, y se dice con todas las letras. Leerlo y tirar al otro lado es la
  *  lección entera del penalti, la misma que se grita desde la banda, y es lo
  *  que hace que la segunda tanda salga mejor que la primera.
+ *
+ *  Y con dos goles se carga **el tiro especial**, uno por tanda. No es un
+ *  botón de ganar: el portero ya casi no llega, pero hay que pegarle fuerte
+ *  y clavado —la franja buena se estrecha y se sube—, así que guardárselo
+ *  para el penalti que decide es una decisión de verdad, y reventarlo por
+ *  pasarse de fuerza también.
+ *
+ *  El dibujo es el del anime de fútbol de las tardes de merienda: cielo
+ *  plano, grada llena, el primer plano de la cara mientras se coge fuerza,
+ *  las rayas de velocidad y el rótulo que entra de golpe al acabar. Nada de
+ *  eso es decoración suelta: cada cosa aparece en el momento en el que el
+ *  juego necesita decir algo.
  *
  *  El que tira es el crío: la misma cara de su cromo, su color y su dorsal
  *  (`PenaltyArt`). Y una regla que no es de adorno: **el tiro se anota al
@@ -77,6 +92,14 @@ export function PenaltyShootout({
   const [power, setPower] = useState(0);
 
   /**
+   * Si este tiro va a ser el especial. Se arma antes de coger fuerza y se
+   * queda armado hasta que sale el balón: cambiar de idea con el dedo ya
+   * puesto sería tirar dos penaltis distintos con el mismo gesto.
+   */
+  const [special, setSpecial] = useState(false);
+  const armed = superReady(result);
+
+  /**
    * El penalti ya tirado: adónde voló el portero y en qué acabó.
    *
    * Se guarda entero al disparar, y no se recalcula al pintar, porque en
@@ -105,7 +128,9 @@ export function PenaltyShootout({
     if (step !== 'fuerza') return undefined;
 
     const started = performance.now();
-    const sweep = 1250;
+    // El especial va más rápido: la franja es más estrecha y encima pasa
+    // antes, que es lo que hace que tirarlo cueste algo.
+    const sweep = special ? 950 : 1250;
 
     const tick = (now: number) => {
       const phase = ((now - started) % (sweep * 2)) / sweep;
@@ -119,7 +144,7 @@ export function PenaltyShootout({
     return () => {
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
-  }, [step]);
+  }, [step, special]);
 
   /* ------------------------------------------------------------- el disparo */
 
@@ -137,7 +162,7 @@ export function PenaltyShootout({
     // Va con el perfil, el día y el número de tiro para que el mismo penalti
     // dé siempre lo mismo, como las preguntas.
     const seed = hashSeed(`${profileId}:desvio:${date}:${taken}`);
-    const outcome = resolveShot(aim, charged.current, keeper, seed);
+    const outcome = resolveShot(aim, charged.current, keeper, seed, special);
 
     setPower(charged.current);
     setFired({ keeper, shot: outcome });
@@ -156,14 +181,18 @@ export function PenaltyShootout({
       taken: taken + 1,
       total: PENALTY_SHOTS,
       at: new Date().toISOString(),
+      // El especial se gasta al tirarlo, salga como salga. Se guarda con la
+      // tanda para que cerrar la app entre dos penaltis no regale otro.
+      supered: (result?.supered ?? false) || special,
     });
-  }, [aim, date, keeper, onShot, profileId, scored, step, taken]);
+  }, [aim, date, keeper, onShot, profileId, result, scored, special, step, taken]);
 
   const next = () => {
     setAim({ x: 50, y: 50 });
     setFired(null);
     setFlight(0);
     setPower(0);
+    setSpecial(false);
     setStep('apuntar');
   };
 
@@ -171,7 +200,7 @@ export function PenaltyShootout({
 
   if (done && !fired) return <Final scored={scored} name={name} onClose={onClose} />;
 
-  const [low, high] = POWER_GOOD;
+  const [low, high] = powerBand(special);
   const shooting = taken + (fired ? 0 : 1);
 
   return (
@@ -192,6 +221,7 @@ export function PenaltyShootout({
         tell={tell}
         fired={fired}
         flight={flight}
+        special={special}
       />
 
       {/* Apuntar y coger fuerza comparten **el mismo bloque y el mismo botón**,
@@ -217,6 +247,35 @@ export function PenaltyShootout({
               </>
             )}
           </p>
+
+          {/* El especial: se arma antes de coger fuerza, y se dice lo que
+              cambia. Sólo aparece cuando está cargado, que es con dos goles,
+              y desaparece en cuanto se gasta. */}
+          {armed && (
+            <button
+              type="button"
+              disabled={step !== 'apuntar'}
+              onClick={() => setSpecial((value) => !value)}
+              aria-pressed={special}
+              className={`btn w-full justify-center border-2 text-sm font-black uppercase
+                tracking-wide transition-transform disabled:opacity-60
+                ${
+                  special
+                    ? 'border-amber-300 bg-gradient-to-r from-amber-400/40 to-rose-500/40 t-1'
+                    : 'hairline surf-1 t-2 hover-soft'
+                }`}
+            >
+              {special ? `🔥 ${SUPER_NAME} ARMADO` : `🔥 Usar el ${SUPER_NAME.toLowerCase()}`}
+            </button>
+          )}
+
+          {armed && (
+            <p className="text-center text-[11px] leading-snug t-3">
+              {special
+                ? 'El portero casi no llega… pero la franja buena es más estrecha y más arriba. Píllala.'
+                : `Lo tienes cargado por llevar ${SUPER_FROM} goles. Uno por tanda: elige tú cuándo.`}
+            </p>
+          )}
 
           {/* Puntería rápida: seis sitios de un toque. Es además el camino
               del teclado, porque la mira libre se mueve con el dedo. */}
@@ -250,9 +309,11 @@ export function PenaltyShootout({
             aria-valuemin={0}
             aria-valuemax={100}
           >
-            {/* La franja buena, siempre a la vista: esto no es adivinar. */}
+            {/* La franja buena, siempre a la vista: esto no es adivinar. Con
+                el especial armado se estrecha, se sube y se pone de su color,
+                que es la única manera de que se vea que el trato ha cambiado. */}
             <div
-              className="absolute inset-y-0 bg-emerald-400/30"
+              className={special ? 'absolute inset-y-0 bg-amber-300/40' : 'absolute inset-y-0 bg-emerald-400/30'}
               style={{ left: `${low}%`, width: `${high - low}%` }}
               aria-hidden
             />
@@ -293,25 +354,27 @@ export function PenaltyShootout({
             }}
             className="btn-primary w-full touch-none text-base"
           >
-            {step === 'apuntar' ? '⚽ Mantén pulsado para coger fuerza' : '🔥 Suelta para chutar'}
+            {step === 'apuntar'
+              ? special
+                ? `🔥 Mantén pulsado: ${SUPER_NAME}`
+                : '⚽ Mantén pulsado para coger fuerza'
+              : '🔥 Suelta para chutar'}
           </button>
 
           <p className="text-center text-[11px] leading-snug t-3">
             {step === 'apuntar'
               ? 'Toca la portería para mover la mira adonde quieras, o usa los seis botones.'
-              : 'Suelta dentro de la franja verde. Pasarte sube y abre el balón; quedarte corto le da tiempo al portero.'}
+              : 'Suelta dentro de la franja de color. Pasarte sube y abre el balón; quedarte corto le da tiempo al portero.'}
           </p>
         </div>
       )}
 
       {step === 'visto' && fired && (
         <div className="animate-floatUp space-y-3">
-          <p
-            className={`text-center text-xl font-black ${
-              fired.shot.outcome === 'gol' ? 't-accent' : 't-1'
-            }`}
-            aria-live="polite"
-          >
+          {/* El titular se pinta dentro de la escena, en su banda torcida.
+              Aquí sólo queda lo que se aprende, que es lo que hay que leer
+              con calma. */}
+          <p className="sr-only" aria-live="polite">
             {TITULAR[fired.shot.outcome]}
           </p>
 
@@ -396,8 +459,16 @@ function Marcador({
  * que se ve y lo que se calcula son lo mismo, sin conversiones por el medio.
  * ------------------------------------------------------------------------- */
 
-/** Dónde vive la boca de la portería dentro de la escena, en tanto por ciento. */
-const BOCA = { left: 9, top: 15, width: 82, height: 44 };
+/**
+ * Dónde vive la boca de la portería dentro de la escena, en tanto por ciento.
+ *
+ * No ocupa el cuadro entero a propósito: por encima tiene que verse la grada
+ * y por los lados el resto del estadio, que es lo que hace que esto parezca
+ * un partido y no una portería recortada. Todo lo que pasa dentro se mide en
+ * tanto por ciento de esta caja, así que mover estos cuatro números recoloca
+ * la escena entera sin tocar ninguna regla.
+ */
+const BOCA = { left: 13, top: 17, width: 74, height: 35 };
 
 /** Un punto de la portería, llevado a coordenadas de la escena. */
 function enEscena(point: PenaltyAim): { x: number; y: number } {
@@ -415,6 +486,7 @@ function Escena({
   tell,
   fired,
   flight,
+  special,
 }: {
   who: Casero;
   aim: PenaltyAim;
@@ -423,6 +495,8 @@ function Escena({
   tell: 'izquierda' | 'centro' | 'derecha';
   fired: { keeper: PenaltyZoneId; shot: PenaltyShot } | null;
   flight: 0 | 1 | 2;
+  /** `true` si este tiro va con el especial: cambia el fondo y la estela. */
+  special: boolean;
 }) {
   const mouth = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -463,28 +537,74 @@ function Escena({
   return (
     <div className="relative overflow-hidden rounded-2xl border border-emerald-950/40">
       <div className="relative aspect-[4/3]">
-        {/* Cielo de atardecer y grada: el fondo de las tardes de merienda. */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#ffb765] via-[#ff8f6b] to-[#6d4aa8]" />
-        <div className="absolute inset-x-0 top-0 h-[10%] bg-[#4c2f7a]/60" />
+        {/* Cielo de mediodía, plano como una celda de animación: azul arriba
+            y aclarando hacia el horizonte, sin degradados finos. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#2b8fe0] via-[#63b9f2] to-[#bfe6ff]" />
+
+        {/* Nubes: tres manchas blancas y duras, que es como las pinta el
+            anime de campo. Van con borde de tinta porque sin él se pierden
+            contra el cielo claro del horizonte. */}
+        {/* Van medidas sobre el cuadro entero y no sobre una banda de cielo:
+            metidas en una franja del 9 %, el alto en tanto por ciento se
+            quedaba en dos píxeles y salían tres rayas blancas. */}
+        {[
+          { left: 4, top: 1.5, w: 17 },
+          { left: 40, top: 0.5, w: 21 },
+          { left: 76, top: 2.5, w: 15 },
+        ].map((cloud) => (
+          <span
+            key={cloud.left}
+            aria-hidden
+            className="absolute rounded-full bg-white/95"
+            style={{
+              left: `${cloud.left}%`,
+              top: `${cloud.top}%`,
+              width: `${cloud.w}%`,
+              height: '5%',
+            }}
+          />
+        ))}
+
+        {/* La grada: dos alturas de gente y la valla de publicidad. El
+            gentío son puntos —dos tamaños, dos tonos— porque dibujar cabezas
+            a este tamaño sólo da suciedad, y el ruido de puntos es
+            exactamente lo que se ve en un estadio de dibujos. */}
         <div
           aria-hidden
-          className="absolute inset-x-0 top-[8%] h-[8%] bg-[#3b2360]
-                     bg-[radial-gradient(circle,rgba(255,255,255,0.35)_1px,transparent_1px)]
+          className="absolute inset-x-0 top-[9%] h-[17%] bg-[#1e3a5f]
+                     bg-[radial-gradient(circle,rgba(255,255,255,0.5)_1.2px,transparent_1.2px),radial-gradient(circle,rgba(255,196,120,0.55)_1px,transparent_1px)]
+                     bg-[length:7px_7px,11px_11px]"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-[26%] h-[8%] bg-[#16293f]
+                     bg-[radial-gradient(circle,rgba(255,255,255,0.45)_1px,transparent_1px)]
                      bg-[length:6px_6px]"
         />
+        {/* Valla de publicidad: la banda clara que separa la grada del campo
+            y le da al cuadro la línea horizontal que le faltaba. */}
+        <div aria-hidden className="absolute inset-x-0 top-[34%] h-[5%] bg-[#f4f4f2] border-y-2 border-[#241a14]" />
 
         {/* Césped, con sus franjas de siega. */}
         <div
-          className="absolute inset-x-0 bottom-0 top-[56%] bg-emerald-700
-                     bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.06)_0_7%,transparent_7%_14%)]"
+          className="absolute inset-x-0 bottom-0 top-[39%] bg-emerald-600
+                     bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.07)_0_7%,transparent_7%_14%)]"
         />
+        {/* Y la línea del área, por delante de la portería, que es la que
+            asienta el dibujo en el suelo. Detrás de la portería no va
+            ninguna: allí no hay campo, hay grada. */}
+        <div aria-hidden className="absolute left-[6%] right-[6%] top-[64%] h-[2px] bg-white/70" />
 
-        {/* Los rayos del anime, detrás de todo, cuando se carga la fuerza. */}
+        {/* Los rayos del anime, detrás de todo, cuando se carga la fuerza.
+            Giran despacio, y con el especial armado son de fuego. */}
         {step === 'fuerza' && (
           <div
             aria-hidden
-            className="absolute inset-0 opacity-30
-                       bg-[repeating-conic-gradient(from_0deg_at_50%_62%,rgba(255,255,255,0.5)_0deg_5deg,transparent_5deg_16deg)]"
+            className={`absolute -inset-1/4 animate-girar ${
+              special
+                ? 'opacity-55 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,196,80,0.85)_0deg_4deg,transparent_4deg_13deg)]'
+                : 'opacity-30 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,0.6)_0deg_5deg,transparent_5deg_16deg)]'
+            }`}
           />
         )}
 
@@ -516,17 +636,23 @@ function Escena({
           }}
         />
 
-        {/* El portero. Cuando espera, los pies en la línea de gol y cargado
-            hacia su lado; cuando vuela, girado y estirado hacia su esquina. */}
+        {/* El portero. Cuando espera, los pies en la línea de gol, cargado
+            hacia su lado y moviéndose —un portero quieto no da ninguna
+            tensión—; cuando vuela, girado y estirado hacia su esquina.
+            El vaivén se apaga al disparar: el vuelo manda su propio
+            `transform` y los dos a la vez se peleaban. */}
         <div
-          className="pointer-events-none absolute transition-all duration-500 ease-out"
+          className={`pointer-events-none absolute transition-all duration-500 ease-out
+            ${flying ? '' : 'animate-vaiven'}`}
           style={{
             left: `${dive ? dive.x : BOCA.left + BOCA.width / 2 + lean}%`,
             top: `${dive ? dive.y : BOCA.top + BOCA.height * 0.68}%`,
             width: '28%',
-            transform: `translate(-50%, -50%) rotate(${
-              target ? (target.x < 50 ? -58 : target.x > 50 ? 58 : 0) : 0
-            }deg) scale(${flying ? 1.08 : 1})`,
+            transform: flying
+              ? `translate(-50%, -50%) rotate(${
+                  target ? (target.x < 50 ? -58 : target.x > 50 ? 58 : 0) : 0
+                }deg) scale(1.08)`
+              : undefined,
           }}
         >
           <Portero className="h-full w-full" />
@@ -552,7 +678,8 @@ function Escena({
           </div>
         )}
 
-        {/* El balón. */}
+        {/* El balón. Con el especial va envuelto en fuego, que es la manera
+            que tiene este dibujo de decir «éste no lo para». */}
         <div
           aria-hidden
           className="pointer-events-none absolute text-2xl transition-all ease-out"
@@ -563,6 +690,9 @@ function Escena({
             transitionDuration: `${VUELO_MS / 2}ms`,
           }}
         >
+          {special && flight > 0 && (
+            <span className="absolute -inset-4 -z-10 rounded-full bg-amber-400/70 blur-md" />
+          )}
           ⚽
         </div>
 
@@ -570,7 +700,7 @@ function Escena({
             y pegado al borde, como en el anime, que es lo que da la sensación
             de estar detrás de él. */}
         <div
-          className="pointer-events-none absolute bottom-[-3%] left-[1%] h-[58%] drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)]"
+          className="pointer-events-none absolute bottom-[-2%] left-[0%] h-[62%] drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)]"
           style={{ aspectRatio: '120 / 210' }}
         >
           <Chutador
@@ -589,6 +719,43 @@ function Escena({
           >
             <Impacto className="h-full w-full" />
           </div>
+        )}
+
+        {/* El primer plano de la cara mientras se coge fuerza. Va arriba a la
+            derecha, que es la esquina que no ocupan ni la portería ni el que
+            tira, y se va en cuanto sale el balón. */}
+        {step === 'fuerza' && (
+          <div className="pointer-events-none absolute right-[3%] top-[3%] h-[26%] w-[20%] animate-pop">
+            <Primerplano who={who} className="h-full w-full" />
+          </div>
+        )}
+
+        {/* El rótulo del final, en su banda torcida y con las rayas de
+            impacto detrás. Entra de golpe, se pasa de tamaño y se asienta:
+            es el gesto del anime, y es también lo que hace que se lea el
+            resultado sin buscarlo. */}
+        {fired && flight === 2 && (
+          <>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-25
+                         bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.9)_0_2px,transparent_2px_9px)]"
+            />
+            <div
+              aria-hidden
+              className={`pointer-events-none absolute inset-x-0 top-[70%] animate-golpe border-y-[3px]
+                          border-[#241a14] py-1 text-center font-display text-2xl font-black italic
+                          tracking-tight text-white drop-shadow-[0_2px_0_rgba(36,26,20,1)]
+                          sm:text-2xl
+                          ${
+                            fired.shot.outcome === 'gol'
+                              ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400'
+                              : 'bg-gradient-to-r from-slate-700 via-slate-900 to-slate-700'
+                          }`}
+            >
+              {TITULAR[fired.shot.outcome]}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -623,7 +790,7 @@ function Final({
       </p>
 
       <p className="text-[11px] leading-snug t-3">
-        Una tanda por pleno, y un pleno al día como mucho. Mañana hay otras cinco preguntas.
+        Una tanda al día, y no más. Mañana hay otras cinco preguntas y otro día que hacer.
       </p>
 
       <button type="button" onClick={onClose} className="btn-primary w-full">

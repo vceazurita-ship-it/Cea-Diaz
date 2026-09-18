@@ -458,6 +458,8 @@ interface SettingsRow {
   finance_salt: string | null;
   finance_hash: string | null;
   finance_rounds: number | null;
+  /** Los penaltis abiertos a mano, por perfil. Puede no venir: la columna se añadió después. */
+  penalties: Record<string, boolean> | null;
   updated_at: string;
 }
 
@@ -473,6 +475,7 @@ function fromSettingsRow(row: SettingsRow): HouseSettings {
       row.finance_salt && row.finance_hash && row.finance_rounds
         ? { salt: row.finance_salt, hash: row.finance_hash, rounds: row.finance_rounds }
         : null,
+    penalties: row.penalties ?? {},
     updatedAt: isoOf(row.updated_at),
   };
 }
@@ -502,6 +505,7 @@ export async function pushSettings(settings: HouseSettings, owner: string): Prom
     finance_salt: settings.finance?.salt ?? null,
     finance_hash: settings.finance?.hash ?? null,
     finance_rounds: settings.finance?.rounds ?? null,
+    penalties: settings.penalties,
     updated_at: settings.updatedAt,
   });
 

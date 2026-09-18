@@ -88,7 +88,7 @@ components/
     RewardsAlbum.tsx     Álbum de cromos y colección de frases
   games/
     DailyGameCard.tsx    El juego del día de los peques: la partida y su cromo
-    PenaltyShootout.tsx  La tanda de cinco penaltis que abre el pleno
+    PenaltyShootout.tsx  La tanda de cinco penaltis: el tiro, el especial y el estadio
   gps/
     GpsPanel.tsx       Las sesiones del rastreador y lo que dicen juntas
     GpsEntry.tsx       Apuntar una sesión: por foto, pegando una línea o a mano
@@ -122,7 +122,7 @@ components/
     AttentionCard.tsx  Lo que hoy pide atención, por prioridad
     CriteriaSheet.tsx  Ficha completa del criterio y de las referencias citadas
   PinLock.tsx          Bloqueo del módulo privado de pareja
-  SettingsPanel.tsx    Ajustes en cinco apartados: aspecto, nube, sonido, datos y seguridad
+  SettingsPanel.tsx    Ajustes en seis apartados: aspecto, nube, sonido, juegos, datos y seguridad
   controls/            Un control por tipo de métrica + despachador
   summary/             Gráfico semanal, mapa mensual, logros y vista de resumen
   ui/                  Avatar, CromoPortrait, ProgressBar, ProgressRing, Stars, Modal, Switch, Toast, NoteField, ThemeToggle
@@ -147,7 +147,7 @@ lib/
   rewards.ts           Mazos de cromos y frases, y su reparto por reto y por partida
   cromoArt.ts          Equipaciones y rasgos con los que se dibuja el retrato de cada cromo
   games.ts             El juego del día: lógica, táctica y qué premio merece cada partida
-  penalties.ts         La tanda de penaltis del pleno: portería, portero y reglas del tiro
+  penalties.ts         La tanda de penaltis: quién puede tirarla, portería, portero y reglas del tiro
   lineup.ts            Formaciones del campograma y el equipo guardado de cada perfil
   finance.ts           Economía: las seis libretas, sus cuentas y su guardado local
   financeExperts.ts    El criterio de las cuentas: quién lo sostiene y qué avisar
@@ -437,6 +437,10 @@ que volver a desplegar después de añadirlas.
 > **Y la tabla `gps`**, la de las sesiones del rastreador de los peques. Sin ella la
 > sección funciona en el aparato en el que se pegue cada sesión, pero no viaja al resto:
 > la sincronización lo dice pieza a pieza en Ajustes en vez de darse por buena.
+>
+> **Y la columna `settings.penalties`**, que es la que lleva de un móvil a otro a quién
+> se le ha abierto la tanda de penaltis a mano. Sin ella el interruptor funciona en el
+> aparato en el que se toque, pero la subida de los ajustes falla y lo dice.
 
 ### Qué sube y qué no
 
@@ -445,7 +449,7 @@ que volver a desplegar después de añadirlas.
 | Registros diarios, observaciones y notas de categoría | La preferencia «trabajar sólo en este móvil» |
 | Tareas: qué, cuándo, aviso, repetición y si quedan por mandar | |
 | Fotos y sintonías de los perfiles | |
-| Ajustes de la casa: modo día/noche, sintonías y PIN | |
+| Ajustes de la casa: modo día/noche, sintonías, PIN y los penaltis abiertos a mano | |
 | Los equipos del campograma: formación, once, banquillo y capitán | |
 | Las agendas semanales: los ratos de cada perfil, con su hábito y con quién está | |
 | Las sesiones del GPS de los peques, con sus borrados | |
@@ -1047,11 +1051,27 @@ baraja** —así una partida ganada no adelanta el turno de los cromos de los re
 revés— y los cromos que deja **también se alinean en el campograma**, como cualquier
 otro.
 
-### Y con el pleno, penaltis
+### Y con el día bien hecho, penaltis
 
-Las cinco acertadas —las cinco, no cuatro— abren además una **tanda de cinco
-penaltis**. No da cromos ni puntos: el cromo ya lo dio el pleno. Da el derecho a
-tirar, que a los ocho años es exactamente el premio que uno quiere.
+La **tanda de cinco penaltis** se gana con **dos cosas a la vez**: acertar al
+menos **tres de las cinco preguntas** del juego del día y llevar hecho **más del
+60 %** del día. Las dos, no una: las preguntas se pueden acertar sentado en el
+sofá, y el día por su cuenta no tiene nada que ver con el fútbol. Juntas dicen lo
+que se quiere premiar. No da cromos ni puntos —eso lo dan las preguntas—: da el
+derecho a tirar, que a los ocho años es exactamente el premio que uno quiere.
+
+Antes hacía falta el pleno y era demasiado: cinco de cinco cae una vez por semana
+con suerte, así que el premio no existía en la práctica. Por eso **la tanda se
+enseña también cerrada**, con las dos condiciones y lo que lleva de cada una
+—«✅ acertar 3 preguntas (llevas 3 de 5)», «⬜ pasar del 60 % del día (vas por el
+0 %)»—. Un premio que no se sabe que está ahí no hace que nadie termine de
+registrar el día.
+
+Y aparte de ganarse, **se puede dar**: en **⚙️ Ajustes → 🎮 Juegos** hay un
+interruptor por peque que abre la tanda a mano, para el día que haga falta. Viaja
+con los ajustes de la casa, así que se abre desde el móvil de Víctor y le aparece
+al crío en su tableta. Se queda abierto hasta que se cierre ahí: no se apaga solo
+cada noche.
 
 Está montado como el penalti de un videojuego de fútbol y no como un sorteo con
 botones, porque la gracia está en las tres cosas que hay que hacer bien, que son
@@ -1075,6 +1095,14 @@ las tres del penalti de verdad:
 Las reglas se aplican en ese orden —fuera, palo, parada, gol— y cada tiro se
 explica al acabar, como las preguntas.
 
+Y con **dos goles** se carga el **tiro relámpago**, uno por tanda. No es un botón
+de ganar: el portero pasa a alcanzar poco más que sus manos, pero la franja buena
+de la barra se estrecha, se sube y la barra corre más deprisa, así que un
+relámpago mal medido se va a las nubes igual que cualquier otro. Guardárselo para
+el penalti que decide es una decisión de verdad. Se gasta al tirarlo, salga como
+salga, y eso se guarda con la tanda: cerrar la app entre dos penaltis no regala
+otro.
+
 Un detalle de manejo que no es un detalle: **apuntar y coger fuerza son el mismo
 botón**, que sólo cambia de rótulo, y la barra está siempre en su sitio aunque
 todavía no corra. Cuando eran dos pantallas distintas, el botón que se pulsaba
@@ -1085,9 +1113,24 @@ a medias porque al soltar ya no había debajo lo que había al pulsar.
 
 El penalti lo lanza **el crío**, dibujado con las mismas piezas que su cromo
 (`components/games/PenaltyArt.tsx`): la misma cara, el color de su perfil y su
-dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—. Es el
-estilo de Oliver y Benji del resto de la casa, con el cielo de atardecer, la
-grada, los rayos de fondo mientras se coge carrerilla y el estallido del golpeo.
+dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—.
+
+El cuadro es el del anime de fútbol de las tardes de merienda, y cada cosa
+aparece cuando el juego tiene algo que decir:
+
+- **el estadio** —cielo plano con sus nubes duras, dos alturas de grada llena,
+  la valla de publicidad y el césped con sus franjas de siega—, con la portería
+  delante y no comiéndose el cuadro;
+- **el portero se mueve en la línea** mientras se apunta, cargado hacia su lado;
+  uno quieto como un poste no da ninguna tensión;
+- **el primer plano de su cara**, en su recuadro con las rayas convergentes,
+  mientras se coge fuerza: es el plano del anime y además dice sin palabras que
+  la barra está corriendo y hay que soltar;
+- **las rayas de velocidad** girando detrás, blancas normalmente y de fuego con
+  el relámpago armado, que es también cuando el balón vuela envuelto en llamas;
+- **el rótulo del final** —¡GOOOL!, ¡La ha parado!— en su banda torcida, que
+  entra de golpe, se pasa de tamaño y se asienta. Va por debajo de la portería a
+  propósito: tapando el gol no se veía dónde había entrado el balón.
 
 El muñeco entero se monta con **articulaciones y no con siluetas**: cada pose
 —esperando, corriendo y golpeando— es una lista de puntos (cadera, rodilla, pie,
@@ -1164,6 +1207,27 @@ invierte si el fondo es oscuro y se le estira el contraste. Sin esa pasada,
 Tesseract —que está pensado para papel escaneado— lee a medias una pantalla de
 móvil en modo oscuro.
 
+La captura **se lee renglón a renglón, no aplanada**, porque la pantalla del
+rastreador va en **dos columnas**: un renglón con dos rótulos —«Distance | High
+intensity»— y debajo otro con sus dos números —«5,5 km | 238 m»—. Juntándolo todo
+en una línea, el 5,5 quedaba pegado a «intensity» y el 238 a «km», y salía una
+ficha con la mitad de las cifras cambiadas de sitio; ése era el motivo de las
+capturas que no se leían. Ahora un renglón de rótulos apunta lo que viene y el
+siguiente de números lo reparte en el mismo orden; el que trae las dos cosas se
+resuelve por vecindad, como una línea escrita a mano. Y si la captura llega de un
+tirón, sin saltos, se aplana y se lee como antes.
+
+Dos cosas más que aprendió leyendo capturas de verdad. Los **rótulos de dos y
+tres palabras** mandan sobre los de una: «max sprint» es la punta de velocidad y
+no una cuenta de esprines, y «time with ball» no se lleva por delante a «tiempo».
+Y las **duraciones** —«23'47"», «0'29"»— se leen enteras: van a minutos donde se
+piden minutos y a segundos donde se piden segundos, en vez de dejar el 47 suelto
+por la línea buscando dueño.
+
+Los metros, por último, **no se distinguen por la unidad sino por el tamaño**: el
+lector confunde «km» con «m» sin avisar, y en cambio nadie recorre cien
+kilómetros en un entrenamiento ni corre cinco metros en uno.
+
 La fecha es la razón de ser de este camino: se busca **en la propia captura**
 —la aplicación la escribe en la cabecera de cada sesión, «9 sept 2026»— y la
 ficha se va a su día aunque sea de hace tres semanas. Cuando no aparece se pone
@@ -1214,7 +1278,8 @@ De un pegote. Una línea por sesión, en el orden que sea:
 Se reconocen la fecha (`2026-09-09`, `9/9`, `hoy`, `ayer`), si fue **entreno o
 partido**, y cada cifra por su unidad —`5,2km`, `90min`, `24,3km/h`— o por su
 nombre, en castellano o en inglés: distancia, intensidad, aceleraciones,
-punta, toques, pases, tiros, potencia y puntuación. Los km/h los comparten la
+deceleraciones, punta, toques, pases, tiros, potencia, tiempo con balón y
+puntuación. Los km/h los comparten la
 punta de velocidad y la potencia del tiro, así que la potencia se dice por su
 nombre —`68 potencia`— y ésa es también la forma en la que la app escribe la
 sesión al copiarla. Detrás de `|` o de `nota:` va lo que haga

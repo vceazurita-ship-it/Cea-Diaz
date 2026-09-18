@@ -611,7 +611,7 @@ export interface GameResult {
 }
 
 /**
- * La tanda de penaltis que abre un pleno en el juego del día.
+ * La tanda de penaltis que se gana en el juego del día.
  *
  * Se guarda igual que la partida y por lo mismo: es lo único que queda de
  * ella, y `taken` permite retomar una tanda que se dejó a medias sin poder
@@ -625,6 +625,12 @@ export interface PenaltyResult {
   total: number;
   /** Momento del último tiro (ISO). */
   at: string;
+  /**
+   * `true` si ya se gastó el tiro especial de esta tanda. Se guarda porque
+   * es uno por tanda y la tanda se puede dejar a medias: sin esto, cerrar la
+   * app entre el tercer y el cuarto penalti regalaría otro especial.
+   */
+  supered?: boolean;
 }
 
 /* -------------------------------- Campograma ---------------------------- */
@@ -910,6 +916,16 @@ export interface HouseSettings {
    * puesto ninguna, que es cuando la sección pide crearla.
    */
   finance: PinDigest | null;
+  /**
+   * A quién se le ha abierto la tanda de penaltis a mano, por perfil.
+   *
+   * La tanda se gana —tres aciertos en el juego del día y más del 60 % del
+   * día hecho—, pero quien lleva la casa tiene que poder decir «hoy tíralos
+   * igual»: un cumpleaños, una tarde de médico, o simplemente querer verle
+   * jugar. Viaja con los ajustes, así que se abre desde el móvil de Víctor y
+   * le aparece al crío en su tableta.
+   */
+  penalties: Record<string, boolean>;
   updatedAt: string;
 }
 
@@ -1389,13 +1405,17 @@ export interface GpsSession {
   /** Distancia recorrida, en kilómetros. */
   distance?: number;
   /**
-   * Aceleraciones y deceleraciones: la cantidad de cambios de ritmo que
-   * cuenta el aparato, arranques y frenadas juntos. Las sesiones guardadas
-   * antes traían esto mismo como `sprints`, y se leen igual.
+   * Aceleraciones: la cantidad de arranques que cuenta el aparato. Las
+   * sesiones guardadas antes traían esto mismo como `sprints`, y se leen
+   * igual.
    */
   accels?: number;
+  /** Deceleraciones: las frenadas, que el aparato cuenta aparte. */
+  decels?: number;
   /** Potencia del tiro, en km/h. */
   shotPower?: number;
+  /** Segundos con el balón en los pies. */
+  ballTime?: number;
   /** Velocidad punta, en km/h. */
   topSpeed?: number;
   /** Balones tocados. */

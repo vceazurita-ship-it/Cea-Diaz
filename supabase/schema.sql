@@ -207,6 +207,13 @@ alter table public.settings
   add column if not exists finance_hash   text,
   add column if not exists finance_rounds integer;
 
+-- A quién se le ha abierto la tanda de penaltis a mano. La tanda se gana en
+-- el juego del día, pero quien lleva la casa tiene que poder darla igual, y
+-- eso hay que decirlo desde su móvil para que le aparezca al crío en su
+-- tableta. Una clave por perfil, y sólo los que la tienen abierta.
+alter table public.settings
+  add column if not exists penalties jsonb not null default '{}'::jsonb;
+
 alter table public.settings enable row level security;
 
 drop policy if exists "ajustes propios" on public.settings;

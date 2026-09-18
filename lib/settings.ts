@@ -40,7 +40,7 @@ const NEVER = '1970-01-01T00:00:00.000Z';
 const PREFERENCES: ThemePreference[] = ['auto', 'light', 'dark'];
 
 export function defaultSettings(): HouseSettings {
-  return { theme: 'auto', sound: true, pin: null, finance: null, updatedAt: NEVER };
+  return { theme: 'auto', sound: true, pin: null, finance: null, penalties: {}, updatedAt: NEVER };
 }
 
 /* ---------------------------------------------------------------------------
@@ -60,6 +60,22 @@ function isDigest(value: unknown): value is PinDigest {
   return typeof salt === 'string' && typeof hash === 'string' && typeof rounds === 'number';
 }
 
+/**
+ * Los penaltis abiertos a mano, sólo con lo que tiene forma de serlo: un
+ * perfil y un sí. Los «no» no se guardan —cerrar es quitar de la lista— para
+ * que el ajuste no engorde con perfiles que ya no existen.
+ */
+function openPenalties(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== 'object') return {};
+
+  const out: Record<string, boolean> = {};
+  for (const [profileId, open] of Object.entries(value as Record<string, unknown>)) {
+    if (open === true && profileId) out[profileId] = true;
+  }
+
+  return out;
+}
+
 /** Deja pasar sólo lo que tiene forma de ajuste; lo demás vuelve a fábrica. */
 function normalize(value: Partial<HouseSettings> | null): HouseSettings {
   const base = defaultSettings();
@@ -70,6 +86,7 @@ function normalize(value: Partial<HouseSettings> | null): HouseSettings {
     sound: typeof value.sound === 'boolean' ? value.sound : base.sound,
     pin: isDigest(value.pin) ? value.pin : null,
     finance: isDigest(value.finance) ? value.finance : null,
+    penalties: openPenalties(value.penalties),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : base.updatedAt,
   };
 }

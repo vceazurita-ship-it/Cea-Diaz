@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PenaltyShootout } from '@/components/games/PenaltyShootout';
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
@@ -16,10 +16,15 @@ import {
 import {
   PENALTY_SHOTS,
   isPenaltyDone,
+  penaltyGate,
   penaltyResultFor,
   penaltyVerdict,
+  type PenaltyGate,
 } from '@/lib/penalties';
 import { gameRewardId, rarityLabel } from '@/lib/rewards';
+import { computeDayScore } from '@/lib/scoring';
+import { loadSettings, subscribeSettings } from '@/lib/settings';
+import { entryKey } from '@/lib/storage';
 import type {
   DateKey,
   DayEntry,
@@ -45,10 +50,12 @@ import type {
  *  regala otro intento, y a la vez se puede volver más tarde y seguir por
  *  donde se dejó.
  *
- *  Y el pleno abre una cosa más: la tanda de cinco penaltis. No da cromo ni
- *  puntos —el cromo ya lo dio el pleno—, da el derecho a tirar, que a esta
- *  edad es el premio que de verdad se quiere. Cuatro de cinco no la abren:
- *  lo que se premia es no fallar ninguna.
+ *  Y aquí se cobra una cosa más: la tanda de cinco penaltis. No da cromo ni
+ *  puntos, da el derecho a tirar, que a esta edad es el premio que de verdad
+ *  se quiere. La abren dos cosas juntas —tres aciertos de las cinco y más
+ *  del 60 % del día hecho— o la abre a mano quien lleva la casa. Y se
+ *  enseña también cerrada, con lo que falta para abrirla: un premio que no
+ *  se sabe que existe no hace que nadie termine de registrar el día.
  * ========================================================================= */
 
 interface DailyGameCardProps {
@@ -61,8 +68,28 @@ interface DailyGameCardProps {
   headingClass: string;
   /** Anota la partida en el día. */
   onResult: (result: GameResult) => void;
-  /** Anota la tanda de penaltis que abre el pleno. */
+  /** Anota la tanda de penaltis. */
   onPenalty?: (result: PenaltyResult) => void;
+}
+
+/**
+ * ¿Le han abierto la tanda a mano desde los ajustes?
+ *
+ * Se arranca en `false` y se corrige tras montar, como el resto de lo que
+ * vive en el aparato: en el servidor no hay `localStorage`. Y se sigue
+ * escuchando, porque quien la abre suele estar en otro móvil y lo normal es
+ * que el crío tenga la pantalla delante cuando ocurre.
+ */
+function useGranted(profileId: ProfileId): boolean {
+  const [granted, setGranted] = useState(false);
+
+  useEffect(() => {
+    const read = () => setGranted(loadSettings().penalties[profileId] === true);
+    read();
+    return subscribeSettings(read);
+  }, [profileId]);
+
+  return granted;
 }
 
 /** El cromo, en una línea. */
@@ -103,13 +130,20 @@ export function DailyGameCard({
   const tomorrow = GAME_META[gameForDate(addDays(date, 1))];
 
   /**
-   * La tanda de penaltis: la abre el pleno y sólo el pleno. Lo tirado se lee
-   * del día como todo lo demás, así que una tanda a medias se retoma.
+   * La tanda de penaltis. La abren dos cosas juntas —tres aciertos y más del
+   * 60 % del día— o la abre a mano quien lleva la casa. Lo tirado se lee del
+   * día como todo lo demás, así que una tanda a medias se retoma.
    */
-  const perfect = done && correct === total;
+  const granted = useGranted(profile.id);
+  const dayRatio = useMemo(
+    () => computeDayScore(profile.id, date, entries[entryKey(profile.id, date)]).ratio,
+    [profile.id, date, entries],
+  );
+  const gate = penaltyGate({ correct, total, dayRatio, granted });
+
   const penalties = penaltyResultFor(entries, profile.id, date);
   const penaltiesDone = penalties ? isPenaltyDone(penalties) : false;
-  const canShoot = Boolean(onPenalty) && perfect && today;
+  const canShoot = Boolean(onPenalty) && gate.open && today;
 
   /** El cromo de esta partida, si cayó alguno. */
   const won = rewards.find((item) => item.challengeId === gameRewardId(round.game, date))?.reward;
@@ -211,31 +245,6 @@ export function DailyGameCard({
                     : `Hoy no ha caído cromo: hacen falta ${GAME_PASS} aciertos. Mañana hay otra.`}
                 </p>
 
-                {/* El pleno abre la tanda. Se enseña aquí y no dentro de la
-                    partida porque se puede venir a tirarla más tarde. */}
-                {canShoot && (
-                  <div className="mt-2 rounded-xl border p-2 border-accent bg-accent-faint">
-                    <p className="text-[11px] font-semibold leading-snug t-1">
-                      🥅 Pleno: te has ganado una tanda de {PENALTY_SHOTS} penaltis.
-                      {penaltiesDone
-                        ? ` Marcaste ${penalties?.scored} de ${penalties?.total}.`
-                        : penalties
-                          ? ` Vas por el ${penalties.taken + 1}.`
-                          : ''}
-                    </p>
-
-                    {!penaltiesDone && (
-                      <button
-                        type="button"
-                        onClick={() => setShooting(true)}
-                        className="btn-primary mt-2 px-4 text-sm"
-                      >
-                        {penalties ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 <button
                   type="button"
                   onClick={() => {
@@ -254,15 +263,19 @@ export function DailyGameCard({
               </>
             )}
 
-            {/* La tanda existe también antes de ganarla, y hay que verlo: un
-                premio que no se sabe que está ahí no tira de nadie. Se dice
-                cerrado mientras no haya pleno, como el premio de la semana. */}
-            {onPenalty && today && !canShoot && (
-              <p className="mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug
-                            hairline surf-1 t-2">
-                🔒 Tanda de {PENALTY_SHOTS} penaltis: se abre al acertar las {total} preguntas.
-                {done ? ' Hoy se queda a medias; mañana hay otra partida.' : ''}
-              </p>
+            {/* La tanda, abierta o cerrada. Va fuera de los estados de la
+                partida —y no dentro del «terminada», como estaba— porque no
+                depende de ella sola: con tres aciertos ya está ahí aunque
+                queden preguntas, y cerrada tiene que verse desde el principio
+                para saber que existe y qué falta para abrirla. */}
+            {onPenalty && today && (
+              <Penaltis
+                gate={gate}
+                open={canShoot}
+                result={penalties}
+                done={penaltiesDone}
+                onShoot={() => setShooting(true)}
+              />
             )}
 
             {state === 'otro-dia' && (
@@ -314,7 +327,7 @@ export function DailyGameCard({
         </Modal>
       )}
 
-      {/* ------------------------------------------------- la tanda del pleno */}
+      {/* ----------------------------------------------------- la tanda */}
       {shooting && onPenalty && (
         <Modal title="Tanda de penaltis" size="lg" onClose={() => setShooting(false)}>
           <PenaltyShootout
@@ -328,6 +341,68 @@ export function DailyGameCard({
         </Modal>
       )}
     </>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * La tanda, dentro de la tarjeta del juego
+ *
+ * Cerrada se enseña igual que abierta, y con las dos condiciones a la vista:
+ * la que ya está y la que falta. Un premio escondido hasta que se cumple no
+ * es un premio, es una sorpresa —y una sorpresa no hace que nadie termine de
+ * registrar el día.
+ * ----------------------------------------------------------------------- */
+
+function Penaltis({
+  gate,
+  open,
+  result,
+  done,
+  onShoot,
+}: {
+  gate: PenaltyGate;
+  open: boolean;
+  result: PenaltyResult | null;
+  done: boolean;
+  onShoot: () => void;
+}) {
+  if (!open) {
+    return (
+      <div className="mt-2 rounded-xl border p-2 hairline surf-1">
+        <p className="text-[11px] font-bold leading-snug t-2">
+          🔒 Tanda de {PENALTY_SHOTS} penaltis
+        </p>
+        <ul className="mt-1 space-y-0.5">
+          {gate.parts.map((part) => (
+            <li key={part.label} className="text-[11px] leading-snug t-3">
+              <span aria-hidden>{part.done ? '✅' : '⬜'}</span>{' '}
+              <span className={part.done ? 'font-semibold t-2' : ''}>{part.label}</span>{' '}
+              <span className="tabular-nums">({part.detail})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-accent bg-accent-faint p-2">
+      <p className="text-[11px] font-semibold leading-snug t-1">
+        🥅 {gate.granted ? 'Hoy te la han dado' : 'Te la has ganado'}: tanda de {PENALTY_SHOTS}{' '}
+        penaltis.
+        {done
+          ? ` Marcaste ${result?.scored} de ${result?.total}.`
+          : result
+            ? ` Vas por el ${result.taken + 1}.`
+            : ''}
+      </p>
+
+      {!done && (
+        <button type="button" onClick={onShoot} className="btn-primary mt-2 px-4 text-sm">
+          {result ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -439,9 +514,9 @@ interface ScoreboardProps {
   won?: Reward;
   profileId: ProfileId;
   tomorrow: string;
-  /** La tanda que abrió el pleno, si ya se tiró alguna. */
+  /** La tanda del día, si ya se tiró alguna. */
   penalties: PenaltyResult | null;
-  /** Abre la tanda; ausente cuando no hay pleno o ya se tiró entera. */
+  /** Abre la tanda; ausente cuando todavía no está abierta o ya se tiró entera. */
   onShoot?: () => void;
   onClose: () => void;
 }
@@ -499,12 +574,12 @@ function Scoreboard({
         </div>
       )}
 
-      {/* El pleno no se queda en el marcador: se cobra tirando. */}
+      {/* La tanda no se queda en el marcador: se cobra tirando. */}
       {onShoot && (
         <div className="rounded-2xl border p-4 border-accent bg-accent-faint">
           <p className="text-sm font-black t-1">🥅 Y ahora, penaltis</p>
           <p className="mt-1 text-[11px] leading-snug t-2">
-            El pleno te da una tanda de cinco. Eliges el sitio y la fuerza; el portero ya ha
+            Te has ganado una tanda de cinco. Eliges el sitio y la fuerza; el portero ya ha
             decidido adónde se tira.
           </p>
           <button type="button" onClick={onShoot} className="btn-primary mt-3 w-full">

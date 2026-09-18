@@ -57,11 +57,13 @@ export type GpsFieldId =
   | 'distance'
   | 'intense'
   | 'accels'
+  | 'decels'
   | 'topSpeed'
   | 'touches'
   | 'passes'
   | 'shots'
   | 'shotPower'
+  | 'ballTime'
   | 'score';
 
 export interface GpsField {
@@ -125,7 +127,18 @@ export const GPS_FIELDS: GpsField[] = [
     unit: 'min',
     decimals: 0,
     record: false,
-    keys: ['minutos', 'minutes', 'tiempo', 'duración', 'duracion', 'playing time', 'min'],
+    keys: [
+      'minutos',
+      'minutes',
+      'tiempo',
+      'duración',
+      'duracion',
+      'playing time',
+      'activity time',
+      'tiempo de actividad',
+      'tiempo jugado',
+      'min',
+    ],
     units: ['min', "'"],
     sane: [1, 300],
   },
@@ -164,15 +177,17 @@ export const GPS_FIELDS: GpsField[] = [
     sane: [1, 9000],
   },
   {
-    // Lo que el rastreador cuenta de verdad no son esprines, sino cambios de
-    // ritmo: cada arranque y cada frenada. Se llamó «esprines» mientras se
-    // leyó de una línea escrita a mano, pero la aplicación lo da junto y por
-    // su nombre, así que así se llama aquí. Las sesiones que se guardaron con
-    // el nombre viejo se leen igual —`normalizeSession` las traduce— y las
-    // líneas que digan «12 sprints» siguen entrando, que es lo que hay
-    // escrito en las capturas en inglés.
+    // Lo que el rastreador cuenta no son esprines, sino cambios de ritmo, y
+    // los cuenta **en dos cifras**: los arranques por un lado y las frenadas
+    // por otro, como los enseña su pantalla. Van separadas y no sumadas
+    // porque así vienen: sumarlas al leerlas sería inventarse un número que
+    // no está, y con las dos se puede sumar cuando haga falta.
+    //
+    // Las sesiones que se guardaron con el nombre viejo —`sprints`— se leen
+    // como aceleraciones, y las líneas que digan «12 sprints» siguen
+    // entrando, que es lo que estaba escrito hasta ahora.
     id: 'accels',
-    label: 'Aceleraciones y deceleraciones',
+    label: 'Aceleraciones',
     short: 'Aceleraciones',
     icon: '💨',
     unit: '',
@@ -180,20 +195,37 @@ export const GPS_FIELDS: GpsField[] = [
     perHour: true,
     keys: [
       'aceleraciones',
-      'deceleraciones',
-      'aceleraciones y deceleraciones',
+      'aceleracion',
       'acelerones',
       'accelerations',
-      'decelerations',
+      'acceleration',
       'accels',
       'esprines',
       'esprints',
       'sprints',
       'sprint',
     ],
-    // Son dos cuentas sumadas y suben deprisa: un partido entero pasa de
-    // sobra de los cien, y la horquilla de los esprines se quedaba corta.
-    sane: [0, 800],
+    // Suben deprisa: un partido entero pasa de sobra de los cien, y la
+    // horquilla de los esprines se quedaba corta.
+    sane: [0, 600],
+  },
+  {
+    id: 'decels',
+    label: 'Deceleraciones',
+    short: 'Deceleraciones',
+    icon: '🛑',
+    unit: '',
+    decimals: 0,
+    perHour: true,
+    keys: [
+      'deceleraciones',
+      'deceleracion',
+      'frenadas',
+      'decelerations',
+      'deceleration',
+      'decels',
+    ],
+    sane: [0, 600],
   },
   {
     id: 'topSpeed',
@@ -208,6 +240,13 @@ export const GPS_FIELDS: GpsField[] = [
       'velocidad punta',
       'top speed',
       'max speed',
+      // Así la llama la aplicación del rastreador: «max sprint» es la punta
+      // de velocidad, no una cuenta de esprines. Como es de dos palabras y
+      // los rótulos se buscan del más largo al más corto, gana sobre
+      // «sprint» a secas, que sí cuenta arranques.
+      'max sprint',
+      'sprint máximo',
+      'sprint maximo',
       'vmax',
       'vel max',
       'punta',
@@ -263,6 +302,9 @@ export const GPS_FIELDS: GpsField[] = [
       'potencia tiro',
       'tiro potencia',
       'shot power',
+      'max shot',
+      'tiro máximo',
+      'tiro maximo',
       'power',
     ],
     units: ['km/h', 'kmh'],
@@ -270,6 +312,30 @@ export const GPS_FIELDS: GpsField[] = [
     // Un crío de ocho años no pasa de cien; por arriba se deja aire para
     // cuando lo hagan, y por abajo se descarta lo que es un mal reconocido.
     sane: [5, 160],
+  },
+  {
+    // El rato que el balón estuvo en sus pies. Va en segundos y no en
+    // minutos porque en una sesión son medio minuto: «29 s» se entiende y
+    // «0,5 min» no. La pantalla lo escribe como duración —«0'29"»— y así se
+    // lee.
+    id: 'ballTime',
+    label: 'Tiempo con balón',
+    short: 'Con balón',
+    icon: '⏳',
+    unit: 's',
+    decimals: 0,
+    perHour: true,
+    keys: [
+      'tiempo con balón',
+      'tiempo con balon',
+      'time with ball',
+      'con balón',
+      'con balon',
+      'ball time',
+      'posesión',
+      'posesion',
+    ],
+    sane: [1, 3600],
   },
   {
     id: 'score',
@@ -332,9 +398,10 @@ export const PASTE_EXAMPLE =
   '2026-09-09 entreno 90min 5,2km 154 aceleraciones 24,3km/h 480 toques';
 
 /**
- * Palabra suelta → cifra a la que nombra. Las de dos palabras se guardan tal
- * cual y se buscan uniendo dos fichas, que es todo lo que hace falta: no hay
- * ninguna de tres.
+ * Palabra suelta → cifra a la que nombra. Las de dos y de tres palabras se
+ * guardan tal cual y se buscan uniendo fichas seguidas: hacen falta las tres
+ * para «tiempo con balón», y hacen falta de dos para que «max sprint» —que
+ * es la punta de velocidad— no se lea como una cuenta de esprines.
  */
 const KEY_OF = new Map<string, GpsFieldId>();
 
@@ -366,18 +433,41 @@ function plain(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-/** Una ficha de la línea: o un número, o una palabra. */
-type Token = { number: number } | { word: string };
+/**
+ * Una ficha de la línea: o un número, o una palabra.
+ *
+ * Un número puede venir escrito como duración —«23'47"», que son veintitrés
+ * minutos y cuarenta y siete segundos—, y entonces trae además los segundos
+ * que suma. Quién los quiere en minutos y quién en segundos lo decide la
+ * cifra a la que acabe yendo, no la ficha.
+ */
+type Token = { number: number; seconds?: number } | { word: string };
 
-/** Parte la línea en números y palabras, en el orden en que están escritos. */
+const isNumber = (token: Token): token is { number: number; seconds?: number } =>
+  'number' in token;
+
+/**
+ * Parte la línea en números y palabras, en el orden en que están escritos.
+ *
+ * La duración va primero en el patrón a propósito: si no, «23'47"» se leería
+ * como dos números sueltos y el 47 andaría por la línea buscando dueño. La
+ * comilla puede ser recta o tipográfica, que es la que suele devolver el
+ * lector de imágenes.
+ */
 function tokenize(text: string): Token[] {
   const out: Token[] = [];
-  const pattern = /(\d+(?:[.,]\d+)?)|([a-záéíóúñ/']+)/gi;
+  const pattern = /(\d{1,3})\s*['’]\s*(\d{1,2})\s*(?:["”]|'')?|(\d+(?:[.,]\d+)?)|([a-záéíóúñ/']+)/gi;
 
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
-    if (match[1] !== undefined) out.push({ number: Number(match[1].replace(',', '.')) });
-    else out.push({ word: plain(match[2]) });
+    if (match[1] !== undefined) {
+      const minutes = Number(match[1]);
+      out.push({ number: minutes, seconds: minutes * 60 + Number(match[2]) });
+    } else if (match[3] !== undefined) {
+      out.push({ number: Number(match[3].replace(',', '.')) });
+    } else {
+      out.push({ word: plain(match[4]) });
+    }
   }
 
   return out;
@@ -450,39 +540,8 @@ function unitFields(words: string[]): GpsFieldId[] {
  * dos cifras seguidas salían cambiadas sin que nada lo delatara.
  */
 function readNumbers(text: string): Partial<Record<GpsFieldId, Reading>> {
-  const tokens = tokenize(text);
   const out: Partial<Record<GpsFieldId, Reading>> = {};
-
-  const claim = (id: GpsFieldId | undefined, value: number, unit?: string): boolean => {
-    if (!id || out[id] !== undefined) return false;
-    out[id] = { value, unit };
-    return true;
-  };
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (!('number' in token)) continue;
-
-    const ahead = wordsAt(tokens, i + 1, false);
-    const behind = wordsAt(tokens, i - 1, true);
-
-    const named = fieldOfWords(behind, KEY_OF);
-    const byUnit = unitFields(ahead);
-
-    // La unidad con un solo dueño manda, como siempre. La compartida pregunta
-    // primero al rótulo —«potencia de tiro 68 km/h» es la potencia, no la
-    // punta— y sólo si no hay rótulo se queda con la primera libre.
-    if (byUnit.length === 1) {
-      if (claim(byUnit[0], token.number, ahead[0])) continue;
-    } else if (byUnit.length > 1) {
-      if (named && byUnit.includes(named) && claim(named, token.number, ahead[0])) continue;
-      if (byUnit.some((id) => claim(id, token.number, ahead[0]))) continue;
-    }
-
-    if (claim(named, token.number)) continue;
-    claim(fieldOfWords(ahead, KEY_OF), token.number);
-  }
-
+  spread(tokenize(text), out);
   return out;
 }
 
@@ -490,6 +549,74 @@ function readNumbers(text: string): Partial<Record<GpsFieldId, Reading>> {
 interface Reading {
   value: number;
   unit?: string;
+  /** Los segundos que sumaba, si venía escrito como duración. */
+  seconds?: number;
+}
+
+/** Reparte los números de una tira de fichas sobre lo ya leído. */
+function spread(tokens: Token[], out: Partial<Record<GpsFieldId, Reading>>): void {
+  const claim = (id: GpsFieldId | undefined, read: Reading): boolean => {
+    if (!id || out[id] !== undefined) return false;
+    out[id] = read;
+    return true;
+  };
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (!isNumber(token)) continue;
+
+    const ahead = wordsAt(tokens, i + 1, false);
+    const behind = wordsAt(tokens, i - 1, true);
+
+    const named = fieldOfWords(behind, KEY_OF);
+    const byUnit = unitFields(ahead);
+    const read = (unit?: string): Reading => ({
+      value: token.number,
+      unit,
+      seconds: token.seconds,
+    });
+
+    // La unidad con un solo dueño manda, como siempre. La compartida pregunta
+    // primero al rótulo —«potencia de tiro 68 km/h» es la potencia, no la
+    // punta— y sólo si no hay rótulo se queda con la primera libre.
+    if (byUnit.length === 1) {
+      if (claim(byUnit[0], read(ahead[0]))) continue;
+    } else if (byUnit.length > 1) {
+      if (named && byUnit.includes(named) && claim(named, read(ahead[0]))) continue;
+      if (byUnit.some((id) => claim(id, read(ahead[0])))) continue;
+    }
+
+    if (claim(named, read())) continue;
+    claim(fieldOfWords(ahead, KEY_OF), read());
+  }
+}
+
+/**
+ * Lo que vale esa lectura para esa cifra, ya en la unidad en la que se guarda.
+ *
+ * Es el único sitio donde se convierte nada, y lo usan los tres caminos de
+ * entrada —el pegote, la captura y la ficha a mano— para que los tres
+ * entiendan lo mismo por «5,5», por «5500» y por «23'47"».
+ */
+function valueFor(field: GpsField, read: Reading): number {
+  // Una duración vale segundos donde se piden segundos y minutos donde se
+  // piden minutos: «23'47"» son 23,8 minutos de juego, y «0'29"» son 29
+  // segundos con el balón.
+  if (read.seconds !== undefined) {
+    if (field.unit === 's') return read.seconds;
+    // Redondeado a lo que esa cifra enseña: guardar 23,7833 minutos para
+    // escribir «24 min» debajo sólo sirve para que la casilla de corregir a
+    // mano salga con seis decimales.
+    if (field.unit === 'min') return Number((read.seconds / 60).toFixed(field.decimals));
+  }
+
+  // Metros o kilómetros, lo mismo da: la distancia se guarda siempre en
+  // kilómetros. Y lo que decide cuál es cuál **no es la unidad sino el
+  // tamaño**: el lector de capturas confunde «km» con «m» sin avisar, y en
+  // cambio nadie recorre cien kilómetros en un entrenamiento ni cinco metros.
+  if (field.id === 'distance' && read.value > 100) return read.value / 1000;
+
+  return read.value;
 }
 
 /**
@@ -672,17 +799,7 @@ export function parsePaste(
     for (const field of GPS_FIELDS) {
       const read = numbers[field.id];
       if (read === undefined) continue;
-
-      // Metros o kilómetros, lo mismo da: se guarda siempre en kilómetros.
-      // Si venía dicho en metros se divide, y si no venía dicho pero la cifra
-      // es de cuatro dígitos, también —nadie corre cinco mil kilómetros en un
-      // entrenamiento—. Así no hay que acordarse de en qué unidad lo daba la
-      // aplicación ese día.
-      const metres =
-        field.id === 'distance' &&
-        (read.unit === 'm' || read.unit === 'metros' || (!read.unit && read.value > 100));
-
-      session[field.id] = metres ? read.value / 1000 : read.value;
+      session[field.id] = valueFor(field, read);
     }
 
     if (!hasNumbers(session)) {
@@ -768,6 +885,89 @@ function withoutChrome(text: string): string {
 }
 
 /**
+ * Los rótulos que nombra un renglón, en el orden en que están escritos.
+ *
+ * Se recorre palabra a palabra probando tres, dos y una —de la más larga a
+ * la más corta— y lo que se reconoce se consume: por eso «Max sprint» sale
+ * como la punta de velocidad y no como «sprint», que contaría arranques, y
+ * por eso «Time with ball» no se lleva por delante a «tiempo».
+ */
+function labelsIn(tokens: Token[]): GpsFieldId[] {
+  const out: GpsFieldId[] = [];
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const one = tokens[i];
+    if (isNumber(one)) continue;
+
+    for (let size = 3; size >= 1; size -= 1) {
+      const words: string[] = [];
+      for (let k = 0; k < size; k += 1) {
+        const token = tokens[i + k];
+        if (!token || isNumber(token)) break;
+        words.push(token.word);
+      }
+      if (words.length < size) continue;
+
+      const found = KEY_OF.get(words.join(' '));
+      if (found) {
+        out.push(found);
+        i += size - 1;
+        break;
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Lee la captura **renglón a renglón**, que es como está escrita.
+ *
+ * La pantalla del rastreador va en **dos columnas**: un renglón con dos
+ * rótulos —«Distance | High intensity»— y debajo otro con sus dos números
+ * —«5,5 km | 238 m»—. Aplanando la captura entera en una línea, como se
+ * hacía antes, el 5,5 quedaba pegado a «intensity» y el 238 a «km», y salía
+ * una ficha con la mitad de las cifras cambiadas de sitio. Ése era el fallo
+ * de las capturas que no se leían.
+ *
+ * Así que se lleva una **lista de rótulos pendientes**: un renglón que sólo
+ * trae nombres los apunta, y el siguiente que sólo trae números los reparte
+ * en el mismo orden. El renglón que trae las dos cosas se resuelve por
+ * vecindad, como una línea escrita a mano.
+ *
+ * Un renglón de rótulos que nunca recibe números se olvida al llegar otro de
+ * rótulos: si sus cifras no se han reconocido, guardarlos sólo serviría para
+ * emparejarlos con los números de la fila siguiente, que son de otra cosa.
+ */
+function readLines(lines: string[]): Partial<Record<GpsFieldId, Reading>> {
+  const out: Partial<Record<GpsFieldId, Reading>> = {};
+  let pending: GpsFieldId[] = [];
+
+  for (const line of lines) {
+    const tokens = tokenize(line);
+    const numbers = tokens.filter(isNumber);
+    const labels = labelsIn(tokens);
+
+    if (labels.length > 0 && numbers.length > 0) {
+      spread(tokens, out);
+      pending = [];
+    } else if (labels.length > 0) {
+      pending = labels;
+    } else if (numbers.length > 0) {
+      numbers.forEach((token, index) => {
+        const id = pending[index];
+        if (id && out[id] === undefined) {
+          out[id] = { value: token.number, seconds: token.seconds };
+        }
+      });
+      pending = [];
+    }
+  }
+
+  return out;
+}
+
+/**
  * Convierte el texto reconocido de una captura en una sesión.
  *
  * Devuelve siempre una ficha, aunque salga sin una sola cifra: quien ha
@@ -796,21 +996,26 @@ export function readScreen(
     updatedAt: new Date().toISOString(),
   };
 
-  // La captura entera, en una línea: el rótulo y su número viven en renglones
-  // distintos, y separados no se reconocen.
-  const flat = (found ? clean.replace(found.matched, ' ') : clean).replace(/\s+/g, ' ');
-  const numbers = readNumbers(flat);
+  // La fecha se quita antes de repartir: el «17» de «17 Sept 2026» no es una
+  // cifra del entrenamiento.
+  const body = found ? clean.replace(found.matched, ' ') : clean;
+
+  let numbers = readLines(body.split(/\r?\n/));
+
+  // Y si por renglones no ha salido nada, se aplana y se lee como una línea
+  // escrita a mano: hay lectores que devuelven la captura de un tirón, sin
+  // saltos, y entonces la vecindad es lo único que queda.
+  if (Object.keys(numbers).length === 0) {
+    numbers = readNumbers(body.replace(/\s+/g, ' '));
+  }
+
   const dropped: ScreenRead['dropped'] = [];
 
   for (const field of GPS_FIELDS) {
     const read = numbers[field.id];
     if (read === undefined) continue;
 
-    const metres =
-      field.id === 'distance' &&
-      (read.unit === 'm' || read.unit === 'metros' || (!read.unit && read.value > 100));
-
-    const value = metres ? read.value / 1000 : read.value;
+    const value = valueFor(field, read);
 
     if (!plausible(field.id, value)) {
       dropped.push({ id: field.id, value });

@@ -11,10 +11,13 @@ import type { EntryMap, HabitStore, TaskMap } from '@/hooks/useHabitStore';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_OWNER, photoMaxSide } from '@/lib/appearance';
 import { setSoundEnabled, soundEnabled } from '@/lib/sound';
+import { PROFILES } from '@/lib/profiles';
 import {
   DEFAULT_PIN,
+  loadSettings,
   setPin as storePin,
   subscribeSettings,
+  updateSettings,
   usesDefaultPin,
 } from '@/lib/settings';
 import type { DayEntry, Task, ThemePreference } from '@/types';
@@ -23,8 +26,11 @@ interface SettingsPanelProps {
   store: HabitStore;
   onClose: () => void;
   /** Apartado por el que se abre. Se usa al volver del enlace del correo. */
-  initialSection?: 'aspecto' | 'nube' | 'sonido' | 'datos' | 'seguridad';
+  initialSection?: 'aspecto' | 'nube' | 'sonido' | 'juegos' | 'datos' | 'seguridad';
 }
+
+/** El icono del interruptor de los penaltis, según esté abierto o no. */
+const penaltyIcon = (open: boolean) => (open ? '🥅' : '🔒');
 
 /** Registros pendientes de confirmar tras elegir un archivo. */
 interface StagedImport {
@@ -139,12 +145,16 @@ interface PartLine {
  *  fábrica— salen en la propia pestaña para que no haya que entrar a mirar.
  * ---------------------------------------------------------------------- */
 
-type Section = 'aspecto' | 'nube' | 'sonido' | 'datos' | 'seguridad';
+type Section = 'aspecto' | 'nube' | 'sonido' | 'juegos' | 'datos' | 'seguridad';
+
+/** Los que juegan al juego del día: son los únicos que tiran penaltis. */
+const PLAYERS = PROFILES.filter((profile) => profile.kind === 'kid');
 
 const SECTIONS: Array<{ id: Section; label: string; icon: string }> = [
   { id: 'aspecto', label: 'Aspecto', icon: '🎨' },
   { id: 'nube', label: 'Nube', icon: '☁️' },
   { id: 'sonido', label: 'Sonido', icon: '🔊' },
+  { id: 'juegos', label: 'Juegos', icon: '🎮' },
   { id: 'datos', label: 'Datos', icon: '💾' },
   { id: 'seguridad', label: 'Seguridad', icon: '🔐' },
 ];
@@ -204,6 +214,8 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
   const [staged, setStaged] = useState<StagedImport | null>(null);
   /** Se lee tras montar: en el servidor no hay `localStorage` que consultar. */
   const [sound, setSound] = useState(true);
+  /** A quién se le ha abierto la tanda de penaltis a mano. */
+  const [openPenalties, setOpenPenalties] = useState<Record<string, boolean>>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const notify = useToast();
   /** Mandando lo de este móvil a la nube. */
@@ -223,6 +235,7 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
     const read = () => {
       setSound(soundEnabled());
       setDefaultPin(usesDefaultPin());
+      setOpenPenalties(loadSettings().penalties);
     };
 
     read();
@@ -1004,6 +1017,50 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
               label={sound ? 'Sintonías activadas' : 'Sintonías silenciadas'}
               hint="La sintonía de cada perfil se elige en su ficha, tocando su foto."
             />
+          </section>
+        )}
+
+        {/* ------------------------------------------------------ juegos */}
+        {section === 'juegos' && (
+          <section className="space-y-3 rounded-2xl border hairline surf-1 p-3">
+            <div>
+              <h3 className="mb-1 font-bold t-1">Tanda de penaltis</h3>
+              <p className="text-xs leading-relaxed t-3">
+                La tanda se gana en el juego del día: acertar al menos tres preguntas de las
+                cinco <strong>y</strong> llevar hecho más del 60 % del día. Aquí se puede abrir
+                a mano, para el día que haga falta —un cumpleaños, una tarde regular, o ganas
+                de verle jugar—. Se abre desde este móvil y le aparece en el suyo.
+              </p>
+            </div>
+
+            {PLAYERS.map((player) => (
+              <Switch
+                key={player.id}
+                checked={openPenalties[player.id] === true}
+                onChange={(next) => {
+                  const penalties = { ...loadSettings().penalties };
+                  if (next) penalties[player.id] = true;
+                  else delete penalties[player.id];
+
+                  setOpenPenalties(penalties);
+                  updateSettings({ penalties });
+                }}
+                icon={penaltyIcon(openPenalties[player.id] === true)}
+                label={`${player.name}: penaltis ${
+                  openPenalties[player.id] === true ? 'abiertos' : 'como se ganen'
+                }`}
+                hint={
+                  openPenalties[player.id] === true
+                    ? 'Puede tirar la tanda aunque no le salgan las cuentas del día.'
+                    : 'Tendrá que ganársela: tres aciertos y más del 60 % del día.'
+                }
+              />
+            ))}
+
+            <p className="text-[11px] leading-relaxed t-3">
+              Abierta de par en par se queda hasta que se cierre aquí: no se apaga sola cada
+              noche. Si es para un día suelto, acuérdate de volver a bajarla.
+            </p>
           </section>
         )}
 

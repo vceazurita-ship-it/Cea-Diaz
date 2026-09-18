@@ -52,7 +52,7 @@ interface ChallengesPanelProps {
   onNoteChange: (text: string) => void;
   /** Anota la partida del juego del día; sólo la tienen los peques. */
   onGameResult?: (result: GameResult) => void;
-  /** Anota la tanda de penaltis que abre el pleno de esa partida. */
+  /** Anota la tanda de penaltis del día. */
   onPenaltyResult?: (result: PenaltyResult) => void;
   /**
    * Apartarle un rato en la semana a lo que pide un reto. Sin esto, los retos

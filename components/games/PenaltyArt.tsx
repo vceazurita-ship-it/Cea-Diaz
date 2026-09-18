@@ -276,6 +276,65 @@ export function Portero({ className }: { className?: string }) {
 }
 
 /* -------------------------------------------------------------------------
+ * El primer plano
+ * ----------------------------------------------------------------------- */
+
+/**
+ * La cara del que tira, de cerca y en su recuadro, mientras coge fuerza.
+ *
+ * Es el plano que hace el anime de fútbol cada vez que alguien va a chutar:
+ * se corta la acción y se le ve la cara al que va a pegarle, con las rayas
+ * de velocidad detrás. Aquí cumple además una función que no es de adorno —y
+ * por eso se queda—: dice sin palabras que la barra de fuerza está corriendo
+ * y que hay que soltar.
+ */
+export function Primerplano({ who, className }: { who: Casero; className?: string }) {
+  const face = caraDe(who);
+
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <clipPath id={`marco-${who}`}>
+          <rect x="3" y="3" width="94" height="94" rx="10" />
+        </clipPath>
+      </defs>
+
+      <g clipPath={`url(#marco-${who})`}>
+        <rect x="0" y="0" width="100" height="100" fill={ROPA_FAMILIA[who]} />
+
+        {/* Rayas convergentes: el fondo del primer plano de toda la vida. */}
+        <g opacity="0.55">
+          {Array.from({ length: 24 }, (_, i) => (
+            <path
+              key={i}
+              d="M-4 0 L0 -70 L4 0 Z"
+              fill="#fff"
+              transform={`translate(50 48) rotate(${i * 15})`}
+            />
+          ))}
+        </g>
+
+        {/* La cara, grande y baja: se busca el gesto, no el peinado. */}
+        <g transform="translate(50 62) scale(1.5)">
+          <Cabeza face={face} />
+        </g>
+      </g>
+
+      <rect
+        x="3"
+        y="3"
+        width="94"
+        height="94"
+        rx="10"
+        fill="none"
+        stroke={TINTA}
+        strokeWidth="5"
+      />
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------
  * El estallido
  * ----------------------------------------------------------------------- */
 
