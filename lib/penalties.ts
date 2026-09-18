@@ -1,6 +1,6 @@
 import { hashSeed } from '@/lib/challenges';
 import { entryKey } from '@/lib/storage';
-import type { DateKey, DayEntry, PenaltyResult, ProfileId } from '@/types';
+import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/types';
 
 /* =========================================================================
  *  La tanda de penaltis.
@@ -201,9 +201,6 @@ const ALCANCE = 34;
 /** Lo que alcanza si el balón va blando: le sobra tiempo. */
 const ALCANCE_BLANDO = 50;
 
-/** Y lo que alcanza contra el especial: un brazo, y con suerte. */
-const ALCANCE_SUPER = 15;
-
 /** Margen del palo y del larguero. Rozarlo es mala suerte, no mal tiro. */
 const MADERA = 5;
 
@@ -221,33 +218,186 @@ const MADERA = 5;
  */
 export const POWER_GOOD: [number, number] = [45, 88];
 
-/**
- * Y la franja del tiro especial: estrecha, arriba y a propósito.
+/* ---------------------------------------------------------------------------
+ * Los tiros especiales
  *
- * El especial no es un botón de ganar. Cambia el trato: el portero casi no
- * llega, pero hay que pegarle fuerte y clavado, y pasarse de ahí revienta el
- * balón como en cualquier otro tiro. Un especial mal medido se va a las
- * nubes, y eso es lo que hace que valga la pena guardárselo.
- */
-export const POWER_SUPER: [number, number] = [70, 94];
+ * En Oliver y Benji cada uno tiene su tiro con nombre propio, y gritarlo es
+ * media gracia. Aquí hay seis, y **ninguno es un botón de ganar**: cada uno
+ * cambia el trato de una manera distinta —uno no se va por arriba, otro se
+ * cierra por dentro del palo, otro baila y ni el que tira sabe dónde acaba—
+ * y casi todos piden medir la fuerza más fino que el normal. Elegir cuál y
+ * cuándo es la decisión de la tanda.
+ *
+ * Se pagan con **energía**: se empieza con dos y cada gol da una más, como
+ * las «agallas» del videojuego de la serie. Cada especial sale una sola vez
+ * por tanda, así que no se puede repetir el mismo cinco veces. Lo gastado se
+ * guarda con la tanda, y así cerrar la app entre dos penaltis no devuelve la
+ * energía.
+ * ------------------------------------------------------------------------- */
 
-/** Goles que hay que llevar en la tanda para que se cargue el especial. */
-export const SUPER_FROM = 2;
+export type { ShotKind };
 
-/** Uno por tanda, y se dice con su nombre. */
-export const SUPER_NAME = 'TIRO RELÁMPAGO';
-
-/** La franja buena de este tiro. */
-export function powerBand(special: boolean): [number, number] {
-  return special ? POWER_SUPER : POWER_GOOD;
+export interface ShotType {
+  id: ShotKind;
+  /** Cómo se llama. */
+  name: string;
+  /** Su artículo: «el» Tiro del Tigre, «la» Parábola de Messi. */
+  article: 'el' | 'la';
+  /** Cómo se grita en el corte. */
+  shout: string;
+  icon: string;
+  /** El color de su corte, su estela y su botón. */
+  color: string;
+  /** Energía que cuesta. */
+  cost: number;
+  /** La franja buena de la barra. */
+  band: [number, number];
+  /** Lo que tarda la barra en ir de punta a punta: más rápida, más difícil. */
+  sweep: number;
+  /** Lo que alcanza Benji contra este tiro bien medido. */
+  reach: number;
+  /** Lo que tarda el balón en llegar. */
+  flight: number;
+  /** Lo que hace, en una línea, para elegirlo sabiendo. */
+  blurb: string;
+  /** Y cómo acaba cuando entra. */
+  goal: string;
 }
 
-/**
- * ¿Se puede tirar el especial ahora mismo? Con dos goles se carga, y se
- * gasta al usarlo: uno por tanda.
- */
-export function superReady(result: PenaltyResult | null): boolean {
-  return (result?.scored ?? 0) >= SUPER_FROM && !result?.supered;
+export const SHOT_TYPES: Record<ShotKind, ShotType> = {
+  normal: {
+    id: 'normal',
+    name: 'Tiro normal',
+    article: 'el',
+    shout: '',
+    icon: '⚽',
+    color: '#f4f4f2',
+    cost: 0,
+    band: POWER_GOOD,
+    sweep: 1250,
+    reach: 34,
+    flight: 720,
+    blurb: 'Colocado y con la fuerza justa. Lee a Benji y al otro lado.',
+    goal: '',
+  },
+  halcon: {
+    id: 'halcon',
+    name: 'Tiro del Halcón',
+    article: 'el',
+    shout: '¡TIRO DEL HALCÓN!',
+    icon: '🦅',
+    color: '#38bdf8',
+    cost: 1,
+    band: [48, 90],
+    sweep: 1150,
+    reach: 28,
+    flight: 820,
+    blurb: 'Sube y cae en picado: aunque te pases de fuerza, no se va por arriba.',
+    goal: 'ha caído en picado justo donde no llegaba',
+  },
+  efecto: {
+    id: 'efecto',
+    name: 'Efecto Roberto Carlos',
+    article: 'el',
+    shout: '¡EFECTO ROBERTO CARLOS!',
+    icon: '🌀',
+    color: '#a78bfa',
+    cost: 1,
+    band: [45, 88],
+    sweep: 1150,
+    reach: 30,
+    flight: 820,
+    blurb: 'Sale por fuera y se cierra: apunta al palo sin miedo a la madera.',
+    goal: 'se ha abierto por fuera y se ha cerrado por dentro del palo',
+  },
+  parabola: {
+    id: 'parabola',
+    name: 'Parábola de Messi',
+    article: 'la',
+    shout: '¡LA PARÁBOLA DE MESSI!',
+    icon: '🌈',
+    color: '#f472b6',
+    cost: 1,
+    band: [16, 46],
+    sweep: 1150,
+    reach: 34,
+    flight: 1000,
+    blurb: 'Picadita suave: si Benji se tira a un lado, por el centro entra sola. Suelta pronto.',
+    goal: 'le ha pasado por encima, suave, mientras él volaba',
+  },
+  fuego: {
+    id: 'fuego',
+    name: 'Tiro de Fuego',
+    article: 'el',
+    shout: '¡TIRO DE FUEGO!',
+    icon: '🔥',
+    color: '#fb923c',
+    cost: 2,
+    band: [62, 90],
+    sweep: 1050,
+    reach: 20,
+    flight: 520,
+    blurb: 'Va ardiendo y Benji apenas lo ve, pero si te pasas se dispara.',
+    goal: 'ha entrado ardiendo y la red todavía echa humo',
+  },
+  canon: {
+    id: 'canon',
+    name: 'Cañón de CR7',
+    article: 'el',
+    shout: '¡EL CAÑÓN DE CR7!',
+    icon: '💣',
+    color: '#fbbf24',
+    cost: 2,
+    band: [55, 92],
+    sweep: 1050,
+    reach: 16,
+    flight: 700,
+    blurb: 'Sin girar y bailando: Benji no lo lee… y tú tampoco sabes dónde acaba.',
+    goal: 'ha bailado en el aire y le ha pasado por el lado',
+  },
+  tigre: {
+    id: 'tigre',
+    name: 'Tiro del Tigre',
+    article: 'el',
+    shout: '¡TIRO DEL TIGRE!',
+    icon: '🐯',
+    color: '#f97316',
+    cost: 3,
+    band: [72, 93],
+    sweep: 900,
+    reach: 12,
+    flight: 480,
+    blurb: 'La potencia pura de Mark Lenders: casi imparable, pero la franja es estrecha y arriba.',
+    goal: 'ni lo ha visto pasar',
+  },
+};
+
+/** En el orden en que se enseñan: el normal y luego de más barato a más caro. */
+export const SHOT_ORDER: ShotKind[] = ['normal', 'halcon', 'efecto', 'parabola', 'fuego', 'canon', 'tigre'];
+
+/** Energía con la que se empieza la tanda. */
+export const ENERGY_START = 2;
+
+/** La franja buena de este tiro. */
+export function powerBand(kind: ShotKind = 'normal'): [number, number] {
+  return SHOT_TYPES[kind].band;
+}
+
+/** La energía que queda: la de salida, más un punto por gol, menos lo gastado. */
+export function energyLeft(result: PenaltyResult | null): number {
+  const spent = (result?.specials ?? []).reduce((sum, kind) => sum + (SHOT_TYPES[kind]?.cost ?? 0), 0);
+  return ENERGY_START + (result?.scored ?? 0) - spent;
+}
+
+/** Si se puede tirar ése ahora, y si no, por qué. */
+export function shotAvailability(
+  kind: ShotKind,
+  result: PenaltyResult | null,
+): { ok: boolean; reason?: 'usado' | 'energia' } {
+  if (kind === 'normal') return { ok: true };
+  if (result?.specials?.includes(kind)) return { ok: false, reason: 'usado' };
+  if (energyLeft(result) < SHOT_TYPES[kind].cost) return { ok: false, reason: 'energia' };
+  return { ok: true };
 }
 
 /* ---------------------------------------------------------------------------
@@ -308,26 +458,40 @@ function overshoot(power: number, band: [number, number]): number {
  * escuadra entre bien medido y se vaya a las nubes reventado. El lado hacia
  * el que se abre no es al azar: sale de la semilla del tiro, así que repetir
  * el mismo penalti da el mismo resultado.
+ *
+ * Y cada especial lo tuerce a su manera: el del Halcón no se sube —cae en
+ * picado—, el de Fuego se dispara el doble, el efecto se cierra hacia dentro,
+ * el cañón baila y la parábola se va por arriba si se le pega de más.
  */
 function landingOf(
   aim: PenaltyAim,
   power: number,
   seed: number,
-  band: [number, number],
+  kind: ShotKind,
 ): { at: PenaltyAim; drift: number } {
-  const drift = overshoot(power, band);
-  if (drift === 0) return { at: aim, drift: 0 };
-
+  const drift = overshoot(power, SHOT_TYPES[kind].band);
   const away = seed % 2 === 0 ? 1 : -1;
 
-  return {
-    at: {
-      x: aim.x + drift * 26 * away,
-      // Hacia arriba, que en esta portería es hacia el 0.
-      y: aim.y - drift * 42,
-    },
-    drift,
+  const up = kind === 'halcon' ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
+  const open = kind === 'halcon' ? 14 : kind === 'fuego' ? 36 : 26;
+
+  const at = {
+    x: aim.x + drift * open * away,
+    // Hacia arriba, que en esta portería es hacia el 0.
+    y: aim.y - drift * up,
   };
+
+  // El efecto: sale por fuera y se cierra siete puntos hacia dentro.
+  if (kind === 'efecto') at.x += aim.x < 50 ? 7 : -7;
+
+  // El cañón baila siempre, con fuerza buena o no: es lo que tiene un balón
+  // que no gira. Cuánto y hacia dónde sale de la semilla, como todo.
+  if (kind === 'canon') {
+    at.x += ((seed >> 3) % 19) - 9;
+    at.y += ((seed >> 8) % 21) - 10;
+  }
+
+  return { at, drift };
 }
 
 /**
@@ -341,21 +505,24 @@ function landingOf(
  *     portería, porque le sobra tiempo—;
  *  4. y lo demás es gol.
  *
- * El especial no se salta ninguna de las cuatro: lo único que cambia es
- * cuánto alcanza el portero, que pasa a ser poco más que sus manos. Sigue
- * habiendo palo, sigue habiendo fuera y sigue habiendo que colocarlo.
+ * Los especiales no se saltan ninguna de las cuatro. Cambian cuánto alcanza
+ * Benji, adónde va de verdad el balón y, en dos casos, una regla concreta:
+ * el efecto no da en los palos de los lados —la curva los esquiva— y la
+ * parábola por el centro entra sola si Benji se ha tirado a un lado, y se la
+ * come si se ha quedado.
  */
 export function resolveShot(
   aim: PenaltyAim,
   power: number,
   keeperId: PenaltyZoneId,
   seed = 0,
-  special = false,
+  kind: ShotKind = 'normal',
 ): PenaltyShot {
   const keeper = zoneOf(keeperId);
-  const band = powerBand(special);
-  const [low] = band;
-  const { at, drift } = landingOf(aim, power, seed, band);
+  const type = SHOT_TYPES[kind];
+  const [low] = type.band;
+  const { at, drift } = landingOf(aim, power, seed, kind);
+  const special = kind !== 'normal';
 
   if (at.x < 0 || at.x > 100 || at.y < 0) {
     return {
@@ -364,13 +531,16 @@ export function resolveShot(
       drift,
       why: drift
         ? special
-          ? `El ${SUPER_NAME.toLowerCase()} se te ha ido a las nubes. Fuerza casi al tope, pero dentro de la franja.`
+          ? `${type.article === 'la' ? 'La' : 'El'} ${type.name} se te ha ido fuera: te has pasado de fuerza. Suéltalo dentro de su franja.`
           : 'Demasiada fuerza: al reventarla se te ha subido y abierto, y se ha ido fuera. El penalti se coloca.'
-        : 'Se ha ido fuera por muy poco. Apunta un poco más dentro: el palo no perdona.',
+        : kind === 'canon'
+          ? 'El cañón ha bailado de más y se ha ido fuera. Es lo que tiene: ni tú sabes dónde acaba.'
+          : 'Se ha ido fuera por muy poco. Apunta un poco más dentro: el palo no perdona.',
     };
   }
 
-  if (at.x < MADERA || at.x > 100 - MADERA || at.y < MADERA) {
+  const sidePost = kind !== 'efecto' && (at.x < MADERA || at.x > 100 - MADERA);
+  if (sidePost || at.y < MADERA) {
     return {
       outcome: 'poste',
       landing: at,
@@ -379,9 +549,27 @@ export function resolveShot(
     };
   }
 
-  // Con el especial el balón va tan fuerte que sólo lo saca si lo tiene
-  // encima: no es inatajable, es que hay que ponérselo en las manos.
-  const covered = power < low ? ALCANCE_BLANDO : special ? ALCANCE_SUPER : ALCANCE;
+  const soft = power < low;
+
+  // La parábola por el centro: la decide dónde está Benji, no su alcance.
+  if (kind === 'parabola' && !soft && Math.abs(at.x - 50) < 24) {
+    if (keeper.side === 'centro') {
+      return {
+        outcome: 'parada',
+        landing: at,
+        drift,
+        why: 'Benji se ha quedado en el centro y la picadita le ha caído en las manos. La parábola, cuando se tira a un lado.',
+      };
+    }
+    return {
+      outcome: 'gol',
+      landing: at,
+      drift,
+      why: `¡${type.name}! Voló ${keeper.label} y la pelota ${type.goal}.`,
+    };
+  }
+
+  const covered = soft ? ALCANCE_BLANDO : type.reach;
   const gap = reach(at, keeper);
 
   if (gap < covered) {
@@ -389,12 +577,11 @@ export function resolveShot(
       outcome: 'parada',
       landing: at,
       drift,
-      why:
-        power < low
-          ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
-          : special
-            ? `Se lo has puesto en las manos: voló ${keeper.label} y ahí no hay tiro que valga. Con el especial, al lado contrario.`
-            : `El portero voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
+      why: soft
+        ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
+        : special
+          ? `Ni con ${type.article} ${type.name}: voló ${keeper.label} y se lo has puesto en las manos. Al lado contrario.`
+          : `Benji voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
     };
   }
 
@@ -403,7 +590,7 @@ export function resolveShot(
     landing: at,
     drift,
     why: special
-      ? `¡${SUPER_NAME}! Ha volado ${keeper.label} y ni lo ha visto pasar.`
+      ? `¡${type.name}! Benji voló ${keeper.label} y el balón ${type.goal}.`
       : gap > 55
         ? `¡Golazo! Él se fue ${keeper.label} y tú a la otra punta. Eso es leerle la intención.`
         : `¡Gol! Justo fuera de su alcance: voló ${keeper.label} y no llegaba.`,
@@ -424,14 +611,15 @@ export function encodePenaltyResult(result: PenaltyResult): string {
     result.taken,
     result.total,
     result.at,
-    result.supered ? 'S' : '',
+    // Los especiales gastados, separados por comas: `halcon,tigre`.
+    (result.specials ?? []).join(','),
   ].join('|');
 }
 
 export function parsePenaltyResult(text: string | undefined | null): PenaltyResult | null {
   if (!text) return null;
 
-  const [scored, taken, total, at, supered] = text.split('|');
+  const [scored, taken, total, at, specials] = text.split('|');
   const numbers = [scored, taken, total].map(Number);
   if (numbers.some((value) => !Number.isFinite(value)) || numbers[2] <= 0) return null;
 
@@ -440,10 +628,17 @@ export function parsePenaltyResult(text: string | undefined | null): PenaltyResu
     taken: Math.max(0, Math.min(numbers[1], numbers[2])),
     total: numbers[2],
     at: at ?? '',
-    // Las tandas guardadas antes de que existiera el especial no traen esta
-    // marca, y entonces es que no se gastó.
-    supered: supered === 'S',
+    // Las tandas de antes de los especiales no traen nada. Y las del único
+    // especial que hubo, el relámpago, traen una «S»: era un tiro de pura
+    // potencia, así que cuenta como el del Tigre ya gastado.
+    specials: parseSpecials(specials),
   };
+}
+
+function parseSpecials(text: string | undefined): ShotKind[] {
+  if (!text) return [];
+  if (text === 'S') return ['tigre'];
+  return text.split(',').filter((kind): kind is ShotKind => kind in SHOT_TYPES && kind !== 'normal');
 }
 
 /** La tanda anotada ese día, si la hubo. */

@@ -617,6 +617,9 @@ export interface GameResult {
  * ella, y `taken` permite retomar una tanda que se dejó a medias sin poder
  * volver a tirar los penaltis que ya se tiraron.
  */
+/** Los tiros de la tanda: el normal y los seis especiales. */
+export type ShotKind = 'normal' | 'halcon' | 'tigre' | 'fuego' | 'efecto' | 'canon' | 'parabola';
+
 export interface PenaltyResult {
   /** Goles marcados. */
   scored: number;
@@ -626,11 +629,12 @@ export interface PenaltyResult {
   /** Momento del último tiro (ISO). */
   at: string;
   /**
-   * `true` si ya se gastó el tiro especial de esta tanda. Se guarda porque
-   * es uno por tanda y la tanda se puede dejar a medias: sin esto, cerrar la
-   * app entre el tercer y el cuarto penalti regalaría otro especial.
+   * Los tiros especiales ya gastados en esta tanda —`halcon`, `tigre`…—.
+   * Se guardan porque cada uno sale una vez y cuesta energía, y la tanda se
+   * puede dejar a medias: sin esto, cerrar la app entre el tercer y el cuarto
+   * penalti devolvería lo gastado.
    */
-  supered?: boolean;
+  specials?: ShotKind[];
 }
 
 /* -------------------------------- Campograma ---------------------------- */

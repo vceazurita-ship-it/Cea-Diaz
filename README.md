@@ -1114,13 +1114,31 @@ las tres del penalti de verdad:
 Las reglas se aplican en ese orden —fuera, palo, parada, gol— y cada tiro se
 explica al acabar, como las preguntas.
 
-Y con **dos goles** se carga el **tiro relámpago**, uno por tanda. No es un botón
-de ganar: el portero pasa a alcanzar poco más que sus manos, pero la franja buena
-de la barra se estrecha, se sube y la barra corre más deprisa, así que un
-relámpago mal medido se va a las nubes igual que cualquier otro. Guardárselo para
-el penalti que decide es una decisión de verdad. Se gasta al tirarlo, salga como
-salga, y eso se guarda con la tanda: cerrar la app entre dos penaltis no regala
-otro.
+Y están **los tiros de la serie**, para elegir antes de cada penalti en una fila
+de fichas como el menú de técnicas de un videojuego (`SHOT_TYPES` en
+`lib/penalties.ts`). Ninguno es un botón de ganar: cada uno cambia el trato a su
+manera y casi todos piden medir la fuerza más fino que el normal.
+
+| Tiro | Cuesta | Lo que hace |
+|------|:------:|-------------|
+| ⚽ Normal | — | Colocado y con la fuerza justa. |
+| 🦅 Tiro del Halcón | ⚡ | Sube y cae en picado: aunque te pases de fuerza no se va por arriba. |
+| 🌀 Efecto Roberto Carlos | ⚡ | Sale por fuera y se cierra: no da en los palos de los lados. |
+| 🌈 Parábola de Messi | ⚡ | Picadita con la franja **baja**: por el centro entra sola si Benji se tira a un lado, y se la come si se queda. |
+| 🔥 Tiro de Fuego | ⚡⚡ | Benji apenas lo ve, pero si te pasas se dispara el doble. |
+| 💣 Cañón de CR7 | ⚡⚡ | Sin girar y bailando: Benji no lo lee, y tú tampoco sabes del todo dónde acaba. |
+| 🐯 Tiro del Tigre | ⚡⚡⚡ | La potencia de Mark Lenders: casi imparable, con la franja estrecha y arriba. |
+
+Se pagan con **energía**: se empieza con dos y cada gol da otra, como las
+«agallas» del videojuego de la serie. Cada especial sale **una vez por tanda**.
+Lo gastado se guarda con la tanda —en la quinta columna de su línea,
+`halcon,tigre`—, así que cerrar la app entre dos penaltis no devuelve nada; las
+tandas antiguas que traen la «S» del viejo tiro relámpago cuentan como el del
+Tigre ya gastado. Cada tiro tiene además **su corte** —el halcón en picado, las
+rayas y el zarpazo del tigre, las llamas, la espiral, el cañonazo, el arcoíris—,
+su grito, el aura de su color alrededor del que tira y **su manera de volar**: el
+Halcón sube y cae, el efecto se abre y se cierra, el cañón hace eses, la
+parábola se va al cielo y el Tigre y el Fuego van en línea recta.
 
 Un detalle de manejo que no es un detalle: **apuntar y coger fuerza son el mismo
 botón**, que sólo cambia de rótulo y de color, y la barra está siempre en su sitio
@@ -1137,6 +1155,19 @@ los palos está **Benji**, con su gorra roja, la visera tapándole media ceja, e
 en el pecho y los guantes por delante: el rival de la serie, que es lo que
 convierte cinco penaltis en un capítulo. El marcador lo cuenta así, como un
 partido: los goles del que tira a un lado y los que ha salvado Benji al otro.
+
+**Quién tira se elige** en el cara a cara: él mismo o uno de la serie —Oliver
+con su 10 y la camiseta blanca, Mark Lenders moreno, de negro y arremangado, o
+Tom con el azul de la selección—, todos dibujados con las mismas piezas para
+que convivan en el cuadro. La elección se recuerda en el aparato; el marcador
+sigue siendo del crío y la grada sigue cantando su nombre.
+
+Los muñecos tienen las **proporciones de la serie**: cabeza pequeña, hombros
+anchos, cintura estrecha y piernas larguísimas, con manga corta de vivo blanco,
+la pernera de la calzona, la raya de la rodilla, la franja de las medias y la
+bota con su tira. Y chutan como en la serie: **la pierna armada** atrás hasta
+arriba con los brazos abiertos mientras corre la barra, y **el latigazo** con la
+pierna estirada hacia arriba y la estela blanca del barrido detrás.
 
 El cuadro es el de *Oliver y Benji*, y cada cosa aparece cuando el juego tiene
 algo que decir:

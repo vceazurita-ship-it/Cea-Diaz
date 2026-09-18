@@ -1,5 +1,6 @@
 import { Cabeza, TINTA } from '@/components/ui/CromoFace';
 import { ROPA_FAMILIA, caraDe, faceOf, type Casero, type Face } from '@/lib/cromoArt';
+import type { ShotKind } from '@/types';
 
 /* =========================================================================
  *  El dibujo de la tanda — Oliver y Benji, el de las tardes de merienda.
@@ -146,9 +147,194 @@ function Miembro({
  * El que tira
  * ----------------------------------------------------------------------- */
 
+/** Un punto entre dos, a una fracción del camino. */
+function entre(a: P, b: P, t: number): P {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
+/** Hacia dónde apunta un tramo, en grados. */
+function rumbo(a: P, b: P): number {
+  return (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+}
+
+/** La mitad de un lado de una losa: para la sombra plana del costado. */
+function costado(a: P, b: P, wa: number, wb: number): string {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  return [
+    [a[0] - nx * wa, a[1] - ny * wa],
+    [b[0] - nx * wb, b[1] - ny * wb],
+    [b[0] - nx * wb * 0.3, b[1] - ny * wb * 0.3],
+    [a[0] - nx * wa * 0.3, a[1] - ny * wa * 0.3],
+  ]
+    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ');
+}
+
+/**
+ * Una pierna de futbolista de la serie: **muslo largo**, la pernera de la
+ * calzona por encima, la raya de la rodilla, la media con su franja del color
+ * del equipo y la bota con su tira. Son esos cuatro detalles —y lo larga que
+ * es— los que separan una pierna de Oliver y Benji de un palote.
+ */
+function Pierna({
+  points,
+  skin,
+  band,
+  shorts = CALZONA,
+}: {
+  points: [P, P, P];
+  skin: string;
+  band: string;
+  shorts?: string;
+}) {
+  const [hip, knee, foot] = points;
+  const calf = rumbo(knee, foot);
+
+  return (
+    <g>
+      <Tramo from={hip} to={knee} color={skin} w={13} />
+      <Tramo from={knee} to={foot} color={MEDIAS} w={11.5} />
+      {/* La franja de la media, justo debajo de la rodilla. */}
+      <Tramo from={entre(knee, foot, 0.1)} to={entre(knee, foot, 0.17)} color={band} w={11.5} />
+      {/* La rodilla: una raya de tinta, que es como la marca el anime. */}
+      <path
+        d="M-4 -1 Q0 3 4 -1"
+        transform={`translate(${knee[0]} ${knee[1]}) rotate(${calf - 90})`}
+        fill="none"
+        stroke={TINTA}
+        strokeWidth="1.2"
+        opacity="0.7"
+      />
+      {/* La pernera de la calzona, que tapa el arranque del muslo. */}
+      <Tramo from={hip} to={entre(hip, knee, 0.3)} color={shorts} w={16.5} />
+      {/* La bota, con su tira blanca. */}
+      <g transform={`translate(${foot[0]} ${foot[1]}) rotate(${calf - 90})`}>
+        <path d="M-6 -3 Q-7 5 -2 9 L9 9 Q12 6 9 3 L5 -3 Z" fill="#111" stroke={TINTA} strokeWidth="1.3" />
+        <path d="M-3 3 L6 5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
+      </g>
+    </g>
+  );
+}
+
+/**
+ * Un brazo con **manga corta**: la manga de la camiseta, con su vivo blanco,
+ * y el brazo al aire. Con la manga hasta la muñeca el muñeco parecía llevar
+ * un jersey; en la serie todos juegan de manga corta.
+ */
+function Brazo({
+  points,
+  skin,
+  kit,
+  bare,
+}: {
+  points: [P, P, P];
+  skin: string;
+  kit: string;
+  /** Arremangado hasta el hombro, como Mark Lenders. */
+  bare?: boolean;
+}) {
+  const [shoulder, elbow, hand] = points;
+
+  return (
+    <g>
+      <Tramo from={shoulder} to={elbow} color={skin} w={8.5} />
+      <Tramo from={elbow} to={hand} color={skin} w={7.5} />
+      <circle cx={hand[0]} cy={hand[1]} r="4.8" fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <Tramo from={shoulder} to={entre(shoulder, elbow, bare ? 0.16 : 0.5)} color={sombra(kit, 0.86)} w={13} />
+      {!bare && <path
+        d={`M${entre(shoulder, elbow, 0.47).join(' ')} L${entre(shoulder, elbow, 0.5).join(' ')}`}
+        stroke="#fff"
+        strokeWidth="13"
+        opacity="0.9"
+      />}
+    </g>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Quién tira
+ * ----------------------------------------------------------------------- */
+
+/** El que tira: uno de casa o uno de la serie. */
+export type TiradorId = Casero | 'oliver' | 'mark' | 'tom';
+
+export interface Tirador {
+  /** Cómo se llama, para el narrador. Los de casa lo reciben de su perfil. */
+  name?: string;
+  face: Face;
+  kit: string;
+  shorts: string;
+  /** La franja de las medias. */
+  band: string;
+  /** El color del dorsal, que sobre una camiseta blanca no puede ser blanco. */
+  number: string;
+  dorsal: string;
+  /** Arremangado. */
+  bare?: boolean;
+  /** Una línea para elegirlo. */
+  tagline?: string;
+}
+
+/**
+ * Los de la serie, dibujados con las mismas piezas que los peques para que
+ * convivan en el mismo cuadro: Oliver con su 10 y la camiseta blanca, Mark
+ * Lenders moreno, de negro y arremangado, y Tom con el azul de la selección.
+ */
+export const DE_LA_SERIE: Record<'oliver' | 'mark' | 'tom', Tirador> = {
+  oliver: {
+    name: 'Oliver',
+    face: faceOf('serie:oliver', { skin: 1, hairColor: 'negro', hair: 'corto', beard: 'no', eyes: 'marrón' }),
+    kit: '#f8fafc',
+    shorts: '#1d4ed8',
+    band: '#1d4ed8',
+    number: '#1d4ed8',
+    dorsal: '10',
+    tagline: 'El capitán',
+  },
+  mark: {
+    name: 'Mark Lenders',
+    face: faceOf('serie:mark', { skin: 3, hairColor: 'negro', hair: 'rizado', beard: 'no', eyes: 'marrón' }),
+    kit: '#18181b',
+    shorts: '#f4f4f2',
+    band: '#f4f4f2',
+    number: '#fde047',
+    dorsal: '10',
+    bare: true,
+    tagline: 'El Tigre',
+  },
+  tom: {
+    name: 'Tom',
+    face: faceOf('serie:tom', { skin: 1, hairColor: 'castaño claro', hair: 'corto', beard: 'no', eyes: 'miel' }),
+    kit: '#1d4ed8',
+    shorts: '#f4f4f2',
+    band: '#f4f4f2',
+    number: '#fff',
+    dorsal: '11',
+    tagline: 'El artista',
+  },
+};
+
+/** Cómo se dibuja a cada uno. */
+export function tiradorDe(id: TiradorId): Tirador {
+  if (id === 'oliver' || id === 'mark' || id === 'tom') return DE_LA_SERIE[id];
+  return {
+    face: caraDe(id),
+    kit: ROPA_FAMILIA[id],
+    shorts: CALZONA,
+    band: ROPA_FAMILIA[id],
+    number: '#fff',
+    dorsal: id === 'leo' ? '10' : id === 'hugo' ? '7' : '1',
+  };
+}
+
 /** Las articulaciones de una pose del que tira. Mira siempre hacia la portería. */
 interface Pose {
-  /** Cuello: donde se apoya la cabeza. */
+  /** Centro de la cabeza. */
   head: P;
   shoulder: P;
   hip: P;
@@ -163,56 +349,58 @@ interface Pose {
 }
 
 /**
- * Las poses del que tira.
+ * Las poses del que tira, con las proporciones de la serie: cabeza pequeña,
+ * tronco corto y **piernas larguísimas**, casi la mitad del cuerpo.
  *
  *  · `espera`  — de pie junto al balón, mirando la portería. Es la pose en
  *    la que se está apuntando, así que tiene que estar quieta y no distraer.
- *  · `carrera` — la carrerilla: cuerpo echado adelante, brazos contrapeados.
- *    Es la de la barra de fuerza, y su movimiento es el que dice «ya viene».
- *  · `golpeo`  — el latigazo: pierna estirada del todo, tronco echado atrás
- *    y brazos abiertos. Es la que se queda congelada medio segundo con el
- *    estallido detrás, que es la marca de la casa del anime de los ochenta.
- *  · `celebra` — los dos brazos arriba. Es la del final de una buena tanda.
+ *  · `carrera` — **la pierna armada**: el pie de apoyo junto al balón y la de
+ *    golpeo echada atrás hasta arriba, con los brazos abiertos. Es el
+ *    fotograma que la serie congela antes de cada tiro, y el que se ve
+ *    mientras corre la barra de fuerza.
+ *  · `golpeo`  — el latigazo: la pierna estirada del todo hacia delante y
+ *    hacia arriba, el tronco echado atrás y la estela del barrido detrás.
+ *  · `celebra` — los dos brazos arriba.
  */
 const POSES: Record<'espera' | 'carrera' | 'golpeo' | 'celebra', Pose> = {
   espera: {
-    head: [60, 40],
-    shoulder: [60, 68],
-    hip: [59, 124],
-    nearArm: [[74, 72], [80, 98], [80, 122]],
-    nearLeg: [[65, 124], [71, 162], [68, 200]],
-    farArm: [[46, 72], [40, 98], [40, 122]],
-    farLeg: [[53, 124], [48, 162], [50, 200]],
+    head: [58, 34],
+    shoulder: [58, 60],
+    hip: [58, 108],
+    nearArm: [[72, 64], [82, 84], [86, 102]],
+    nearLeg: [[64, 108], [69, 155], [70, 200]],
+    farArm: [[44, 64], [34, 84], [30, 102]],
+    farLeg: [[52, 108], [48, 155], [47, 200]],
     tilt: 0,
   },
   carrera: {
-    head: [70, 38],
-    shoulder: [67, 68],
-    hip: [56, 124],
-    nearArm: [[80, 72], [96, 84], [100, 60]],
-    nearLeg: [[62, 124], [88, 134], [104, 152]],
-    farArm: [[54, 72], [36, 84], [22, 72]],
-    farLeg: [[50, 124], [34, 154], [26, 182]],
-    tilt: -8,
+    head: [62, 34],
+    shoulder: [60, 60],
+    hip: [62, 108],
+    nearArm: [[74, 64], [96, 56], [112, 40]],
+    nearLeg: [[66, 108], [42, 140], [12, 124]],
+    farArm: [[46, 64], [26, 74], [10, 60]],
+    farLeg: [[58, 108], [74, 152], [82, 200]],
+    tilt: -6,
   },
   golpeo: {
-    head: [52, 38],
-    shoulder: [54, 68],
-    hip: [58, 122],
-    nearArm: [[67, 72], [86, 58], [98, 38]],
-    nearLeg: [[65, 122], [94, 112], [117, 94]],
-    farArm: [[41, 72], [24, 84], [10, 66]],
-    farLeg: [[52, 124], [46, 162], [48, 200]],
-    tilt: 8,
+    head: [50, 36],
+    shoulder: [52, 62],
+    hip: [60, 110],
+    nearArm: [[64, 66], [82, 50], [100, 38]],
+    nearLeg: [[66, 110], [92, 96], [118, 74]],
+    farArm: [[40, 66], [22, 62], [6, 46]],
+    farLeg: [[56, 110], [56, 157], [54, 202]],
+    tilt: 10,
   },
   celebra: {
-    head: [60, 40],
-    shoulder: [60, 68],
-    hip: [60, 124],
-    nearArm: [[74, 70], [92, 48], [100, 20]],
-    nearLeg: [[65, 124], [74, 162], [80, 200]],
-    farArm: [[46, 70], [28, 48], [20, 20]],
-    farLeg: [[54, 124], [46, 162], [40, 200]],
+    head: [58, 34],
+    shoulder: [58, 60],
+    hip: [58, 108],
+    nearArm: [[72, 62], [88, 40], [96, 14]],
+    nearLeg: [[64, 108], [73, 155], [80, 200]],
+    farArm: [[44, 62], [28, 40], [20, 14]],
+    farLeg: [[52, 108], [45, 155], [38, 200]],
     tilt: 0,
   },
 };
@@ -230,96 +418,101 @@ export function Chutador({
   who,
   pose,
   className,
+  aura,
 }: {
-  who: Casero;
+  who: TiradorId;
   pose: PoseChutador;
   className?: string;
+  /** El color del tiro especial: le rodea con su aura, como en la serie. */
+  aura?: string;
 }) {
-  const face = caraDe(who);
-  const kit = ROPA_FAMILIA[who];
+  const player = tiradorDe(who);
+  const { face, kit } = player;
   const body = POSES[pose];
+
+  // El tronco va a lo largo de la columna: estrecho en la cintura y ancho de
+  // hombros, la V del futbolista de la serie.
+  const waist = entre(body.hip, body.shoulder, 0.1);
+  const spine = rumbo(body.hip, body.shoulder) + 90;
+  const chest = entre(body.hip, body.shoulder, 0.55);
+  const shortsTop = entre(body.hip, body.shoulder, 0.16);
+  const shortsBottom = entre(body.hip, body.shoulder, -0.2);
 
   return (
     <svg viewBox="0 0 120 210" className={className} aria-hidden overflow="visible">
-      {/* Lo de detrás: el brazo y la pierna del lado de allá, apagados para
-          que se lean como lo que están, más lejos. */}
-      <g opacity="0.8">
-        <Miembro points={body.farLeg} upper={face.skin} lower={MEDIAS} w={13} end={TINTA} boot />
-        <Miembro points={body.farArm} upper={sombra(kit)} lower={face.skin} w={9.5} end={face.skin} />
+      {/* El aura del especial: la silueta entera ardiendo de su color. */}
+      {aura && (
+        <g opacity="0.55" style={{ filter: `blur(3px)` }}>
+          <circle cx={body.shoulder[0]} cy={body.shoulder[1] + 20} r="46" fill={aura} />
+          <circle cx={body.head[0]} cy={body.head[1]} r="26" fill={aura} />
+        </g>
+      )}
+
+      {/* La estela del barrido de la pierna, en el latigazo: el arco blanco
+          que en la serie dice a qué velocidad ha pasado. */}
+      {pose === 'golpeo' && (
+        <g fill="none" strokeLinecap="round">
+          <path d="M14 128 Q38 200 118 74" stroke="#fff" strokeWidth="5" opacity="0.8" />
+          <path d="M22 136 Q44 190 110 80" stroke={aura ?? '#fff'} strokeWidth="2.5" opacity="0.9" />
+          <path d="M8 118 Q30 206 124 66" stroke="#fff" strokeWidth="1.5" opacity="0.6" />
+        </g>
+      )}
+
+      {/* Lo de detrás, un punto apagado para que se lea más lejos. */}
+      <g opacity="0.85">
+        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} />
+        <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} />
       </g>
 
-      {/* Calzona: cubre la cadera y el arranque de los muslos. */}
-      <path
-        d={`M${body.hip[0] - 16} ${body.hip[1] + 16} L${body.hip[0] - 15} ${body.hip[1] - 14}
-            L${body.hip[0] + 15} ${body.hip[1] - 14} L${body.hip[0] + 16} ${body.hip[1] + 16} Z`}
-        fill={CALZONA}
+      {/* Calzona. */}
+      <polygon
+        points={losa(shortsTop, shortsBottom, 12.5, 14.5)}
+        fill={player.shorts}
         stroke={TINTA}
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
 
-      {/* Tronco. Va de los hombros a la cadera, y empieza **por debajo del
-          cuello**: la cabeza de `CromoFace` se dibuja con su cuello incluido,
-          y solaparla con la camiseta era lo que hacía que el muñeco pareciera
-          un monigote sentado. */}
-      <path
-        d={`M${body.shoulder[0] - 18} ${body.shoulder[1]}
-            Q${body.shoulder[0]} ${body.shoulder[1] - 7} ${body.shoulder[0] + 18} ${body.shoulder[1]}
-            L${body.hip[0] + 15} ${body.hip[1] - 8}
-            L${body.hip[0] - 15} ${body.hip[1] - 8} Z`}
+      {/* Tronco, con la sombra plana de un costado. */}
+      <polygon
+        points={losa(waist, body.shoulder, 11.5, 17)}
         fill={kit}
         stroke={TINTA}
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
-      {/* La sombra plana de un costado, de borde duro: la del anime. */}
-      <path
-        d={`M${body.shoulder[0] + 8} ${body.shoulder[1] - 2}
-            L${body.shoulder[0] + 18} ${body.shoulder[1]}
-            L${body.hip[0] + 15} ${body.hip[1] - 8}
-            L${body.hip[0] + 6} ${body.hip[1] - 8} Z`}
-        fill="#000"
-        opacity="0.16"
-      />
+      <polygon points={costado(waist, body.shoulder, 11.5, 17)} fill="#000" opacity="0.17" />
 
-      {/* El cuello. Dos trazos y una camiseta deja de ser un jersey: en la
-          serie todas las equipaciones llevan su vivo, y a este tamaño es lo
-          que dice por dónde se asoma la cabeza. */}
-      <path
-        d={`M${body.shoulder[0] - 7} ${body.shoulder[1] - 2.5}
-            Q${body.shoulder[0]} ${body.shoulder[1] + 5} ${body.shoulder[0] + 7} ${body.shoulder[1] - 3.5}`}
-        fill="none"
-        stroke={TINTA}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        opacity="0.75"
-      />
+      {/* El cuello de pico, blanco: el de las camisetas de la serie. */}
+      <g transform={`translate(${body.shoulder[0]} ${body.shoulder[1]}) rotate(${spine})`}>
+        <path d="M-7 -1.5 L0 7 L7 -1.5" fill="none" stroke={TINTA} strokeWidth="4.4" strokeLinejoin="round" />
+        <path d="M-7 -1.5 L0 7 L7 -1.5" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinejoin="round" />
+      </g>
 
-      {/* El dorsal, que es lo que convierte una camiseta en una camiseta. */}
+      {/* El dorsal. */}
       <text
-        x={body.shoulder[0]}
-        y={body.shoulder[1] + 34}
+        x={chest[0]}
+        y={chest[1] + 7}
         textAnchor="middle"
-        fontSize="22"
+        fontSize="19"
         fontWeight="900"
-        fill="#fff"
+        fill={player.number}
         stroke={TINTA}
         strokeWidth="0.8"
-        opacity="0.95"
-        transform={`rotate(${body.tilt} ${body.shoulder[0]} ${body.shoulder[1]})`}
+        transform={`rotate(${spine} ${chest[0]} ${chest[1]})`}
       >
-        {who === 'leo' ? '10' : '7'}
+        {player.dorsal}
       </text>
 
-      {/* La cabeza, la misma de su cromo. Se dibuja con el centro en el
-          origen, así que va trasladada y escalada a tamaño de cuerpo. */}
-      <g transform={`translate(${body.head[0]} ${body.head[1]}) rotate(${body.tilt}) scale(0.7)`}>
+      {/* La cabeza, la misma de su cromo, pequeña: en la serie los
+          jugadores miden seis cabezas y media. */}
+      <g transform={`translate(${body.head[0]} ${body.head[1]}) rotate(${body.tilt}) scale(0.62)`}>
         <Cabeza face={face} />
       </g>
 
       {/* Y lo de delante, encima de todo. */}
-      <Miembro points={body.nearLeg} upper={face.skin} lower={MEDIAS} w={14} end={TINTA} boot />
-      <Miembro points={body.nearArm} upper={sombra(kit)} lower={face.skin} w={10} end={face.skin} />
+      <Pierna points={body.nearLeg} skin={face.skin} band={player.band} shorts={player.shorts} />
+      <Brazo points={body.nearArm} skin={face.skin} kit={kit} bare={player.bare} />
     </svg>
   );
 }
@@ -498,8 +691,8 @@ export function Benji({ pose, className }: { pose: PoseBenjiId; className?: stri
   return (
     <svg viewBox="0 0 160 150" className={className} aria-hidden overflow="visible">
       {/* Piernas. */}
-      <Miembro points={body.legA} upper={face.skin} lower={MEDIAS} w={11} end={TINTA} boot />
-      <Miembro points={body.legB} upper={face.skin} lower={MEDIAS} w={11} end={TINTA} boot />
+      <Pierna points={body.legA} skin={face.skin} band={GORRA} />
+      <Pierna points={body.legB} skin={face.skin} band={GORRA} />
 
       {/* Calzona. */}
       <polygon
@@ -566,16 +759,17 @@ export function Vineta({
   rayas = true,
   fill = false,
 }: {
-  /** Uno de los peques, o Benji. */
-  who: Casero | 'benji';
+  /** Uno de casa, uno de la serie, o Benji. */
+  who: TiradorId | 'benji';
   className?: string;
   rayas?: boolean;
   /** Llenar la caja aunque no sea cuadrada, recortando lo que sobre. */
   fill?: boolean;
 }) {
   const benji = who === 'benji';
-  const face = benji ? CARA_BENJI : caraDe(who);
-  const fondo = benji ? '#1f2a37' : ROPA_FAMILIA[who];
+  const player = benji ? null : tiradorDe(who);
+  const face = player ? player.face : CARA_BENJI;
+  const fondo = player ? (player.kit === '#f8fafc' ? '#60a5fa' : player.kit) : '#1f2a37';
   const id = `vineta-${who}`;
 
   return (
@@ -897,6 +1091,170 @@ export function RedHinchada({ className }: { className?: string }) {
       {[16, 30, 44].map((r, i) => (
         <circle key={r} r={r} fill="none" stroke="#fff" strokeWidth={4 - i} opacity={0.9 - i * 0.25} />
       ))}
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * El fondo de cada tiro especial
+ * ----------------------------------------------------------------------- */
+
+/** Rayos desde el centro, del color que se pida: el fondo de todo corte. */
+function Rayos({ color, n = 28, opacity = 0.35 }: { color: string; n?: number; opacity?: number }) {
+  return (
+    <g opacity={opacity}>
+      {Array.from({ length: n }, (_, i) => (
+        <path key={i} d="M-9 0 L0 -330 L9 0 Z" fill={color} transform={`translate(200 150) rotate(${(i * 360) / n})`} />
+      ))}
+    </g>
+  );
+}
+
+/**
+ * Lo que hay detrás del que tira cuando grita su tiro. En la serie cada
+ * tiro tiene su imagen —el halcón que se lanza, el tigre, las llamas— y es
+ * esa imagen, más que el nombre, lo que se recuerda. Un lienzo de 400×300 que
+ * se recorta para llenar el corte.
+ */
+export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal'>; className?: string }) {
+  return (
+    <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" className={className} aria-hidden>
+      {kind === 'halcon' && (
+        <g>
+          <rect width="400" height="300" fill="#0369a1" />
+          <Rayos color="#bae6fd" />
+          {/* El halcón, en picado y con las alas abiertas. */}
+          <g transform="translate(290 118) rotate(-18) scale(1.5)">
+            <path
+              d="M0 -6 C-18 -34 -52 -40 -86 -22 C-60 -22 -42 -12 -30 0 C-46 -2 -58 4 -66 12 C-40 6 -18 8 -6 14 Z"
+              fill="#0c1a2b"
+              stroke="#e0f2fe"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M0 -6 C18 -34 52 -40 86 -22 C60 -22 42 -12 30 0 C46 -2 58 4 66 12 C40 6 18 8 6 14 Z"
+              fill="#0c1a2b"
+              stroke="#e0f2fe"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+            />
+            <path d="M-7 10 L0 34 L7 10 Z" fill="#0c1a2b" stroke="#e0f2fe" strokeWidth="2" />
+            <circle cx="0" cy="-8" r="8" fill="#0c1a2b" stroke="#e0f2fe" strokeWidth="2" />
+            <path d="M-2 -4 L0 4 L3 -4 Z" fill="#fbbf24" />
+            <circle cx="3" cy="-10" r="1.6" fill="#fde047" />
+          </g>
+        </g>
+      )}
+
+      {kind === 'tigre' && (
+        <g>
+          <rect width="400" height="300" fill="#ea580c" />
+          <Rayos color="#fed7aa" opacity={0.3} />
+          {/* Las rayas del tigre, entrando por los dos lados. */}
+          <g fill="#1c1210">
+            {[20, 80, 140, 200, 260].map((y, i) => (
+              <g key={y}>
+                <path d={`M-10 ${y} L${120 - i * 8} ${y + 14} L${60 - i * 6} ${y + 22} L${150 - i * 10} ${y + 30} L-10 ${y + 36} Z`} />
+                <path d={`M410 ${y + 18} L${280 + i * 8} ${y + 30} L${340 + i * 6} ${y + 38} L${250 + i * 10} ${y + 46} L410 ${y + 54} Z`} />
+              </g>
+            ))}
+          </g>
+          {/* Y el zarpazo: tres arañazos blancos. */}
+          <g stroke="#fff7ed" strokeWidth="9" strokeLinecap="round" opacity="0.95">
+            <path d="M250 40 L330 250" />
+            <path d="M280 30 L360 240" />
+            <path d="M310 22 L390 230" />
+          </g>
+        </g>
+      )}
+
+      {kind === 'fuego' && (
+        <g>
+          <rect width="400" height="300" fill="#7f1d1d" />
+          <Rayos color="#fca5a5" opacity={0.25} />
+          {/* Las llamas, subiendo desde abajo en tres capas. */}
+          {[
+            { fill: '#dc2626', h: 250, n: 7 },
+            { fill: '#f97316', h: 190, n: 8 },
+            { fill: '#fde047', h: 120, n: 9 },
+          ].map(({ fill, h, n }) => (
+            <path
+              key={fill}
+              fill={fill}
+              d={`M0 300 ${Array.from({ length: n }, (_, i) => {
+                const w = 400 / n;
+                const x = i * w;
+                const top = 300 - h - (i % 2 ? 30 : 0);
+                return `Q${x + w * 0.1} ${300 - h * 0.4} ${x + w * 0.5} ${top} Q${x + w * 0.9} ${300 - h * 0.4} ${x + w} ${300 - h * 0.2}`;
+              }).join(' ')} L400 300 Z`}
+            />
+          ))}
+        </g>
+      )}
+
+      {kind === 'efecto' && (
+        <g>
+          <rect width="400" height="300" fill="#4c1d95" />
+          {/* La espiral del efecto, girando. */}
+          <g className="origin-center animate-girar" style={{ transformBox: 'fill-box' }}>
+            {[30, 60, 90, 120, 150, 180, 210].map((r, i) => (
+              <circle
+                key={r}
+                cx="200"
+                cy="150"
+                r={r}
+                fill="none"
+                stroke={i % 2 ? '#c4b5fd' : '#f5f3ff'}
+                strokeWidth="10"
+                strokeDasharray={`${r * 2.2} ${r * 1.1}`}
+                opacity="0.55"
+              />
+            ))}
+          </g>
+          {/* La curva del balón: sale por fuera y se cierra. */}
+          <path d="M40 270 Q420 250 300 40" fill="none" stroke="#fff" strokeWidth="6" strokeDasharray="4 14" strokeLinecap="round" />
+        </g>
+      )}
+
+      {kind === 'canon' && (
+        <g>
+          <rect width="400" height="300" fill="#0f172a" />
+          <Rayos color="#fbbf24" opacity={0.3} n={36} />
+          <text x="300" y="250" fontSize="260" fontWeight="900" fontStyle="italic" fill="#fbbf24" opacity="0.18" textAnchor="middle">
+            7
+          </text>
+          {/* El estallido del cañonazo. */}
+          <g transform="translate(290 130)">
+            {Array.from({ length: 16 }, (_, i) => (
+              <path key={i} d={`M-10 0 L0 ${i % 2 ? -70 : -110} L10 0 Z`} fill="#f59e0b" transform={`rotate(${i * 22.5})`} />
+            ))}
+            {Array.from({ length: 12 }, (_, i) => (
+              <path key={i} d={`M-8 0 L0 ${i % 2 ? -40 : -62} L8 0 Z`} fill="#fef3c7" transform={`rotate(${i * 30 + 10})`} />
+            ))}
+            <circle r="22" fill="#fff" />
+          </g>
+        </g>
+      )}
+
+      {kind === 'parabola' && (
+        <g>
+          <rect width="400" height="300" fill="#0e7490" />
+          <Rayos color="#a5f3fc" opacity={0.25} />
+          {/* El arcoíris de la vaselina. */}
+          {['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7'].map((color, i) => (
+            <path
+              key={color}
+              d={`M${30 + i * 14} 300 A${170 - i * 14} ${230 - i * 14} 0 0 1 ${370 - i * 14} 300`}
+              fill="none"
+              stroke={color}
+              strokeWidth="14"
+              opacity="0.9"
+            />
+          ))}
+          <path d="M60 280 Q200 -60 340 240" fill="none" stroke="#fff" strokeWidth="5" strokeDasharray="3 12" strokeLinecap="round" />
+        </g>
+      )}
     </svg>
   );
 }

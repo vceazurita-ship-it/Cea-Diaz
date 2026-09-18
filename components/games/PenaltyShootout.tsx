@@ -7,28 +7,34 @@ import {
   Benji,
   Chutador,
   Estadio,
+  FondoTiro,
   Impacto,
   RedHinchada,
+  DE_LA_SERIE,
   Vineta,
+  tiradorDe,
   type PoseBenjiId,
+  type TiradorId,
 } from '@/components/games/PenaltyArt';
 import {
+  ENERGY_START,
   PENALTY_SHOTS,
-  SUPER_FROM,
-  SUPER_NAME,
+  SHOT_ORDER,
+  SHOT_TYPES,
+  energyLeft,
   keeperTell,
   keeperZone,
   penaltyVerdict,
   powerBand,
   resolveShot,
-  superReady,
+  shotAvailability,
   zoneOf,
 } from '@/lib/penalties';
 import type { PenaltyAim, PenaltyOutcome, PenaltyShot, PenaltySide, PenaltyZoneId } from '@/lib/penalties';
 import { hashSeed } from '@/lib/challenges';
 import { ROPA_FAMILIA, type Casero } from '@/lib/cromoArt';
 import { playCue } from '@/lib/sound';
-import type { DateKey, PenaltyResult, ProfileId } from '@/types';
+import type { DateKey, PenaltyResult, ProfileId, ShotKind } from '@/types';
 
 /* =========================================================================
  *  Tirar los cinco penaltis contra Benji.
@@ -47,10 +53,12 @@ import type { DateKey, PenaltyResult, ProfileId } from '@/types';
  *  tirar al otro lado es la lección entera del penalti, la misma que se grita
  *  desde la banda, y es lo que hace que la segunda tanda salga mejor.
  *
- *  Y con dos goles se carga **el tiro especial**, uno por tanda. No es un
- *  botón de ganar: el portero ya casi no llega, pero hay que pegarle fuerte
- *  y clavado —la franja buena se estrecha y se sube—, así que guardárselo
- *  para el penalti que decide es una decisión de verdad.
+ *  Y están **los tiros de la serie** para elegir: el del Halcón, el del
+ *  Tigre, el de Fuego, el efecto de Roberto Carlos, el cañón de CR7 y la
+ *  parábola de Messi. Cada uno cambia el trato a su manera —las reglas viven
+ *  en `lib/penalties.ts`—, se paga con la energía que dan los goles y sale
+ *  una vez por tanda, así que cuál y cuándo es una decisión de verdad. Cada
+ *  uno tiene su corte con su imagen, su grito y su manera de volar.
  *
  *  El dibujo es el de Oliver y Benji: el cara a cara del principio con las
  *  dos caras partidas en diagonal, el marcador de la tele, el primer plano
@@ -87,9 +95,6 @@ interface PenaltyShootoutProps {
  *  · `visto`   — ya ha acabado, y se explica por qué.
  */
 type Step = 'intro' | 'apuntar' | 'fuerza' | 'corte' | 'vuelo' | 'visto';
-
-/** Cuánto tarda el balón en llegar. */
-const VUELO_MS = 720;
 
 /** Lo que dura el corte del tiro especial. */
 const CORTE_MS = 950;
@@ -135,8 +140,15 @@ const MARCA: Record<PenaltyOutcome, string> = {
 };
 
 /** El timbre del narrador justo al chutar. */
-function grito(name: string, special: boolean): string {
-  return special ? `¡${name} saca el ${SUPER_NAME.toLowerCase()}!` : `¡${name} chuta…!`;
+function grito(name: string, kind: ShotKind): string {
+  return kind === 'normal' ? `¡${name} chuta…!` : `¡${name} saca ${SHOT_TYPES[kind].article} ${SHOT_TYPES[kind].name}!`;
+}
+
+/** El disparo ya hecho: adónde voló Benji, qué tiro fue y en qué acabó. */
+interface Fired {
+  keeper: PenaltyZoneId;
+  shot: PenaltyShot;
+  kind: ShotKind;
 }
 
 export function PenaltyShootout({
@@ -152,17 +164,41 @@ export function PenaltyShootout({
   const done = taken >= PENALTY_SHOTS;
   const who = profileId as Casero;
 
+  /**
+   * Quién tira: él mismo o uno de la serie. Se elige en el cara a cara y se
+   * recuerda en este aparato, que es una comodidad y no un dato: si se
+   * pierde, vuelve a tirar él.
+   */
+  const [shooter, setShooterState] = useState<TiradorId>(who);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`penaltis:tirador:${profileId}`);
+      if (saved === 'oliver' || saved === 'mark' || saved === 'tom' || saved === who) setShooterState(saved);
+    } catch {
+      // Sin almacenamiento, tira él.
+    }
+  }, [profileId, who]);
+  const setShooter = (id: TiradorId) => {
+    setShooterState(id);
+    try {
+      window.localStorage.setItem(`penaltis:tirador:${profileId}`, id);
+    } catch {
+      // Da igual: se elige otra vez.
+    }
+  };
+  const shooterName = shooter === who ? name : (tiradorDe(shooter).name ?? name);
+
   const [step, setStep] = useState<Step>(done ? 'visto' : taken === 0 ? 'intro' : 'apuntar');
   const [aim, setAim] = useState<PenaltyAim>({ x: 50, y: 50 });
   const [power, setPower] = useState(0);
 
   /**
-   * Si este tiro va a ser el especial. Se arma antes de coger fuerza y se
-   * queda armado hasta que sale el balón: cambiar de idea con el dedo ya
-   * puesto sería tirar dos penaltis distintos con el mismo gesto.
+   * El tiro elegido. Se elige antes de coger fuerza y se queda hasta que sale
+   * el balón: cambiar de idea con el dedo ya puesto sería tirar dos penaltis
+   * distintos con el mismo gesto.
    */
-  const [special, setSpecial] = useState(false);
-  const armed = superReady(result);
+  const [kind, setKind] = useState<ShotKind>('normal');
+  const special = kind !== 'normal';
 
   /**
    * El penalti ya tirado: adónde voló el portero y en qué acabó.
@@ -172,7 +208,7 @@ export function PenaltyShootout({
    * ya es el del penalti siguiente. Recalculándolo, el guante aparecía en un
    * sitio y la explicación contaba otro.
    */
-  const [fired, setFired] = useState<{ keeper: PenaltyZoneId; shot: PenaltyShot; special: boolean } | null>(null);
+  const [fired, setFired] = useState<Fired | null>(null);
 
   /** Si Benji ya ha arrancado a tirarse: medio instante después del golpeo. */
   const [diving, setDiving] = useState(false);
@@ -209,9 +245,9 @@ export function PenaltyShootout({
     if (step !== 'fuerza') return undefined;
 
     const started = performance.now();
-    // El especial va más rápido: la franja es más estrecha y encima pasa
-    // antes, que es lo que hace que tirarlo cueste algo.
-    const sweep = special ? 950 : 1250;
+    // Los especiales van más rápidos: su franja pasa antes, que es lo que
+    // hace que tirarlos cueste algo.
+    const sweep = SHOT_TYPES[kind].sweep;
 
     const tick = (now: number) => {
       const phase = ((now - started) % (sweep * 2)) / sweep;
@@ -225,7 +261,7 @@ export function PenaltyShootout({
     return () => {
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
-  }, [step, special]);
+  }, [step, kind]);
 
   /* ------------------------------------------------------------- el disparo */
 
@@ -243,10 +279,11 @@ export function PenaltyShootout({
     // Va con el perfil, el día y el número de tiro para que el mismo penalti
     // dé siempre lo mismo, como las preguntas.
     const seed = hashSeed(`${profileId}:desvio:${date}:${taken}`);
-    const outcome = resolveShot(aim, charged.current, keeper, seed, special);
+    const outcome = resolveShot(aim, charged.current, keeper, seed, kind);
+    const flight = SHOT_TYPES[kind].flight;
 
     setPower(charged.current);
-    setFired({ keeper, shot: outcome, special });
+    setFired({ keeper, shot: outcome, kind });
     setHistory((list) => [...list, outcome.outcome]);
 
     // Con el especial, primero el corte con su nombre a gritos; el golpeo
@@ -268,7 +305,7 @@ export function PenaltyShootout({
       } catch {
         // Hay navegadores que tienen la función y la prohíben: da igual.
       }
-    }, kick + VUELO_MS);
+    }, kick + flight);
 
     onShot({
       scored: scored + (outcome.outcome === 'gol' ? 1 : 0),
@@ -276,19 +313,20 @@ export function PenaltyShootout({
       total: PENALTY_SHOTS,
       at: new Date().toISOString(),
       // El especial se gasta al tirarlo, salga como salga. Se guarda con la
-      // tanda para que cerrar la app entre dos penaltis no regale otro.
-      supered: (result?.supered ?? false) || special,
+      // tanda para que cerrar la app entre dos penaltis no devuelva la
+      // energía ni deje repetirlo.
+      specials: special ? [...(result?.specials ?? []), kind] : (result?.specials ?? []),
     });
     // `later` sólo empuja a una lista: no cambia entre pintadas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aim, date, keeper, onShot, profileId, result, scored, special, step, taken]);
+  }, [aim, date, keeper, kind, onShot, profileId, result, scored, special, step, taken]);
 
   const next = () => {
     setAim({ x: 50, y: 50 });
     setFired(null);
     setDiving(false);
     setPower(0);
-    setSpecial(false);
+    setKind('normal');
     setStep('apuntar');
   };
 
@@ -312,11 +350,22 @@ export function PenaltyShootout({
 
   /* ---------------------------------------------------------------- pintura */
 
-  if (done && !fired) return <Final who={who} scored={scored} name={name} onClose={onClose} />;
+  if (done && !fired) return <Final who={shooter} scored={scored} name={name} onClose={onClose} />;
 
-  if (step === 'intro') return <CaraACara who={who} name={name} onStart={() => setStep('apuntar')} />;
+  if (step === 'intro')
+    return (
+      <CaraACara
+        who={who}
+        shooter={shooter}
+        onPick={setShooter}
+        name={name}
+        onStart={() => setStep('apuntar')}
+      />
+    );
 
-  const [low, high] = powerBand(fired?.special ?? special);
+  const shownKind = fired?.kind ?? kind;
+  const [low, high] = powerBand(shownKind);
+  const type = SHOT_TYPES[kind];
   const shooting = Math.min(taken + (fired ? 0 : 1), PENALTY_SHOTS);
   const aiming = step === 'apuntar' || step === 'fuerza';
   const zone = power < low ? 'flojo' : power > high ? 'pasado' : 'buena';
@@ -328,7 +377,7 @@ export function PenaltyShootout({
           tiro ya está anotado, pero enseñarlo antes de que llegue a la
           portería chivaría el final. */}
       <Marcador
-        who={who}
+        who={shooter}
         name={name}
         taken={pending ? taken - 1 : taken}
         scored={pending && fired?.shot.outcome === 'gol' ? scored - 1 : scored}
@@ -340,7 +389,8 @@ export function PenaltyShootout({
       {/* La escena y el narrador van pegados, como la tele y su rótulo. */}
       <div className="overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14] shadow-lg">
         <Escena
-          who={who}
+          who={shooter}
+          kid={who}
           name={name}
           aim={aim}
           onAim={setAim}
@@ -348,7 +398,7 @@ export function PenaltyShootout({
           tell={tell}
           fired={fired}
           diving={diving}
-          special={fired?.special ?? special}
+          kind={shownKind}
           power={power}
           band={[low, high]}
         />
@@ -367,7 +417,7 @@ export function PenaltyShootout({
                 {fired.shot.why}
               </>
             ) : step === 'corte' || step === 'vuelo' ? (
-              <span className="italic">{grito(name, fired?.special ?? false)}</span>
+              <span className="italic">{grito(shooterName, fired?.kind ?? 'normal')}</span>
             ) : tell === 'centro' ? (
               <>
                 Benji se queda <span className="text-amber-300">en el centro</span>.{' '}
@@ -385,31 +435,10 @@ export function PenaltyShootout({
 
       {aiming && (
         <div className="space-y-2">
-          {/* El especial: se arma antes de coger fuerza, y se dice lo que
-              cambia. Sólo aparece cuando está cargado, que es con dos goles,
-              y desaparece en cuanto se gasta. */}
-          {armed && (
-            <button
-              type="button"
-              disabled={step !== 'apuntar'}
-              onClick={() => setSpecial((value) => !value)}
-              aria-pressed={special}
-              className={`btn w-full flex-col items-start gap-0 border-2 px-3 py-2 text-left text-sm font-black
-                disabled:opacity-100
-                ${
-                  special
-                    ? 'border-amber-300 bg-gradient-to-r from-amber-400 to-rose-500 text-[#241a14]'
-                    : 'border-amber-300/60 bg-amber-300/10 t-1 hover:bg-amber-300/20'
-                }`}
-            >
-              <span>
-                ⚡ {special ? `${SUPER_NAME} ARMADO` : `Usar el ${SUPER_NAME.toLowerCase()}`}
-              </span>
-              <span className="text-[11px] font-semibold leading-tight opacity-80">
-                {special ? 'Benji casi no llega · franja estrecha' : `cargado con ${SUPER_FROM} goles · uno por tanda`}
-              </span>
-            </button>
-          )}
+          {/* Los tiros: el normal y los seis de la serie, con lo que cuestan.
+              Sólo se eligen mientras se apunta; con el dedo puesto, el que
+              esté elegido es el que sale. */}
+          <SelectorTiros result={result} kind={kind} onPick={setKind} locked={step !== 'apuntar'} />
 
           {/* Apuntar y coger fuerza comparten **el mismo botón**, y no son dos
               pantallas que se sustituyen: quien mantiene el dedo en un botón
@@ -439,26 +468,21 @@ export function PenaltyShootout({
             }}
             className={`flex min-h-[3.75rem] w-full touch-none select-none items-center justify-center gap-2
               rounded-2xl border-2 border-[#241a14] px-4 text-lg font-black uppercase tracking-wide
-              shadow-[0_4px_0_#241a14] transition-colors active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]
+              shadow-[0_4px_0_#241a14] active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]
               [-webkit-touch-callout:none] [-webkit-user-select:none]
               ${
                 step === 'apuntar'
-                  ? special
-                    ? 'bg-gradient-to-r from-amber-400 to-rose-500 text-[#241a14]'
-                    : 'bg-white text-[#241a14]'
+                  ? 'text-[#241a14]'
                   : zone === 'buena'
-                    ? special
-                      ? 'animate-latido bg-amber-300 text-[#241a14]'
-                      : 'animate-latido bg-emerald-400 text-[#241a14]'
+                    ? 'animate-latido bg-emerald-400 text-[#241a14]'
                     : zone === 'pasado'
                       ? 'bg-rose-500 text-white'
                       : 'bg-slate-600 text-white'
               }`}
+            style={step === 'apuntar' ? { backgroundColor: special ? type.color : '#fff' } : undefined}
           >
             {step === 'apuntar'
-              ? special
-                ? '⚡ Mantén pulsado'
-                : '⚽ Mantén pulsado'
+              ? `${type.icon} Mantén pulsado`
               : zone === 'buena'
                 ? '¡Suelta ahora!'
                 : zone === 'pasado'
@@ -468,7 +492,9 @@ export function PenaltyShootout({
 
           <p className="text-center text-[11px] leading-snug t-3">
             {step === 'apuntar'
-              ? 'Toca la portería para apuntar. Luego mantén el botón y suéltalo en la franja verde.'
+              ? special
+                ? `${type.name}: ${type.blurb}`
+                : 'Toca la portería para apuntar. Luego mantén el botón y suéltalo en la franja verde.'
               : 'Quedarte corto le da tiempo a Benji; pasarte sube y abre el balón.'}
           </p>
         </div>
@@ -518,7 +544,7 @@ function Marcador({
   history,
   firstShown,
 }: {
-  who: Casero;
+  who: TiradorId;
   name: string;
   taken: number;
   scored: number;
@@ -623,30 +649,80 @@ function estirada(id: PenaltyZoneId): {
 }
 
 /**
- * Por dónde va el balón, en cuatro puntos: el punto de penalti, lo alto del
- * vuelo, adonde llega y —si no es gol— adonde rebota.
+ * Por dónde va el balón: una lista de puntos, del punto de penalti adonde
+ * llega y —si no es gol— adonde rebota. Cada tiro tiene su camino, que es lo
+ * que se recuerda de él: el Halcón sube y cae en picado, el efecto se abre por
+ * fuera y se cierra, el cañón hace eses, la parábola se va al cielo y el Tigre
+ * y el Fuego van en línea recta, que no les da tiempo a otra cosa.
+ *
+ * `arrive` es el punto en el que llega a la portería.
  */
-function trayecto(shot: PenaltyShot): { x: number; y: number; s: number }[] {
+function trayecto(shot: PenaltyShot, kind: ShotKind): { points: { x: number; y: number; s: number }[]; arrive: number } {
   const to = enEscena(shot.landing);
-  const clamped = { x: Math.max(-6, Math.min(106, to.x)), y: Math.max(-6, to.y) };
-  const apex = { x: (PUNTO.x + clamped.x) / 2, y: Math.min(PUNTO.y, clamped.y) + (PUNTO.y - clamped.y) * 0.35 - 8 };
-  const out = clamped.x < 50 ? -1 : 1;
+  const end = { x: Math.max(-6, Math.min(106, to.x)), y: Math.max(-6, to.y) };
+  const mid = { x: (PUNTO.x + end.x) / 2, y: Math.min(PUNTO.y, end.y) + (PUNTO.y - end.y) * 0.35 - 8 };
+  const out = end.x < 50 ? -1 : 1;
 
-  const path = [
-    { ...PUNTO, s: 1 },
-    { ...apex, s: 0.72 },
-    { ...clamped, s: 0.42 },
-  ];
+  let points: { x: number; y: number; s: number }[];
+  switch (kind) {
+    case 'halcon':
+      points = [
+        { ...PUNTO, s: 1 },
+        { x: mid.x, y: Math.max(-4, end.y - 22), s: 0.7 },
+        { x: end.x - out * 2, y: Math.max(-6, end.y - 16), s: 0.52 },
+        { ...end, s: 0.42 },
+      ];
+      break;
+    case 'efecto':
+      points = [
+        { ...PUNTO, s: 1 },
+        { x: mid.x + out * 16, y: mid.y + 4, s: 0.72 },
+        { x: end.x + out * 14, y: end.y + 6, s: 0.52 },
+        { ...end, s: 0.42 },
+      ];
+      break;
+    case 'canon':
+      points = [
+        { ...PUNTO, s: 1 },
+        { x: PUNTO.x + (end.x - PUNTO.x) * 0.3 + 5, y: PUNTO.y + (end.y - PUNTO.y) * 0.3, s: 0.8 },
+        { x: PUNTO.x + (end.x - PUNTO.x) * 0.55 - 5, y: PUNTO.y + (end.y - PUNTO.y) * 0.55, s: 0.64 },
+        { x: PUNTO.x + (end.x - PUNTO.x) * 0.8 + 4, y: PUNTO.y + (end.y - PUNTO.y) * 0.8, s: 0.5 },
+        { ...end, s: 0.42 },
+      ];
+      break;
+    case 'parabola':
+      points = [
+        { ...PUNTO, s: 1 },
+        { x: mid.x, y: 2, s: 0.6 },
+        { ...end, s: 0.42 },
+      ];
+      break;
+    case 'tigre':
+    case 'fuego':
+      points = [
+        { ...PUNTO, s: 1 },
+        { ...end, s: 0.44 },
+      ];
+      break;
+    default:
+      points = [
+        { ...PUNTO, s: 1 },
+        { ...mid, s: 0.72 },
+        { ...end, s: 0.42 },
+      ];
+  }
 
-  if (shot.outcome === 'parada') path.push({ x: clamped.x + out * 12, y: 64, s: 0.55 });
-  if (shot.outcome === 'poste') path.push({ x: clamped.x + out * 14, y: clamped.y + 22, s: 0.5 });
-  if (shot.outcome === 'gol') path.push({ x: clamped.x, y: clamped.y + 2, s: 0.36 });
+  const arrive = points.length - 1;
+  if (shot.outcome === 'parada') points.push({ x: end.x + out * 12, y: 64, s: 0.55 });
+  if (shot.outcome === 'poste') points.push({ x: end.x + out * 14, y: end.y + 22, s: 0.5 });
+  if (shot.outcome === 'gol') points.push({ x: end.x, y: end.y + 2, s: 0.36 });
 
-  return path;
+  return { points, arrive };
 }
 
 function Escena({
   who,
+  kid,
   name,
   aim,
   onAim,
@@ -654,19 +730,23 @@ function Escena({
   tell,
   fired,
   diving,
-  special,
+  kind,
   power,
   band,
 }: {
-  who: Casero;
+  /** El que tira. */
+  who: TiradorId;
+  /** Y el crío de la tanda, que es a quien anima la grada. */
+  kid: Casero;
   name: string;
   aim: PenaltyAim;
   onAim: (aim: PenaltyAim) => void;
   step: Step;
   tell: PenaltySide;
-  fired: { keeper: PenaltyZoneId; shot: PenaltyShot; special: boolean } | null;
+  fired: Fired | null;
   diving: boolean;
-  special: boolean;
+  /** El tiro elegido o, si ya ha salido, el que salió. */
+  kind: ShotKind;
   power: number;
   band: [number, number];
 }) {
@@ -688,26 +768,35 @@ function Escena({
   const aiming = step === 'apuntar' || step === 'fuerza';
   const flying = step === 'vuelo';
   const seen = step === 'visto';
-  const path = fired ? trayecto(fired.shot) : null;
+  const special = kind !== 'normal';
+  const color = SHOT_TYPES[kind].color;
+  const route = fired ? trayecto(fired.shot, fired.kind) : null;
+  const path = route?.points ?? null;
   const rest = path && (flying || seen) ? path[path.length - 1] : { ...PUNTO, s: 1 };
 
   // El vuelo del balón: se anima con la API del navegador en cuanto
   // arranca, y la posición de reposo que pinta React ya es la final, así que
   // al acabar la animación el balón se queda donde tiene que quedarse.
   useLayoutEffect(() => {
-    if (!flying || !path || !ballRef.current) return undefined;
+    if (!flying || !path || !route || !ballRef.current || !fired) return undefined;
     const last = path.length - 1;
-    const arrive = path.length > 3 ? 0.78 : 1;
+    // Hasta la portería, repartido a partes iguales; si luego rebota o se
+    // mete en la red, eso va en el último cuarto.
+    const reach = last > route.arrive ? 0.78 : 1;
 
     const animation = ballRef.current.animate(
       path.map((p, i) => ({
         left: `${p.x}%`,
         top: `${p.y}%`,
         transform: `translate(-50%, -50%) scale(${p.s}) rotate(${i * 330}deg)`,
-        offset: i === 0 ? 0 : i === 1 ? arrive * 0.45 : i === 2 ? arrive : 1,
-        easing: i === 2 && last > 2 ? 'ease-out' : 'linear',
+        offset: i <= route.arrive ? (i / route.arrive) * reach : 1,
+        easing: i === route.arrive && last > route.arrive ? 'ease-out' : 'linear',
       })),
-      { duration: VUELO_MS, easing: 'cubic-bezier(0.3, 0.6, 0.4, 1)', fill: 'backwards' },
+      {
+        duration: SHOT_TYPES[fired.kind].flight,
+        easing: fired.kind === 'parabola' ? 'ease-in-out' : 'cubic-bezier(0.3, 0.6, 0.4, 1)',
+        fill: 'backwards',
+      },
     );
 
     return () => animation.cancel();
@@ -730,11 +819,11 @@ function Escena({
   };
 
   const outcome = seen && fired ? fired.shot.outcome : null;
-  const landing = fired ? trayecto(fired.shot)[2] : null;
+  const landing = route ? route.points[route.arrive] : null;
 
   return (
     <div className={`relative aspect-[4/3] select-none overflow-hidden ${outcome === 'gol' ? 'animate-temblor' : ''}`}>
-      <Estadio className="absolute inset-0 h-full w-full" name={name} color={ROPA_FAMILIA[who]} />
+      <Estadio className="absolute inset-0 h-full w-full" name={name} color={ROPA_FAMILIA[kid]} />
 
       {/* Los rayos del anime, detrás de todo, cuando se carga la fuerza.
           Giran despacio, y con el especial armado son de fuego. */}
@@ -742,10 +831,11 @@ function Escena({
         <div
           aria-hidden
           className={`pointer-events-none absolute -inset-1/4 animate-girar mix-blend-screen ${
-            special
-              ? 'opacity-60 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,196,80,0.8)_0deg_4deg,transparent_4deg_13deg)]'
-              : 'opacity-25 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,0.7)_0deg_5deg,transparent_5deg_16deg)]'
+            special ? 'opacity-60' : 'opacity-25'
           }`}
+          style={{
+            backgroundImage: `repeating-conic-gradient(from 0deg at 50% 50%, ${special ? color : 'rgba(255,255,255,0.7)'} 0deg 4deg, transparent 4deg 13deg)`,
+          }}
         />
       )}
 
@@ -863,9 +953,8 @@ function Escena({
       >
         {flying && (
           <span
-            className={`absolute -inset-[35%] -z-10 rounded-full blur-[3px] ${
-              special ? 'bg-amber-400/90' : 'bg-white/70'
-            }`}
+            className={`absolute -z-10 rounded-full blur-[3px] ${special ? '-inset-[55%] opacity-95' : '-inset-[35%] opacity-70'}`}
+            style={{ backgroundColor: special ? color : '#fff' }}
           />
         )}
         <Balon className="h-auto w-full drop-shadow-[0_2px_0_rgba(0,0,0,0.3)]" />
@@ -875,7 +964,7 @@ function Escena({
           y pegado al borde, como en el anime, que es lo que da la sensación
           de estar detrás de él. */}
       <div
-        className="pointer-events-none absolute bottom-[-2%] left-[16%] h-[56%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.3)]"
+        className="pointer-events-none absolute bottom-[-2%] left-[15%] h-[59%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.3)]"
         style={{ aspectRatio: '120 / 210' }}
       >
         <Chutador
@@ -890,6 +979,7 @@ function Escena({
                   : 'golpeo'
           }
           className="h-full w-full"
+          aura={special && (step === 'fuerza' || step === 'corte' || flying) ? color : undefined}
         />
       </div>
 
@@ -900,7 +990,7 @@ function Escena({
           className="pointer-events-none absolute h-[30%] w-[22%] -translate-x-1/2 -translate-y-1/2 animate-chispazo"
           style={{ left: `${PUNTO.x}%`, top: `${PUNTO.y}%` }}
         >
-          <Impacto className="h-full w-full" color={special ? '#fcd34d' : '#fff8d6'} />
+          <Impacto className="h-full w-full" color={special ? color : '#fff8d6'} />
         </div>
       )}
 
@@ -914,7 +1004,7 @@ function Escena({
                       ${step === 'apuntar' ? 'opacity-70' : 'opacity-100'}`}
         >
           <div
-            className={`absolute inset-x-0 ${special ? 'bg-amber-300/60' : 'bg-emerald-400/55'}`}
+            className="absolute inset-x-0 bg-emerald-400/55"
             style={{ bottom: `${band[0]}%`, height: `${band[1] - band[0]}%` }}
           />
           <div
@@ -940,17 +1030,17 @@ function Escena({
 
       {/* El corte del tiro especial: la pantalla entera se va al fuego, la
           cara del que tira entra de lado y el nombre del tiro, a gritos. */}
-      {step === 'corte' && (
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden bg-[#b91c1c]">
-          <div className="absolute -inset-1/2 animate-girar bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(253,224,71,0.9)_0deg_5deg,transparent_5deg_14deg)]" />
-          <div className="absolute inset-y-[8%] left-[6%] w-[46%] animate-entra">
+      {step === 'corte' && kind !== 'normal' && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden bg-[#241a14]">
+          <FondoTiro kind={kind} className="absolute inset-0 h-full w-full animate-pop" />
+          <div className="absolute inset-y-[8%] left-[6%] w-[42%] animate-entra">
             <Vineta who={who} className="h-full w-full border-4 border-[#241a14] shadow-[5px_5px_0_#241a14]" />
           </div>
           <p
-            className="absolute inset-x-[4%] bottom-[8%] animate-golpe text-right font-display text-[clamp(22px,7vw,40px)]
+            className="absolute inset-x-[4%] bottom-[8%] animate-golpe text-right font-display text-[clamp(20px,6.4vw,38px)]
                        font-black italic leading-none text-white [paint-order:stroke] [-webkit-text-stroke:6px_#241a14]"
           >
-            ¡{SUPER_NAME}!
+            {SHOT_TYPES[kind].shout}
           </p>
         </div>
       )}
@@ -996,13 +1086,35 @@ function Escena({
  * penalti, que ahí lo que se quiere es tirar.
  * ------------------------------------------------------------------------- */
 
-function CaraACara({ who, name, onStart }: { who: Casero; name: string; onStart: () => void }) {
+function CaraACara({
+  who,
+  shooter,
+  onPick,
+  name,
+  onStart,
+}: {
+  who: Casero;
+  shooter: TiradorId;
+  onPick: (id: TiradorId) => void;
+  name: string;
+  onStart: () => void;
+}) {
+  const shooterName = shooter === who ? name : (tiradorDe(shooter).name ?? name);
+  const options: { id: TiradorId; label: string; tagline: string }[] = [
+    { id: who, label: name, tagline: 'Tú mismo' },
+    ...(['oliver', 'mark', 'tom'] as const).map((id) => ({
+      id,
+      label: DE_LA_SERIE[id].name ?? id,
+      tagline: DE_LA_SERIE[id].tagline ?? '',
+    })),
+  ];
+
   return (
     <div className="space-y-4">
       <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14]">
         <div className="absolute inset-0 animate-entra [clip-path:polygon(0_0,62%_0,38%_100%,0_100%)]">
           <div className="absolute inset-y-0 left-0 w-[62%]">
-            <Vineta who={who} fill className="h-full w-full" />
+            <Vineta key={shooter} who={shooter} fill className="h-full w-full" />
           </div>
         </div>
         <div className="absolute inset-0 animate-entra-dcha [clip-path:polygon(62%_0,100%_0,100%_100%,38%_100%)]">
@@ -1020,11 +1132,39 @@ function CaraACara({ who, name, onStart }: { who: Casero; name: string; onStart:
           VS
         </p>
         <p className="absolute bottom-2 left-3 font-display text-2xl font-black uppercase italic text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
-          {name}
+          {shooterName}
         </p>
         <p className="absolute bottom-2 right-3 font-display text-2xl font-black uppercase italic text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
           Benji
         </p>
+      </div>
+
+      {/* Quién tira: él mismo o uno de la serie, cada uno con su dibujo. */}
+      <div>
+        <p className="mb-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] t-3">¿Quién tira?</p>
+        <div className="grid grid-cols-4 gap-2">
+          {options.map((option) => {
+            const picked = option.id === shooter;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onPick(option.id)}
+                aria-pressed={picked}
+                className={`overflow-hidden rounded-xl border-2 text-center transition-transform
+                  ${picked ? 'scale-[1.04] border-amber-300 shadow-[0_3px_0_#241a14]' : 'border-[#241a14] opacity-80'}`}
+              >
+                <Vineta who={option.id} rayas={picked} className="aspect-square w-full" />
+                <span className={`block px-1 pt-1 text-[11px] font-black leading-tight ${picked ? 'bg-amber-300 text-[#241a14]' : 'surf-2 t-1'}`}>
+                  {option.label}
+                </span>
+                <span className={`block px-1 pb-1 text-[10px] leading-tight ${picked ? 'bg-amber-300 text-[#241a14]' : 'surf-2 t-3'}`}>
+                  {option.tagline}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="text-center">
@@ -1052,8 +1192,25 @@ function CaraACara({ who, name, onStart }: { who: Casero; name: string; onStart:
 
       <p className="rounded-xl border border-amber-300/60 bg-amber-300/10 p-3 text-[13px] font-semibold leading-snug t-1">
         👀 <span className="font-black">El truco:</span> antes de tirarse, Benji se carga hacia un lado. Míralo… y
-        tira al otro. Con {SUPER_FROM} goles se carga el ⚡ {SUPER_NAME.toLowerCase()}.
+        tira al otro.
       </p>
+
+      <div className="rounded-xl border hairline surf-1 p-3">
+        <p className="text-[13px] font-semibold leading-snug t-1">
+          ⚡ Empiezas con {ENERGY_START} de energía y cada gol te da otra. Gástala en los tiros de la serie:
+        </p>
+        <p className="mt-2 flex flex-wrap gap-1.5">
+          {SHOT_ORDER.filter((id) => id !== 'normal').map((id) => (
+            <span
+              key={id}
+              className="rounded-full border-2 border-[#241a14] px-2 py-0.5 text-[11px] font-black text-[#241a14]"
+              style={{ backgroundColor: SHOT_TYPES[id].color }}
+            >
+              {SHOT_TYPES[id].icon} {SHOT_TYPES[id].name}
+            </span>
+          ))}
+        </p>
+      </div>
 
       <button
         type="button"
@@ -1079,11 +1236,12 @@ function Final({
   name,
   onClose,
 }: {
-  who: Casero;
+  who: TiradorId;
   scored: number;
   name: string;
   onClose: () => void;
 }) {
+  const kit = tiradorDe(who).kit;
   const good = scored >= Math.ceil(PENALTY_SHOTS / 2);
   const saved = PENALTY_SHOTS - scored;
 
@@ -1091,7 +1249,7 @@ function Final({
     <div className="space-y-4 text-center">
       <div
         className="relative mx-auto aspect-[4/3] overflow-hidden rounded-2xl border-2 border-[#241a14]"
-        style={{ backgroundColor: good ? ROPA_FAMILIA[who] : '#1f2a37' }}
+        style={{ backgroundColor: good ? (kit === '#f8fafc' ? '#2563eb' : kit) : '#1f2a37' }}
       >
         <div
           aria-hidden
@@ -1151,6 +1309,84 @@ function Final({
       >
         Cerrar
       </button>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * El selector de tiros
+ *
+ * Los siete en fila, como el menú de técnicas de un videojuego de la serie:
+ * su icono, su nombre y lo que cuestan en rayos. Los que no se pueden tirar
+ * se ven igual —para saber que existen y qué falta— pero apagados y con el
+ * motivo: ya usado, o falta energía.
+ * ------------------------------------------------------------------------- */
+
+function SelectorTiros({
+  result,
+  kind,
+  onPick,
+  locked,
+}: {
+  result: PenaltyResult | null;
+  kind: ShotKind;
+  onPick: (kind: ShotKind) => void;
+  locked: boolean;
+}) {
+  const energy = energyLeft(result);
+
+  return (
+    <div className="rounded-2xl border-2 border-[#241a14] bg-[#101826] p-2 text-white">
+      <div className="mb-1.5 flex items-center justify-between px-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Elige tu tiro</span>
+        <span className="flex items-center gap-1 text-[11px] font-black" aria-label={`Energía: ${energy}`}>
+          <span className="text-white/70">Energía</span>
+          {Array.from({ length: Math.max(energy, 0) }, (_, i) => (
+            <span key={i} aria-hidden className="text-amber-300">
+              ⚡
+            </span>
+          ))}
+          {energy <= 0 && <span className="text-white/50">0</span>}
+        </span>
+      </div>
+
+      <div className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+        {SHOT_ORDER.map((id) => {
+          const shot = SHOT_TYPES[id];
+          const { ok, reason } = shotAvailability(id, result);
+          const picked = id === kind;
+
+          return (
+            <button
+              key={id}
+              type="button"
+              disabled={!ok || locked}
+              onClick={() => onPick(id)}
+              aria-pressed={picked}
+              aria-label={`${shot.name}${shot.cost ? `, cuesta ${shot.cost} de energía` : ''}${
+                reason === 'usado' ? ', ya usado' : reason === 'energia' ? ', falta energía' : ''
+              }`}
+              className={`relative flex w-[4.6rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl border-2 px-1 pb-1.5
+                pt-1 text-center transition-transform
+                ${picked ? 'scale-[1.04] border-white' : 'border-white/15'}
+                ${!ok ? 'opacity-40' : ''}`}
+              style={{ backgroundColor: picked ? shot.color : 'rgba(255,255,255,0.06)' }}
+            >
+              <span className="text-2xl leading-none" aria-hidden>
+                {shot.icon}
+              </span>
+              <span
+                className={`text-[10px] font-black leading-[1.1] ${picked ? 'text-[#241a14]' : 'text-white'}`}
+              >
+                {id === 'normal' ? 'Normal' : shot.name.replace(/^Tiro de(l)? /, '')}
+              </span>
+              <span className={`text-[10px] font-black leading-none ${picked ? 'text-[#241a14]' : 'text-amber-300'}`}>
+                {reason === 'usado' ? 'usado' : shot.cost ? '⚡'.repeat(shot.cost) : 'gratis'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
