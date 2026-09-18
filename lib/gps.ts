@@ -456,7 +456,7 @@ const isNumber = (token: Token): token is { number: number; seconds?: number } =
  */
 function tokenize(text: string): Token[] {
   const out: Token[] = [];
-  const pattern = /(\d{1,3})\s*['’]\s*(\d{1,2})\s*(?:["”]|'')?|(\d+(?:[.,]\d+)?)|([a-záéíóúñ/']+)/gi;
+  const pattern = /(\d{1,3})\s*['’]\s*(\d{1,2})\s*(?:["”'’]{1,2})?|(\d+(?:[.,]\d+)?)|([a-záéíóúñ/']+)/gi;
 
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
@@ -498,12 +498,97 @@ function wordsAt(tokens: Token[], index: number, back: boolean): string[] {
 /** De más larga a más corta: «alta intensidad» antes que «intensidad». */
 const longestFirst = (words: string[]) => [...words].sort((a, b) => b.length - a.length);
 
+/**
+ * ¿Se diferencian estas dos palabras en `max` letras o menos —cambiadas,
+ * sobrantes o de menos—?
+ *
+ * Es la distancia de edición de toda la vida, con dos recortes: se abandona
+ * en cuanto la diferencia de largos ya no cabe en el margen, y se lleva sólo
+ * la fila anterior de la tabla en vez de la tabla entera. Con palabras de
+ * catorce letras y ochenta rótulos, eso es la diferencia entre notarlo y no.
+ */
+function cerca(a: string, b: string, max: number): boolean {
+  if (Math.abs(a.length - b.length) > max) return false;
+
+  let previa = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    const fila = [i];
+    let mejor = i;
+
+    for (let j = 1; j <= b.length; j += 1) {
+      const coste = a[i - 1] === b[j - 1] ? 0 : 1;
+      const valor = Math.min(previa[j] + 1, fila[j - 1] + 1, previa[j - 1] + coste);
+      fila.push(valor);
+      if (valor < mejor) mejor = valor;
+    }
+
+    // Si toda la fila se ha pasado del margen, ya no hay vuelta atrás.
+    if (mejor > max) return false;
+    previa = fila;
+  }
+
+  return previa[b.length] <= max;
+}
+
+/**
+ * El rótulo del catálogo al que se parece una palabra leída con errata.
+ *
+ * Lo que sale de reconocer una imagen trae faltas —«Aoceleratlons»,
+ * «Distanoe», «Passea»— y un rótulo mal leído no es una cifra menos: es una
+ * cifra que se va a emparejar con el número de otra. Así que cuando no hay
+ * coincidencia exacta se admite **una sola letra de diferencia**.
+ *
+ * El margen crece con el largo: una letra en las palabras de seis en
+ * adelante y dos a partir de diez, porque los rótulos largos son justo los
+ * que más erratas acumulan —«Aoceleratlons»— y dos letras de catorce siguen
+ * señalando a una sola palabra.
+ *
+ * Y dos condiciones para no inventar: nada por debajo de seis letras, donde
+ * una errata sí convierte una palabra en otra, y **sólo si el parecido señala
+ * a una única cifra**. Ahí está la red: «accelerations» y «decelerations» se
+ * diferencian en dos letras, así que en cuanto una lectura se parezca a las
+ * dos, esto se calla y deja la cifra sin rótulo en vez de jugársela.
+ *
+ * Quien llama tiene además que probar **primero lo exacto y sólo después el
+ * parecido**, nunca al revés: «tiros potencia» está a una letra de «tiro
+ * potencia» —que es la potencia del tiro— y a ninguna de «tiros», que es lo
+ * que de verdad dice.
+ */
+function nearKey(word: string): GpsFieldId | undefined {
+  if (word.length < 6) return undefined;
+  const max = word.length >= 10 ? 2 : 1;
+
+  let found: GpsFieldId | undefined;
+
+  for (const [key, id] of KEY_OF) {
+    if (key.length < 6) continue;
+    if (!cerca(key, word, max)) continue;
+    if (found && found !== id) return undefined;
+    found = id;
+  }
+
+  return found;
+}
+
 /** La cifra que nombran esas palabras, o `undefined` si no nombran ninguna. */
 function fieldOfWords(words: string[], table: Map<string, GpsFieldId>): GpsFieldId | undefined {
   for (const word of longestFirst(words)) {
     const found = table.get(word);
     if (found) return found;
   }
+
+  // Nada exacto: se prueba con una errata, que es el pan de cada día de una
+  // captura. Sólo con los nombres, nunca con las unidades —«km» y «kn» se
+  // parecen demasiado para jugar a esto—, y sólo con la palabra pegada al
+  // número, que es la que `nearKey` admite.
+  if (table === KEY_OF) {
+    for (const word of words) {
+      const found = nearKey(word);
+      if (found) return found;
+    }
+  }
+
   return undefined;
 }
 
@@ -887,37 +972,55 @@ function withoutChrome(text: string): string {
 /**
  * Los rótulos que nombra un renglón, en el orden en que están escritos.
  *
- * Se recorre palabra a palabra probando tres, dos y una —de la más larga a
- * la más corta— y lo que se reconoce se consume: por eso «Max sprint» sale
- * como la punta de velocidad y no como «sprint», que contaría arranques, y
- * por eso «Time with ball» no se lleva por delante a «tiempo».
+ * Se recorre palabra a palabra probando tres palabras, dos y una —de la más
+ * larga a la más corta— y lo que se reconoce se consume: por eso «Max sprint»
+ * sale como la punta de velocidad y no como «sprint», que contaría arranques,
+ * y por eso «Time with ball» no se lleva por delante a «tiempo».
+ *
+ * Y se hacen **dos vueltas**: primero se reparte lo que coincide exactamente
+ * y sólo después, sobre lo que ha quedado libre, lo que se le parece con una
+ * errata. El orden importa y no es un detalle de implementación: en «Tiros
+ * Potencia de tiro», «tiros potencia» está a una letra del rótulo «tiro
+ * potencia», así que buscando el parecido primero se perdían las dos cifras
+ * de un renglón que estaba escrito sin una sola falta.
  */
 function labelsIn(tokens: Token[]): GpsFieldId[] {
-  const out: GpsFieldId[] = [];
+  /** Qué ficha se ha llevado ya un rótulo, para no contarla dos veces. */
+  const taken = new Array<boolean>(tokens.length).fill(false);
+  const found: { at: number; id: GpsFieldId }[] = [];
 
-  for (let i = 0; i < tokens.length; i += 1) {
-    const one = tokens[i];
-    if (isNumber(one)) continue;
+  const sweep = (exact: boolean) => {
+    for (let i = 0; i < tokens.length; i += 1) {
+      const one = tokens[i];
+      if (isNumber(one) || taken[i]) continue;
 
-    for (let size = 3; size >= 1; size -= 1) {
-      const words: string[] = [];
-      for (let k = 0; k < size; k += 1) {
-        const token = tokens[i + k];
-        if (!token || isNumber(token)) break;
-        words.push(token.word);
-      }
-      if (words.length < size) continue;
+      for (let size = 3; size >= 1; size -= 1) {
+        const words: string[] = [];
+        for (let k = 0; k < size; k += 1) {
+          const token = tokens[i + k];
+          if (!token || isNumber(token) || taken[i + k]) break;
+          words.push(token.word);
+        }
+        if (words.length < size) continue;
 
-      const found = KEY_OF.get(words.join(' '));
-      if (found) {
-        out.push(found);
+        const junto = words.join(' ');
+        const id = exact ? KEY_OF.get(junto) : nearKey(junto);
+        if (!id) continue;
+
+        found.push({ at: i, id });
+        for (let k = 0; k < size; k += 1) taken[i + k] = true;
         i += size - 1;
         break;
       }
     }
-  }
+  };
 
-  return out;
+  sweep(true);
+  sweep(false);
+
+  // En el orden en que están escritos, que es el que los empareja con sus
+  // números: las dos vueltas los han encontrado en otro.
+  return found.sort((a, b) => a.at - b.at).map((item) => item.id);
 }
 
 /**

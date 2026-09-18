@@ -892,10 +892,24 @@ tocar nada más.
 
 #### La imagen del cromo
 
-No hay foto de ninguno: son ciento y pico jugadores, buena parte son chavales de la
-cantera sin foto pública y ninguna de esas fotos es nuestra. Así que el cromo se
-**dibuja** en SVG, sin pedir nada a la red (`lib/cromoArt.ts` y
-`components/ui/CromoPortrait.tsx`):
+Los **103 jugadores conocidos** —LaLiga, la Premier y las leyendas— llevan su
+**foto de verdad**, en `public/photos/cromos/`. Salen todas de **Wikimedia
+Commons** y todas tienen licencia libre, con su autor apuntado en
+`public/photos/cromos/CREDITOS.md`, que es lo que esas licencias piden. No vale
+cualquier foto encontrada por ahí: este repositorio es público, así que lo que se
+guarda aquí tiene que poder republicarse, y las fotos de agencia —Getty, AP,
+LaLiga— no pueden. Van recortadas por arriba y no por el centro: son de medio
+cuerpo, y un recorte centrado en un hueco cuadrado deja la camiseta y corta la
+cara, que es lo único que se ve en un cromo de cuarenta píxeles.
+
+Los **treinta del Castilla siguen dibujados**, y no por pereza: son chavales del
+filial y no hay ninguna foto suya con licencia libre. Buscarlos por su nombre
+—que fue lo que se probó— devolvía a otros futbolistas que se llamaban parecido:
+a Ángel Carvajal le tocó la cara de Lamine Yamal y a Álvaro Lezcano el escudo de
+un club colombiano. Una cara inventada es mejor que la cara de otro.
+
+Y todo lo que no es un jugador conocido se **dibuja** en SVG, sin pedir nada a la
+red (`lib/cromoArt.ts` y `components/ui/CromoPortrait.tsx`):
 
 - La **camiseta** lleva los colores y el dibujo reales de su equipo —rayas del Atleti,
   mitades del Barça, mangas del Arsenal, banda del Villa—, sacados de la tabla `KITS`.
@@ -909,8 +923,10 @@ cantera sin foto pública y ninguna de esas fotos es nuestra. Así que el cromo 
   camiseta, y los **cuatro de la casa** llevan directamente su foto de perfil.
 - Los cromos que **no son nadie** —la mesa de la cena, las técnicas de la semana— siguen
   llevando su emoji: una cara inventada ahí no diría nada.
-- Si algún día hay foto de verdad, se deja en `public/photos/cromos/` y se apunta en el
-  campo `photo`: la foto manda y el dibujo se aparta.
+- Para añadir una foto a un cromo que no la tiene: se deja el archivo en
+  `public/photos/cromos/` con el mismo nombre que su `id` y se apunta en su campo
+  `photo`. La foto manda y el dibujo se aparta. Si la foto es de Commons, su autor
+  y su licencia van a `CREDITOS.md`.
 
 #### El álbum de música de María
 
@@ -1202,10 +1218,24 @@ con la que funciona el resto de la casa cuando no hay Supabase ni Google. La
 primera foto tarda un poco más —se descarga el lector, un par de megas que se
 quedan en la caché—; las siguientes, no.
 
-Antes de leerla, la imagen **se prepara**: se agranda, se pasa a grises, se
-invierte si el fondo es oscuro y se le estira el contraste. Sin esa pasada,
-Tesseract —que está pensado para papel escaneado— lee a medias una pantalla de
-móvil en modo oscuro.
+Antes de leerla, la imagen **se prepara**, y ahí está la mitad de la puntería:
+se agranda, se pasa a grises, se invierte si el fondo es oscuro y **cada punto
+se compara con su propio vecindario** para separar la letra del fondo. Ese
+último paso es el que arregla las pantallas del rastreador: su tarjeta de
+cifras es un degradado con un resplandor en una esquina, y con un solo umbral
+para toda la imagen quedaba media tarjeta lavada y la otra empastada. Medido
+con una captura de verdad, el antes y el después se ven en las unidades: sin
+esta pasada salía `5.5 m 238.` —la «k» perdida y la «m» comida—, y con ella
+sale `5.5 km 238 m`. La media del vecindario se calcula con una imagen
+integral, que es lo que hace que una ventana grande no cueste nada.
+
+También se le dice a Tesseract **qué está mirando**: un bloque de renglones y
+no una página con columnas que reordenar —si el orden de los renglones se
+rompe, los rótulos dejan de casar con sus números—, que los espacios entre
+palabras importan, y a cuántos puntos por pulgada está. Y si de la primera
+pasada salen menos de cuatro números, se prueba una segunda en modo de texto
+disperso y se queda la que más haya leído. Sólo cuando hace falta: en la
+captura normal no se llega a pedir.
 
 La captura **se lee renglón a renglón, no aplanada**, porque la pantalla del
 rastreador va en **dos columnas**: un renglón con dos rótulos —«Distance | High
@@ -1217,12 +1247,23 @@ siguiente de números lo reparte en el mismo orden; el que trae las dos cosas se
 resuelve por vecindad, como una línea escrita a mano. Y si la captura llega de un
 tirón, sin saltos, se aplana y se lee como antes.
 
-Dos cosas más que aprendió leyendo capturas de verdad. Los **rótulos de dos y
+Tres cosas más que aprendió leyendo capturas de verdad. Los **rótulos de dos y
 tres palabras** mandan sobre los de una: «max sprint» es la punta de velocidad y
 no una cuenta de esprines, y «time with ball» no se lleva por delante a «tiempo».
-Y las **duraciones** —«23'47"», «0'29"»— se leen enteras: van a minutos donde se
+Las **duraciones** —«23'47"», «0'29"»— se leen enteras: van a minutos donde se
 piden minutos y a segundos donde se piden segundos, en vez de dejar el 47 suelto
 por la línea buscando dueño.
+
+Y los rótulos se reconocen **con una errata encima**. Lo que sale de una imagen
+trae faltas —«Distanoe», «Aoceleratlons», «Passea»— y un rótulo mal leído no es
+una cifra de menos: es una cifra que se va a emparejar con el número de otra. Así
+que si no hay coincidencia exacta se admite una letra de diferencia, o dos en las
+palabras de diez en adelante. Con tres redes para que no invente: sólo palabras
+largas, **lo exacto se reparte siempre antes que lo parecido** —«tiros potencia»
+está a una letra del rótulo «tiro potencia», que es otra cifra— y sólo si el
+parecido señala a una única cifra. «Accelerations» y «decelerations» se
+diferencian en dos letras, así que en cuanto una lectura se parece a las dos, el
+lector se calla y deja esa cifra para corregirla a mano.
 
 Los metros, por último, **no se distinguen por la unidad sino por el tamaño**: el
 lector confunde «km» con «m» sin avisar, y en cambio nadie recorre cien

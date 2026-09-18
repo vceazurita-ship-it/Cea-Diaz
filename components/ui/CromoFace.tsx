@@ -13,9 +13,15 @@ import type { Face, Kit } from '@/lib/cromoArt';
  *  Los hombros llegan hasta +70. Un retrato de cromo entra justo en un lienzo
  *  de 100×120 poniendo el origen en (50, 50).
  *
- *  El estilo es el de Oliver y Benji y no el de un carné: ojos enormes con
- *  brillo, ceja gruesa, pelo de puntas y línea negra alrededor de todo. A
- *  tamaño de campograma —36 píxeles— lo único que sobrevive de una cara son
+ *  El estilo es el de Oliver y Benji y no el de un carné, y está copiado de
+ *  los fotogramas de la serie: **ojos enormes** con el párpado de arriba como
+ *  una barra negra que sale por el rabillo, iris grande con su brillo y una
+ *  raya fina de pestañas por debajo; **ceja recta y bajada** hacia la nariz,
+ *  que es lo que pone esa cara de determinación que tienen todos en el anime;
+ *  nariz y boca mínimas; **tinta gruesa** alrededor de todo; y la sombra en
+ *  una sola mancha plana de borde duro, nunca degradada.
+ *
+ *  A tamaño de campograma —36 píxeles— lo único que sobrevive de una cara son
  *  los ojos, así que son justo lo que más se ha agrandado.
  * ========================================================================= */
 
@@ -27,6 +33,13 @@ export const TINTA = '#241a14';
  * ----------------------------------------------------------------------- */
 
 /**
+ * La almendra del ojo: punta afilada por fuera, curva ancha por arriba y por
+ * abajo, y punta corta por dentro. Es la forma que tienen todos los ojos de
+ * la serie, y la que hace que se lea como un ojo y no como una canica.
+ */
+const ALMENDRA = 'M-6.6 -1.4 Q-3.4 -5.2 0.6 -4.6 Q4.6 -4 6.4 -1 Q4.4 4.4 0 4.6 Q-4.4 4.2 -6.6 -1.4 Z';
+
+/**
  * Un ojo. El `lado` vale 1 para el izquierdo y -1 para el derecho, que es el
  * mismo dibujo del revés: así los dos miran hacia fuera con la misma
  * inclinación, que es lo que le da la expresión.
@@ -34,55 +47,91 @@ export const TINTA = '#241a14';
 function Ojo({ x, lado, color }: { x: number; lado: 1 | -1; color: string }) {
   return (
     <g transform={`translate(${x} 3.5) scale(${lado} 1)`}>
-      {/* Blanco del ojo, inclinado hacia fuera. */}
-      <ellipse
-        rx="5.4"
-        ry="6.2"
-        transform="rotate(-9)"
-        fill="#fdfcfa"
-        stroke={TINTA}
-        strokeWidth="0.9"
-      />
-      {/* Iris, con el borde oscuro que lo separa del blanco, y pupila. */}
-      <circle cx="0.2" cy="0.9" r="3.7" fill={color} stroke="#000" strokeWidth="0.5" opacity="0.95" />
-      <circle cx="0.2" cy="0.9" r="1.55" fill="#191110" />
-      {/* Los dos brillos: el grande arriba y la mota de abajo. Sin ellos la
-          mirada se apaga y la cara se queda de maniquí. */}
-      <circle cx="-1.7" cy="-2.1" r="1.5" fill="#ffffff" />
-      <circle cx="2" cy="2.4" r="0.75" fill="#ffffff" opacity="0.8" />
-      {/* Párpado de arriba, bien grueso. */}
+      <defs>
+        <clipPath id={`ojo-${x}-${lado}`}>
+          <path d={ALMENDRA} />
+        </clipPath>
+      </defs>
+
+      {/* El ojo es una **almendra más ancha que alta**, no un círculo: con el
+          círculo la cara se leía como dos gafas de bucear. El vértice de
+          fuera es puntiagudo y el de dentro también, que es lo que le da la
+          inclinación de la serie. */}
+      <path d={ALMENDRA} fill="#fdfcfa" />
+
+      {/* Lo de dentro va recortado por la almendra, así que el iris puede
+          asomar por arriba sin salirse del ojo: ese contacto entre el iris y
+          el párpado es justo lo que no tiene una cara de dibujos mala. */}
+      <g clipPath={`url(#ojo-${x}-${lado})`}>
+        <circle cx="-0.3" cy="0.2" r="3.5" fill={color} />
+        <circle cx="-0.3" cy="0.2" r="1.5" fill="#191110" />
+        {/* Los dos brillos. Sin ellos la mirada se apaga y la cara se queda
+            de maniquí. */}
+        <circle cx="-1.9" cy="-1.6" r="1.35" fill="#ffffff" />
+        <circle cx="1.6" cy="1.9" r="0.7" fill="#ffffff" opacity="0.8" />
+        {/* Y la sombra que echa el párpado dentro del ojo. */}
+        <path d="M-7 -5 H7 V-2.2 Q0 -0.6 -7 -2.6 Z" fill="#000" opacity="0.18" />
+      </g>
+
+      {/* Párpado de arriba: una barra negra, casi recta, que **sale por el
+          rabillo**. Ese rabillo es la mitad de la expresión; recortado justo
+          en el borde del ojo, la cara se queda dormida. Va en la `x`
+          negativa, que es la de fuera: los dos ojos se dibujan igual y el de
+          la derecha va espejado. */}
       <path
-        d="M-5.4 -2 Q0 -8.4 5.4 -1.2"
+        d="M-8.2 -1.6 L-6.4 -3.2 Q-0.6 -6.2 6.1 -2.2"
         fill="none"
         stroke={TINTA}
-        strokeWidth="2.4"
+        strokeWidth="2.6"
         strokeLinecap="round"
+      />
+      {/* Y la raya fina de abajo, sólo en la mitad de fuera: cierra el ojo
+          sin convertirlo en un círculo pintado. */}
+      <path
+        d="M-1.8 4 Q-4.6 3.6 -6.2 1.6"
+        fill="none"
+        stroke={TINTA}
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        opacity="0.7"
       />
     </g>
   );
 }
 
-/** Ceja: una barra gruesa y angulada, del color del pelo pero más oscura. */
+/**
+ * Ceja: una barra gruesa, **recta y bajada hacia la nariz**.
+ *
+ * Es el rasgo que más cambia la cara de todos. Curvada y en alto salía una
+ * cara de sorpresa permanente; recta y cayendo hacia el centro sale la de la
+ * serie, que es la de alguien a punto de tirar a puerta. Va estrechándose
+ * hacia el rabillo porque una barra del mismo grosor de punta a punta parece
+ * pegada, no dibujada.
+ */
 function Ceja({ lado }: { lado: 1 | -1 }) {
   return (
     <path
-      d="M-15.5 -8 Q-9.5 -12.4 -3.6 -8.6"
+      d="M-15.4 -8.4 L-4.8 -5.4 L-4.6 -3.2 L-15.2 -5.8 Z"
       transform={`scale(${lado} 1)`}
-      fill="none"
-      stroke={TINTA}
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      opacity="0.9"
+      fill={TINTA}
+      opacity="0.92"
     />
   );
 }
 
-/** Nariz y boca. Mínimas a propósito: en el anime la cara la hacen los ojos. */
+/**
+ * Nariz y boca. Mínimas a propósito: en el anime la cara la hacen los ojos.
+ *
+ * La nariz es un ángulo y no una curva —dos trazos que se juntan—, y la boca
+ * una línea casi recta con las puntas caídas. La sonrisa ancha de antes
+ * peleaba con las cejas: no se puede tener cara de concentración y de estar
+ * saludando a la vez.
+ */
 function Gesto() {
   return (
     <g fill="none" stroke={TINTA} strokeLinecap="round">
-      <path d="M-2 13 Q0 15.2 2.4 12.6" strokeWidth="1.4" opacity="0.5" />
-      <path d="M-4.6 19.2 Q0 22.6 4.6 19.2" strokeWidth="1.7" opacity="0.85" />
+      <path d="M-1.6 11.6 L0.6 14.6 L2.8 13.4" strokeWidth="1.5" opacity="0.6" />
+      <path d="M-4.4 19.8 Q0 21.4 4.4 19.8" strokeWidth="1.8" opacity="0.9" />
     </g>
   );
 }
@@ -303,11 +352,12 @@ export function Cabeza({ face }: { face: Face }) {
       <path d="M-6.8 16 H6.8 V22 H-6.8 Z" fill="#000" opacity="0.16" />
 
       {/* Orejas. */}
-      <circle cx="-20" cy="4" r="4" fill={face.skin} stroke={TINTA} strokeWidth="0.9" />
-      <circle cx="20" cy="4" r="4" fill={face.skin} stroke={TINTA} strokeWidth="0.9" />
+      <circle cx="-20" cy="4" r="4" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+      <circle cx="20" cy="4" r="4" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
 
-      {/* Cráneo. */}
-      <path d={CRANEO} fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+      {/* Cráneo, con la línea gruesa del anime: el contorno es tan parte del
+          dibujo como el color que encierra. */}
+      <path d={CRANEO} fill={face.skin} stroke={TINTA} strokeWidth="1.5" />
       {/* Sombreado plano del borde de la izquierda, que es como se sombrea en
           el anime: una luna pegada al contorno. Ha de ir estrecha —cinco
           unidades— porque en cuanto se mete hacia el centro deja de leerse
@@ -316,15 +366,15 @@ export function Cabeza({ face }: { face: Face }) {
         d="M-4.5 -27 C-13.5 -27 -20.5 -20 -21 -8 C-21.4 1 -19 9 -15 15.5 C-11 21.5 -5.5 27.5 0 27.5
            C-4 24.5 -8 20 -10.6 14.8 C-14 8.6 -16.4 0.8 -16 -8 C-15.6 -16.6 -10.6 -22.6 -4.5 -22.6 Z"
         fill="#000"
-        opacity="0.09"
+        opacity="0.15"
       />
 
       <PeloDelante face={face} />
 
       <Ceja lado={1} />
       <Ceja lado={-1} />
-      <Ojo x={-8.6} lado={1} color={face.eyes} />
-      <Ojo x={8.6} lado={-1} color={face.eyes} />
+      <Ojo x={-9.2} lado={1} color={face.eyes} />
+      <Ojo x={9.2} lado={-1} color={face.eyes} />
 
       {/* Chapetas: la nota de color que hace que no parezca un maniquí. */}
       <ellipse cx="-12" cy="12" rx="3.8" ry="2.1" fill="#e0736a" opacity="0.2" />

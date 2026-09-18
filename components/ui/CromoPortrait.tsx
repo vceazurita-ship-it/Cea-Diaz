@@ -147,7 +147,11 @@ export function CromoPortrait({
       <img
         src={foto}
         alt={cromo.name}
-        className={`${marco} object-cover ${className}`}
+        // Encuadrada por arriba y no por el centro: las fotos de los
+        // jugadores son de medio cuerpo, así que un recorte centrado en un
+        // hueco cuadrado deja la camiseta y corta la cara, que es justo lo
+        // único que hay que ver en un cromo de cuarenta píxeles.
+        className={`${marco} object-cover object-[center_22%] ${className}`}
         loading="lazy"
       />
     );
