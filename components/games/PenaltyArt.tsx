@@ -22,6 +22,30 @@ import { ROPA_FAMILIA, caraDe, type Casero } from '@/lib/cromoArt';
 /** Un punto del muñeco. */
 type P = [number, number];
 
+/**
+ * El mismo color, un tono más oscuro.
+ *
+ * Hace falta para **la manga**. El brazo cae por delante del pecho, así que
+ * pintado del color exacto de la camiseta desaparecía dentro de ella y el
+ * muñeco parecía manco: sólo se le veían las manos flotando a los lados. Un
+ * tono por debajo y el brazo se lee, que además es como se sombrea una
+ * equipación en el anime: la manga siempre va un paso más oscura que el
+ * pecho.
+ */
+function sombra(hex: string): string {
+  const raw = hex.replace('#', '');
+  const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  const n = Number.parseInt(full, 16);
+  if (!Number.isFinite(n)) return hex;
+
+  const oscuro = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map((v) => Math.round(v * 0.74))
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('');
+
+  return '#' + oscuro;
+}
+
 /** Las articulaciones de una pose. El muñeco mira siempre hacia la portería. */
 interface Pose {
   /** Cuello: donde se apoya la cabeza. */
@@ -178,7 +202,7 @@ export function Chutador({
           que se lean como lo que están, más lejos. */}
       <g opacity="0.8">
         <Miembro points={body.farLeg} upper={face.skin} lower={MEDIAS} w={13} end={TINTA} boot />
-        <Miembro points={body.farArm} upper={kit} lower={face.skin} w={9.5} end={face.skin} />
+        <Miembro points={body.farArm} upper={sombra(kit)} lower={face.skin} w={9.5} end={face.skin} />
       </g>
 
       {/* Calzona: cubre la cadera y el arranque de los muslos. */}
@@ -206,6 +230,19 @@ export function Chutador({
         strokeLinejoin="round"
       />
 
+      {/* El cuello. Dos trazos y una camiseta deja de ser un jersey: en la
+          serie todas las equipaciones llevan su vivo, y a este tamaño es lo
+          que dice por dónde se asoma la cabeza. */}
+      <path
+        d={`M${body.shoulder[0] - 7} ${body.shoulder[1] - 2.5}
+            Q${body.shoulder[0]} ${body.shoulder[1] + 5} ${body.shoulder[0] + 7} ${body.shoulder[1] - 3.5}`}
+        fill="none"
+        stroke={TINTA}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+
       {/* El dorsal, que es lo que convierte una camiseta en una camiseta. */}
       <text
         x={body.shoulder[0]}
@@ -228,7 +265,7 @@ export function Chutador({
 
       {/* Y lo de delante, encima de todo. */}
       <Miembro points={body.nearLeg} upper={face.skin} lower={MEDIAS} w={14} end={TINTA} boot />
-      <Miembro points={body.nearArm} upper={kit} lower={face.skin} w={10} end={face.skin} />
+      <Miembro points={body.nearArm} upper={sombra(kit)} lower={face.skin} w={10} end={face.skin} />
     </svg>
   );
 }
