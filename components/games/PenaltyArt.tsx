@@ -191,7 +191,7 @@ function costado(a: P, b: P, wa: number, wb: number): string {
  * Mismo sistema que la del cromo: centro en el origen, de -27 a +28.
  * ----------------------------------------------------------------------- */
 
-export type PeloAnime = 'mata' | 'punta' | 'salvaje' | 'peinado' | 'rapado';
+export type PeloAnime = 'mata' | 'punta' | 'salvaje' | 'peinado' | 'rapado' | 'melena';
 
 /** Cada peinado: la masa de detrás de la cabeza y los mechones de delante. */
 const PELOS_ANIME: Record<PeloAnime, { back?: string; front: string }> = {
@@ -228,6 +228,15 @@ const PELOS_ANIME: Record<PeloAnime, { back?: string; front: string }> = {
     front:
       'M-20.5 -2 C-21 -18 -12 -28 2 -28 C14 -28 21 -19 20.5 -4 L16 -10 L13 -2 L9 -13 ' +
       'C4 -12 -6 -10 -12 -4 L-15 -10 L-17 0 Z',
+  },
+  // Melena lisa hasta los hombros: la de Ed Warner.
+  melena: {
+    back:
+      'M-24 26 C-30 4 -29 -22 -14 -31 C-4 -36 8 -36 16 -31 C29 -22 30 4 24 26 L19 20 L18 30 ' +
+      'L13 18 L-13 18 L-18 30 L-19 20 Z',
+    front:
+      'M-20.5 -2 C-21 -18 -12 -28 0 -28 C12 -28 21 -18 20.5 -2 L17 -6 L15 3 L11 -8 L7 1 ' +
+      'L3 -9 L-1 1 L-5 -9 L-9 1 L-13 -8 L-16 2 Z',
   },
   // Al cero: Bruce.
   rapado: {
@@ -464,6 +473,7 @@ function Brazo({
   bare,
   trim = '#fff',
   captain,
+  gloves,
 }: {
   points: [P, P, P];
   skin: string;
@@ -472,6 +482,7 @@ function Brazo({
   bare?: boolean;
   trim?: string;
   captain?: boolean;
+  gloves?: string;
 }) {
   const [shoulder, elbow, hand] = points;
 
@@ -479,7 +490,7 @@ function Brazo({
     <g strokeLinejoin="round">
       <path d={musculo(elbow, hand, 4, 4.5, 3.1)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
       <path d={musculo(shoulder, elbow, 4.8, 5.4, 4)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <circle cx={hand[0]} cy={hand[1]} r="4.4" fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <circle cx={hand[0]} cy={hand[1]} r={gloves ? 5.6 : 4.4} fill={gloves ?? skin} stroke={TINTA} strokeWidth="1.3" />
       <path
         d={musculo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.8, 5.6, 6.2)}
         fill={sombra(kit, 0.88)}
@@ -509,10 +520,10 @@ function Brazo({
 export type TiradorId = Casero | SerieId;
 
 /** Los de la serie que pueden tirar. */
-export type SerieId = 'oliver' | 'mark' | 'tom' | 'julian' | 'philip' | 'bruce' | 'derrick';
+export type SerieId = 'oliver' | 'mark' | 'tom' | 'julian' | 'philip' | 'bruce' | 'derrick' | 'ed' | 'kevin';
 
 /** En el orden en que salen en el cara a cara. */
-export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'julian', 'philip', 'bruce'];
+export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'julian', 'philip', 'bruce', 'ed', 'kevin'];
 
 export interface Tirador {
   /** Cómo se llama, para el narrador. Los de casa lo reciben de su perfil. */
@@ -541,6 +552,8 @@ export interface Tirador {
   trim?: string;
   /** El brazalete de capitán. */
   captain?: boolean;
+  /** Guantes de portero, del color que sean: Ed Warner tira con ellos puestos. */
+  gloves?: string;
 }
 
 /**
@@ -636,6 +649,38 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
     trim: '#1d4ed8',
     pelo: 'rapado',
     tagline: 'Para con la cara',
+  },
+  // Ken Wakashimazu, que aquí fue Ed Warner: el portero karateka del Toho,
+  // melena hasta los hombros y cinta, que también sabe tirar. Sale con los
+  // guantes puestos, que es lo que dice que es portero.
+  ed: {
+    name: 'Ed Warner',
+    face: faceOf('serie:ed', { skin: 2, hairColor: 'negro', hair: 'largo', beard: 'no', eyes: 'marrón' }),
+    kit: '#f97316',
+    shorts: '#18181b',
+    band: '#18181b',
+    socks: '#f97316',
+    number: '#18181b',
+    dorsal: '1',
+    trim: '#18181b',
+    pelo: 'melena',
+    headband: '#dc2626',
+    gloves: '#f4f4f2',
+    tagline: 'El portero karateka',
+  },
+  // Kevin Owen: no sale en las listas de nombres del doblaje que se han
+  // podido mirar, así que lleva un dibujo propio hasta que Víctor diga quién es.
+  kevin: {
+    name: 'Kevin Owen',
+    face: faceOf('serie:kevin', { skin: 1, hairColor: 'castaño claro', hair: 'corto', beard: 'no', eyes: 'verde' }),
+    kit: '#b91c1c',
+    shorts: '#f4f4f2',
+    band: '#f4f4f2',
+    socks: '#b91c1c',
+    number: '#fff',
+    dorsal: '9',
+    pelo: 'punta',
+    tagline: 'El goleador',
   },
 };
 
@@ -761,7 +806,7 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
     <g>
       {/* Lo de detrás, un punto apagado para que se lea más lejos. */}
       <g opacity="0.85">
-        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} />
+        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} gloves={player.gloves} />
         <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
       </g>
 
@@ -813,7 +858,15 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
 
       {/* Y lo de delante, encima de todo. */}
       <Pierna points={body.nearLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
-      <Brazo points={body.nearArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} captain={player.captain} />
+      <Brazo
+        points={body.nearArm}
+        skin={face.skin}
+        kit={kit}
+        bare={player.bare}
+        trim={player.trim}
+        captain={player.captain}
+        gloves={player.gloves}
+      />
     </g>
   );
 }

@@ -1161,7 +1161,8 @@ partido: los goles del que tira a un lado y los que ha salvado Benji al otro.
 con el 10, la camiseta blanca del Nankatsu y el brazalete de capitán; Steve
 Hyuga (el Mark Lenders de aquí), moreno y arremangado; los gemelos Derrick,
 que tiran los dos a la vez; Tom con el azul de la selección; Julian Ross;
-Philip Callaghan con su cinta; y Bruce Harper, rapado—, todos dibujados con
+Philip Callaghan con su cinta; Bruce Harper, rapado; Ed Warner, el portero
+karateka, con su melena, su cinta y los guantes puestos; y Kevin Owen—, todos dibujados con
 las mismas piezas para que convivan en el cuadro. La elección se recuerda en el aparato; el marcador
 sigue siendo del crío y la grada sigue cantando su nombre.
 
