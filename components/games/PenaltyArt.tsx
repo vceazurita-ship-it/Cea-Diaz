@@ -520,10 +520,10 @@ function Brazo({
 export type TiradorId = Casero | SerieId;
 
 /** Los de la serie que pueden tirar. */
-export type SerieId = 'oliver' | 'mark' | 'tom' | 'julian' | 'philip' | 'bruce' | 'derrick' | 'ed' | 'kevin';
+export type SerieId = 'oliver' | 'mark' | 'tom' | 'julian' | 'philip' | 'bruce' | 'derrick' | 'ed';
 
 /** En el orden en que salen en el cara a cara. */
-export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'julian', 'philip', 'bruce', 'ed', 'kevin'];
+export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'julian', 'philip', 'bruce', 'ed'];
 
 export interface Tirador {
   /** Cómo se llama, para el narrador. Los de casa lo reciben de su perfil. */
@@ -677,21 +677,6 @@ export const DE_LA_SERIE: Record<SerieId, Tirador> = {
     headband: '#dc2626',
     gloves: '#f4f4f2',
     tagline: 'El portero karateka',
-  },
-  // Kevin Owen: no sale en las listas de nombres del doblaje que se han
-  // podido mirar, así que lleva un dibujo propio hasta que Víctor diga quién es.
-  kevin: {
-    name: 'Kevin Owen',
-    short: 'Kevin',
-    face: faceOf('serie:kevin', { skin: 1, hairColor: 'castaño claro', hair: 'corto', beard: 'no', eyes: 'verde' }),
-    kit: '#b91c1c',
-    shorts: '#f4f4f2',
-    band: '#f4f4f2',
-    socks: '#b91c1c',
-    number: '#fff',
-    dorsal: '9',
-    pelo: 'punta',
-    tagline: 'El goleador',
   },
 };
 

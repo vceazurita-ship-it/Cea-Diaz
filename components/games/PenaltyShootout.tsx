@@ -1154,7 +1154,7 @@ function CaraACara({
         </p>
       </div>
 
-      {/* Quién tira: diez fichas pequeñas, todas a la vista. */}
+      {/* Quién tira: nueve fichas pequeñas, todas a la vista. */}
       <div>
         <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] t-3">¿Quién tira contra Benji?</p>
         <div className="grid grid-cols-5 gap-1.5">
