@@ -617,8 +617,8 @@ export interface GameResult {
  * ella, y `taken` permite retomar una tanda que se dejó a medias sin poder
  * volver a tirar los penaltis que ya se tiraron.
  */
-/** Los tiros de la tanda: el normal y los seis especiales. */
-export type ShotKind = 'normal' | 'halcon' | 'tigre' | 'fuego' | 'efecto' | 'canon' | 'parabola';
+/** Los tiros de la tanda: el normal y los siete especiales. */
+export type ShotKind = 'normal' | 'halcon' | 'tigre' | 'fuego' | 'efecto' | 'canon' | 'parabola' | 'catapulta';
 
 export interface PenaltyResult {
   /** Goles marcados. */

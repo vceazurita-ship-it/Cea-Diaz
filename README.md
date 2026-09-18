@@ -1127,6 +1127,7 @@ manera y casi todos piden medir la fuerza más fino que el normal.
 | 🌈 Parábola de Messi | ⚡ | Picadita con la franja **baja**: por el centro entra sola si Benji se tira a un lado, y se la come si se queda. |
 | 🔥 Tiro de Fuego | ⚡⚡ | Benji apenas lo ve, pero si te pasas se dispara el doble. |
 | 💣 Cañón de CR7 | ⚡⚡ | Sin girar y bailando: Benji no lo lee, y tú tampoco sabes del todo dónde acaba. |
+| 🚀 Catapulta Infernal | ⚡⚡ | La de los gemelos Derrick: sube al cielo y cae; arriba Benji no llega, abajo sí. |
 | 🐯 Tiro del Tigre | ⚡⚡⚡ | La potencia de Mark Lenders: casi imparable, con la franja estrecha y arriba. |
 
 Se pagan con **energía**: se empieza con dos y cada gol da otra, como las
@@ -1151,21 +1152,33 @@ a medias porque al soltar ya no había debajo lo que había al pulsar.
 El penalti lo lanza **el crío**, dibujado con las mismas piezas que su cromo
 (`components/games/PenaltyArt.tsx`): la misma cara, el color de su perfil y su
 dorsal —Leo moreno de ojos claros con el 10, Hugo rubio de tupé con el 7—. Y bajo
-los palos está **Benji**, con su gorra roja, la visera tapándole media ceja, el 1
+los palos está **Benji**, con su gorra negra, la visera tapándole media ceja, el 1
 en el pecho y los guantes por delante: el rival de la serie, que es lo que
 convierte cinco penaltis en un capítulo. El marcador lo cuenta así, como un
 partido: los goles del que tira a un lado y los que ha salvado Benji al otro.
 
 **Quién tira se elige** en el cara a cara: él mismo o uno de la serie —Oliver
-con su 10 y la camiseta blanca, Mark Lenders moreno, de negro y arremangado, o
-Tom con el azul de la selección—, todos dibujados con las mismas piezas para
-que convivan en el cuadro. La elección se recuerda en el aparato; el marcador
+con el 10, la camiseta blanca del Nankatsu y el brazalete de capitán; Steve
+Hyuga (el Mark Lenders de aquí), moreno y arremangado; los gemelos Derrick,
+que tiran los dos a la vez; Tom con el azul de la selección; Julian Ross;
+Philip Callaghan con su cinta; y Bruce Harper, rapado—, todos dibujados con
+las mismas piezas para que convivan en el cuadro. La elección se recuerda en el aparato; el marcador
 sigue siendo del crío y la grada sigue cantando su nombre.
 
+Las cabezas del penalti no son las de los cromos: están copiadas de las fotos
+que dejó Víctor (`ORDENAR URGENTE/fotos para hugo y leo`, fuera del repo) —el
+póster de «Campeones hacia el Mundial», la foto de equipo de Japón y el choque
+de Oliver y Hyuga—. Ojos grandes y redondos con el iris oscuro casi entero y
+dos brillos, cejas gruesas bajando hacia la nariz, la nariz en sombra, la boca
+abierta gritando al chutar y, sobre todo, **el pelo**: la mata de mechones en
+punta de Oliver, de punta para Hugo, salvaje para Hyuga, rapado para Bruce.
+Benji lleva la **gorra negra** y la equipación negra y amarilla de esas fotos.
+
 Los muñecos tienen las **proporciones de la serie**: cabeza pequeña, hombros
-anchos, cintura estrecha y piernas larguísimas, con manga corta de vivo blanco,
-la pernera de la calzona, la raya de la rodilla, la franja de las medias y la
-bota con su tira. Y chutan como en la serie: **la pierna armada** atrás hasta
+anchos, cintura estrecha y piernas larguísimas y **musculosas** —muslo y gemelo
+abultados, no tubos—, con manga corta y su vivo, la pernera de la calzona, la
+rodilla marcada, medias del color del equipo con su franja y la bota con su
+tira. Y chutan como en la serie: **la pierna armada** atrás hasta
 arriba con los brazos abiertos mientras corre la barra, y **el latigazo** con la
 pierna estirada hacia arriba y la estela blanca del barrido detrás.
 

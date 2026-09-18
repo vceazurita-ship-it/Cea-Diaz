@@ -11,6 +11,8 @@ import {
   Impacto,
   RedHinchada,
   DE_LA_SERIE,
+  SERIE_ORDER,
+  esDeLaSerie,
   Vineta,
   tiradorDe,
   type PoseBenjiId,
@@ -140,8 +142,11 @@ const MARCA: Record<PenaltyOutcome, string> = {
 };
 
 /** El timbre del narrador justo al chutar. */
-function grito(name: string, kind: ShotKind): string {
-  return kind === 'normal' ? `¡${name} chuta…!` : `¡${name} saca ${SHOT_TYPES[kind].article} ${SHOT_TYPES[kind].name}!`;
+function grito(name: string, kind: ShotKind, plural = false): string {
+  const [chuta, saca] = plural ? ['chutan', 'sacan'] : ['chuta', 'saca'];
+  return kind === 'normal'
+    ? `¡${name} ${chuta}…!`
+    : `¡${name} ${saca} ${SHOT_TYPES[kind].article} ${SHOT_TYPES[kind].name}!`;
 }
 
 /** El disparo ya hecho: adónde voló Benji, qué tiro fue y en qué acabó. */
@@ -173,7 +178,7 @@ export function PenaltyShootout({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(`penaltis:tirador:${profileId}`);
-      if (saved === 'oliver' || saved === 'mark' || saved === 'tom' || saved === who) setShooterState(saved);
+      if (saved && (esDeLaSerie(saved) || saved === who)) setShooterState(saved as TiradorId);
     } catch {
       // Sin almacenamiento, tira él.
     }
@@ -417,7 +422,7 @@ export function PenaltyShootout({
                 {fired.shot.why}
               </>
             ) : step === 'corte' || step === 'vuelo' ? (
-              <span className="italic">{grito(shooterName, fired?.kind ?? 'normal')}</span>
+              <span className="italic">{grito(shooterName, fired?.kind ?? 'normal', Boolean(tiradorDe(shooter).twin))}</span>
             ) : tell === 'centro' ? (
               <>
                 Benji se queda <span className="text-amber-300">en el centro</span>.{' '}
@@ -687,6 +692,15 @@ function trayecto(shot: PenaltyShot, kind: ShotKind): { points: { x: number; y: 
         { x: PUNTO.x + (end.x - PUNTO.x) * 0.3 + 5, y: PUNTO.y + (end.y - PUNTO.y) * 0.3, s: 0.8 },
         { x: PUNTO.x + (end.x - PUNTO.x) * 0.55 - 5, y: PUNTO.y + (end.y - PUNTO.y) * 0.55, s: 0.64 },
         { x: PUNTO.x + (end.x - PUNTO.x) * 0.8 + 4, y: PUNTO.y + (end.y - PUNTO.y) * 0.8, s: 0.5 },
+        { ...end, s: 0.42 },
+      ];
+      break;
+    case 'catapulta':
+      // Primero al cielo, fuera del cuadro, y luego en picado a la portería.
+      points = [
+        { ...PUNTO, s: 1 },
+        { x: PUNTO.x - 4, y: -14, s: 0.8 },
+        { x: end.x, y: Math.max(-10, end.y - 30), s: 0.55 },
         { ...end, s: 0.42 },
       ];
       break;
@@ -1102,7 +1116,7 @@ function CaraACara({
   const shooterName = shooter === who ? name : (tiradorDe(shooter).name ?? name);
   const options: { id: TiradorId; label: string; tagline: string }[] = [
     { id: who, label: name, tagline: 'Tú mismo' },
-    ...(['oliver', 'mark', 'tom'] as const).map((id) => ({
+    ...SERIE_ORDER.map((id) => ({
       id,
       label: DE_LA_SERIE[id].name ?? id,
       tagline: DE_LA_SERIE[id].tagline ?? '',

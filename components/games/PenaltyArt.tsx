@@ -12,7 +12,7 @@ import type { ShotKind } from '@/types';
  *  `CromoFace` para los cromos, así que aquí sólo hay que ponerles piernas.
  *
  *  Y bajo los palos está **Benji**, que es a quien hay que ganarle: gorra
- *  roja con la visera tapándole media ceja, guantes por delante y las piernas
+ *  negra con la visera tapándole media ceja, guantes por delante y las piernas
  *  abiertas en la línea. No es un portero cualquiera con otra cara: es el
  *  rival de la serie, y que el crío le tire a él es lo que convierte cinco
  *  penaltis en un capítulo.
@@ -175,44 +175,276 @@ function costado(a: P, b: P, wa: number, wb: number): string {
     .join(' ');
 }
 
+/* -------------------------------------------------------------------------
+ * La cabeza de la serie
+ *
+ * Copiada de los fotogramas que pasó Víctor —el póster de «Campeones hacia
+ * el Mundial», la foto de equipo de Japón y el choque de Oliver y Hyuga—, y
+ * no la del cromo, que es más de retrato: aquí los **ojos son grandes y
+ * redondos**, con el iris oscuro casi entero y dos brillos; las cejas, gruesas
+ * y bajando hacia la nariz; la nariz, una sombra en ángulo; la boca, una raya,
+ * o abierta de par en par cuando grita el tiro; y sobre todo **el pelo**, una
+ * mata de mechones en punta que cae sobre la frente y abulta más que la
+ * cabeza. Es lo que hace que un muñeco se lea como de Oliver y Benji a la
+ * primera.
+ *
+ * Mismo sistema que la del cromo: centro en el origen, de -27 a +28.
+ * ----------------------------------------------------------------------- */
+
+export type PeloAnime = 'mata' | 'punta' | 'salvaje' | 'peinado' | 'rapado';
+
+/** Cada peinado: la masa de detrás de la cabeza y los mechones de delante. */
+const PELOS_ANIME: Record<PeloAnime, { back?: string; front: string }> = {
+  // Oliver: la mata de mechones, con picos por arriba y por la frente.
+  mata: {
+    back:
+      'M-24 8 C-28 -8 -27 -24 -16 -32 L-15 -40 L-8 -34 L-2 -43 L4 -35 L11 -41 L12 -32 ' +
+      'C24 -27 29 -10 24 8 L20 0 L19 10 L15 -2 L-15 -2 L-19 10 L-20 0 Z',
+    front:
+      'M-20.5 -4 C-21 -18 -12 -28 0 -28 C12 -28 21 -18 20.5 -4 L17.5 -9 L16 1 L11.5 -10 L8 -1 ' +
+      'L4.5 -12 L0.5 -2 L-3.5 -12 L-7.5 -1 L-11 -11 L-15 0 L-17.5 -9 Z',
+  },
+  // De punta hacia arriba: el tupé de Hugo pasado por la serie.
+  punta: {
+    back:
+      'M-23 6 C-27 -10 -24 -26 -14 -32 L-18 -44 L-6 -36 L-2 -50 L6 -37 L16 -47 L14 -33 ' +
+      'C24 -27 28 -10 23 6 Z',
+    front:
+      'M-20.5 -4 C-21 -16 -15 -24 -6 -27 L-10 -38 L0 -29 L4 -41 L9 -29 L18 -37 L15 -24 ' +
+      'C19 -19 21 -12 20.5 -4 L16 -12 L12 -4 L8 -15 L2 -8 L-3 -16 L-8 -6 L-13 -14 L-17 -5 Z',
+  },
+  // Hyuga: salvaje, más largo por detrás, hasta el cuello.
+  salvaje: {
+    back:
+      'M-25 20 C-31 0 -30 -22 -17 -33 L-19 -43 L-9 -36 L-3 -46 L3 -37 L12 -45 L13 -33 ' +
+      'C27 -26 31 -4 25 20 L20 12 L21 24 L15 10 L-15 10 L-21 24 L-20 12 Z',
+    front:
+      'M-21 -3 C-21.5 -18 -12 -28.5 0 -28.5 C12 -28.5 21.5 -18 21 -3 L18 -6 L17.5 4 L13 -7 ' +
+      'L10 2 L6 -11 L2 -1 L-2 -12 L-6 0 L-10 -10 L-13 2 L-17 -7 L-19 3 Z',
+  },
+  // Peinado de lado, más suave: Tom, Julian.
+  peinado: {
+    back: 'M-23 8 C-27 -10 -24 -27 -10 -32 C0 -35 12 -34 19 -28 C27 -20 28 -6 23 8 L19 0 L-19 0 Z',
+    front:
+      'M-20.5 -2 C-21 -18 -12 -28 2 -28 C14 -28 21 -19 20.5 -4 L16 -10 L13 -2 L9 -13 ' +
+      'C4 -12 -6 -10 -12 -4 L-15 -10 L-17 0 Z',
+  },
+  // Al cero: Bruce.
+  rapado: {
+    front:
+      'M-19 -4 C-19.5 -18 -11 -26.5 0 -26.5 C11 -26.5 19.5 -18 19 -4 L15 -9 L10 -6 L5 -10 ' +
+      'L0 -7 L-5 -10 L-10 -6 L-15 -9 Z',
+  },
+};
+
+const CARA_ANIME =
+  'M0 -26 C11 -26 19.5 -19 19.5 -6 C19.5 5 17 13 12 20 C8 25.5 4 28 0 28 ' +
+  'C-4 28 -8 25.5 -12 20 C-17 13 -19.5 5 -19.5 -6 C-19.5 -19 -11 -26 0 -26 Z';
+
+/** El ojo grande de la serie: blanco, iris oscuro casi entero y dos brillos. */
+function OjoAnime({ x, lado, color, id }: { x: number; lado: 1 | -1; color: string; id: string }) {
+  const blanco = 'M-6 -1 Q-5 -5.2 0 -5.4 Q5 -5.2 6 -1.5 Q6 4.6 0 5.5 Q-6 4.8 -6 -1 Z';
+  return (
+    <g transform={`translate(${x} 4) scale(${lado} 1)`}>
+      <defs>
+        <clipPath id={id}>
+          <path d={blanco} />
+        </clipPath>
+      </defs>
+      <path d={blanco} fill="#fdfcfa" />
+      <g clipPath={`url(#${id})`}>
+        <ellipse cx="0.9" cy="0.6" rx="3.7" ry="4.6" fill={sombra(color, 0.7)} />
+        <ellipse cx="0.9" cy="1.2" rx="2.9" ry="3.4" fill={color} />
+        <ellipse cx="0.9" cy="0.8" rx="1.8" ry="2.5" fill="#111" />
+        <circle cx="-0.6" cy="-1.5" r="1.5" fill="#fff" />
+        <circle cx="2.3" cy="2.8" r="0.7" fill="#fff" opacity="0.85" />
+        <path d="M-7 -6 H7 V-2.5 Q0 -1 -7 -3 Z" fill="#000" opacity="0.2" />
+      </g>
+      {/* Párpado de arriba, grueso y con el rabillo hacia fuera. */}
+      <path
+        d="M-8.4 1.2 L-7 -0.2 Q-6 -5.8 0 -6 Q5 -5.8 7 -2.4"
+        fill="none"
+        stroke={TINTA}
+        strokeWidth="2.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M-4.6 4.4 Q0 6.6 4.8 4.4" fill="none" stroke={TINTA} strokeWidth="0.8" opacity="0.5" />
+    </g>
+  );
+}
+
 /**
- * Una pierna de futbolista de la serie: **muslo largo**, la pernera de la
- * calzona por encima, la raya de la rodilla, la media con su franja del color
- * del equipo y la bota con su tira. Son esos cuatro detalles —y lo larga que
- * es— los que separan una pierna de Oliver y Benji de un palote.
+ * La cabeza de la serie. `gorra` le pone la de Benji; `grito`, la boca
+ * abierta del que grita el nombre del tiro.
+ */
+export function CabezaAnime({
+  face,
+  pelo,
+  gorra,
+  grito,
+  cinta,
+}: {
+  face: Face;
+  pelo: PeloAnime;
+  gorra?: boolean;
+  grito?: boolean;
+  /** Color de la cinta del pelo, si la lleva. */
+  cinta?: string;
+}) {
+  const hair = PELOS_ANIME[pelo];
+  const uid = `${pelo}-${face.skin}-${face.eyes}-${gorra ? 'g' : ''}`.replace(/#/g, '');
+
+  return (
+    <g>
+      {/* Lo de detrás: la masa del pelo, que abulta más que la cabeza. */}
+      {hair.back && !gorra && (
+        <path d={hair.back} fill={face.hair} stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round" />
+      )}
+
+      {/* Cuello, ancho: son futbolistas. */}
+      <path d="M-8 13 H8 V36 H-8 Z" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+      <path d="M-8 13 H8 V21 Q0 26 -8 21 Z" fill="#000" opacity="0.18" />
+
+      {/* Orejas. */}
+      {[-1, 1].map((s) => (
+        <g key={s}>
+          <ellipse cx={19.3 * s} cy="3" rx="3.2" ry="5" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+          <path d={`M${18.6 * s} 0.5 Q${20.4 * s} 3 ${18.8 * s} 5.6`} fill="none" stroke={TINTA} strokeWidth="0.7" opacity="0.6" />
+        </g>
+      ))}
+
+      {/* La cara, con su sombra plana del lado izquierdo. */}
+      <path d={CARA_ANIME} fill={face.skin} stroke={TINTA} strokeWidth="1.6" />
+      <path
+        d="M-6 -26 C-14 -24 -19.5 -17 -19.5 -6 C-19.5 5 -17 13 -12 20 C-8 25.5 -4 28 0 28 C-5 23 -9.6 17 -12.6 10 C-15 4 -15.6 -4 -14.6 -12 Z"
+        fill="#000"
+        opacity="0.13"
+      />
+      {/* La sombra que echa el pelo en la frente. */}
+      <path d="M-17 -3 Q0 3 17 -3 L17 1 Q0 7 -17 1 Z" fill="#000" opacity="0.1" />
+
+      {/* Cejas gruesas, bajando hacia la nariz: la cara de ir a por todas. */}
+      {[1, -1].map((s) => (
+        <path key={s} d="M-14.2 -8.2 L-3 -4.6 L-3.4 -2.4 L-14 -5.8 Z" transform={`scale(${s} 1)`} fill={TINTA} />
+      ))}
+
+      <OjoAnime x={-8.2} lado={1} color={face.eyes} id={`oa-${uid}-i`} />
+      <OjoAnime x={8.2} lado={-1} color={face.eyes} id={`oa-${uid}-d`} />
+
+      {/* Nariz: una sombra en ángulo. */}
+      <path d="M1.2 8 L-1.6 12.8 L1.6 13" fill="none" stroke={TINTA} strokeWidth="1.1" strokeLinecap="round" opacity="0.55" />
+
+      {/* Boca: una raya, o abierta gritando. */}
+      {grito ? (
+        <g>
+          <path d="M-5 16.4 Q0 15.4 5 16.4 Q4.6 23.8 0 24.2 Q-4.6 23.8 -5 16.4 Z" fill="#5b1414" stroke={TINTA} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M-4.4 16.7 Q0 16 4.4 16.7 L4.1 18.2 Q0 17.6 -4.1 18.2 Z" fill="#fff" />
+          <ellipse cx="0" cy="22" rx="2.6" ry="1.3" fill="#e26d6d" />
+        </g>
+      ) : (
+        <path d="M-3.8 18.6 Q0 17.8 3.8 18.6" fill="none" stroke={TINTA} strokeWidth="1.4" strokeLinecap="round" />
+      )}
+
+      {/* El pelo de delante, con su brillo. Con gorra sólo asoman los
+          mechones de los lados. */}
+      {gorra ? (
+        <g fill={face.hair} stroke={TINTA} strokeWidth="1.1" strokeLinejoin="round">
+          <path d="M-20.5 -10 L-23 4 L-19.5 -1 L-18.5 6 L-15.5 -7 Z" />
+          <path d="M20.5 -10 L23 4 L19.5 -1 L18.5 6 L15.5 -7 Z" />
+        </g>
+      ) : (
+        <g>
+          <path d={hair.front} fill={face.hair} stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round" />
+          {pelo !== 'rapado' && (
+            <g fill="none" stroke="#fff" strokeLinecap="round" opacity="0.32">
+              <path d="M-11 -22 Q-4 -26 3 -24" strokeWidth="1.8" />
+              <path d="M6 -24 Q10 -23 13 -20" strokeWidth="1.2" />
+            </g>
+          )}
+        </g>
+      )}
+
+      {cinta && !gorra && (
+        <g stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round">
+          <path d="M-21 -14 Q0 -21 21 -14 L21 -8 Q0 -15 -21 -8 Z" fill={cinta} />
+          <path d="M-20 -12 L-30 -5 L-26 -1 L-19 -8 Z" fill={cinta} />
+          <path d="M-20 -11 L-28 1 L-23 3 L-19 -7 Z" fill={cinta} />
+        </g>
+      )}
+
+      {/* La gorra negra de Benji, la de las fotos: cúpula, visera de frente
+          que le tapa las cejas y el escudito amarillo. */}
+      {gorra && (
+        <g>
+          <path d="M-21.5 -9 C-22.5 -26 -11 -34 0 -34 C11 -34 22.5 -26 21.5 -9 Z" fill={GORRA} stroke={TINTA} strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M6 -30 Q13 -27 15.5 -19" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" opacity="0.35" />
+          <path d="M-3.4 -15 L0 -22 L3.4 -15 Z" fill={AMARILLO} />
+          <path d="M-23.5 -10.5 Q0 -17 23.5 -10.5 Q12.5 -3.2 0 -3.6 Q-12.5 -3.2 -23.5 -10.5 Z" fill="#0b0b0d" stroke={TINTA} strokeWidth="1.4" strokeLinejoin="round" />
+          <path d="M-18 -3 Q0 3 18 -3 L18 1 Q0 7 -18 1 Z" fill="#000" opacity="0.14" />
+        </g>
+      )}
+    </g>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Brazos y piernas de futbolista
+ * ----------------------------------------------------------------------- */
+
+/**
+ * Un músculo entre dos puntos: ancho en el arranque, abultado a un tercio y
+ * estrecho al final. Es lo que hace que un muslo parezca un muslo —en la
+ * serie las piernas son gordas y fibrosas— y no un tubo.
+ */
+function musculo(a: P, b: P, wa: number, wm: number, wb: number): string {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const m = entre(a, b, 0.4);
+  const at = (q: P, w: number) => `${(q[0] + nx * w).toFixed(1)} ${(q[1] + ny * w).toFixed(1)}`;
+
+  return `M${at(a, wa)} Q${at(m, wm * 1.35)} ${at(b, wb)} L${at(b, -wb)} Q${at(m, -wm * 1.35)} ${at(a, -wa)} Z`;
+}
+
+/**
+ * Una pierna de futbolista de la serie: **muslo gordo**, la pernera de la
+ * calzona por encima, la rodilla marcada, la media del color del equipo con
+ * su franja y la bota con su tira.
  */
 function Pierna({
   points,
   skin,
   band,
   shorts = CALZONA,
+  socks = MEDIAS,
 }: {
   points: [P, P, P];
   skin: string;
   band: string;
   shorts?: string;
+  socks?: string;
 }) {
   const [hip, knee, foot] = points;
   const calf = rumbo(knee, foot);
 
   return (
-    <g>
-      <Tramo from={hip} to={knee} color={skin} w={13} />
-      <Tramo from={knee} to={foot} color={MEDIAS} w={11.5} />
-      {/* La franja de la media, justo debajo de la rodilla. */}
-      <Tramo from={entre(knee, foot, 0.1)} to={entre(knee, foot, 0.17)} color={band} w={11.5} />
-      {/* La rodilla: una raya de tinta, que es como la marca el anime. */}
+    <g strokeLinejoin="round">
+      <path d={musculo(knee, foot, 5.4, 6.8, 3.6)} fill={socks} stroke={TINTA} strokeWidth="1.4" />
+      <path d={musculo(entre(knee, foot, 0.1), entre(knee, foot, 0.22), 6.2, 5.6, 6.6)} fill={band} stroke={TINTA} strokeWidth="1" />
+      <circle cx={knee[0]} cy={knee[1]} r="5" fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <path d={musculo(hip, knee, 8.4, 8.2, 5.4)} fill={skin} stroke={TINTA} strokeWidth="1.4" />
       <path
-        d="M-4 -1 Q0 3 4 -1"
+        d="M-3.5 -0.5 Q0 3 3.5 -0.5"
         transform={`translate(${knee[0]} ${knee[1]}) rotate(${calf - 90})`}
         fill="none"
         stroke={TINTA}
-        strokeWidth="1.2"
+        strokeWidth="1.1"
         opacity="0.7"
       />
-      {/* La pernera de la calzona, que tapa el arranque del muslo. */}
-      <Tramo from={hip} to={entre(hip, knee, 0.3)} color={shorts} w={16.5} />
-      {/* La bota, con su tira blanca. */}
+      <path d={musculo(hip, entre(hip, knee, 0.34), 9.6, 7.6, 9.4)} fill={shorts} stroke={TINTA} strokeWidth="1.4" />
       <g transform={`translate(${foot[0]} ${foot[1]}) rotate(${calf - 90})`}>
         <path d="M-6 -3 Q-7 5 -2 9 L9 9 Q12 6 9 3 L5 -3 Z" fill="#111" stroke={TINTA} strokeWidth="1.3" />
         <path d="M-3 3 L6 5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
@@ -222,36 +454,49 @@ function Pierna({
 }
 
 /**
- * Un brazo con **manga corta**: la manga de la camiseta, con su vivo blanco,
- * y el brazo al aire. Con la manga hasta la muñeca el muñeco parecía llevar
- * un jersey; en la serie todos juegan de manga corta.
+ * Un brazo con **manga corta** y su vivo, y el brazo al aire con su músculo.
+ * Con `captain`, el brazalete amarillo de capitán, el de Oliver.
  */
 function Brazo({
   points,
   skin,
   kit,
   bare,
+  trim = '#fff',
+  captain,
 }: {
   points: [P, P, P];
   skin: string;
   kit: string;
-  /** Arremangado hasta el hombro, como Mark Lenders. */
+  /** Arremangado hasta el hombro, como Hyuga. */
   bare?: boolean;
+  trim?: string;
+  captain?: boolean;
 }) {
   const [shoulder, elbow, hand] = points;
 
   return (
-    <g>
-      <Tramo from={shoulder} to={elbow} color={skin} w={8.5} />
-      <Tramo from={elbow} to={hand} color={skin} w={7.5} />
-      <circle cx={hand[0]} cy={hand[1]} r="4.8" fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <Tramo from={shoulder} to={entre(shoulder, elbow, bare ? 0.16 : 0.5)} color={sombra(kit, 0.86)} w={13} />
-      {!bare && <path
-        d={`M${entre(shoulder, elbow, 0.47).join(' ')} L${entre(shoulder, elbow, 0.5).join(' ')}`}
-        stroke="#fff"
-        strokeWidth="13"
-        opacity="0.9"
-      />}
+    <g strokeLinejoin="round">
+      <path d={musculo(elbow, hand, 4, 4.5, 3.1)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <path d={musculo(shoulder, elbow, 4.8, 5.4, 4)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <circle cx={hand[0]} cy={hand[1]} r="4.4" fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <path
+        d={musculo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.8, 5.6, 6.2)}
+        fill={sombra(kit, 0.88)}
+        stroke={TINTA}
+        strokeWidth="1.3"
+      />
+      {!bare && (
+        <path d={musculo(entre(shoulder, elbow, 0.44), entre(shoulder, elbow, 0.54), 6.3, 4.8, 6.2)} fill={trim} />
+      )}
+      {captain && (
+        <path
+          d={musculo(entre(shoulder, elbow, 0.6), entre(shoulder, elbow, 0.74), 5.6, 4.3, 5.4)}
+          fill={AMARILLO}
+          stroke={TINTA}
+          strokeWidth="1"
+        />
+      )}
     </g>
   );
 }
@@ -261,7 +506,13 @@ function Brazo({
  * ----------------------------------------------------------------------- */
 
 /** El que tira: uno de casa o uno de la serie. */
-export type TiradorId = Casero | 'oliver' | 'mark' | 'tom';
+export type TiradorId = Casero | SerieId;
+
+/** Los de la serie que pueden tirar. */
+export type SerieId = 'oliver' | 'mark' | 'tom' | 'julian' | 'philip' | 'bruce' | 'derrick';
+
+/** En el orden en que salen en el cara a cara. */
+export const SERIE_ORDER: SerieId[] = ['oliver', 'mark', 'derrick', 'tom', 'julian', 'philip', 'bruce'];
 
 export interface Tirador {
   /** Cómo se llama, para el narrador. Los de casa lo reciben de su perfil. */
@@ -278,6 +529,18 @@ export interface Tirador {
   bare?: boolean;
   /** Una línea para elegirlo. */
   tagline?: string;
+  /** La cinta del pelo, del color que sea: la de Philip Callaghan. */
+  headband?: string;
+  /** Son dos: los gemelos Derrick tiran juntos, y el segundo lleva este dorsal. */
+  twin?: string;
+  /** El peinado de la serie. */
+  pelo: PeloAnime;
+  /** El color de las medias. */
+  socks?: string;
+  /** El vivo de las mangas. */
+  trim?: string;
+  /** El brazalete de capitán. */
+  captain?: boolean;
 }
 
 /**
@@ -285,27 +548,35 @@ export interface Tirador {
  * convivan en el mismo cuadro: Oliver con su 10 y la camiseta blanca, Mark
  * Lenders moreno, de negro y arremangado, y Tom con el azul de la selección.
  */
-export const DE_LA_SERIE: Record<'oliver' | 'mark' | 'tom', Tirador> = {
+export const DE_LA_SERIE: Record<SerieId, Tirador> = {
   oliver: {
     name: 'Oliver',
     face: faceOf('serie:oliver', { skin: 1, hairColor: 'negro', hair: 'corto', beard: 'no', eyes: 'marrón' }),
     kit: '#f8fafc',
-    shorts: '#1d4ed8',
+    shorts: '#f8fafc',
     band: '#1d4ed8',
     number: '#1d4ed8',
     dorsal: '10',
+    trim: '#1d4ed8',
+    pelo: 'mata',
+    captain: true,
     tagline: 'El capitán',
   },
   mark: {
-    name: 'Mark Lenders',
+    // En España fue Mark Lenders y en Latinoamérica Steve Hyuga: el mismo
+    // Kojiro Hyuga del Tiro del Tigre. Se le llama por el nombre con el que
+    // lo pidió Víctor, y el otro va debajo.
+    name: 'Steve Hyuga',
     face: faceOf('serie:mark', { skin: 3, hairColor: 'negro', hair: 'rizado', beard: 'no', eyes: 'marrón' }),
-    kit: '#18181b',
+    kit: '#1e2a78',
     shorts: '#f4f4f2',
     band: '#f4f4f2',
-    number: '#fde047',
+    socks: '#1e2a78',
+    number: '#fff',
     dorsal: '10',
     bare: true,
-    tagline: 'El Tigre',
+    pelo: 'salvaje',
+    tagline: 'Mark Lenders · el Tigre',
   },
   tom: {
     name: 'Tom',
@@ -313,15 +584,69 @@ export const DE_LA_SERIE: Record<'oliver' | 'mark' | 'tom', Tirador> = {
     kit: '#1d4ed8',
     shorts: '#f4f4f2',
     band: '#f4f4f2',
+    socks: '#1d4ed8',
     number: '#fff',
     dorsal: '11',
+    pelo: 'peinado',
     tagline: 'El artista',
+  },
+  derrick: {
+    name: 'Los gemelos Derrick',
+    face: faceOf('serie:derrick', { skin: 2, hairColor: 'castaño', hair: 'corto', beard: 'no', eyes: 'marrón' }),
+    kit: '#facc15',
+    shorts: '#1f2937',
+    band: '#1f2937',
+    number: '#1f2937',
+    dorsal: '7',
+    twin: '8',
+    pelo: 'mata',
+    tagline: 'La catapulta infernal',
+  },
+  julian: {
+    name: 'Julian Ross',
+    face: faceOf('serie:julian', { skin: 1, hairColor: 'castaño claro', hair: 'tupé', beard: 'no', eyes: 'azul' }),
+    kit: '#38bdf8',
+    shorts: '#f4f4f2',
+    band: '#0c4a6e',
+    number: '#0c4a6e',
+    dorsal: '14',
+    pelo: 'peinado',
+    tagline: 'El príncipe del campo',
+  },
+  philip: {
+    name: 'Philip Callaghan',
+    face: faceOf('serie:philip', { skin: 2, hairColor: 'negro', hair: 'corto', beard: 'no', eyes: 'marrón' }),
+    kit: '#0f766e',
+    shorts: '#f4f4f2',
+    band: '#f4f4f2',
+    number: '#fff',
+    dorsal: '9',
+    headband: '#f4f4f2',
+    pelo: 'mata',
+    tagline: 'El del norte, con su cinta',
+  },
+  bruce: {
+    name: 'Bruce Harper',
+    face: faceOf('serie:bruce', { skin: 2, hairColor: 'negro', hair: 'rapado', beard: 'no', eyes: 'marrón' }),
+    kit: '#f8fafc',
+    shorts: '#1d4ed8',
+    band: '#1d4ed8',
+    number: '#1d4ed8',
+    dorsal: '4',
+    trim: '#1d4ed8',
+    pelo: 'rapado',
+    tagline: 'Para con la cara',
   },
 };
 
+/** Si ese identificador es de uno de la serie. */
+export function esDeLaSerie(id: string): id is SerieId {
+  return id in DE_LA_SERIE;
+}
+
 /** Cómo se dibuja a cada uno. */
 export function tiradorDe(id: TiradorId): Tirador {
-  if (id === 'oliver' || id === 'mark' || id === 'tom') return DE_LA_SERIE[id];
+  if (esDeLaSerie(id)) return DE_LA_SERIE[id];
   return {
     face: caraDe(id),
     kit: ROPA_FAMILIA[id],
@@ -329,7 +654,17 @@ export function tiradorDe(id: TiradorId): Tirador {
     band: ROPA_FAMILIA[id],
     number: '#fff',
     dorsal: id === 'leo' ? '10' : id === 'hugo' ? '7' : '1',
+    // Leo, moreno, con la mata de Oliver; Hugo, rubio, de punta.
+    pelo: id === 'hugo' ? 'punta' : 'mata',
   };
+}
+
+/**
+ * La cabeza de un tirador, en el sistema de la cabeza: la de su cromo más lo
+ * que le distingue —la cinta de Callaghan—.
+ */
+function CabezaDe({ player, grito }: { player: Tirador; grito?: boolean }) {
+  return <CabezaAnime face={player.face} pelo={player.pelo} cinta={player.headband} grito={grito} />;
 }
 
 /** Las articulaciones de una pose del que tira. Mira siempre hacia la portería. */
@@ -408,27 +743,11 @@ const POSES: Record<'espera' | 'carrera' | 'golpeo' | 'celebra', Pose> = {
 export type PoseChutador = keyof typeof POSES;
 
 /**
- * El que tira: uno de los dos peques, entero y a tamaño de protagonista.
- *
- * El lienzo es de 120×210 con los pies en la parte de abajo, así que se
- * coloca en la escena con un `translate` y se hace grande o pequeño con el
- * alto de la caja que lo contiene.
+ * El cuerpo entero de un tirador en una pose. Va aparte del `Chutador` para
+ * poder pintarlo dos veces: los gemelos Derrick salen juntos.
  */
-export function Chutador({
-  who,
-  pose,
-  className,
-  aura,
-}: {
-  who: TiradorId;
-  pose: PoseChutador;
-  className?: string;
-  /** El color del tiro especial: le rodea con su aura, como en la serie. */
-  aura?: string;
-}) {
-  const player = tiradorDe(who);
+function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; dorsal: string; grito?: boolean }) {
   const { face, kit } = player;
-  const body = POSES[pose];
 
   // El tronco va a lo largo de la columna: estrecho en la cintura y ancho de
   // hombros, la V del futbolista de la serie.
@@ -439,29 +758,11 @@ export function Chutador({
   const shortsBottom = entre(body.hip, body.shoulder, -0.2);
 
   return (
-    <svg viewBox="0 0 120 210" className={className} aria-hidden overflow="visible">
-      {/* El aura del especial: la silueta entera ardiendo de su color. */}
-      {aura && (
-        <g opacity="0.55" style={{ filter: `blur(3px)` }}>
-          <circle cx={body.shoulder[0]} cy={body.shoulder[1] + 20} r="46" fill={aura} />
-          <circle cx={body.head[0]} cy={body.head[1]} r="26" fill={aura} />
-        </g>
-      )}
-
-      {/* La estela del barrido de la pierna, en el latigazo: el arco blanco
-          que en la serie dice a qué velocidad ha pasado. */}
-      {pose === 'golpeo' && (
-        <g fill="none" strokeLinecap="round">
-          <path d="M14 128 Q38 200 118 74" stroke="#fff" strokeWidth="5" opacity="0.8" />
-          <path d="M22 136 Q44 190 110 80" stroke={aura ?? '#fff'} strokeWidth="2.5" opacity="0.9" />
-          <path d="M8 118 Q30 206 124 66" stroke="#fff" strokeWidth="1.5" opacity="0.6" />
-        </g>
-      )}
-
+    <g>
       {/* Lo de detrás, un punto apagado para que se lea más lejos. */}
       <g opacity="0.85">
-        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} />
-        <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} />
+        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} />
+        <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
       </g>
 
       {/* Calzona. */}
@@ -501,18 +802,72 @@ export function Chutador({
         strokeWidth="0.8"
         transform={`rotate(${spine} ${chest[0]} ${chest[1]})`}
       >
-        {player.dorsal}
+        {dorsal}
       </text>
 
       {/* La cabeza, la misma de su cromo, pequeña: en la serie los
           jugadores miden seis cabezas y media. */}
       <g transform={`translate(${body.head[0]} ${body.head[1]}) rotate(${body.tilt}) scale(0.62)`}>
-        <Cabeza face={face} />
+        <CabezaDe player={player} grito={grito} />
       </g>
 
       {/* Y lo de delante, encima de todo. */}
-      <Pierna points={body.nearLeg} skin={face.skin} band={player.band} shorts={player.shorts} />
-      <Brazo points={body.nearArm} skin={face.skin} kit={kit} bare={player.bare} />
+      <Pierna points={body.nearLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
+      <Brazo points={body.nearArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} captain={player.captain} />
+    </g>
+  );
+}
+
+/**
+ * El que tira: uno de los dos peques, entero y a tamaño de protagonista.
+ *
+ * El lienzo es de 120×210 con los pies en la parte de abajo, así que se
+ * coloca en la escena con un `translate` y se hace grande o pequeño con el
+ * alto de la caja que lo contiene.
+ */
+export function Chutador({
+  who,
+  pose,
+  className,
+  aura,
+}: {
+  who: TiradorId;
+  pose: PoseChutador;
+  className?: string;
+  /** El color del tiro especial: le rodea con su aura, como en la serie. */
+  aura?: string;
+}) {
+  const player = tiradorDe(who);
+  const body = POSES[pose];
+
+  return (
+    <svg viewBox="0 0 120 210" className={className} aria-hidden overflow="visible">
+      {/* El aura del especial: la silueta entera ardiendo de su color. */}
+      {aura && (
+        <g opacity="0.55" style={{ filter: `blur(3px)` }}>
+          <circle cx={body.shoulder[0]} cy={body.shoulder[1] + 20} r="46" fill={aura} />
+          <circle cx={body.head[0]} cy={body.head[1]} r="26" fill={aura} />
+        </g>
+      )}
+
+      {/* La estela del barrido de la pierna, en el latigazo: el arco blanco
+          que en la serie dice a qué velocidad ha pasado. */}
+      {pose === 'golpeo' && (
+        <g fill="none" strokeLinecap="round">
+          <path d="M14 128 Q38 200 118 74" stroke="#fff" strokeWidth="5" opacity="0.8" />
+          <path d="M22 136 Q44 190 110 80" stroke={aura ?? '#fff'} strokeWidth="2.5" opacity="0.9" />
+          <path d="M8 118 Q30 206 124 66" stroke="#fff" strokeWidth="1.5" opacity="0.6" />
+        </g>
+      )}
+
+      {/* Los gemelos tiran juntos, y el segundo va detrás, sincronizado: es la
+          gracia de los Derrick. */}
+      {player.twin && (
+        <g transform="translate(-30 -8) scale(0.9)" opacity="0.92">
+          <Cuerpo player={player} body={body} dorsal={player.twin} grito={pose === 'golpeo' || pose === 'celebra'} />
+        </g>
+      )}
+      <Cuerpo player={player} body={body} dorsal={player.dorsal} grito={pose === 'golpeo' || pose === 'celebra'} />
     </svg>
   );
 }
@@ -534,11 +889,17 @@ export const CARA_BENJI: Face = faceOf('benji', {
   eyes: 'marrón',
 });
 
-/** La gorra roja: lo primero que se ve de él, y lo que dice quién es. */
-export const GORRA = '#d62828';
+/**
+ * La gorra: negra, la de las fotos que pasó Víctor —la de «Campeones hacia
+ * el Mundial»—. Es lo primero que se ve de él, y lo que dice quién es.
+ */
+export const GORRA = '#17171b';
 
-/** La camiseta de portero: gris pizarra con el vivo rojo de la gorra. */
-const JERSEY_BENJI = '#4b5a6b';
+/** El amarillo de sus rayas, su escudo y sus guantes. */
+const AMARILLO = '#facc15';
+
+/** La camiseta de portero: negra, con las rayas amarillas de los hombros. */
+const JERSEY_BENJI = '#26272d';
 
 /**
  * La gorra, dibujada en el sistema de la cabeza —el centro en el origen—.
@@ -691,8 +1052,8 @@ export function Benji({ pose, className }: { pose: PoseBenjiId; className?: stri
   return (
     <svg viewBox="0 0 160 150" className={className} aria-hidden overflow="visible">
       {/* Piernas. */}
-      <Pierna points={body.legA} skin={face.skin} band={GORRA} />
-      <Pierna points={body.legB} skin={face.skin} band={GORRA} />
+      <Pierna points={body.legA} skin={face.skin} band={AMARILLO} shorts={GORRA} socks={GORRA} />
+      <Pierna points={body.legB} skin={face.skin} band={AMARILLO} shorts={GORRA} socks={GORRA} />
 
       {/* Calzona. */}
       <polygon
@@ -711,8 +1072,8 @@ export function Benji({ pose, className }: { pose: PoseBenjiId; className?: stri
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
-      {/* El vivo rojo de los hombros, que es el de la gorra. */}
-      <polygon points={losa(body.shoulder, [body.shoulder[0] - up[0] * 5, body.shoulder[1] - up[1] * 5], 17, 16.4)} fill={GORRA} stroke={TINTA} strokeWidth="1.2" />
+      {/* Las rayas amarillas de los hombros. */}
+      <polygon points={losa(body.shoulder, [body.shoulder[0] - up[0] * 5, body.shoulder[1] - up[1] * 5], 17, 16.4)} fill={AMARILLO} stroke={TINTA} strokeWidth="1.2" />
       <text
         x={chest[0]}
         y={chest[1] + 6}
@@ -728,14 +1089,17 @@ export function Benji({ pose, className }: { pose: PoseBenjiId; className?: stri
       </text>
 
       {/* Brazos, por delante del pecho: son lo que para. */}
-      <Miembro points={body.armA} upper={sombra(JERSEY_BENJI, 0.8)} lower={sombra(JERSEY_BENJI, 0.8)} w={9} end="#fde047" glove />
-      <Miembro points={body.armB} upper={sombra(JERSEY_BENJI, 0.8)} lower={sombra(JERSEY_BENJI, 0.8)} w={9} end="#fde047" glove />
+      {[body.armA, body.armB].map((arm, i) => (
+        <g key={i}>
+          <Miembro points={arm} upper={JERSEY_BENJI} lower={JERSEY_BENJI} w={9.5} end={AMARILLO} glove />
+          <path d={`M${arm[0].join(' ')} L${arm[1].join(' ')} L${entre(arm[1], arm[2], 0.8).join(' ')}`} fill="none" stroke={AMARILLO} strokeWidth="2" strokeLinejoin="round" />
+        </g>
+      ))}
 
       {/* La cabeza, con su gorra. */}
       <g transform={`translate(${body.head[0]} ${body.head[1]}) rotate(${headTurn}) scale(0.62)`}>
-        <path d="M-9 20 Q0 26 9 20 L9 30 Q0 34 -9 30 Z" fill="#dc2626" stroke={TINTA} strokeWidth="1.4" />
-        <Cabeza face={face} />
-        <Gorra />
+        <path d="M-9 20 Q0 26 9 20 L9 30 Q0 34 -9 30 Z" fill={JERSEY_BENJI} stroke={TINTA} strokeWidth="1.4" />
+        <CabezaAnime face={face} pelo="mata" gorra />
       </g>
     </svg>
   );
@@ -797,10 +1161,21 @@ export function Vineta({
         )}
 
         {/* La cara, grande y baja: se busca el gesto, no el peinado. */}
-        <g transform="translate(50 62) scale(1.5)">
-          <Cabeza face={face} />
-          {benji && <Gorra />}
-        </g>
+        {player?.twin ? (
+          // Los gemelos, las dos caras juntas.
+          <>
+            <g transform="translate(29 64) scale(1.05)">
+              <CabezaDe player={player} />
+            </g>
+            <g transform="translate(71 64) scale(1.05)">
+              <CabezaDe player={player} />
+            </g>
+          </>
+        ) : (
+          <g transform="translate(50 62) scale(1.5)">
+            {player ? <CabezaDe player={player} /> : <CabezaAnime face={face} pelo="mata" gorra />}
+          </g>
+        )}
       </g>
     </svg>
   );
@@ -1234,6 +1609,27 @@ export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal
             ))}
             <circle r="22" fill="#fff" />
           </g>
+        </g>
+      )}
+
+      {kind === 'catapulta' && (
+        <g>
+          <rect width="400" height="300" fill="#1e1b4b" />
+          <Rayos color="#c7d2fe" opacity={0.25} />
+          {/* Estrellas: los Derrick te lanzan hasta ellas. */}
+          {[
+            [60, 40], [130, 70], [340, 50], [300, 110], [90, 150], [370, 180],
+          ].map(([x, y]) => (
+            <path key={`${x}`} d={`M${x} ${y - 9} L${x + 3} ${y - 3} L${x + 9} ${y} L${x + 3} ${y + 3} L${x} ${y + 9} L${x - 3} ${y + 3} L${x - 9} ${y} L${x - 3} ${y - 3} Z`} fill="#fde047" />
+          ))}
+          {/* La estela hacia arriba y el balón en lo alto. */}
+          <g stroke="#e0e7ff" strokeLinecap="round" opacity="0.9">
+            {[250, 270, 290, 310, 330].map((x, i) => (
+              <path key={x} d={`M${x} 300 L${x + 6} ${60 + i * 8}`} strokeWidth={i === 2 ? 8 : 4} />
+            ))}
+          </g>
+          <circle cx="296" cy="46" r="26" fill="#fff" stroke="#1e1b4b" strokeWidth="4" />
+          <path d="M296 34 L307 42 L303 55 L289 55 L285 42 Z" fill="#1e1b4b" />
         </g>
       )}
 

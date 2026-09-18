@@ -355,6 +355,21 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
     blurb: 'Sin girar y bailando: Benji no lo lee… y tú tampoco sabes dónde acaba.',
     goal: 'ha bailado en el aire y le ha pasado por el lado',
   },
+  catapulta: {
+    id: 'catapulta',
+    name: 'Catapulta Infernal',
+    article: 'la',
+    shout: '¡CATAPULTA INFERNAL!',
+    icon: '🚀',
+    color: '#818cf8',
+    cost: 2,
+    band: [55, 90],
+    sweep: 1050,
+    reach: 12,
+    flight: 950,
+    blurb: 'La de los gemelos Derrick: sales volando y rematas desde el cielo. Arriba Benji no llega; abajo, sí.',
+    goal: 'ha caído del cielo por encima de sus guantes',
+  },
   tigre: {
     id: 'tigre',
     name: 'Tiro del Tigre',
@@ -373,7 +388,7 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
 };
 
 /** En el orden en que se enseñan: el normal y luego de más barato a más caro. */
-export const SHOT_ORDER: ShotKind[] = ['normal', 'halcon', 'efecto', 'parabola', 'fuego', 'canon', 'tigre'];
+export const SHOT_ORDER: ShotKind[] = ['normal', 'halcon', 'efecto', 'parabola', 'fuego', 'canon', 'catapulta', 'tigre'];
 
 /** Energía con la que se empieza la tanda. */
 export const ENERGY_START = 2;
@@ -472,8 +487,10 @@ function landingOf(
   const drift = overshoot(power, SHOT_TYPES[kind].band);
   const away = seed % 2 === 0 ? 1 : -1;
 
-  const up = kind === 'halcon' ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
-  const open = kind === 'halcon' ? 14 : kind === 'fuego' ? 36 : 26;
+  // Los dos que bajan del cielo —el Halcón y la Catapulta— no se suben.
+  const fromAbove = kind === 'halcon' || kind === 'catapulta';
+  const up = fromAbove ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
+  const open = fromAbove ? 14 : kind === 'fuego' ? 36 : 26;
 
   const at = {
     x: aim.x + drift * open * away,
@@ -569,7 +586,9 @@ export function resolveShot(
     };
   }
 
-  const covered = soft ? ALCANCE_BLANDO : type.reach;
+  // La Catapulta cae desde arriba: a lo alto Benji no llega, pero lo que
+  // cae abajo lo tiene a mano.
+  const covered = soft ? ALCANCE_BLANDO : kind === 'catapulta' && at.y > 45 ? 32 : type.reach;
   const gap = reach(at, keeper);
 
   if (gap < covered) {
