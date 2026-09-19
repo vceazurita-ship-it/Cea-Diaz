@@ -257,8 +257,16 @@ export async function recentSessions(access: string): Promise<FootbarSession[]> 
   return [...results].sort((a, b) => time(b) - time(a));
 }
 
-export function sessionDetail(access: string, id: number): Promise<FootbarSession> {
-  return api<FootbarSession>(`/v1/session/detail/?id=${id}`, access);
+/**
+ * El detalle de una sesión. La documentación lo pinta suelto, pero llega
+ * envuelto en una página de un solo elemento —`{count, results: [sesión]}`—:
+ * se desenvuelve aquí, y si algún día llega suelto también vale.
+ */
+export async function sessionDetail(access: string, id: number): Promise<FootbarSession> {
+  const data = await api<FootbarSession | Page>(`/v1/session/detail/?id=${id}`, access);
+  const inner = 'results' in data && Array.isArray(data.results) ? data.results[0] : (data as FootbarSession);
+  if (!inner) throw new FootbarError(`Footbar no encuentra la sesión ${id}.`, 404);
+  return inner;
 }
 
 /* ---------------------------------------------------------------------------
@@ -302,12 +310,15 @@ export function toGps(detail: FootbarSession, profileId: ProfileId, now: string)
     updatedAt: now,
   };
 
+  // Los minutos son los de juego efectivo, no el rato con el rastreador
+  // encendido: un partido de sábado lo tiene puesto casi cinco horas y juega
+  // una. Sólo si falta el efectivo se tira de la duración.
   const start = Date.parse(detail.start_date);
   const stop = Date.parse(detail.stop_date ?? '');
-  if (Number.isFinite(start) && Number.isFinite(stop) && stop > start) {
-    session.minutes = Math.round((stop - start) / 60000);
-  } else if (num(detail.playing_time)) {
+  if (num(detail.playing_time)) {
     session.minutes = Math.round(detail.playing_time / 60);
+  } else if (Number.isFinite(start) && Number.isFinite(stop) && stop > start) {
+    session.minutes = Math.round((stop - start) / 60000);
   }
 
   if (num(detail.distance)) session.distance = round(detail.distance / 1000, 2);
