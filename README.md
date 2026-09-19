@@ -1314,6 +1314,24 @@ en Vercel `FOOTBAR_CLIENT_ID`, `FOOTBAR_CLIENT_SECRET` y
 `SUPABASE_SERVICE_ROLE_KEY` (y, si se quiere, `CRON_SECRET`); sin ellas la
 sección lo dice y todo lo de abajo sigue funcionando igual.
 
+### El informe
+
+Debajo de la tendencia, cada peque tiene su **📊 Informe**, que se calcula en el
+aparato con sus sesiones y se rehace solo cada vez que entra una: la última
+sesión frente a todas las suyas («mejor que el 80 % de sus sesiones»), los
+últimos 7 días frente a una semana normal, las medianas por puesto —portero en
+partido, partido de campo y entreno, porque los estudios de partido ni cuentan a
+los porteros— y el mes a mes. Y **dónde queda frente a niños de su edad**, en
+percentiles estimados y en rango, contra estudios de población general (IDEFICS),
+de club (fútbol 8 benjamín en Murcia, 7 contra 7 sub-10, potencia de tiro sub-9
+y sub-11) y de élite (finalistas nacionales juveniles de atletismo), con las
+cautelas, lo que dicen los expertos y las fuentes plegados al final.
+
+En el código sólo están las cifras publicadas de esos estudios
+(`lib/gpsReferences.ts`); las de los niños no salen nunca del aparato y de su
+cuenta. Una sesión es de portero si llega así de Footbar o si su línea dice
+«portero».
+
 ### Cómo entra una sesión a mano
 
 Tres caminos, y el primero es el que hace que las sesiones no se queden sin apuntar.

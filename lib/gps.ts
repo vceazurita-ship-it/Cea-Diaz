@@ -877,6 +877,8 @@ export function parsePaste(
       note: note || undefined,
       updatedAt: now,
     };
+    // «portero» en la línea: ese día jugó bajo palos.
+    if (/\bportero\b/i.test(body)) session.goalkeeper = true;
 
     // La fecha sale de la línea antes de repartir nada: si no, el nueve de
     // «9/9» se quedaría con la primera cifra que tuviera al lado.
@@ -1142,6 +1144,7 @@ export function readScreen(
  */
 export function sessionAsLine(session: GpsSession): string {
   const bits: string[] = [session.date, KIND_META[session.kind].label.toLowerCase()];
+  if (session.goalkeeper) bits.push('portero');
 
   for (const field of GPS_FIELDS) {
     const value = valueOf(session, field.id);
@@ -1207,6 +1210,7 @@ function normalizeSession(value: unknown): GpsSession | null {
   if (raw.footbarId !== undefined && Number.isInteger(footbarId) && footbarId > 0) {
     session.footbarId = footbarId;
   }
+  if (raw.goalkeeper === true) session.goalkeeper = true;
 
   for (const field of GPS_FIELDS) {
     const old = RENAMED[field.id];

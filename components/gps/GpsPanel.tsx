@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { GpsEntry } from '@/components/gps/GpsEntry';
+import { GpsReport } from '@/components/gps/GpsReport';
 import { GpsTrend } from '@/components/gps/GpsTrend';
 import { useToast } from '@/components/ui/Toast';
 import { useGpsSessions } from '@/hooks/useGps';
@@ -276,6 +277,10 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
           )}
 
           <GpsTrend sessions={shown} kid={kid} />
+
+          {/* El informe va con todas sus sesiones, no con el filtro: separa él
+              los puestos, y la comparación con los estudios necesita todo. */}
+          <GpsReport profile={profile} sessions={sessions} kid={kid} />
 
           {notes.length > 0 && (
             <section className={`${kid ? 'card-kid' : 'card'} p-4`}>

@@ -1447,6 +1447,12 @@ export interface GpsSession {
    * adoptar la que ya estaba metida a mano ese día en vez de duplicarla.
    */
   footbarId?: number;
+  /**
+   * Jugó de portero. Cambia todo lo que es correr —los estudios de partido
+   * ni siquiera cuentan a los porteros—, así que el informe lo separa.
+   * Llega de Footbar (posición «gk») o de la palabra «portero» en la línea.
+   */
+  goalkeeper?: boolean;
   updatedAt: string;
 }
 

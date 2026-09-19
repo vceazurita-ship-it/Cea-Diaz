@@ -204,6 +204,7 @@ export interface FootbarSession {
   playing_time?: number | null;
   title?: string | null;
   match_type?: '11' | 'ss' | 'tr' | 'ru' | null;
+  position?: string | null;
   distance?: number | null;
   pass_count?: number | null;
   shot_count?: number | null;
@@ -328,6 +329,7 @@ export function toGps(detail: FootbarSession, profileId: ProfileId, now: string)
   if (num(detail.shot_speed) && detail.shot_speed > 0) session.shotPower = round(detail.shot_speed * 3.6, 1);
   if (num(detail.pass_count)) session.passes = detail.pass_count;
   if (num(detail.time_with_ball)) session.ballTime = Math.round(detail.time_with_ball);
+  if (detail.position === 'gk') session.goalkeeper = true;
 
   return session;
 }
@@ -344,6 +346,7 @@ const FROM_FOOTBAR = [
   'shotPower',
   'passes',
   'ballTime',
+  'goalkeeper',
 ] as const;
 
 /**
