@@ -478,6 +478,25 @@ function overshoot(power: number, band: [number, number]): number {
 }
 
 /**
+ * Lo que se sabe del desvío **antes** de soltar: cuánto se ha pasado, cuánto
+ * se va a subir y cuánto se puede abrir. El lado hacia el que se abre no: ése
+ * lo decide la semilla del tiro. Es lo que dibuja la mira mientras se carga
+ * la fuerza —el cerco que sube y se agranda—, con los mismos números con los
+ * que luego se resuelve el tiro.
+ */
+export function overshootPreview(
+  kind: ShotKind,
+  power: number,
+): { drift: number; up: number; open: number } {
+  const drift = overshoot(power, SHOT_TYPES[kind].band);
+  // Los dos que bajan del cielo —el Halcón y la Catapulta— no se suben.
+  const fromAbove = kind === 'halcon' || kind === 'catapulta';
+  const up = fromAbove ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
+  const open = fromAbove ? 14 : kind === 'fuego' ? 36 : 26;
+  return { drift, up, open };
+}
+
+/**
  * Adónde va de verdad el balón.
  *
  * Con la fuerza justa, adonde se apuntó. Pasándose, **se sube y se abre**: es
@@ -496,13 +515,8 @@ function landingOf(
   seed: number,
   kind: ShotKind,
 ): { at: PenaltyAim; drift: number } {
-  const drift = overshoot(power, SHOT_TYPES[kind].band);
+  const { drift, up, open } = overshootPreview(kind, power);
   const away = seed % 2 === 0 ? 1 : -1;
-
-  // Los dos que bajan del cielo —el Halcón y la Catapulta— no se suben.
-  const fromAbove = kind === 'halcon' || kind === 'catapulta';
-  const up = fromAbove ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
-  const open = fromAbove ? 14 : kind === 'fuego' ? 36 : 26;
 
   const at = {
     x: aim.x + drift * open * away,

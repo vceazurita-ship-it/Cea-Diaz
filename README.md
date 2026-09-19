@@ -1111,13 +1111,30 @@ las tres del penalti de verdad:
    de puntería que había debajo se han quitado: repetían lo que ya hace el dedo
    sobre la portería y eran seis cosas más que leer antes de tirar. Cuanto más
    lejos del portero caiga el balón, mejor; pegarse al palo o al larguero se paga.
-3. **Medir la fuerza.** Se mantiene pulsado y se suelta. La barra está dentro
-   del campo, de pie junto al que tira, y **el botón dice cuándo soltar**: gris
+3. **Medir la fuerza.** Se mantiene pulsado —o la barra espaciadora, en el
+   ordenador— y se suelta. La barra de potencia está abajo en el campo, como en
+   la consola, con la franja buena marcada, y **el botón dice cuándo soltar**: gris
    con «más fuerza…», verde y latiendo con «¡suelta ahora!», rojo con «¡te
    pasas!». Pasarse hace que el
    balón **se suba y se abra** —cuanto más pasado, más—, así que el mismo tiro a
-   la escuadra entra bien medido y se va a las nubes reventado. Quedarse corto le
-   da tiempo al portero a llegar a casi media portería.
+   la escuadra entra bien medido y se va a las nubes reventado. Mientras se carga,
+   la mira lo enseña: se tiñe de verde, ámbar o rojo, y al pasarse sale **un
+   cerco rojo que sube y se agranda** con los mismos números con los que luego se
+   resuelve el tiro (`overshootPreview` en `lib/penalties.ts`); hacia qué lado se
+   abre no se ve, que eso lo decide la semilla. Quedarse corto le da tiempo al
+   portero a llegar a casi media portería.
+
+Todo se presenta **como un partido en la tele**: el marcador de la esquina con
+las siglas y el escudo de cada uno, el resultado y la tanda en círculos —los
+goles del que tira arriba y las paradas de Benji abajo—; el estadio de noche,
+con los focos, los flashes de la grada y la luz sobre el césped; el narrador en
+la cinta de «directo»; el rótulo del resultado entrando de lado con su brillo y
+quién lo ha hecho debajo; y **⟲ Repetición**, que vuelve a pasar el penalti a
+cámara lenta con las bandas de cine. Antes de empezar se elige quién tira en
+**cartas con su media, su puesto y tres cifras de tiro** —de adorno: no cambian
+el tiro—, las de la serie en dorado y la del crío en la carta especial; y al
+acabar sale el **resumen**: el resultado, la tanda tiro a tiro, los especiales
+usados y la nota.
 
 Las reglas se aplican en ese orden —fuera, palo, parada, gol— y cada tiro se
 explica al acabar, como las preguntas.

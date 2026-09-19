@@ -89,6 +89,23 @@ const config: Config = {
           '0%, 100%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(1.03)' },
         },
+        // El brillo que barre un rótulo o un botón de lado a lado.
+        barrido: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(450%)' },
+        },
+        // Los flashes de la grada en un partido de noche.
+        titila: {
+          '0%, 100%': { opacity: '0' },
+          '8%': { opacity: '0.95' },
+          '16%': { opacity: '0' },
+        },
+        // El rótulo de la tele: entra de lado, torcido, y se endereza.
+        rotulo: {
+          '0%': { opacity: '0', transform: 'translateX(-60%) skewX(-18deg)' },
+          '60%': { opacity: '1', transform: 'translateX(4%) skewX(-6deg)' },
+          '100%': { opacity: '1', transform: 'translateX(0) skewX(0deg)' },
+        },
       },
       animation: {
         pop: 'pop 320ms ease-out',
@@ -104,6 +121,9 @@ const config: Config = {
         entra: 'entra 420ms cubic-bezier(0.2, 1.2, 0.4, 1) both',
         'entra-dcha': 'entra-dcha 420ms cubic-bezier(0.2, 1.2, 0.4, 1) both',
         latido: 'latido 420ms ease-in-out infinite',
+        barrido: 'barrido 2.2s ease-in-out infinite',
+        titila: 'titila 3.4s ease-out infinite',
+        rotulo: 'rotulo 420ms cubic-bezier(0.2, 1.1, 0.4, 1) both',
       },
     },
   },
