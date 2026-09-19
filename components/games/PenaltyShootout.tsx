@@ -10,7 +10,6 @@ import {
   FondoTiro,
   Impacto,
   RedHinchada,
-  DE_LA_SERIE,
   SERIE_ORDER,
   esDeLaSerie,
   Vineta,
@@ -26,6 +25,7 @@ import {
   energyLeft,
   keeperTell,
   keeperZone,
+  overshootPreview,
   penaltyVerdict,
   powerBand,
   resolveShot,
@@ -43,37 +43,30 @@ import type { DateKey, PenaltyResult, ProfileId, ShotKind } from '@/types';
  *  Tirar los cinco penaltis contra Benji.
  *
  *  Un penalti son tres gestos y los tres pasan **dentro de la escena**:
- *  tocar la portería para **colocar** la mira, **mantener pulsado** para
- *  cargar la fuerza —la barra está en el propio campo, al lado del que
- *  tira— y **soltar** para chutar. El botón de chutar dice en cada momento
- *  lo que toca: «más fuerza», «¡suelta ahora!» o «¡te pasas!», con su color.
- *  A los ocho años nadie lee una leyenda debajo de una barra; un botón que
- *  se pone verde cuando hay que soltar, sí.
+ *  tocar o arrastrar sobre la portería para **colocar** la mira, **mantener
+ *  pulsado** para cargar la fuerza y **soltar** para chutar. En el ordenador,
+ *  las flechas mueven la mira y la barra espaciadora es el botón: se mantiene
+ *  y se suelta. El botón de chutar dice en cada momento lo que toca —«más
+ *  fuerza», «¡suelta ahora!» o «¡te pasas!»— con su color.
+ *
+ *  Se presenta como un partido en la tele: el marcador en la esquina con la
+ *  tanda de los dos —los goles del que tira y las paradas de Benji—, el
+ *  estadio de noche con los focos, la barra de potencia con su franja buena,
+ *  la mira que se agranda y sube cuando uno se pasa de fuerza —con los mismos
+ *  números con los que luego se resuelve el tiro—, el rótulo del resultado y
+ *  la repetición a cámara lenta. El dibujo sigue siendo el de Oliver y Benji.
  *
  *  La pieza que lo convierte en habilidad y no en sorteo es **el aviso del
  *  portero**: antes de cada tiro Benji se carga hacia el lado por el que va
  *  a volar, se le ven las flechas a los pies y lo dice el narrador. Leerlo y
- *  tirar al otro lado es la lección entera del penalti, la misma que se grita
- *  desde la banda, y es lo que hace que la segunda tanda salga mejor.
+ *  tirar al otro lado es la lección entera del penalti.
  *
- *  Y están **los tiros de la serie** para elegir: el del Halcón, el del
- *  Tigre, el de Fuego, el efecto de Roberto Carlos, el cañón de CR7 y la
- *  parábola de Messi. Cada uno cambia el trato a su manera —las reglas viven
- *  en `lib/penalties.ts`—, se paga con la energía que dan los goles y sale
- *  una vez por tanda, así que cuál y cuándo es una decisión de verdad. Cada
- *  uno tiene su corte con su imagen, su grito y su manera de volar.
+ *  Y están **los tiros de la serie** para elegir, cada uno con sus reglas en
+ *  `lib/penalties.ts`, su coste en energía y su corte a pantalla entera.
  *
- *  El dibujo es el de Oliver y Benji: el cara a cara del principio con las
- *  dos caras partidas en diagonal, el marcador de la tele, el primer plano
- *  mientras se coge fuerza, el corte con el nombre del tiro a gritos, el
- *  balón con su estela, la red que se hincha, la pantalla que tiembla y el
- *  rótulo que entra de golpe. Nada es decoración suelta: cada cosa aparece
- *  en el momento en el que el juego necesita decir algo.
- *
- *  Y una regla que no es de adorno: **el tiro se anota al dispararse**,
- *  igual que las preguntas. Cerrar la aplicación con un penalti fallado a
- *  medias no devuelve el penalti; volver más tarde sigue la tanda por donde
- *  iba.
+ *  Una regla que no es de adorno: **el tiro se anota al dispararse**. Cerrar
+ *  la aplicación con un penalti a medias no lo devuelve; volver más tarde
+ *  sigue la tanda por donde iba.
  * ========================================================================= */
 
 interface PenaltyShootoutProps {
@@ -90,7 +83,7 @@ interface PenaltyShootoutProps {
 /**
  * En qué momento del penalti se está.
  *
- *  · `intro`   — el cara a cara y cómo se juega. Sólo antes del primero.
+ *  · `intro`   — la elección del que tira y cómo se juega. Sólo antes del primero.
  *  · `apuntar` — moviendo la mira.
  *  · `fuerza`  — con el dedo puesto: la barra corre.
  *  · `corte`   — el nombre del tiro especial a pantalla entera.
@@ -104,6 +97,9 @@ const CORTE_MS = 950;
 
 /** Lo que tarda Benji en reaccionar: se tira cuando el balón ya ha salido. */
 const REFLEJO_MS = 110;
+
+/** Cuánto más despacio va la repetición. */
+const CAMARA_LENTA = 2.6;
 
 /** Dónde está el punto de penalti dentro de la escena, en tanto por ciento. */
 const PUNTO = { x: 40, y: 87.6 };
@@ -128,19 +124,25 @@ function enEscena(point: PenaltyAim): { x: number; y: number } {
 const BENJI_ANCHO = 25;
 const BENJI_DE_PIE = { x: 50, y: 36.4 };
 
+/** La tinta de la serie, y el azul noche de la tele. */
+const TINTA = '#241a14';
+const NOCHE = '#0b1220';
+
 const TITULAR: Record<PenaltyOutcome, string> = {
   gol: '¡GOOOOL!',
-  parada: '¡PARADÓN DE BENJI!',
+  parada: '¡PARADÓN!',
   fuera: '¡FUERA!',
   poste: '¡AL PALO!',
 };
 
-const MARCA: Record<PenaltyOutcome, string> = {
-  gol: '✓',
-  parada: '✕',
-  fuera: '✕',
-  poste: '✕',
-};
+/** La segunda línea del rótulo, la que diría el grafista de la tele. */
+function subtitulo(outcome: PenaltyOutcome, shooter: string, kind: ShotKind): string {
+  const tiro = kind === 'normal' ? '' : ` · ${SHOT_TYPES[kind].name}`;
+  if (outcome === 'gol') return `Gol de ${shooter}${tiro}`;
+  if (outcome === 'parada') return `Benji lo saca${tiro}`;
+  if (outcome === 'poste') return `Repele la madera${tiro}`;
+  return `Se marcha fuera${tiro}`;
+}
 
 /** El timbre del narrador justo al chutar. */
 function grito(name: string, kind: ShotKind, plural = false): string {
@@ -148,6 +150,57 @@ function grito(name: string, kind: ShotKind, plural = false): string {
   return kind === 'normal'
     ? `¡${name} ${chuta}…!`
     : `¡${name} ${saca} ${SHOT_TYPES[kind].article} ${SHOT_TYPES[kind].name}!`;
+}
+
+/** Tres letras para el marcador, sin tildes: LEO, HUG, OLI, BEN. */
+function siglas(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z]/g, '')
+    .slice(0, 3)
+    .toUpperCase();
+}
+
+/** El color de equipo del que tira, legible sobre el azul noche. */
+function colorDe(who: TiradorId): string {
+  const kit = tiradorDe(who).kit;
+  // Una camiseta blanca no se ve como franja: se usa su vivo.
+  return kit === '#f8fafc' ? (tiradorDe(who).trim ?? '#1d4ed8') : kit;
+}
+
+/* ---------------------------------------------------------------------------
+ * Las fichas
+ *
+ * Cada uno con su media, su puesto y tres cifras de tiro, como las cartas de
+ * los videojuegos de fútbol. Son de adorno —no cambian el tiro—, pero es lo
+ * que hace que elegir al Tigre o a Oliver se viva como elegir de verdad. Los
+ * de casa llevan la carta especial, la de las leyendas.
+ * ------------------------------------------------------------------------- */
+
+interface Ficha {
+  media: number;
+  pos: string;
+  tir: number;
+  pot: number;
+  pre: number;
+}
+
+const FICHAS: Record<string, Ficha> = {
+  oliver: { media: 95, pos: 'MC', tir: 93, pot: 90, pre: 94 },
+  mark: { media: 94, pos: 'DC', tir: 95, pot: 99, pre: 84 },
+  derrick: { media: 88, pos: 'DC', tir: 90, pot: 88, pre: 86 },
+  tom: { media: 90, pos: 'MC', tir: 86, pot: 82, pre: 92 },
+  julian: { media: 92, pos: 'MC', tir: 90, pot: 84, pre: 95 },
+  philip: { media: 86, pos: 'MC', tir: 84, pot: 86, pre: 83 },
+  bruce: { media: 81, pos: 'DFC', tir: 74, pot: 80, pre: 72 },
+  ed: { media: 89, pos: 'POR', tir: 78, pot: 85, pre: 76 },
+};
+
+const FICHA_CASA: Ficha = { media: 97, pos: 'DC', tir: 96, pot: 92, pre: 97 };
+
+function fichaDe(id: TiradorId): Ficha {
+  return esDeLaSerie(id) ? FICHAS[id] : FICHA_CASA;
 }
 
 /** El disparo ya hecho: adónde voló Benji, qué tiro fue y en qué acabó. */
@@ -171,9 +224,9 @@ export function PenaltyShootout({
   const who = profileId as Casero;
 
   /**
-   * Quién tira: él mismo o uno de la serie. Se elige en el cara a cara y se
-   * recuerda en este aparato, que es una comodidad y no un dato: si se
-   * pierde, vuelve a tirar él.
+   * Quién tira: él mismo o uno de la serie. Se elige al empezar y se recuerda
+   * en este aparato, que es una comodidad y no un dato: si se pierde, vuelve
+   * a tirar él.
    */
   const [shooter, setShooterState] = useState<TiradorId>(who);
   useEffect(() => {
@@ -207,17 +260,17 @@ export function PenaltyShootout({
   const special = kind !== 'normal';
 
   /**
-   * El penalti ya tirado: adónde voló el portero y en qué acabó.
-   *
-   * Se guarda entero al disparar, y no se recalcula al pintar, porque en
-   * cuanto el tiro queda anotado el contador sube y el portero que tocaría
-   * ya es el del penalti siguiente. Recalculándolo, el guante aparecía en un
-   * sitio y la explicación contaba otro.
+   * El penalti ya tirado: adónde voló el portero y en qué acabó. Se guarda
+   * entero al disparar y no se recalcula al pintar: en cuanto el tiro queda
+   * anotado el contador sube y el portero que tocaría ya es el del siguiente.
    */
   const [fired, setFired] = useState<Fired | null>(null);
 
   /** Si Benji ya ha arrancado a tirarse: medio instante después del golpeo. */
   const [diving, setDiving] = useState(false);
+
+  /** Cada vez que sube, la escena repite el último penalti a cámara lenta. */
+  const [replay, setReplay] = useState(0);
 
   /**
    * Cómo acabó cada tiro de los que se han tirado **con esta pantalla
@@ -272,14 +325,19 @@ export function PenaltyShootout({
 
   /* ------------------------------------------------------------- el disparo */
 
+  /** Evita que el mismo gesto dispare dos veces (el dedo y la tecla a la vez). */
+  const shot = useRef(false);
+
   const charge = useCallback(() => {
     if (step !== 'apuntar') return;
     charged.current = 0;
+    shot.current = false;
     setStep('fuerza');
   }, [step]);
 
   const fire = useCallback(() => {
-    if (step !== 'fuerza') return;
+    if (step !== 'fuerza' || shot.current) return;
+    shot.current = true;
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
 
     // La semilla del tiro decide hacia qué lado se abre un balón reventado.
@@ -329,46 +387,90 @@ export function PenaltyShootout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aim, date, keeper, kind, onShot, profileId, result, round, scored, special, step, taken]);
 
-  const next = () => {
+  const next = useCallback(() => {
     setAim({ x: 50, y: 50 });
     setFired(null);
     setDiving(false);
     setPower(0);
     setKind('normal');
+    setReplay(0);
     setStep('apuntar');
-  };
+  }, []);
 
-  /** Mover la mira con las flechas: el camino del teclado. */
-  const onKeys = (event: React.KeyboardEvent) => {
-    if (step !== 'apuntar') return;
-    const moves: Record<string, [number, number]> = {
-      ArrowLeft: [-8, 0],
-      ArrowRight: [8, 0],
-      ArrowUp: [0, -12],
-      ArrowDown: [0, 12],
+  /* --------------------------------------------------------- el teclado */
+
+  // Con teclado se juega como en la consola: flechas para la mira y la barra
+  // espaciadora (o Intro) mantenida para la fuerza. Se escucha en la ventana
+  // para que funcione sin tener que enfocar nada; los botones de elegir tiro
+  // se dejan en paz, que su Intro es suyo.
+  const live = useRef({ step, charge, fire });
+  live.current = { step, charge, fire };
+
+  useEffect(() => {
+    const isOwn = (event: KeyboardEvent) =>
+      event.target instanceof HTMLElement && Boolean(event.target.closest('[data-tiro], input, textarea, select'));
+
+    const down = (event: KeyboardEvent) => {
+      const { step: now } = live.current;
+      if (now !== 'apuntar' && now !== 'fuerza') return;
+      if (isOwn(event)) return;
+
+      const moves: Record<string, [number, number]> = {
+        ArrowLeft: [-7, 0],
+        ArrowRight: [7, 0],
+        ArrowUp: [0, -10],
+        ArrowDown: [0, 10],
+      };
+      const move = moves[event.key];
+      if (move) {
+        event.preventDefault();
+        if (now !== 'apuntar') return;
+        setAim((current) => ({
+          x: Math.max(3, Math.min(97, current.x + move[0])),
+          y: Math.max(3, Math.min(97, current.y + move[1])),
+        }));
+        return;
+      }
+
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        if (!event.repeat) live.current.charge();
+      }
     };
-    const move = moves[event.key];
-    if (!move) return;
-    event.preventDefault();
-    setAim((current) => ({
-      x: Math.max(3, Math.min(97, current.x + move[0])),
-      y: Math.max(3, Math.min(97, current.y + move[1])),
-    }));
-  };
+
+    const up = (event: KeyboardEvent) => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      if (live.current.step !== 'fuerza' || isOwn(event)) return;
+      event.preventDefault();
+      live.current.fire();
+    };
+
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, []);
 
   /* ---------------------------------------------------------------- pintura */
 
-  if (done && !fired) return <Final who={shooter} scored={scored} name={name} onClose={onClose} />;
+  if (done && !fired)
+    return (
+      <Final
+        who={shooter}
+        shooterName={shooterName}
+        scored={scored}
+        result={result}
+        history={history}
+        firstShown={firstShown}
+        onClose={onClose}
+      />
+    );
 
   if (step === 'intro')
     return (
-      <CaraACara
-        who={who}
-        shooter={shooter}
-        onPick={setShooter}
-        name={name}
-        onStart={() => setStep('apuntar')}
-      />
+      <CaraACara who={who} shooter={shooter} onPick={setShooter} name={name} onStart={() => setStep('apuntar')} />
     );
 
   const shownKind = fired?.kind ?? kind;
@@ -380,26 +482,28 @@ export function PenaltyShootout({
   const pending = step === 'corte' || step === 'vuelo';
 
   return (
-    <div className={`${manga.variable} mx-auto max-w-xl space-y-2.5`} onKeyDown={onKeys}>
-      {/* Mientras el balón va de camino, el marcador sigue como estaba: el
-          tiro ya está anotado, pero enseñarlo antes de que llegue a la
-          portería chivaría el final. */}
-      <Marcador
-        who={shooter}
-        name={name}
-        taken={pending ? taken - 1 : taken}
-        scored={pending && fired?.shot.outcome === 'gol' ? scored - 1 : scored}
-        shooting={shooting}
-        history={pending ? history.slice(0, -1) : history}
-        firstShown={firstShown}
-      />
+    <div className={`${manga.variable} mx-auto w-full max-w-2xl space-y-3`}>
+      {/* La retransmisión: el marcador, la escena y el narrador van en un
+          mismo marco, como la imagen de la tele con sus rótulos. */}
+      <div className="overflow-hidden rounded-2xl shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)] ring-1 ring-black/40">
+        {/* Mientras el balón va de camino, el marcador sigue como estaba: el
+            tiro ya está anotado, pero enseñarlo antes de que llegue a la
+            portería chivaría el final. */}
+        <Marcador
+          who={shooter}
+          shooterName={shooterName}
+          taken={pending ? taken - 1 : taken}
+          scored={pending && fired?.shot.outcome === 'gol' ? scored - 1 : scored}
+          shooting={shooting}
+          history={pending ? history.slice(0, -1) : history}
+          firstShown={firstShown}
+        />
 
-      {/* La escena y el narrador van pegados, como la tele y su rótulo. */}
-      <div className="overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14] shadow-lg">
         <Escena
           who={shooter}
           kid={who}
           name={name}
+          shooterName={shooterName}
           aim={aim}
           onAim={setAim}
           step={step}
@@ -409,14 +513,19 @@ export function PenaltyShootout({
           kind={shownKind}
           power={power}
           band={[low, high]}
+          replay={replay}
+          penalty={shooting}
         />
 
+        {/* El narrador, en la cinta de abajo. */}
         <p
-          className="flex min-h-[3.25rem] items-center gap-2 px-3 py-2 text-[13px] font-bold leading-snug text-white"
+          className="flex min-h-[3.25rem] items-center gap-2.5 px-3 py-2 text-[13px] font-bold leading-snug text-white"
+          style={{ backgroundColor: NOCHE }}
           aria-live="polite"
         >
-          <span aria-hidden className="text-lg">
-            🎙️
+          <span className="flex shrink-0 items-center gap-1 rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]">
+            <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            Directo
           </span>
           <span className="min-w-0 flex-1">
             {step === 'visto' && fired ? (
@@ -429,12 +538,12 @@ export function PenaltyShootout({
             ) : tell === 'centro' ? (
               <>
                 Benji se queda <span className="text-amber-300">en el centro</span>.{' '}
-                <span className="font-semibold text-white/75">Pégalo a un palo.</span>
+                <span className="font-semibold text-white/70">Pégalo a un palo.</span>
               </>
             ) : (
               <>
                 Benji se carga hacia <span className="text-amber-300">tu {tell}</span>.{' '}
-                <span className="font-semibold text-white/75">¡Tira al otro lado!</span>
+                <span className="font-semibold text-white/70">¡Tira al otro lado!</span>
               </>
             )}
           </span>
@@ -442,17 +551,16 @@ export function PenaltyShootout({
       </div>
 
       {aiming && (
-        <div className="space-y-2">
-          {/* Los tiros: el normal y los seis de la serie, con lo que cuestan.
-              Sólo se eligen mientras se apunta; con el dedo puesto, el que
-              esté elegido es el que sale. */}
+        <div className="space-y-2.5">
+          {/* Los tiros: el normal y los de la serie, con lo que cuestan. Sólo
+              se eligen mientras se apunta; con el dedo puesto, el que esté
+              elegido es el que sale. */}
           <SelectorTiros result={result} kind={kind} onPick={setKind} locked={step !== 'apuntar'} />
 
-          {/* Apuntar y coger fuerza comparten **el mismo botón**, y no son dos
-              pantallas que se sustituyen: quien mantiene el dedo en un botón
-              que desaparece se queda con el tiro a medias, porque al soltar ya
-              no hay debajo lo que había al pulsar. Un solo botón que cambia de
-              rótulo y de color quita el salto, y además dice cuándo soltar. */}
+          {/* Apuntar y coger fuerza comparten **el mismo botón**: quien
+              mantiene el dedo en un botón que desaparece se queda con el tiro a
+              medias. Un solo botón que cambia de rótulo y de color quita el
+              salto, y además dice cuándo soltar. */}
           <button
             type="button"
             onPointerDown={(event) => {
@@ -465,45 +573,55 @@ export function PenaltyShootout({
             onPointerUp={fire}
             onPointerCancel={fire}
             onContextMenu={(event) => event.preventDefault()}
-            onKeyDown={(event) => {
-              if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) {
-                event.preventDefault();
-                charge();
-              }
-            }}
-            onKeyUp={(event) => {
-              if (event.key === ' ' || event.key === 'Enter') fire();
-            }}
-            className={`flex min-h-[3.75rem] w-full touch-none select-none items-center justify-center gap-2
-              rounded-2xl border-2 border-[#241a14] px-4 text-lg font-black uppercase tracking-wide
-              shadow-[0_4px_0_#241a14] active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]
+            className={`relative flex min-h-[4rem] w-full touch-none select-none items-center justify-center gap-2 overflow-hidden
+              rounded-2xl px-4 text-lg font-black uppercase tracking-wide
+              shadow-[0_5px_0_rgba(0,0,0,0.45)] transition-colors active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]
               [-webkit-touch-callout:none] [-webkit-user-select:none]
               ${
                 step === 'apuntar'
-                  ? 'text-[#241a14]'
+                  ? special
+                    ? 'text-[#241a14]'
+                    : 'bg-gradient-to-b from-lime-300 to-emerald-500 text-[#0b1f14]'
                   : zone === 'buena'
-                    ? 'animate-latido bg-emerald-400 text-[#241a14]'
+                    ? 'animate-latido bg-gradient-to-b from-emerald-300 to-emerald-500 text-[#0b1f14]'
                     : zone === 'pasado'
-                      ? 'bg-rose-500 text-white'
-                      : 'bg-slate-600 text-white'
+                      ? 'bg-gradient-to-b from-rose-400 to-rose-600 text-white'
+                      : 'bg-gradient-to-b from-slate-500 to-slate-700 text-white'
               }`}
-            style={step === 'apuntar' ? { backgroundColor: special ? type.color : '#fff' } : undefined}
+            style={step === 'apuntar' && special ? { backgroundColor: type.color } : undefined}
           >
-            {step === 'apuntar'
-              ? `${type.icon} Mantén pulsado`
-              : zone === 'buena'
-                ? '¡Suelta ahora!'
-                : zone === 'pasado'
-                  ? '¡Te pasas!'
-                  : 'Más fuerza…'}
+            {/* El brillo que barre el botón mientras espera: se ve que es lo
+                que hay que tocar sin tener que leerlo. */}
+            {step === 'apuntar' && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-barrido
+                           bg-gradient-to-r from-transparent via-white/45 to-transparent"
+              />
+            )}
+            <span className="relative">
+              {step === 'apuntar'
+                ? `${type.icon} Mantén para chutar`
+                : zone === 'buena'
+                  ? '¡Suelta ahora!'
+                  : zone === 'pasado'
+                    ? '¡Te pasas!'
+                    : 'Más fuerza…'}
+            </span>
           </button>
 
           <p className="text-center text-[11px] leading-snug t-3">
-            {step === 'apuntar'
-              ? special
-                ? `${type.name}: ${type.blurb}`
-                : 'Toca la portería para apuntar. Luego mantén el botón y suéltalo en la franja verde.'
-              : 'Quedarte corto le da tiempo a Benji; pasarte sube y abre el balón.'}
+            {step === 'apuntar' ? (
+              <>
+                <span className="md:hidden">Toca o arrastra sobre la portería para apuntar.</span>
+                <span className="hidden md:inline">
+                  Apunta con el ratón o con <Tecla>←</Tecla> <Tecla>→</Tecla> <Tecla>↑</Tecla> <Tecla>↓</Tecla>; mantén{' '}
+                  <Tecla>Espacio</Tecla> y suéltalo en la franja verde.
+                </span>
+              </>
+            ) : (
+              'Quedarte corto le da tiempo a Benji; pasarte sube y abre el balón: mira cómo crece el cerco.'
+            )}
           </p>
         </div>
       )}
@@ -511,41 +629,65 @@ export function PenaltyShootout({
       {(step === 'corte' || step === 'vuelo') && (
         <div
           aria-hidden
-          className="flex min-h-[3.75rem] w-full items-center justify-center rounded-2xl border-2 border-dashed
-                     hairline text-sm font-bold t-3"
+          className="flex min-h-[4rem] w-full items-center justify-center rounded-2xl border-2 border-dashed hairline text-sm font-bold t-3"
         >
           …
         </div>
       )}
 
       {step === 'visto' && fired && (
-        <button
-          type="button"
-          onClick={done ? () => setFired(null) : next}
-          autoFocus
-          className="flex min-h-[3.75rem] w-full animate-floatUp items-center justify-center gap-2 rounded-2xl border-2
-                     border-[#241a14] bg-white px-4 text-lg font-black uppercase tracking-wide text-[#241a14]
-                     shadow-[0_4px_0_#241a14] active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]"
-        >
-          {done ? '🏁 Ver cómo ha quedado' : `Penalti ${taken + 1} ▶`}
-        </button>
+        <div className="grid animate-floatUp grid-cols-[auto_1fr] gap-2">
+          <button
+            type="button"
+            onClick={() => setReplay((n) => n + 1)}
+            className="flex min-h-[4rem] items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-black uppercase
+                       tracking-wide text-white shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px]
+                       active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
+            style={{ backgroundColor: NOCHE }}
+            aria-label="Ver la repetición a cámara lenta"
+          >
+            <span aria-hidden className="text-lg">
+              ⟲
+            </span>
+            <span className="hidden sm:inline">Repetición</span>
+          </button>
+          <button
+            type="button"
+            onClick={done ? () => setFired(null) : next}
+            autoFocus
+            className="flex min-h-[4rem] items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-amber-200
+                       to-amber-400 px-4 text-lg font-black uppercase tracking-wide text-[#241a14]
+                       shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
+          >
+            {done ? '🏁 Ver el resumen' : `Penalti ${taken + 1} ▶`}
+          </button>
+        </div>
       )}
     </div>
+  );
+}
+
+function Tecla({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="mx-0.5 inline-block min-w-[1.4em] rounded border border-current px-1 py-px text-center font-sans text-[10px] font-black not-italic leading-none opacity-90">
+      {children}
+    </kbd>
   );
 }
 
 /* ---------------------------------------------------------------------------
  * El marcador de la tele
  *
- * El que tira a la izquierda, con sus goles; Benji a la derecha, con los que
- * ha salvado —paradas, palos y fuera, que para el marcador es lo mismo—; y
- * en medio los cinco huecos. Plantearlo como un partido contra alguien, y no
- * como «goles de cinco», es lo que hace que una tanda se viva como una final.
+ * El rótulo de la esquina: los dos escudos con sus siglas, el resultado en
+ * medio y, debajo, la tanda de cada uno en círculos —verde lo que suma, rojo
+ * lo que no—, como se sigue una tanda en la tele. Arriba, el que tira con sus
+ * goles; abajo, Benji con sus paradas. Plantearlo como un partido contra
+ * alguien es lo que hace que una tanda se viva como una final.
  * ------------------------------------------------------------------------- */
 
 function Marcador({
   who,
-  name,
+  shooterName,
   taken,
   scored,
   shooting,
@@ -553,7 +695,7 @@ function Marcador({
   firstShown,
 }: {
   who: TiradorId;
-  name: string;
+  shooterName: string;
   taken: number;
   scored: number;
   shooting: number;
@@ -562,56 +704,106 @@ function Marcador({
   firstShown: number;
 }) {
   const saved = taken - scored;
+  const color = colorDe(who);
+
+  /** Cómo quedó el tiro `i`, si se sabe: `true` gol, `false` no, `null` tirado sin saber. */
+  const outcomeAt = (i: number): boolean | null | undefined => {
+    if (i >= taken) return undefined;
+    const known = i >= firstShown ? history[i - firstShown] : undefined;
+    return known ? known === 'gol' : null;
+  };
+
+  const fila = (side: 'tira' | 'para') => (
+    <span className="flex gap-1" aria-hidden>
+      {Array.from({ length: PENALTY_SHOTS }, (_, i) => {
+        const goal = outcomeAt(i);
+        const current = i === taken;
+        // Para Benji, lo bueno es lo que para: la misma tanda, al revés.
+        const good = goal === undefined || goal === null ? goal : side === 'tira' ? goal : !goal;
+        return (
+          <span
+            key={i}
+            className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black leading-none sm:h-[1.15rem] sm:w-[1.15rem]
+              ${
+                good === true
+                  ? 'bg-emerald-400 text-emerald-950'
+                  : good === false
+                    ? 'bg-rose-500 text-white'
+                    : good === null
+                      ? 'bg-white/45'
+                      : current && side === 'tira'
+                        ? 'animate-pulse ring-2 ring-amber-300 ring-inset'
+                        : 'ring-1 ring-white/25 ring-inset'
+              }`}
+          >
+            {good === true ? (side === 'tira' ? '✓' : '🧤') : good === false ? '✕' : ''}
+          </span>
+        );
+      })}
+    </span>
+  );
 
   return (
     <div
-      className="flex items-center gap-2 rounded-2xl border-2 border-[#241a14] bg-[#101826] p-1.5 text-white"
-      aria-label={`${name} ${scored}, Benji ${saved}. Penalti ${shooting} de ${PENALTY_SHOTS}.`}
+      className="relative text-white"
+      style={{ background: `linear-gradient(180deg, #16223a 0%, ${NOCHE} 100%)` }}
+      aria-label={`${shooterName} ${scored}, Benji ${saved}. Penalti ${shooting} de ${PENALTY_SHOTS}.`}
     >
-      <Vineta who={who} rayas={false} className="h-9 w-9 shrink-0 rounded-lg border-2 border-white/80" />
-      <span className="min-w-0">
-        <span className="block truncate text-[10px] font-black uppercase leading-none tracking-wider text-white/70">
-          {name}
-        </span>
-        <span className="block font-manga text-3xl leading-none tracking-wide tabular-nums">{scored}</span>
-      </span>
+      <div className="flex items-stretch">
+        {/* La mosca de la cadena: en directo y qué se juega. */}
+        <div className="hidden flex-col justify-center gap-0.5 border-r border-white/10 px-3 sm:flex">
+          <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-rose-400">
+            <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+            En directo
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white/70">Tanda de penaltis</span>
+        </div>
 
-      <span className="mx-auto flex flex-col items-center gap-1">
-        <span className="text-[9px] font-black uppercase leading-none tracking-[0.14em] text-amber-300">
-          Penalti {shooting} de {PENALTY_SHOTS}
-        </span>
-        <span className="flex gap-1" aria-hidden>
-          {Array.from({ length: PENALTY_SHOTS }, (_, i) => {
-            const outcome = i >= firstShown ? history[i - firstShown] : undefined;
-            const current = i === taken;
-            return (
-              <span
-                key={i}
-                className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] leading-none
-                  ${
-                    outcome === 'gol'
-                      ? 'border-emerald-300 bg-emerald-500/30'
-                      : outcome
-                        ? 'border-rose-300 bg-rose-500/25'
-                        : i < taken
-                          ? 'border-white/50 bg-white/15'
-                          : current
-                            ? 'border-dashed border-amber-300'
-                            : 'border-white/20'
-                  }`}
-              >
-                {outcome ? MARCA[outcome] : i < taken ? '•' : ''}
-              </span>
-            );
-          })}
-        </span>
-      </span>
+        {/* Dos filas con las mismas tres columnas: arriba los equipos y el
+            resultado; debajo, la tanda de cada uno bajo su escudo. En una sola
+            fila los círculos no caben en un móvil. */}
+        <div className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-1 px-2 py-1.5">
+          {/* El que tira. */}
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            <p className="truncate text-[15px] font-black leading-none tracking-wide">{siglas(shooterName)}</p>
+            <span
+              className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg ring-2"
+              style={{ '--tw-ring-color': color } as React.CSSProperties}
+            >
+              <Vineta who={who} rayas={false} className="h-full w-full" />
+            </span>
+          </div>
 
-      <span className="min-w-0 text-right">
-        <span className="block text-[10px] font-black uppercase leading-none tracking-wider text-white/70">Benji</span>
-        <span className="block font-manga text-3xl leading-none tracking-wide tabular-nums">{saved}</span>
-      </span>
-      <Vineta who="benji" rayas={false} className="h-9 w-9 shrink-0 rounded-lg border-2 border-white/80" />
+          {/* El resultado. */}
+          <div className="flex items-stretch overflow-hidden rounded-md shadow-inner">
+            <span className="min-w-[2.1rem] bg-white px-1.5 py-0.5 text-center text-2xl font-black tabular-nums leading-tight text-[#0b1220]">
+              {scored}
+            </span>
+            <span className="min-w-[2.1rem] bg-white/85 px-1.5 py-0.5 text-center text-2xl font-black tabular-nums leading-tight text-[#0b1220]">
+              {saved}
+            </span>
+          </div>
+
+          {/* Benji, con sus paradas. */}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg ring-2 ring-amber-400">
+              <Vineta who="benji" rayas={false} className="h-full w-full" />
+            </span>
+            <p className="truncate text-[15px] font-black leading-none tracking-wide">BEN</p>
+          </div>
+
+          <div className="flex justify-end">{fila('tira')}</div>
+          <span className="whitespace-nowrap text-center text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">
+            Penalti {shooting}/{PENALTY_SHOTS}
+          </span>
+          <div className="flex">{fila('para')}</div>
+        </div>
+      </div>
+      {/* El filo de color de los dos equipos. */}
+      <div aria-hidden className="flex h-1">
+        <span className="flex-1" style={{ backgroundColor: color }} />
+        <span className="flex-1 bg-amber-400" />
+      </div>
     </div>
   );
 }
@@ -638,8 +830,7 @@ function estirada(id: PenaltyZoneId): {
   }
 
   // A medio camino entre donde estaba y la esquina: es donde queda el
-  // cuerpo de un portero que estira los brazos hasta ella. Poniéndole el
-  // ombligo en la escuadra, la cabeza se le salía por encima del larguero.
+  // cuerpo de un portero que estira los brazos hasta ella.
   const at = enEscena({ x: 50 + (zone.x - 50) * 0.56, y: 68 + (zone.y - 68) * 0.62 });
   const flip = zone.side === 'izquierda' ? -1 : 1;
   const tilt = (zone.height === 'arriba' ? -16 : 14) * flip;
@@ -658,12 +849,10 @@ function estirada(id: PenaltyZoneId): {
 
 /**
  * Por dónde va el balón: una lista de puntos, del punto de penalti adonde
- * llega y —si no es gol— adonde rebota. Cada tiro tiene su camino, que es lo
- * que se recuerda de él: el Halcón sube y cae en picado, el efecto se abre por
- * fuera y se cierra, el cañón hace eses, la parábola se va al cielo y el Tigre
- * y el Fuego van en línea recta, que no les da tiempo a otra cosa.
- *
- * `arrive` es el punto en el que llega a la portería.
+ * llega y —si no es gol— adonde rebota. Cada tiro tiene su camino: el Halcón
+ * sube y cae en picado, el efecto se abre por fuera y se cierra, el cañón
+ * hace eses, la parábola se va al cielo y el Tigre y el Fuego van en línea
+ * recta. `arrive` es el punto en el que llega a la portería.
  */
 function trayecto(shot: PenaltyShot, kind: ShotKind): { points: { x: number; y: number; s: number }[]; arrive: number } {
   const to = enEscena(shot.landing);
@@ -737,10 +926,20 @@ function trayecto(shot: PenaltyShot, kind: ShotKind): { points: { x: number; y: 
   return { points, arrive };
 }
 
+/**
+ * Los destellos de los flashes en la grada: sitios fijos, que un reparto al
+ * azar en cada pintada haría bailar la grada entera.
+ */
+const FLASHES = [
+  [8, 8, 0], [17, 12, 1.3], [26, 7, 0.4], [34, 13, 2.1], [43, 9, 0.9], [52, 12, 1.7], [61, 8, 0.2],
+  [69, 13, 1.1], [77, 9, 2.4], [86, 12, 0.6], [93, 8, 1.9], [12, 15, 2.8], [58, 15, 3.1], [81, 15, 0.3],
+] as const;
+
 function Escena({
   who,
   kid,
   name,
+  shooterName,
   aim,
   onAim,
   step,
@@ -750,12 +949,15 @@ function Escena({
   kind,
   power,
   band,
+  replay,
+  penalty,
 }: {
   /** El que tira. */
   who: TiradorId;
   /** Y el crío de la tanda, que es a quien anima la grada. */
   kid: Casero;
   name: string;
+  shooterName: string;
   aim: PenaltyAim;
   onAim: (aim: PenaltyAim) => void;
   step: Step;
@@ -766,42 +968,47 @@ function Escena({
   kind: ShotKind;
   power: number;
   band: [number, number];
+  /** Sube cada vez que se pide la repetición. */
+  replay: number;
+  penalty: number;
 }) {
-  const mouth = useRef<HTMLDivElement>(null);
+  const scene = useRef<HTMLDivElement>(null);
   const ballRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  const [replaying, setReplaying] = useState(false);
+  const [replayDive, setReplayDive] = useState(false);
+
   /** Mueve la mira al punto que se está tocando, sin salirse de la portería. */
   const point = (event: React.PointerEvent) => {
-    const box = mouth.current?.getBoundingClientRect();
+    const box = scene.current?.getBoundingClientRect();
     if (!box) return;
-
+    const sx = ((event.clientX - box.left) / box.width) * 100;
+    const sy = ((event.clientY - box.top) / box.height) * 100;
     onAim({
-      x: Math.max(3, Math.min(97, ((event.clientX - box.left) / box.width) * 100)),
-      y: Math.max(3, Math.min(97, ((event.clientY - box.top) / box.height) * 100)),
+      x: Math.max(3, Math.min(97, ((sx - BOCA.left) / BOCA.width) * 100)),
+      y: Math.max(3, Math.min(97, ((sy - BOCA.top) / BOCA.height) * 100)),
     });
   };
 
   const aiming = step === 'apuntar' || step === 'fuerza';
   const flying = step === 'vuelo';
   const seen = step === 'visto';
+  const inFlight = flying || replaying;
   const special = kind !== 'normal';
   const color = SHOT_TYPES[kind].color;
   const route = fired ? trayecto(fired.shot, fired.kind) : null;
   const path = route?.points ?? null;
   const rest = path && (flying || seen) ? path[path.length - 1] : { ...PUNTO, s: 1 };
 
-  // El vuelo del balón: se anima con la API del navegador en cuanto
-  // arranca, y la posición de reposo que pinta React ya es la final, así que
-  // al acabar la animación el balón se queda donde tiene que quedarse.
-  useLayoutEffect(() => {
-    if (!flying || !path || !route || !ballRef.current || !fired) return undefined;
+  /** El vuelo del balón con la API del navegador; `slow` lo estira. */
+  const flight = (slow: number): Animation | null => {
+    if (!path || !route || !ballRef.current || !fired) return null;
     const last = path.length - 1;
     // Hasta la portería, repartido a partes iguales; si luego rebota o se
     // mete en la red, eso va en el último cuarto.
     const reach = last > route.arrive ? 0.78 : 1;
-
-    const animation = ballRef.current.animate(
+    return ballRef.current.animate(
       path.map((p, i) => ({
         left: `${p.x}%`,
         top: `${p.y}%`,
@@ -810,45 +1017,102 @@ function Escena({
         easing: i === route.arrive && last > route.arrive ? 'ease-out' : 'linear',
       })),
       {
-        duration: SHOT_TYPES[fired.kind].flight,
+        duration: SHOT_TYPES[fired.kind].flight * slow,
         easing: fired.kind === 'parabola' ? 'ease-in-out' : 'cubic-bezier(0.3, 0.6, 0.4, 1)',
         fill: 'backwards',
       },
     );
+  };
 
-    return () => animation.cancel();
+  // El vuelo de verdad, en cuanto arranca. La posición de reposo que pinta
+  // React ya es la final, así que al acabar el balón se queda donde toca.
+  useLayoutEffect(() => {
+    if (!flying) return undefined;
+    const animation = flight(1);
+    return () => animation?.cancel();
     // La trayectoria sólo cambia con el tiro, y el tiro sólo con `fired`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flying, fired]);
 
+  // La repetición: el mismo tiro, a cámara lenta, con Benji volviendo a su
+  // sitio y tirándose otra vez. El rótulo se esconde mientras dura y vuelve a
+  // entrar al acabar, como en la tele.
+  useLayoutEffect(() => {
+    if (!replay || !fired) return undefined;
+    setReplaying(true);
+    setReplayDive(false);
+    const animation = flight(CAMARA_LENTA);
+    const dive = window.setTimeout(() => setReplayDive(true), REFLEJO_MS * CAMARA_LENTA + 60);
+    const end = window.setTimeout(() => setReplaying(false), SHOT_TYPES[fired.kind].flight * CAMARA_LENTA + 350);
+    return () => {
+      animation?.cancel();
+      window.clearTimeout(dive);
+      window.clearTimeout(end);
+    };
+    // Sólo cuando se pide otra repetición.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replay]);
+
   const mira = enEscena(aim);
+
+  // Lo que se sabe del desvío mientras se carga: el cerco sube y se agranda
+  // con los mismos números con los que después se resuelve el tiro.
+  const [low, high] = band;
+  const preview = overshootPreview(kind, power);
+  const charging = step === 'fuerza';
+  const zone = power < low ? 'flojo' : power > high ? 'pasado' : 'buena';
+  const ghost = charging && preview.drift > 0 ? enEscena({ x: aim.x, y: aim.y - preview.drift * preview.up }) : null;
+  const spread = ghost ? 7 + (preview.drift * preview.open * 2 * BOCA.width) / 100 : 0;
+  const ring = zone === 'buena' ? '#34d399' : zone === 'pasado' ? '#fb7185' : charging ? '#fbbf24' : '#ffffff';
 
   // Benji: quieto y cargado hacia su lado mientras se apunta, y volando
   // adonde le tocaba en cuanto sale el balón.
   const lean = tell === 'izquierda' ? -6 : tell === 'derecha' ? 6 : 0;
-  const dive = fired && diving ? estirada(fired.keeper) : null;
+  const tirado = replaying ? replayDive : diving;
+  const dive = fired && tirado ? estirada(fired.keeper) : null;
   const benji = dive ?? {
-    x: BENJI_DE_PIE.x + lean,
+    x: BENJI_DE_PIE.x + (fired ? 0 : lean),
     y: BENJI_DE_PIE.y,
     pose: 'espera' as PoseBenjiId,
     transform: 'translate(-50%, -50%)',
     flip: 1,
   };
 
-  const outcome = seen && fired ? fired.shot.outcome : null;
+  const outcome = seen && fired && !replaying ? fired.shot.outcome : null;
   const landing = route ? route.points[route.arrive] : null;
 
   return (
-    <div className={`relative aspect-[4/3] select-none overflow-hidden ${outcome === 'gol' ? 'animate-temblor' : ''}`}>
+    <div
+      ref={scene}
+      className={`relative aspect-[4/3] select-none overflow-hidden bg-[#0b1220] ${outcome === 'gol' ? 'animate-temblor' : ''}`}
+    >
       <Estadio className="absolute inset-0 h-full w-full" name={name} color={ROPA_FAMILIA[kid]} />
 
+      {/* Partido de noche: el cielo apagado, los focos de las torres, los
+          flashes de la grada, la luz sobre el césped y el viñeteado de la
+          cámara. Todo por encima del estadio y por debajo de los jugadores. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(6,12,34,0.82)_0%,rgba(6,12,34,0.45)_12%,rgba(6,12,34,0.12)_24%,transparent_34%)]" />
+        <div className="absolute inset-0 mix-blend-screen bg-[radial-gradient(circle_at_5%_4%,rgba(255,250,214,0.95)_0,rgba(255,240,180,0.35)_5%,transparent_20%),radial-gradient(circle_at_95%_4%,rgba(255,250,214,0.95)_0,rgba(255,240,180,0.35)_5%,transparent_20%)]" />
+        <div className="absolute inset-0 opacity-40 mix-blend-screen bg-[linear-gradient(115deg,transparent_20%,rgba(255,250,220,0.18)_32%,transparent_44%),linear-gradient(245deg,transparent_20%,rgba(255,250,220,0.18)_32%,transparent_44%)]" />
+        {FLASHES.map(([x, y, delay]) => (
+          <span
+            key={`${x}-${y}`}
+            className="absolute h-[1.2%] w-[0.9%] animate-titila rounded-full bg-white blur-[1px]"
+            style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s` }}
+          />
+        ))}
+        <div className="absolute inset-x-0 bottom-0 h-[55%] mix-blend-soft-light bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.14)_0_8%,transparent_8%_16%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_55%,transparent_55%,rgba(0,0,0,0.42)_100%)]" />
+      </div>
+
       {/* Los rayos del anime, detrás de todo, cuando se carga la fuerza.
-          Giran despacio, y con el especial armado son de fuego. */}
+          Giran despacio, y con el especial armado son de su color. */}
       {step === 'fuerza' && (
         <div
           aria-hidden
           className={`pointer-events-none absolute -inset-1/4 animate-girar mix-blend-screen ${
-            special ? 'opacity-60' : 'opacity-25'
+            special ? 'opacity-50' : 'opacity-15'
           }`}
           style={{
             backgroundImage: `repeating-conic-gradient(from 0deg at 50% 50%, ${special ? color : 'rgba(255,255,255,0.7)'} 0deg 4deg, transparent 4deg 13deg)`,
@@ -856,9 +1120,10 @@ function Escena({
         />
       )}
 
-      {/* La boca de la portería: la superficie de puntería. */}
+      {/* La superficie de puntería: toda la mitad de arriba, no sólo la
+          boca. Con el dedo encima de la portería se tapa lo que se apunta,
+          así que se puede apuntar tocando alrededor y la mira se queda dentro. */}
       <div
-        ref={mouth}
         role="group"
         tabIndex={step === 'apuntar' ? 0 : -1}
         aria-label={`Portería. La mira está en ${Math.round(aim.x)} por ciento de izquierda a derecha y ${Math.round(aim.y)} por ciento de arriba abajo. Muévela con las flechas.`}
@@ -874,24 +1139,16 @@ function Escena({
         onPointerUp={() => {
           dragging.current = false;
         }}
-        className={`absolute z-10 rounded-sm outline-none focus-visible:ring-4 focus-visible:ring-amber-300/70
+        className={`absolute inset-x-0 top-0 z-10 h-[64%] outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-amber-300/70
                     ${step === 'apuntar' ? 'cursor-crosshair touch-none' : ''}`}
-        style={{
-          left: `${BOCA.left}%`,
-          top: `${BOCA.top}%`,
-          width: `${BOCA.width}%`,
-          height: `${BOCA.height}%`,
-        }}
       />
 
       {/* Benji. Cuando espera, en la línea, cargado hacia su lado y
-          balanceándose —un portero quieto no da ninguna tensión—; cuando
-          vuela, con su pose de estirada. El vaivén se apaga al volar: el
-          vuelo manda su propio `transform` y los dos a la vez se peleaban. */}
+          balanceándose; cuando vuela, con su pose de estirada. */}
       <div
-        className={`pointer-events-none absolute transition-all ease-out ${dive ? 'duration-300' : 'duration-500'} ${
-          aiming ? 'animate-vaiven' : ''
-        }`}
+        className={`pointer-events-none absolute transition-all ease-out ${
+          replaying ? 'duration-700' : dive ? 'duration-300' : 'duration-500'
+        } ${aiming ? 'animate-vaiven' : ''}`}
         style={{
           left: `${benji.x}%`,
           top: `${benji.y}%`,
@@ -905,9 +1162,7 @@ function Escena({
         </div>
       </div>
 
-      {/* El aviso: flechas a los pies de Benji hacia el lado al que se carga.
-          Es lo mismo que dice el narrador, pero dentro del campo, que es
-          donde se está mirando. */}
+      {/* El aviso: flechas a los pies de Benji hacia el lado al que se carga. */}
       {aiming && tell !== 'centro' && (
         <div
           aria-hidden
@@ -923,25 +1178,73 @@ function Escena({
         </div>
       )}
 
-      {/* La mira. Va con doble aro —tinta fuera, amarillo dentro— porque
-          tiene que leerse igual sobre la red oscura que sobre la camiseta de
-          Benji, que es justo donde uno querría ponerla y no verla. */}
+      {/* El cerco del desvío: si se pasa de fuerza, adónde se sube el balón y
+          cuánto se puede abrir, a un lado o a otro. */}
+      {ghost && (
+        <>
+          <svg aria-hidden className="pointer-events-none absolute inset-0 z-20 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line
+              x1={mira.x}
+              y1={mira.y}
+              x2={ghost.x}
+              y2={ghost.y}
+              stroke="#fb7185"
+              strokeWidth="0.5"
+              strokeDasharray="1.2 1"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-20 rounded-[50%] border-2 border-dashed border-rose-400 bg-rose-500/15"
+            style={{
+              left: `${ghost.x}%`,
+              top: `${ghost.y}%`,
+              width: `${spread}%`,
+              aspectRatio: '1.7 / 1',
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        </>
+      )}
+
+      {/* La mira: aro con cuatro marcas, del color de la fuerza mientras se
+          carga. Va con doble aro —tinta fuera, color dentro— para leerse igual
+          sobre la red oscura que sobre la camiseta de Benji. */}
       {aiming && (
         <div
           aria-hidden
-          className="pointer-events-none absolute z-20 transition-all duration-150"
+          className="pointer-events-none absolute z-20 transition-[left,top] duration-150"
           style={{ left: `${mira.x}%`, top: `${mira.y}%`, transform: 'translate(-50%, -50%)' }}
         >
-          <span className="relative flex h-11 w-11 items-center justify-center">
+          <span className="relative flex h-12 w-12 items-center justify-center">
             {step === 'apuntar' && (
-              <span className="absolute -inset-1 animate-ping rounded-full border-2 border-amber-300/80" />
+              <span className="absolute -inset-1.5 animate-ping rounded-full border-2 border-white/70" />
             )}
-            <span className="absolute inset-0 rounded-full border-[3px] border-[#241a14]" />
-            <span className="absolute inset-[3px] rounded-full border-[3px] border-amber-300" />
-            <span className="absolute inset-x-1 top-1/2 h-0.5 -translate-y-1/2 bg-amber-300" />
-            <span className="absolute inset-y-1 left-1/2 w-0.5 -translate-x-1/2 bg-amber-300" />
-            <span className="relative h-2 w-2 rounded-full border border-[#241a14] bg-white" />
+            <span className="absolute inset-0 rounded-full border-[3px] border-[#0b1220]/80" />
+            <span className="absolute inset-[3px] rounded-full border-[3px] transition-colors" style={{ borderColor: ring }} />
+            {[0, 90, 180, 270].map((deg) => (
+              <span
+                key={deg}
+                className="absolute left-1/2 top-1/2 h-[3px] w-3 -translate-y-1/2 rounded-full"
+                style={{
+                  backgroundColor: ring,
+                  transform: `rotate(${deg}deg) translateX(1.35rem)`,
+                  transformOrigin: '0 50%',
+                }}
+              />
+            ))}
+            <span className="relative h-2 w-2 rounded-full border border-[#0b1220] bg-white" />
           </span>
+          {charging && (
+            <span
+              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px]
+                         font-black uppercase tracking-wider text-[#0b1220]"
+              style={{ backgroundColor: ring }}
+            >
+              {zone === 'buena' ? 'Perfecta' : zone === 'pasado' ? 'Te pasas' : 'Floja'}
+            </span>
+          )}
         </div>
       )}
 
@@ -956,8 +1259,7 @@ function Escena({
         </div>
       )}
 
-      {/* El balón, con su estela mientras vuela: la del anime, una cola
-          blanca que dice a qué velocidad va. Con el especial, de fuego. */}
+      {/* El balón, con su estela mientras vuela. Con el especial, de su color. */}
       <div
         ref={ballRef}
         aria-hidden
@@ -968,7 +1270,7 @@ function Escena({
           transform: `translate(-50%, -50%) scale(${rest.s})`,
         }}
       >
-        {flying && (
+        {inFlight && (
           <span
             className={`absolute -z-10 rounded-full blur-[3px] ${special ? '-inset-[55%] opacity-95' : '-inset-[35%] opacity-70'}`}
             style={{ backgroundColor: special ? color : '#fff' }}
@@ -977,9 +1279,7 @@ function Escena({
         <Balon className="h-auto w-full drop-shadow-[0_2px_0_rgba(0,0,0,0.3)]" />
       </div>
 
-      {/* El que tira, en primer plano y a su tamaño de protagonista: grande
-          y pegado al borde, como en el anime, que es lo que da la sensación
-          de estar detrás de él. */}
+      {/* El que tira, en primer plano y a su tamaño de protagonista. */}
       <div
         className="pointer-events-none absolute bottom-[-2%] left-[15%] h-[59%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.3)]"
         style={{ aspectRatio: '120 / 210' }}
@@ -996,12 +1296,12 @@ function Escena({
                   : 'golpeo'
           }
           className="h-full w-full"
-          aura={special && (step === 'fuerza' || step === 'corte' || flying) ? color : undefined}
+          aura={special && (step === 'fuerza' || step === 'corte' || inFlight) ? color : undefined}
         />
       </div>
 
       {/* Y el estallido del golpeo, un instante. */}
-      {flying && (
+      {inFlight && (
         <div
           aria-hidden
           className="pointer-events-none absolute h-[30%] w-[22%] -translate-x-1/2 -translate-y-1/2 animate-chispazo"
@@ -1011,41 +1311,49 @@ function Escena({
         </div>
       )}
 
-      {/* La barra de fuerza, de pie junto al campo: la franja buena marcada
-          siempre —esto no es adivinar— y el relleno subiendo al pulsar. */}
+      {/* La barra de potencia, abajo a la derecha, como en la consola: la
+          franja buena marcada siempre —esto no es adivinar— y el relleno
+          subiendo mientras se mantiene. */}
       {aiming && (
         <div
           aria-hidden
-          className={`pointer-events-none absolute bottom-[5%] right-[3%] top-[56%] w-[6%] overflow-hidden rounded-md
-                      border-2 border-[#241a14] bg-[#101826]/85 transition-opacity
-                      ${step === 'apuntar' ? 'opacity-70' : 'opacity-100'}`}
+          className={`pointer-events-none absolute bottom-[4%] right-[3%] z-20 w-[46%] transition-opacity ${
+            charging ? 'opacity-100' : 'opacity-80'
+          }`}
         >
-          <div
-            className="absolute inset-x-0 bg-emerald-400/55"
-            style={{ bottom: `${band[0]}%`, height: `${band[1] - band[0]}%` }}
-          />
-          <div
-            className={`absolute inset-x-0 bottom-0 ${
-              power > band[1] ? 'bg-rose-500' : power >= band[0] ? 'bg-white' : 'bg-white/60'
-            }`}
-            style={{ height: `${power}%` }}
-          />
-          <div className="absolute inset-x-0 h-[3px] bg-amber-300" style={{ bottom: `calc(${power}% - 1px)` }} />
+          <div className="mb-0.5 flex items-end justify-between px-0.5 text-[clamp(8px,2.2vw,11px)] font-black uppercase tracking-[0.14em] text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+            <span>Potencia</span>
+            {charging && (
+              <span style={{ color: ring }}>{zone === 'buena' ? '¡Ahora!' : zone === 'pasado' ? 'Demasiada' : `${power}`}</span>
+            )}
+          </div>
+          <div className="relative h-[clamp(12px,3.4vw,18px)] -skew-x-12 overflow-hidden rounded-[3px] border-2 border-[#0b1220] bg-[#0b1220]/80 shadow-[0_2px_6px_rgba(0,0,0,0.5)]">
+            <div className="absolute inset-y-0 bg-emerald-400/45" style={{ left: `${band[0]}%`, width: `${band[1] - band[0]}%` }} />
+            <div className="absolute inset-y-0 border-x-2 border-emerald-300" style={{ left: `${band[0]}%`, width: `${band[1] - band[0]}%` }} />
+            {/* El degradado es de la barra entera y el relleno sólo lo destapa:
+                así el rojo no aparece hasta que de verdad se pasa. */}
+            <div
+              className="absolute inset-0 bg-gradient-to-r from-amber-100 via-amber-400 to-rose-500"
+              style={{ clipPath: `inset(0 ${100 - power}% 0 0)` }}
+            />
+            {Array.from({ length: 9 }, (_, i) => (
+              <span key={i} className="absolute inset-y-0 w-px bg-[#0b1220]/50" style={{ left: `${(i + 1) * 10}%` }} />
+            ))}
+            <div className="absolute inset-y-[-2px] w-[3px] bg-white shadow-[0_0_6px_white]" style={{ left: `calc(${power}% - 1px)` }} />
+          </div>
         </div>
       )}
       <span className="sr-only" role="progressbar" aria-label="Fuerza del tiro" aria-valuenow={power} aria-valuemin={0} aria-valuemax={100} />
 
       {/* El primer plano de la cara mientras se coge fuerza: la viñeta que
-          corta la acción en la serie antes de cada tiro. Va abajo a la
-          derecha, que es la esquina que no ocupan ni la portería, ni Benji,
-          ni el que tira. */}
+          corta la acción en la serie antes de cada tiro. */}
       {step === 'fuerza' && (
-        <div className="pointer-events-none absolute bottom-[6%] right-[11%] w-[23%] -rotate-3 animate-pop">
+        <div className="pointer-events-none absolute bottom-[17%] right-[6%] w-[21%] -rotate-3 animate-pop">
           <Vineta who={who} className="aspect-square w-full border-[3px] border-[#241a14] shadow-[3px_3px_0_#241a14]" />
         </div>
       )}
 
-      {/* El corte del tiro especial: la pantalla entera se va al fuego, la
+      {/* El corte del tiro especial: la pantalla entera se va a su fondo, la
           cara del que tira entra de lado y el nombre del tiro, a gritos. */}
       {step === 'corte' && kind !== 'normal' && (
         <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden bg-[#241a14]">
@@ -1062,31 +1370,42 @@ function Escena({
         </div>
       )}
 
-      {/* El resultado: un fogonazo, las rayas de impacto y el rótulo en su
-          banda torcida. Entra de golpe, se pasa de tamaño y se asienta: es el
-          gesto del anime, y hace que se lea el resultado sin buscarlo. */}
-      {outcome && (
+      {/* La repetición: bandas negras de cine y el rótulo de la cadena. */}
+      {replaying && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-30">
+          <div className="absolute inset-x-0 top-0 h-[7%] bg-black" />
+          <div className="absolute inset-x-0 bottom-0 h-[7%] bg-black" />
+          <div className="absolute right-[3%] top-[9%] flex animate-floatUp items-center gap-1.5 rounded bg-[#0b1220]/90 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+            Repetición
+          </div>
+        </div>
+      )}
+
+      {/* El resultado: un fogonazo y el rótulo de la tele entrando de lado,
+          con su brillo; debajo, quién y con qué. */}
+      {outcome && fired && (
         <>
           <div aria-hidden className="pointer-events-none absolute inset-0 animate-fogonazo bg-white" />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-25
-                       bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.9)_0_2px,transparent_2px_9px)]"
-          />
-          <div
-            aria-hidden
-            className={`pointer-events-none absolute inset-x-[-4%] top-[60%] z-30 animate-golpe border-y-4 border-[#241a14]
-                        py-1 text-center font-manga text-[clamp(34px,11vw,60px)] leading-none tracking-wide
-                        tracking-tight text-white [paint-order:stroke] [-webkit-text-stroke:6px_#241a14]
-                        ${
-                          outcome === 'gol'
-                            ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400'
-                            : outcome === 'parada'
-                              ? 'bg-gradient-to-r from-slate-600 via-[#101826] to-slate-600'
-                              : 'bg-gradient-to-r from-sky-700 via-slate-800 to-sky-700'
-                        }`}
-          >
-            {TITULAR[outcome]}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[57%] z-30 flex flex-col items-center">
+            <div
+              className={`relative animate-rotulo overflow-hidden px-[8%] py-1 [clip-path:polygon(4%_0,100%_0,96%_100%,0_100%)]
+                ${
+                  outcome === 'gol'
+                    ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400'
+                    : outcome === 'parada'
+                      ? 'bg-gradient-to-r from-sky-600 via-[#0b1220] to-sky-600'
+                      : 'bg-gradient-to-r from-slate-600 via-slate-800 to-slate-600'
+                }`}
+            >
+              <span className="absolute inset-y-0 -left-1/3 w-1/3 animate-barrido bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+              <p className="relative font-manga text-[clamp(34px,11vw,64px)] leading-none tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:6px_#241a14]">
+                {TITULAR[outcome]}
+              </p>
+            </div>
+            <p className="-mt-0.5 animate-floatUp bg-[#0b1220] px-3 py-1 text-[clamp(10px,2.8vw,13px)] font-black uppercase tracking-[0.14em] text-white [animation-delay:180ms]">
+              {subtitulo(outcome, shooterName, fired.kind)} · {penalty}/{PENALTY_SHOTS}
+            </p>
           </div>
         </>
       )}
@@ -1095,12 +1414,94 @@ function Escena({
 }
 
 /* ---------------------------------------------------------------------------
- * El cara a cara
+ * La carta
  *
- * Antes del primer penalti, la presentación de la serie: las dos caras
- * partidas en diagonal, el «VS» en medio y, debajo, cómo se juega en tres
- * gestos. Sale una vez por tanda —al empezarla— y no entre penalti y
- * penalti, que ahí lo que se quiere es tirar.
+ * La ficha de un jugador con su media, su puesto y tres cifras, recortada en
+ * escudo y en dorado; los de casa, en la carta especial.
+ * ------------------------------------------------------------------------- */
+
+function Carta({
+  id,
+  label,
+  picked,
+  casa,
+  onClick,
+}: {
+  id: TiradorId;
+  label: string;
+  picked: boolean;
+  casa: boolean;
+  onClick: () => void;
+}) {
+  const ficha = fichaDe(id);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={picked}
+      aria-label={`${label}, media ${ficha.media}, ${ficha.pos}`}
+      className={`relative w-[7.25rem] shrink-0 snap-center transition-transform duration-200 sm:w-[calc(20%-0.6rem)]
+        ${picked ? 'z-10 -translate-y-1 scale-[1.04]' : 'opacity-80 hover:opacity-100'}`}
+    >
+      <span
+        className={`relative block aspect-[3/4.2] overflow-hidden p-[3px]
+          [clip-path:polygon(50%_0,100%_7%,100%_88%,50%_100%,0_88%,0_7%)]
+          ${picked ? 'bg-white' : 'bg-black/30'}`}
+      >
+        <span
+          className={`relative flex h-full flex-col items-center overflow-hidden px-1.5 pt-2.5
+            [clip-path:polygon(50%_0,100%_7%,100%_88%,50%_100%,0_88%,0_7%)]
+            ${
+              casa
+                ? 'bg-gradient-to-br from-fuchsia-500 via-violet-700 to-indigo-900 text-amber-200'
+                : 'bg-gradient-to-br from-amber-100 via-amber-300 to-amber-600 text-[#3b2708]'
+            }`}
+        >
+          {/* El brillo de la carta. */}
+          <span aria-hidden className="pointer-events-none absolute -inset-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <span className="absolute left-2 top-3 flex flex-col items-center leading-none">
+            <span className="text-[22px] font-black tabular-nums">{ficha.media}</span>
+            <span className="text-[10px] font-black tracking-wider">{ficha.pos}</span>
+          </span>
+          <span className="relative ml-auto mt-0.5 block w-[64%] overflow-hidden rounded-full ring-2 ring-black/20">
+            <Vineta who={id} rayas={false} className="aspect-square w-full" />
+          </span>
+          <span className="relative mt-1 block w-full truncate text-center text-[12px] font-black uppercase leading-tight tracking-wide">
+            {label}
+          </span>
+          <span className="relative mt-0.5 h-px w-4/5 bg-current opacity-30" />
+          <span className="relative mt-1 grid w-full grid-cols-3 text-center text-[10px] font-black leading-tight">
+            {(
+              [
+                ['TIR', ficha.tir],
+                ['POT', ficha.pot],
+                ['PRE', ficha.pre],
+              ] as const
+            ).map(([k, v]) => (
+              <span key={k}>
+                <span className="block tabular-nums">{v}</span>
+                <span className="block text-[8px] opacity-70">{k}</span>
+              </span>
+            ))}
+          </span>
+        </span>
+      </span>
+      {picked && (
+        <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-xs font-black text-emerald-950 shadow">
+          ✓
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * La presentación
+ *
+ * Antes del primer penalti: el cara a cara de la serie con las dos caras
+ * partidas en diagonal, la elección del que tira en cartas y cómo se juega.
+ * Sale una vez por tanda —al empezarla— y no entre penalti y penalti.
  * ------------------------------------------------------------------------- */
 
 function CaraACara({
@@ -1120,11 +1521,12 @@ function CaraACara({
   const shooterName = shooter === who ? name : (player.name ?? name);
   const tagline = shooter === who ? 'Tú mismo, con tu dorsal' : player.tagline;
   const options: TiradorId[] = [who, ...SERIE_ORDER];
+  const ficha = fichaDe(shooter);
 
   return (
-    <div className={`${manga.variable} mx-auto max-w-xl space-y-3`}>
+    <div className={`${manga.variable} mx-auto w-full max-w-2xl space-y-3`}>
       {/* El cara a cara de la serie: las dos caras partidas en diagonal. */}
-      <div className="relative aspect-[16/9] overflow-hidden rounded-2xl border-2 border-[#241a14] bg-[#241a14] shadow-lg">
+      <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-[#241a14] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)] ring-1 ring-black/40">
         <div className="absolute inset-0 animate-entra [clip-path:polygon(0_0,62%_0,38%_100%,0_100%)]">
           <div className="absolute inset-y-0 left-0 w-[62%]">
             <Vineta key={shooter} who={shooter} fill className="h-full w-full" />
@@ -1135,7 +1537,13 @@ function CaraACara({
             <Vineta who="benji" fill className="h-full w-full" />
           </div>
         </div>
-        <div className="absolute inset-0 [clip-path:polygon(61%_0,63%_0,39%_100%,37%_100%)] bg-[#241a14]" />
+        <div className="absolute inset-0 bg-[#241a14] [clip-path:polygon(61%_0,63%_0,39%_100%,37%_100%)]" />
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-3 pb-4 pt-2 text-[9px] font-black uppercase tracking-[0.18em] text-white">
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> En directo
+          </span>
+          <span>Final · tanda de penaltis</span>
+        </div>
         <p
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-golpe font-manga text-6xl tracking-wide
                      text-amber-300 [paint-order:stroke] [-webkit-text-stroke:8px_#241a14]"
@@ -1148,7 +1556,7 @@ function CaraACara({
             {shooterName}
           </p>
           <p className="mt-0.5 truncate text-[10px] font-black uppercase tracking-wider text-white [paint-order:stroke] [-webkit-text-stroke:3px_#241a14]">
-            {tagline}
+            {ficha.media} · {ficha.pos} · {tagline}
           </p>
         </div>
         <p className="absolute bottom-2 right-3 text-right font-manga text-[clamp(20px,6.5vw,32px)] leading-none tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:5px_#241a14]">
@@ -1156,49 +1564,53 @@ function CaraACara({
         </p>
       </div>
 
-      {/* Quién tira: nueve fichas pequeñas, todas a la vista. */}
+      {/* Quién tira: las cartas, en fila que se desliza en el móvil y en
+          rejilla en el ordenador. */}
       <div>
-        <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] t-3">¿Quién tira contra Benji?</p>
-        <div className="grid grid-cols-5 gap-1.5">
-          {options.map((id) => {
-            const picked = id === shooter;
-            const label = id === who ? name : (tiradorDe(id).short ?? tiradorDe(id).name ?? id);
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onPick(id)}
-                aria-pressed={picked}
-                aria-label={id === who ? `${name}, tú mismo` : tiradorDe(id).name}
-                className={`group overflow-hidden rounded-xl border-2 transition-transform
-                  ${picked ? 'z-10 scale-[1.07] border-amber-300 shadow-[0_3px_0_#241a14]' : 'border-[#241a14] hover:scale-[1.03]'}`}
-              >
-                <Vineta who={id} rayas={picked} className={`aspect-square w-full ${picked ? '' : 'opacity-85'}`} />
-                <span
-                  className={`block truncate px-0.5 py-0.5 text-center text-[10px] font-black leading-tight
-                    ${picked ? 'bg-amber-300 text-[#241a14]' : 'bg-[#101826] text-white/85'}`}
-                >
-                  {label}
-                </span>
-              </button>
-            );
-          })}
+        <p className="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.14em] t-3">
+          <span>Elige quién tira</span>
+          <span className="normal-case tracking-normal sm:hidden">desliza →</span>
+        </p>
+        <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 pt-3 sm:mx-0 sm:flex-wrap sm:justify-center sm:gap-3 sm:overflow-visible sm:px-0">
+          {options.map((id) => (
+            <Carta
+              key={id}
+              id={id}
+              label={id === who ? name : (tiradorDe(id).short ?? tiradorDe(id).name ?? id)}
+              picked={id === shooter}
+              casa={id === who}
+              onClick={() => onPick(id)}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Cómo se juega, en una línea, y el truco. */}
-      <div className="rounded-2xl border-2 border-[#241a14] bg-[#101826] p-3 text-white">
-        <p className="flex items-center justify-between gap-1 text-[12px] font-black">
-          <span>👆 Apunta</span>
-          <span className="text-white/40" aria-hidden>›</span>
-          <span>✊ Mantén</span>
-          <span className="text-white/40" aria-hidden>›</span>
-          <span>🖐️ Suelta en verde</span>
-        </p>
-        <p className="mt-2 text-[12px] leading-snug text-white/85">
+      {/* Cómo se juega, en tres pasos, y el truco. */}
+      <div className="rounded-2xl p-3 text-white" style={{ backgroundColor: NOCHE }}>
+        <ol className="grid grid-cols-3 gap-2 text-center text-[11px] font-black leading-tight">
+          {[
+            ['🎯', 'Apunta', 'toca la portería'],
+            ['✊', 'Mantén', 'se carga la potencia'],
+            ['🟩', 'Suelta', 'en la franja verde'],
+          ].map(([icon, title, hint], i) => (
+            <li key={title} className="rounded-xl bg-white/5 px-1 py-2">
+              <span aria-hidden className="block text-xl">
+                {icon}
+              </span>
+              <span className="mt-0.5 block text-[12px] uppercase tracking-wide">
+                {i + 1}. {title}
+              </span>
+              <span className="block text-[10px] font-semibold text-white/60">{hint}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2.5 text-[12px] leading-snug text-white/85">
           <span className="font-black text-amber-300">El truco:</span> Benji se carga hacia un lado antes de tirarse; tira
           al otro. Cada gol da <span className="font-black text-amber-300">⚡</span> para los tiros de la serie (empiezas
           con {ENERGY_START}).
+        </p>
+        <p className="mt-1.5 hidden text-[11px] text-white/60 md:block">
+          En el ordenador: flechas para apuntar y la barra espaciadora mantenida para chutar.
         </p>
       </div>
 
@@ -1206,96 +1618,134 @@ function CaraACara({
         type="button"
         onClick={onStart}
         autoFocus
-        className="flex min-h-[3.75rem] w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#241a14]
-                   bg-amber-300 px-4 font-manga text-3xl tracking-wide text-[#241a14] shadow-[0_4px_0_#241a14]
-                   active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]"
+        className="flex min-h-[4rem] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-amber-200
+                   to-amber-400 px-4 font-manga text-3xl tracking-wide text-[#241a14] shadow-[0_5px_0_rgba(0,0,0,0.45)]
+                   active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
       >
-        ¡A por él!
+        ¡Al punto de penalti!
       </button>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------------------
- * Cómo quedó la tanda
+ * El resumen de la tanda
+ *
+ * Como el de la tele al acabar: el resultado con los dos escudos, la tanda
+ * tiro a tiro, tres cifras y la nota del que ha tirado.
  * ------------------------------------------------------------------------- */
 
 function Final({
   who,
+  shooterName,
   scored,
-  name,
+  result,
+  history,
+  firstShown,
   onClose,
 }: {
   who: TiradorId;
+  shooterName: string;
   scored: number;
-  name: string;
+  result: PenaltyResult | null;
+  history: PenaltyOutcome[];
+  firstShown: number;
   onClose: () => void;
 }) {
-  const kit = tiradorDe(who).kit;
   const good = scored >= Math.ceil(PENALTY_SHOTS / 2);
   const saved = PENALTY_SHOTS - scored;
+  const specials = result?.specials ?? [];
+  const nota = Math.min(10, 4.5 + scored * 1.1).toFixed(1).replace('.', ',');
+  const color = colorDe(who);
 
   return (
-    <div className={`${manga.variable} mx-auto max-w-xl space-y-4 text-center`}>
-      <div
-        className="relative mx-auto aspect-[4/3] overflow-hidden rounded-2xl border-2 border-[#241a14]"
-        style={{ backgroundColor: good ? (kit === '#f8fafc' ? '#2563eb' : kit) : '#1f2a37' }}
-      >
-        <div
-          aria-hidden
-          className="absolute -inset-1/2 animate-girar opacity-40
-                     bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,0.8)_0deg_5deg,transparent_5deg_15deg)]"
-        />
-        <div className="absolute bottom-[-4%] left-[4%] h-[92%] animate-pop" style={{ aspectRatio: '120 / 210' }}>
-          <Chutador who={who} pose={good ? 'celebra' : 'espera'} className="h-full w-full" />
+    <div className={`${manga.variable} mx-auto w-full max-w-2xl space-y-3`}>
+      <div className="overflow-hidden rounded-2xl text-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)] ring-1 ring-black/40" style={{ backgroundColor: NOCHE }}>
+        <div className="flex items-center justify-between px-3 pt-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+          <span>Final de la tanda</span>
+          {scored >= 4 && <span className="rounded bg-amber-300 px-1.5 py-0.5 text-[#241a14]">⭐ Jugador del partido</span>}
         </div>
-        <div className="absolute right-[4%] top-1/2 -translate-y-1/2 text-right">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white [paint-order:stroke] [-webkit-text-stroke:3px_#241a14]">
-            {name} — Benji
-          </p>
-          <p
-            className="animate-golpe font-manga text-[clamp(64px,21vw,110px)] leading-none tracking-wide tabular-nums
-                       text-amber-300 [paint-order:stroke] [-webkit-text-stroke:8px_#241a14]"
-          >
-            {scored}–{saved}
-          </p>
-          <p className="mt-2 flex justify-end gap-1" aria-hidden>
-            {Array.from({ length: PENALTY_SHOTS }, (_, i) =>
-              i < scored ? (
-                <Balon key={i} className="h-6 w-6" />
-              ) : (
-                <span
-                  key={i}
-                  className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#241a14] bg-rose-500
-                             text-xs font-black text-white"
-                >
-                  ✕
-                </span>
-              ),
-            )}
-          </p>
+
+        {/* El resultado, con el que tira celebrando o esperando detrás. */}
+        <div className="relative mt-1 aspect-[16/7] overflow-hidden">
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-50"
+            style={{ background: `radial-gradient(circle at 22% 60%, ${color} 0, transparent 55%), radial-gradient(circle at 80% 60%, #f59e0b 0, transparent 50%)` }}
+          />
+          <div aria-hidden className="absolute -inset-1/2 animate-girar opacity-20 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,0.8)_0deg_5deg,transparent_5deg_15deg)]" />
+          <div className="absolute bottom-[-16%] left-[2%] h-[112%] animate-pop" style={{ aspectRatio: '120 / 210' }}>
+            <Chutador who={who} pose={good ? 'celebra' : 'espera'} className="h-full w-full" />
+          </div>
+          <div className="absolute inset-y-0 right-[4%] flex flex-col items-end justify-center">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em]">
+              {siglas(shooterName)} <span className="text-white/50">vs</span> BEN
+            </p>
+            <p className="animate-golpe font-manga text-[clamp(56px,17vw,96px)] leading-none tracking-wide tabular-nums text-amber-300 [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]">
+              {scored}–{saved}
+            </p>
+          </div>
         </div>
+
+        {/* La tanda, tiro a tiro. */}
+        <div className="flex items-center justify-center gap-1.5 border-t border-white/10 px-3 py-2.5">
+          {Array.from({ length: PENALTY_SHOTS }, (_, i) => {
+            const known = i >= firstShown ? history[i - firstShown] : undefined;
+            const goal = known ? known === 'gol' : undefined;
+            return (
+              <span
+                key={i}
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black
+                  ${goal === true ? 'bg-emerald-400 text-emerald-950' : goal === false ? 'bg-rose-500' : 'bg-white/20'}`}
+                title={known ? TITULAR[known] : undefined}
+              >
+                {goal === true ? '✓' : goal === false ? '✕' : i + 1}
+              </span>
+            );
+          })}
+        </div>
+
+        <dl className="grid grid-cols-3 border-t border-white/10 text-center">
+          {(
+            [
+              ['Goles', `${scored}/${PENALTY_SHOTS}`],
+              ['Especiales', String(specials.length)],
+              ['Nota', nota],
+            ] as const
+          ).map(([k, v]) => (
+            <div key={k} className="border-r border-white/10 py-2.5 last:border-r-0">
+              <dt className="text-[10px] font-black uppercase tracking-[0.14em] text-white/60">{k}</dt>
+              <dd className="text-xl font-black tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
-      <div>
+      <div className="text-center">
         <p className="font-display text-xl font-black t-1">
           {scored === PENALTY_SHOTS ? '🏆 ' : ''}
           {scored} de {PENALTY_SHOTS} dentro
         </p>
         <p className="mt-1 text-sm t-2">{penaltyVerdict(scored, PENALTY_SHOTS)}</p>
+        {specials.length > 0 && (
+          <p className="mt-1 text-[12px] t-3">
+            Tiros de la serie: {specials.map((k) => `${SHOT_TYPES[k].icon} ${SHOT_TYPES[k].name}`).join(' · ')}
+          </p>
+        )}
       </div>
 
-      <p className="text-[11px] leading-snug t-3">
-        Una tanda al día, y no más. Mañana hay otras cinco preguntas, otro día que hacer y Benji esperando.
+      <p className="text-center text-[11px] leading-snug t-3">
+        Una tanda al día. Mañana hay otras cinco preguntas, otro día que hacer y Benji esperando.
       </p>
 
       <button
         type="button"
         onClick={onClose}
         autoFocus
-        className="flex min-h-[3.25rem] w-full items-center justify-center rounded-2xl border-2 border-[#241a14]
-                   bg-white px-4 text-base font-black uppercase tracking-wide text-[#241a14] shadow-[0_4px_0_#241a14]
-                   active:translate-y-[3px] active:shadow-[0_1px_0_#241a14]"
+        className="flex min-h-[3.5rem] w-full items-center justify-center rounded-2xl px-4 text-base font-black uppercase
+                   tracking-wide text-white shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px]
+                   active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
+        style={{ backgroundColor: NOCHE }}
       >
         Cerrar
       </button>
@@ -1306,10 +1756,10 @@ function Final({
 /* ---------------------------------------------------------------------------
  * El selector de tiros
  *
- * Los siete en fila, como el menú de técnicas de un videojuego de la serie:
- * su icono, su nombre y lo que cuestan en rayos. Los que no se pueden tirar
- * se ven igual —para saber que existen y qué falta— pero apagados y con el
- * motivo: ya usado, o falta energía.
+ * Los ocho como el menú de técnicas de un videojuego: su icono, su nombre y
+ * lo que cuestan en rayos, y debajo qué hace el elegido. Los que no se pueden
+ * tirar se ven igual —para saber que existen y qué falta— pero apagados y con
+ * el motivo: ya usado, o falta energía.
  * ------------------------------------------------------------------------- */
 
 function SelectorTiros({
@@ -1324,19 +1774,20 @@ function SelectorTiros({
   locked: boolean;
 }) {
   const energy = energyLeft(result);
+  const picked = SHOT_TYPES[kind];
 
   return (
-    <div className="rounded-2xl border-2 border-[#241a14] bg-[#101826] p-2 text-white">
+    <div className="rounded-2xl p-2 text-white" style={{ backgroundColor: NOCHE }}>
       <div className="mb-1.5 flex items-center justify-between px-1">
-        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Elige tu tiro</span>
-        <span className="flex items-center gap-1 text-[11px] font-black" aria-label={`Energía: ${energy}`}>
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Técnica de tiro</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-black" aria-label={`Energía: ${energy}`}>
           <span className="text-white/70">Energía</span>
-          {Array.from({ length: Math.max(energy, 0) }, (_, i) => (
-            <span key={i} aria-hidden className="text-amber-300">
-              ⚡
-            </span>
-          ))}
-          {energy <= 0 && <span className="text-white/50">0</span>}
+          <span className="flex gap-0.5" aria-hidden>
+            {Array.from({ length: Math.max(energy, 0) }, (_, i) => (
+              <span key={i} className="h-3 w-2 -skew-x-12 rounded-sm bg-amber-300 shadow-[0_0_6px_rgba(252,211,77,0.7)]" />
+            ))}
+          </span>
+          <span className="tabular-nums text-amber-300">{Math.max(energy, 0)}</span>
         </span>
       </div>
 
@@ -1344,39 +1795,50 @@ function SelectorTiros({
         {SHOT_ORDER.map((id) => {
           const shot = SHOT_TYPES[id];
           const { ok, reason } = shotAvailability(id, result);
-          const picked = id === kind;
+          const chosen = id === kind;
 
           return (
             <button
               key={id}
               type="button"
+              data-tiro
               disabled={!ok || locked}
               onClick={() => onPick(id)}
-              aria-pressed={picked}
+              aria-pressed={chosen}
               aria-label={`${shot.name}${shot.cost ? `, cuesta ${shot.cost} de energía` : ''}${
                 reason === 'usado' ? ', ya usado' : reason === 'energia' ? ', falta energía' : ''
               }`}
-              className={`relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl border-2 px-0.5 pb-1 pt-1
-                text-center transition-transform
-                ${picked ? 'scale-[1.04] border-white' : 'border-white/15'}
-                ${!ok ? 'opacity-40' : ''}`}
-              style={{ backgroundColor: picked ? shot.color : 'rgba(255,255,255,0.06)' }}
+              className={`relative flex min-h-[4.1rem] min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-0.5
+                pb-1 pt-1.5 text-center transition-transform
+                ${chosen ? 'scale-[1.04] ring-2 ring-white' : 'ring-1 ring-white/10'}
+                ${!ok ? 'opacity-35 grayscale' : ''}`}
+              style={{
+                background: chosen
+                  ? `linear-gradient(180deg, ${shot.color}, ${shot.color}cc)`
+                  : `linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03))`,
+              }}
             >
+              <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: shot.color }} />
               <span className="text-xl leading-none" aria-hidden>
                 {shot.icon}
               </span>
-              <span
-                className={`w-full truncate text-[10px] font-black leading-[1.1] ${picked ? 'text-[#241a14]' : 'text-white'}`}
-              >
+              <span className={`w-full truncate text-[10px] font-black leading-[1.1] ${chosen ? 'text-[#241a14]' : 'text-white'}`}>
                 {shot.short}
               </span>
-              <span className={`text-[10px] font-black leading-none ${picked ? 'text-[#241a14]' : 'text-amber-300'}`}>
+              <span className={`text-[9px] font-black leading-none ${chosen ? 'text-[#241a14]' : 'text-amber-300'}`}>
                 {reason === 'usado' ? 'usado' : shot.cost ? '⚡'.repeat(shot.cost) : 'gratis'}
               </span>
             </button>
           );
         })}
       </div>
+
+      <p className="mt-2 min-h-[2.2em] px-1 text-[11px] leading-snug text-white/80">
+        <span className="font-black" style={{ color: kind === 'normal' ? '#fcd34d' : picked.color }}>
+          {picked.icon} {picked.name}:
+        </span>{' '}
+        {picked.blurb}
+      </p>
     </div>
   );
 }
