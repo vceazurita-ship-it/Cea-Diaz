@@ -301,6 +301,9 @@ export interface Placed {
   range: [number, number];
   /** Sesiones en las que se basa. */
   basis: number;
+  /** Su sesión típica (mediana) y sus mejores (percentil 90), por separado. */
+  typical: [number, number];
+  best: [number, number];
   /** El valor de la última sesión, situado en el mismo estudio. */
   latest?: [number, number];
 }
@@ -313,9 +316,11 @@ export function placeAgainstStudies(sessions: GpsSession[], age: number, latest?
   const out: Placed[] = [];
   for (const comparison of COMPARISONS) {
     if (age < comparison.ages[0] || age > comparison.ages[1]) continue;
-    const pool = comparison.matchOnly
-      ? sessions.filter((session) => session.kind === 'partido')
-      : sessions;
+    // Los estudios de partido son de jugadores de campo: los días de portería
+    // no cuentan, ni para situarle ni como «última sesión».
+    const counts = (session: GpsSession) =>
+      !comparison.matchOnly || (session.kind === 'partido' && !session.goalkeeper);
+    const pool = sessions.filter(counts);
     const values = pool.map((session) => session[comparison.metric]).filter((v): v is number => (v ?? 0) > 0);
     if (values.length < 3) continue;
 
@@ -325,9 +330,11 @@ export function placeAgainstStudies(sessions: GpsSession[], age: number, latest?
     out.push({
       comparison,
       range: [Math.min(typical[0], best[0]), Math.max(typical[1], best[1])],
+      typical,
+      best,
       basis: values.length,
       latest:
-        lastValue && lastValue > 0 && (!comparison.matchOnly || latest?.kind === 'partido')
+        lastValue && lastValue > 0 && latest && counts(latest)
           ? comparison.percentile(lastValue, age)
           : undefined,
     });
