@@ -332,9 +332,11 @@ create policy "economia propia" on public.finance
 --  Las sesiones del rastreador que llevan los peques al entrenamiento: lo
 --  corrido, los cambios de ritmo, la punta de velocidad, los balones tocados.
 --
---  La cuenta gratuita de Footbar no exporta nada ni tiene API, así que las
---  cifras se pegan a mano en la app, una línea por sesión. Desde ahí ya son
---  datos de la casa y viajan como todo lo demás.
+--  Las cifras se pegan a mano en la app, se leen de la foto de la captura o
+--  —con el peque conectado a Footbar— las escribe el servidor desde su API
+--  (`lib/footbarSync.ts`). Desde ahí ya son datos de la casa y viajan como
+--  todo lo demás. El permiso de Footbar se guarda en `calendar_links`, con
+--  `calendar_id = 'footbar'`: no hace falta ninguna tabla nueva.
 --
 --  Una fila por peque con todas sus sesiones dentro, como la agenda. Con una
 --  diferencia: al bajarla no se adopta entera, se mezcla sesión a sesión —de

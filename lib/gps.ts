@@ -6,9 +6,10 @@ import type { DateKey, GpsBook, GpsKind, GpsSession, Profile, ProfileId } from '
  *
  *  Los dos entrenan con un rastreador Footbar. Después de cada sesión, su
  *  aplicación enseña unas cifras —lo corrido, los cambios de ritmo, la punta de
- *  velocidad, los balones tocados— y ahí se quedan: la cuenta gratuita no
- *  exporta nada, no tiene API y sólo deja mirar sesión por sesión en el
- *  móvil. Para saber si el crío corre más que hace tres meses hay que ir
+ *  velocidad, los balones tocados— y ahí se quedan: sólo deja mirar sesión por
+ *  sesión en el móvil. (Desde septiembre de 2026 entran además solas por la
+ *  API de Footbar, si el peque está conectado en Ajustes → 🛰️ GPS: ver
+ *  `lib/footbar.ts`. Lo de pegar y la foto sigue, para lo que la API no da.) Para saber si el crío corre más que hace tres meses hay que ir
  *  abriendo pantallas y acordarse de memoria, que es como no saberlo.
  *
  *  Así que las cifras entran aquí **a mano, de un pegote**: una línea por
@@ -1199,6 +1200,13 @@ function normalizeSession(value: unknown): GpsSession | null {
     note: typeof raw.note === 'string' && raw.note ? raw.note.slice(0, 200) : undefined,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : NEVER,
   };
+
+  // Las que llegan solas desde Footbar llevan su número: sin él, la próxima
+  // revisión no la reconocería y la volvería a meter.
+  const footbarId = Number(raw.footbarId);
+  if (raw.footbarId !== undefined && Number.isInteger(footbarId) && footbarId > 0) {
+    session.footbarId = footbarId;
+  }
 
   for (const field of GPS_FIELDS) {
     const old = RENAMED[field.id];

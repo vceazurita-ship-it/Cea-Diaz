@@ -1274,8 +1274,8 @@ el mazo se baraja otra vez.
 
 Leo y Hugo entrenan con un rastreador **Footbar**. Después de cada sesión, su
 aplicación enseña unas cifras —lo que han corrido, los cambios de ritmo, la
-punta de velocidad, la potencia del tiro, los balones tocados— y ahí se acaba: la cuenta gratuita no exporta
-nada, no tiene API y sólo deja mirar sesión por sesión en el móvil. Para saber
+punta de velocidad, la potencia del tiro, los balones tocados— y ahí se acaba: sólo
+deja mirar sesión por sesión en el móvil. Para saber
 si el crío corre más que en septiembre hay que ir abriendo pantallas y fiarse
 de la memoria, que es como no saberlo.
 
@@ -1283,7 +1283,38 @@ Esta sección se queda con esas cifras y hace lo único que allí no se puede
 hacer: **mirarlas juntas**. Es una pestaña más —`🛰️ GPS`— y sólo existe en los
 paneles de Leo y de Hugo, que son los que llevan aparato.
 
-### Cómo entra una sesión
+### Solas, desde Footbar
+
+Footbar tiene una **API oficial** (developers.footbar.com), gratis hasta cien
+jugadores y cien consultas a la semana, con el mismo baile que el calendario de
+Google. En **⚙️ Ajustes → 🛰️ GPS** cada peque se conecta una vez con su cuenta de
+Footbar —el correo y la contraseña se escriben en la página de Footbar, no en la
+app— y desde entonces sus sesiones entran solas en su GPS:
+
+- **al rato de acabar**, porque Footbar avisa a `/api/footbar/webhook` cuando hay
+  una sesión nueva, corregida o borrada. El aviso no viene firmado, así que no se
+  cree: sólo dice qué sesión mirar, y lo que entra es lo que la API devuelve con
+  nuestro permiso;
+- **cada día a las 21:00** de Madrid, en una revisión por si algún aviso se perdió
+  (`/api/footbar/cron`). Vercel sólo sabe de hora UTC, así que hay dos vueltas
+  programadas —19:00 y 20:00 UTC— y sólo trabaja la que cae a las 21 en Madrid: en
+  verano la primera y en invierno la segunda;
+- **cuando se quiera**, con el botón **🔄 Actualizar ahora** de esa misma sección.
+
+Entran distancia, minutos, metros a alta intensidad, punta de velocidad, tiros,
+potencia de tiro, pases y tiempo con balón, pasados a las unidades de casa. Las
+aceleraciones, las deceleraciones y los toques **no los da la API**: siguen
+entrando con la foto. Si ese día ya había una sesión del mismo tipo metida a mano,
+**se adopta** en vez de duplicarse —se le ponen las cifras de Footbar y conserva
+las suyas— y lo que se borre a mano no vuelve.
+
+El permiso se guarda cifrado en `calendar_links`, la tabla blindada de los
+permisos de Google, con `calendar_id = 'footbar'`: no hay tabla nueva. Hace falta
+en Vercel `FOOTBAR_CLIENT_ID`, `FOOTBAR_CLIENT_SECRET` y
+`SUPABASE_SERVICE_ROLE_KEY` (y, si se quiere, `CRON_SECRET`); sin ellas la
+sección lo dice y todo lo de abajo sigue funcionando igual.
+
+### Cómo entra una sesión a mano
 
 Tres caminos, y el primero es el que hace que las sesiones no se queden sin apuntar.
 

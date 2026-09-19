@@ -17,6 +17,7 @@ import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 import { useToday } from '@/hooks/useToday';
 import { todayKey, weekKeys } from '@/lib/dates';
+import { FOOTBAR_RETURN_KEY } from '@/lib/footbarClient';
 import { playAnthem, stopAnthem } from '@/lib/sound';
 import {
   NEUTRAL_ACCENT,
@@ -54,7 +55,7 @@ function Home() {
   const [unlocked, setUnlocked] = useState<ProfileId[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Apartado por el que abrir los ajustes; sólo lo fija quien los abre. */
-  const [settingsSection, setSettingsSection] = useState<'seguridad' | undefined>();
+  const [settingsSection, setSettingsSection] = useState<'seguridad' | 'gps' | undefined>();
   /** Perfil cuyo aspecto se está editando. */
   const [editing, setEditing] = useState<Profile | null>(null);
   /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
@@ -184,6 +185,33 @@ function Home() {
     }
 
     // La barra se limpia: recargar no debe repetir el aviso ni el viaje.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
+  // Vuelta desde la pantalla de permiso de Footbar, que se pidió desde
+  // Ajustes → GPS: se reabren los ajustes ahí mismo y el desenlace se deja
+  // anotado para que esa sección lo cuente.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('footbar');
+    if (!outcome) return;
+
+    try {
+      window.sessionStorage.setItem(
+        FOOTBAR_RETURN_KEY,
+        JSON.stringify({
+          ok: outcome === 'ok',
+          profileId: params.get('perfil') ?? undefined,
+          nuevas: Number(params.get('nuevas') ?? 0),
+          motivo: params.get('motivo') ?? undefined,
+        }),
+      );
+    } catch {
+      // Sin almacenamiento de sesión se abre igual, sin el aviso.
+    }
+
+    setSettingsSection('gps');
+    setSettingsOpen(true);
     window.history.replaceState({}, '', window.location.pathname);
   }, []);
 

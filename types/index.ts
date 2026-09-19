@@ -1441,6 +1441,12 @@ export interface GpsSession {
   score?: number;
   /** Lo que hubiera que recordar de ese día. */
   note?: string;
+  /**
+   * El número de la sesión en Footbar, cuando ha llegado sola por su API.
+   * Es lo que impide que la misma sesión entre dos veces, y lo que permite
+   * adoptar la que ya estaba metida a mano ese día en vez de duplicarla.
+   */
+  footbarId?: number;
   updatedAt: string;
 }
 

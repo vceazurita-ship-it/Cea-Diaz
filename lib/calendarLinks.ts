@@ -51,7 +51,13 @@ export async function listLinks(owner: string): Promise<CalendarLink[]> {
   const service = admin();
   if (!service) return [];
 
-  const { data, error } = await service.from(TABLE).select('*').eq('owner', owner);
+  // En la misma tabla viven los permisos de Footbar (`lib/footbarSync.ts`),
+  // que no son calendarios: se apartan aquí.
+  const { data, error } = await service
+    .from(TABLE)
+    .select('*')
+    .eq('owner', owner)
+    .neq('calendar_id', 'footbar');
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as LinkRow[]).map(publicView);
