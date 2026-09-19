@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FootbarSettings } from '@/components/gps/FootbarSettings';
+import { StickerSheets } from '@/components/StickerSheets';
 import { Photo } from '@/components/ui/Photo';
 import { Modal } from '@/components/ui/Modal';
 import { PhotoCropper } from '@/components/ui/PhotoCropper';
@@ -36,7 +37,7 @@ interface SettingsPanelProps {
   store: HabitStore;
   onClose: () => void;
   /** Apartado por el que se abre. Se usa al volver del enlace del correo. */
-  initialSection?: 'aspecto' | 'nube' | 'sonido' | 'juegos' | 'gps' | 'datos' | 'seguridad';
+  initialSection?: Section;
 }
 
 /** El icono del interruptor de los penaltis, según esté abierto o no. */
@@ -155,7 +156,15 @@ interface PartLine {
  *  fábrica— salen en la propia pestaña para que no haya que entrar a mirar.
  * ---------------------------------------------------------------------- */
 
-type Section = 'aspecto' | 'nube' | 'sonido' | 'juegos' | 'gps' | 'datos' | 'seguridad';
+type Section =
+  | 'aspecto'
+  | 'nube'
+  | 'sonido'
+  | 'juegos'
+  | 'pegatinas'
+  | 'gps'
+  | 'datos'
+  | 'seguridad';
 
 /** Los que juegan al juego del día: son los únicos que tiran penaltis. */
 const PLAYERS = PROFILES.filter((profile) => profile.kind === 'kid');
@@ -165,6 +174,7 @@ const SECTIONS: Array<{ id: Section; label: string; icon: string }> = [
   { id: 'nube', label: 'Nube', icon: '☁️' },
   { id: 'sonido', label: 'Sonido', icon: '🔊' },
   { id: 'juegos', label: 'Juegos', icon: '🎮' },
+  { id: 'pegatinas', label: 'Pegatinas', icon: '🏷️' },
   { id: 'gps', label: 'GPS', icon: '🛰️' },
   { id: 'datos', label: 'Datos', icon: '💾' },
   { id: 'seguridad', label: 'Seguridad', icon: '🔐' },
@@ -1105,6 +1115,9 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
         )}
 
         {/* ------------------------------------------------------- gps */}
+        {/* -------------------------------------------------- pegatinas */}
+        {section === 'pegatinas' && <StickerSheets />}
+
         {section === 'gps' && <FootbarSettings store={store} />}
 
         {/* ------------------------------------------------------- datos */}

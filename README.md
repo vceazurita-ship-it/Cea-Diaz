@@ -2233,7 +2233,7 @@ en el aparato desde el que más se consulta.
 ## Ajustes
 
 **⚙️ Ajustes** está en el pie de la pantalla de inicio y dentro de cada perfil. Era una
-tira única que había que recorrer entera para llegar al PIN; ahora son **cinco
+tira única que había que recorrer entera para llegar al PIN; ahora son **apartados**
 apartados** que se cambian con un toque —o con las flechas del teclado— y cada uno cabe
 en la pantalla del móvil sin desplazarse:
 
@@ -2242,6 +2242,7 @@ en la pantalla del móvil sin desplazarse:
 | 🎨 Aspecto | Modo día/noche/automático y la portada de la casa |
 | ☁️ Nube | Estado de la sesión, sincronizar, mandar lo de este móvil y el parte de qué ha viajado |
 | 🔊 Sonido | Las sintonías de perfil, encendidas o silenciadas |
+| 🏷️ Pegatinas | Folios de pegatinas para chapas, listos para imprimir |
 | 💾 Datos | Cuánto hay guardado, exportar, importar y datos de ejemplo |
 | 🔐 Seguridad | El PIN del módulo de pareja y la zona peligrosa |
 
@@ -2264,6 +2265,26 @@ Además de la nueva estructura:
 - **Los interruptores son interruptores.** Un botón cuyo texto cambia obliga a leer para
   saber si lo que pone es lo que está puesto o lo que va a pasar al picarlo; el carril de
   `ui/Switch.tsx` se ve de lejos y toda la fila es el objetivo táctil.
+
+### 🏷️ Pegatinas para chapas
+
+Folios A4 de **pegatinas redondas** para imprimir en papel adhesivo, recortar por la
+línea de puntos y pegar en las chapas de Hugo y Leo. Hay cuatro hojas —**Real Madrid
+y Lamine** (con cinco fotos distintas de Lamine), **Leyendas**, **Dinosaurios** y
+**Planetas**—, cada una llena a rebosar, y tres tamaños: 25 mm para dentro de una
+chapa de botellín, 28 mm hasta el borde y 32 mm tapándola entera. El nombre va en
+arco por el borde de abajo, como en las chapas de siempre.
+
+Se dibujan en el propio móvil (`lib/stickers.ts`) y se descargan como **PDF de A4 a
+300 ppp** (`lib/pdf.ts`, hecho a mano: cada página es un JPEG metido tal cual). Un PDF
+y no una imagen porque es lo único que la impresora respeta al milímetro si se imprime
+a **tamaño real**; el pie de cada folio lleva una raya de 5 cm para comprobarlo.
+
+Las fotos son todas **de verdad y libres**: jugadores y leyendas, las de sus cromos;
+Lamine y los dinosaurios, de Wikimedia Commons; los planetas, de la NASA. Los
+dinosaurios son los de Jurassic World, pero en réplica a tamaño real y esqueleto de
+museo: las imágenes de las películas son de Universal y no pueden vivir en un
+repositorio público. Autor y licencia, en `public/photos/pegatinas/CREDITOS.md`.
 
 ## Economía
 

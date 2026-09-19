@@ -102,34 +102,34 @@ retrato dibujado, que al menos es suyo.
 
 | Cromo | Autor | Licencia | Archivo en Commons |
 | ----- | ----- | -------- | ------------------ |
-| Alfredo Di Stéfano | Unknown authorUnknown author | Public domain | Di_stefano_argentina_(cropped).jpg |
-| Andrés Iniesta | Кирилл Венедиктов | CC BY-SA 3.0 | Andrés_Iniesta_(cropped).jpg |
-| Bobby Charlton | Panini | Public domain | Bobby_Charlton_en_1966_160.jpg |
+| Alfredo Di Stéfano | Autor desconocido | Public domain | Di_stefano_real_madrid_cf_(cropped).png |
+| Andrés Iniesta | Дмитрий Неймырок | CC BY-SA 3.0 | Andrés_Iniesta_Euro_2012_vs_France_02.jpg |
+| Bobby Charlton | Eric Koch for Anefo | CC0 | CharltonVanDijk1969.jpg |
 | Cristiano Ronaldo | Bryan Berlin | CC BY-SA 4.0 | Cristiano_Ronaldo_Croatia_v_Portugal_2_July_2026-075_(cropped).jpg |
-| Diego Armando Maradona | Unknown authorUnknown author | Public domain | Maradona-Mundial_86_con_la_copa.JPG |
+| Diego Armando Maradona | Gerardo Prego | Public domain | Maradona_eg_3203.jpg |
 | Emilio Butragueño | World Travel &amp; Tourism Council | CC BY 2.0 | Emilio_Butragueño_2015_(cropped).jpg |
-| Eusébio | Panini | Public domain | Eusebio_en_1973.jpg |
-| Ferenc Puskás | Panini | Public domain | Ferenc_Puskas_en_1965.jpg |
-| Francisco Gento | Fotograaf Onbekend / Anefo | CC0 | V.l.n.r._Amancio,_Miguel_Muñoz_(trainer),_Gento,_Bestanddeelnr_924-4486_(Gento_cropped).jpg |
-| Franz Beckenbauer | Panini Group | Public domain | Franz_Beckenbauer_(1975).jpg |
-| Garrincha | El Gráfico | Public domain | MFdSantos-Garrincha.jpg |
-| Gianluigi Buffon | MichaelEmilio | CC BY 4.0 | Norway_Italy_-_June_2025_E_20.jpg |
-| Iker Casillas | Web Summit | CC BY 2.0 | Iker-Casillas-SportsTrade-2021-cropped.jpg |
-| Johan Cruyff | Mieremet, Rob / Anefo | CC0 | Johan_Cruyff_1974c.jpg |
-| Kaká | Евгений Асмолов | CC BY-SA 3.0 | Kaká_visited_Stadium_St._Petersburg.jpg |
-| Lev Yashin | Kroon, Ron for Anefo | CC BY-SA 3.0 nl | LevYashin.JPG |
+| Eusébio | Nazzaro Wirephoto | Public domain | Genoa_1893_v_SL_Benfica_(Genoa,_1971)_-_Eusébio_and_Bittolo.jpg |
+| Ferenc Puskás | Wim van Rossem for Anefo | CC BY-SA 3.0 | Puskas_1954.png |
+| Francisco Gento | Rob Bogaerts for Anefo , [onbekend] / neg. stroken, 1945-1989, 2.24.01.05, item number 918-1565 | CC BY-SA 3.0 nl | Gento_(cropped).jpg |
+| Franz Beckenbauer | 44Charles | CC BY-SA 3.0 de | Franz_Beckenbauer_22-6-74.png |
+| Garrincha | Hector Maffuche | Public domain | Garrinchabotafogo.JPG |
+| Gianluigi Buffon | Валерий Дудуш | CC BY-SA 3.0 | Super_Gigi_Buffon_(Juventus).jpg |
+| Iker Casillas | Miguel López from Madrid, España | CC BY-SA 2.0 | Iker_Casillas_Eurocopa_(cropped).jpg |
+| Johan Cruyff | Bert Verhoeff for Anefo | CC BY-SA 3.0 nl | Johan_Cruyff_1971c.jpg |
+| Kaká | Мельников Александр | CC BY-SA 3.0 | Kaka_in_Moscow_2007.jpg |
+| Lev Yashin | Lindeboom, Henk / Anefo | CC BY-SA 3.0 nl | Lev_Yashin_1960c.jpg |
 | Lionel Messi | Bryan Berlin | CC BY-SA 4.0 | Leo_Messi_Argentina_v_Egypt_7_July_2026-1.jpg |
 | Luka Modrić | Bryan Berlin | CC BY-SA 4.0 | Luka_Modric_Croatia_v_Portugal_2_July_2026-055.jpg |
-| Marco van Basten | Paul Blank - Postproduktie.nl | CC BY 2.5 | Marco_van_Basten_(ca_2006).jpg |
-| Michel Platini | Klearchos Kapoutsis from Paleo Faliro, Greece | CC BY 2.0 | Michel_Platini_in_Wroclaw_by_Klearchos_Kapoutsis_tight_crop.jpg |
-| Paolo Maldini | GOAL TV | CC BY 3.0 | Paolo_Maldini_AC_Milan_Technical_director_2018.jpg |
-| Pelé | Unknown authorUnknown author | Public domain | Pele_con_brasil_(cropped).jpg |
-| Raúl González | Barcex | CC BY-SA 4.0 | 25th_Laureus_World_Sports_Awards_-_Raúl_-_240422_132916-2_(cropped).jpg |
-| Roberto Baggio | kanegen from Tokyo, Japan | CC BY 2.0 | Roberto_Baggio_cropped.jpg |
-| Ronaldinho | Nuță Lucian | CC BY-SA 2.0 | Sports_Festival_2025_-_4_(cropped).jpg |
-| Ronaldo Nazário | Lula Oficial | CC BY-SA 4.0 | 12.12.2025_–_Cerimônia_de_lançamento_do_SBT_News_-_54980664160_(cropped2).jpg |
-| Sergio Ramos | Real Madrid | CC BY 3.0 | Sergio_Ramos_Interview_2021_(cropped).jpg |
-| Thierry Henry | Web Summit | CC BY 2.0 | Thierry_Henry_(51649035951)_(cropped).jpg |
-| Xavi Hernández | Mehdi Zare | CC BY 4.0 | Xavi_13981129001173637176666027076571.jpg |
-| Zinedine Zidane | Hadi Abyar | CC BY 4.0 | Zinedine_Zidane_by_Tasnim_03.jpg |
+| Marco van Basten | Autor desconocido | Public domain | Marco_van_Basten_1990-1992.jpg |
+| Michel Platini | Caio Brandão Costa and unknow | Public domain | Platini_ElGráfico.jpg |
+| Paolo Maldini | Yelena Rybakova for Soccer.ru | CC BY-SA 3.0 | PaoloMaldini.jpg |
+| Pelé | Autor desconocido | Public domain | Pele_v_sweden_1958.jpg |
+| Raúl González | Darz Mol | CC BY-SA 2.5 es | Raul_Gonzalez_10mar2007_(cropped).jpg |
+| Roberto Baggio | NTB | CC BY-SA 4.0 | KIL-Juventus,_1993.jpg |
+| Ronaldinho | Darz Mol | CC BY-SA 2.5 es | Ronaldinho_11feb2007.jpg |
+| Ronaldo Nazário | Alex Carvalho from Rio de Janeiro, Brasil | CC BY-SA 2.0 | Ronaldos_(5121959679).jpg |
+| Sergio Ramos | Darz Mol | CC BY-SA 2.5 es | Sergio_Ramos_10mar2007.jpg |
+| Thierry Henry | wonker | CC BY 2.0 | Thierry_Henry_applauding_2012.jpg |
+| Xavi Hernández | Дмитрий Неймырок | CC BY-SA 3.0 | Xavi_Euro_2012_vs_France_01.jpg |
+| Zinedine Zidane | hywell | CC BY 2.0 | Zinedine_Zidane.JPG |
 
