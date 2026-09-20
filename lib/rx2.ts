@@ -1,4 +1,5 @@
 import { emptyTest, hasData, testId, type FitnessTest } from '@/lib/fitness';
+import { abrirCandado, descifrar, type Candado } from '@/lib/pdfCrypt';
 import type { DateKey, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -75,62 +76,129 @@ function toUnicode(text: string): Map<number, string> {
   return table;
 }
 
-export class PdfProtegido extends Error {}
+/** El PDF pide contraseña y no se ha dado, o la que se dio no vale. */
+export class PdfProtegido extends Error {
+  constructor(public readonly malaClave = false) {
+    super(malaClave ? 'La contraseña no abre este PDF.' : 'El PDF está protegido con contraseña.');
+  }
+}
 
 /**
  * El texto de un PDF, línea a línea y en el orden en que está escrito, que
  * para una tabla es el orden de las celdas.
+ *
+ * Con contraseña abre también los protegidos. Tres detalles que costaron
+ * encontrar y que aquí están resueltos:
+ *
+ *  · El final del diccionario de un objeto **no** es el primer `>>`: los de
+ *    fuente llevan otro diccionario dentro, y cortar ahí pierde el objeto.
+ *  · La longitud del flujo puede venir como referencia a otro objeto, así
+ *    que hay que saber caer en buscar el `endstream`.
+ *  · En un PDF cifrado los bytes del flujo son ruido, y un `endobj` puede
+ *    aparecer por casualidad dentro: los objetos se recorren con posiciones
+ *    absolutas y saltando el flujo entero de una vez.
  */
-export async function pdfLines(file: ArrayBuffer): Promise<string[]> {
+export async function pdfLines(file: ArrayBuffer, password?: string): Promise<string[]> {
   const bytes = new Uint8Array(file);
   const raw = latin(bytes);
 
+  let candado: Candado | null = null;
   if (/\/Encrypt\b/.test(raw)) {
-    throw new PdfProtegido('El PDF está protegido con contraseña y no se puede leer aquí.');
+    if (!password) throw new PdfProtegido();
+    candado = abrirCandado(raw, password);
+    if (!candado) throw new PdfProtegido(true);
   }
 
   /* ------------------------------------------------------- los objetos */
-  const objects = new Map<number, string>();
-  const re = /(\d+)\s+(\d+)\s+obj\b/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw))) {
-    const end = raw.indexOf('endobj', match.index);
-    objects.set(Number(match[1]), raw.slice(match.index + match[0].length, end < 0 ? raw.length : end));
+  const objects = new Map<number, { dict: string; texto: string }>();
+  const dicts = new Map<number, string>();
+
+  const cabeceras = /(\d+)\s+(\d+)\s+obj\b/g;
+  let h: RegExpExecArray | null;
+  while ((h = cabeceras.exec(raw))) {
+    const num = Number(h[1]);
+    const gen = Number(h[2]);
+    const desdeDict = h.index + h[0].length;
+
+    // El fin del diccionario, contando los «<<» y los «>>».
+    let finDict = -1;
+    let nivel = 0;
+    for (let i = raw.indexOf('<<', desdeDict); i >= 0 && i < desdeDict + 6000; ) {
+      const abre = raw.indexOf('<<', i);
+      const cierra = raw.indexOf('>>', i);
+      if (cierra < 0) break;
+      if (abre >= 0 && abre < cierra) {
+        nivel++;
+        i = abre + 2;
+      } else {
+        nivel--;
+        i = cierra + 2;
+        if (nivel === 0) {
+          finDict = cierra;
+          break;
+        }
+      }
+    }
+    if (finDict < 0 || finDict - desdeDict > 6000) continue;
+
+    const dict = raw.slice(desdeDict, finDict + 2);
+    if (!dicts.has(num)) dicts.set(num, dict);
+
+    const st = raw.indexOf('stream', finDict);
+    if (st < 0 || st - finDict > 40) continue;
+    let desde = st + 6;
+    if (raw.charCodeAt(desde) === 13) desde++;
+    if (raw.charCodeAt(desde) === 10) desde++;
+
+    const dicho = Number((/\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(dict) || [])[1]);
+    const fin = raw.indexOf('endstream', desde);
+    let len = Number.isFinite(dicho) && dicho > 0 ? dicho : NaN;
+    if (fin > desde && (!Number.isFinite(len) || desde + len > fin || fin - (desde + len) > 4)) {
+      let corte = fin;
+      if (raw.charCodeAt(corte - 1) === 10) corte--;
+      if (raw.charCodeAt(corte - 1) === 13) corte--;
+      len = corte - desde;
+    }
+    if (!Number.isFinite(len) || len <= 0) continue;
+
+    let datos = bytes.slice(desde, desde + len);
+    if (candado) datos = await descifrar(candado, datos, num, gen);
+    const plano = /\/FlateDecode/.test(dict) ? await inflate(datos) : datos;
+    if (plano && plano.length > 0) objects.set(num, { dict, texto: latin(plano) });
+
+    cabeceras.lastIndex = Math.max(cabeceras.lastIndex, desde + len);
   }
 
-  /** El contenido de un flujo, descomprimido si hace falta. */
-  const streamOf = async (body: string): Promise<string | null> => {
-    const at = body.indexOf('stream');
-    if (at < 0) return null;
-    let from = at + 6;
-    if (body[from] === '\r') from++;
-    if (body[from] === '\n') from++;
-    const to = body.indexOf('endstream', from);
-    if (to < 0) return null;
+  // Los objetos que viajan comprimidos dentro de otro: ahí están casi todos
+  // los diccionarios de los PDF modernos.
+  for (const [, { dict, texto }] of [...objects]) {
+    if (!/\/Type\s*\/ObjStm/.test(dict)) continue;
+    const cuantos = Number((/\/N\s+(\d+)/.exec(dict) || [])[1]);
+    const first = Number((/\/First\s+(\d+)/.exec(dict) || [])[1]);
+    if (!Number.isFinite(cuantos) || !Number.isFinite(first)) continue;
+    const cab = texto.slice(0, first).trim().split(/\s+/).map(Number);
+    for (let k = 0; k < cuantos; k++) {
+      const id = cab[k * 2];
+      const off = cab[k * 2 + 1];
+      const hasta = k + 1 < cuantos ? first + cab[k * 2 + 3] : texto.length;
+      if (!dicts.has(id)) dicts.set(id, texto.slice(first + off, hasta));
+    }
+  }
 
-    const slice = new Uint8Array(to - from);
-    for (let i = 0; i < slice.length; i++) slice[i] = body.charCodeAt(from + i) & 0xff;
-    if (!/\/FlateDecode/.test(body.slice(0, at))) return latin(slice);
-    const plain = await inflate(slice);
-    return plain ? latin(plain) : null;
-  };
+  if (candado && objects.size === 0) throw new PdfProtegido(true);
 
   /* ------------------------------------------------------- las fuentes */
   const tables = new Map<number, Map<number, string>>();
-  for (const [, body] of objects) {
-    const ref = /\/ToUnicode\s+(\d+)\s+\d+\s+R/.exec(body);
-    if (!ref) continue;
-    const target = objects.get(Number(ref[1]));
-    if (!target) continue;
-    const text = await streamOf(target);
-    if (text) tables.set(Number(ref[1]), toUnicode(text));
+  for (const [num, { texto }] of objects) {
+    if (!/beginbfchar|beginbfrange/.test(texto)) continue;
+    tables.set(num, toUnicode(texto));
   }
 
   const byName = new Map<string, Map<number, string>>();
   const wide = new Set<string>();
-  for (const [, body] of objects) {
-    for (const ref of body.matchAll(/\/([A-Za-z0-9]+)\s+(\d+)\s+\d+\s+R/g)) {
-      const font = objects.get(Number(ref[2]));
+  for (const [, dict] of dicts) {
+    for (const ref of dict.matchAll(/\/([A-Za-z0-9]+)\s+(\d+)\s+\d+\s+R/g)) {
+      const font = dicts.get(Number(ref[2]));
       if (!font) continue;
       const unicode = /\/ToUnicode\s+(\d+)\s+\d+\s+R/.exec(font);
       if (!unicode || !tables.has(Number(unicode[1]))) continue;
@@ -141,54 +209,58 @@ export async function pdfLines(file: ArrayBuffer): Promise<string[]> {
 
   /* ---------------------------------------------------------- el texto */
   const lines: string[] = [];
-  for (const [, body] of objects) {
-    if (!/\/Length/.test(body) || /\/Image|\/ToUnicode|\/FontFile/.test(body)) continue;
-    const text = await streamOf(body);
-    if (!text || !/(Tj|TJ)/.test(text)) continue;
+  for (const [, { dict, texto }] of objects) {
+    if (/\/ObjStm|\/Image/.test(dict)) continue;
+    if (/beginbfchar|beginbfrange/.test(texto.slice(0, 400))) continue;
+    if (!/(Tj|TJ)/.test(texto)) continue;
 
     let table: Map<number, string> | null = null;
     let isWide = false;
     let line = '';
-    const token = /\/([A-Za-z0-9]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]*)>\s*Tj|\((?:\\.|[^\\()])*\)\s*Tj|\[((?:[^\][]|\\.)*)\]\s*TJ|T\*|ET/g;
-    let piece: RegExpExecArray | null;
 
-    const paint = (bytes: string): string => {
+    const paint = (chars: string): string => {
       let out = '';
       if (isWide) {
-        for (let i = 0; i + 1 < bytes.length; i += 2) {
-          out += table?.get((bytes.charCodeAt(i) << 8) | bytes.charCodeAt(i + 1)) ?? '';
+        for (let i = 0; i + 1 < chars.length; i += 2) {
+          out += table?.get((chars.charCodeAt(i) << 8) | chars.charCodeAt(i + 1)) ?? '';
         }
       } else {
-        for (let i = 0; i < bytes.length; i++) {
-          out += table ? (table.get(bytes.charCodeAt(i)) ?? '') : bytes[i];
+        for (let i = 0; i < chars.length; i++) {
+          out += table ? (table.get(chars.charCodeAt(i)) ?? chars[i]) : chars[i];
         }
       }
       return out;
     };
 
-    while ((piece = token.exec(text))) {
+    // Ojo con los corchetes: escritos con alternancia, el motor de
+    // expresiones regulares entra en retroceso exponencial en cuanto el
+    // cierre tarda en aparecer, y el navegador se queda colgado.
+    const token = /\/([A-Za-z0-9]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]*)>\s*Tj|\([^)]{0,4000}\)\s*Tj|\[[^\]]{0,6000}\]\s*TJ|T\*|Td|TD|ET/g;
+    let piece: RegExpExecArray | null;
+
+    while ((piece = token.exec(texto))) {
       const chunk = piece[0];
       if (chunk.endsWith('Tf')) {
         table = byName.get(piece[1]) ?? null;
         isWide = wide.has(piece[1]);
         continue;
       }
-      if (chunk === 'T*' || chunk === 'ET') {
+      if (chunk === 'T*' || chunk === 'ET' || chunk === 'Td' || chunk === 'TD') {
         if (line.trim()) lines.push(line.trim());
         line = '';
         continue;
       }
       for (const hex of chunk.matchAll(/<([0-9A-Fa-f\s]*)>/g)) {
         const clean = hex[1].replace(/\s/g, '');
-        let bytes = '';
-        for (let i = 0; i + 2 <= clean.length; i += 2) bytes += String.fromCharCode(parseInt(clean.slice(i, i + 2), 16));
-        line += paint(bytes);
+        let chars = '';
+        for (let i = 0; i + 2 <= clean.length; i += 2) chars += String.fromCharCode(parseInt(clean.slice(i, i + 2), 16));
+        line += paint(chars);
       }
-      for (const literal of chunk.matchAll(/\((?:\\.|[^\\()])*\)/g)) {
-        const body2 = literal[0]
+      for (const literal of chunk.matchAll(/\([^)]{0,4000}\)/g)) {
+        const body = literal[0]
           .slice(1, -1)
           .replace(/\\([nrtbf()\\])/g, (_, ch: string) => ({ n: '\n', r: '', t: ' ', b: '', f: '' })[ch] ?? ch);
-        line += paint(body2);
+        line += paint(body);
       }
       line += ' ';
     }

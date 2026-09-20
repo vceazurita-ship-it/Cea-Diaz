@@ -4,6 +4,13 @@ import { useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/Toast';
 import { parseReport, encodeReport, ACADEMIC_NOTE_KEY, type ReportCard } from '@/lib/academics';
+import {
+  COGNITIVE_NOTE_KEY,
+  COG_BY_ID,
+  encodeCog,
+  parseWisc,
+  type CogProfile,
+} from '@/lib/cognitive';
 import { FITNESS_NOTE_KEY, encodeTest, hasData, type FitnessTest } from '@/lib/fitness';
 import { PdfProtegido, parseRx2, pdfLines } from '@/lib/rx2';
 import { todayKey } from '@/lib/dates';
@@ -45,6 +52,10 @@ interface Pendiente {
   file: string;
   tests: FitnessTest[];
   report: ReportCard | null;
+  cog: CogProfile | null;
+  /** El archivo tal cual, para volver a intentarlo con contraseña. */
+  data?: ArrayBuffer;
+  pideClave?: boolean;
   warnings: string[];
 }
 
@@ -53,28 +64,37 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
   const input = useRef<HTMLInputElement>(null);
   const [leyendo, setLeyendo] = useState(false);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const [archivos, setArchivos] = useState<File[]>([]);
   const [fecha, setFecha] = useState<DateKey>(todayKey());
+  const [clave, setClave] = useState('');
 
   /** Lee un archivo y saca de él lo que sepa. */
-  const leer = async (file: File): Promise<Pendiente> => {
-    const base: Pendiente = { file: file.name, tests: [], report: null, warnings: [] };
+  const leer = async (file: File, data?: ArrayBuffer, password?: string): Promise<Pendiente> => {
+    const base: Pendiente = { file: file.name, tests: [], report: null, cog: null, warnings: [] };
 
     let lines: string[];
     try {
       if (/\.pdf$/i.test(file.name)) {
-        lines = await pdfLines(await file.arrayBuffer());
+        const buffer = data ?? (await file.arrayBuffer());
+        lines = await pdfLines(buffer, password);
+        base.data = buffer;
       } else {
         lines = (await file.text()).split(/\r?\n/);
       }
     } catch (error) {
-      return {
-        ...base,
-        warnings: [
-          error instanceof PdfProtegido
-            ? 'Este PDF está protegido con contraseña: ábrelo, copia el texto y pégalo, o mete las cifras a mano.'
-            : 'No he podido leer el archivo.',
-        ],
-      };
+      if (error instanceof PdfProtegido) {
+        return {
+          ...base,
+          data: data ?? undefined,
+          pideClave: true,
+          warnings: [
+            error.malaClave
+              ? 'Esa contraseña no abre el PDF. Prueba otra vez.'
+              : 'Este PDF pide contraseña. Escríbela aquí abajo y vuelve a intentarlo.',
+          ],
+        };
+      }
+      return { ...base, warnings: ['No he podido leer el archivo.'] };
     }
 
     if (lines.length === 0) {
@@ -95,12 +115,26 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
     }
 
     const parsed = parseReport(lines);
-    if (parsed.rows.length === 0) return { ...base, warnings: parsed.warnings };
-    return {
-      ...base,
-      report: { profileId: profile.id, date: fecha, course: parsed.course ?? '', rows: parsed.rows },
-      warnings: parsed.warnings,
-    };
+    if (parsed.rows.length > 0) {
+      return {
+        ...base,
+        report: { profileId: profile.id, date: fecha, course: parsed.course ?? '', rows: parsed.rows },
+        warnings: parsed.warnings,
+      };
+    }
+
+    // No es un boletín: puede ser la valoración neuropsicológica, que va en
+    // esta misma área porque cuenta la otra mitad de lo mismo.
+    const wisc = parseWisc(lines);
+    if (Object.keys(wisc.scores).length > 0) {
+      return {
+        ...base,
+        cog: { profileId: profile.id, date: fecha, age: wisc.age, scores: wisc.scores },
+        warnings: wisc.warnings,
+      };
+    }
+
+    return { ...base, warnings: [...parsed.warnings, ...wisc.warnings] };
   };
 
   const elegir = async (files: FileList | null) => {
@@ -109,6 +143,23 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
     try {
       const leidos: Pendiente[] = [];
       for (const file of Array.from(files)) leidos.push(await leer(file));
+      setArchivos(Array.from(files));
+      setPendientes(leidos);
+    } finally {
+      setLeyendo(false);
+    }
+  };
+
+  /** Vuelve a intentarlo con la contraseña escrita. */
+  const reintentar = async () => {
+    if (!clave) return;
+    setLeyendo(true);
+    try {
+      const leidos: Pendiente[] = [];
+      for (let i = 0; i < archivos.length; i++) {
+        const previo = pendientes[i];
+        leidos.push(previo?.pideClave ? await leer(archivos[i], previo.data, clave) : previo);
+      }
       setPendientes(leidos);
     } finally {
       setLeyendo(false);
@@ -127,6 +178,10 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
         onSave(pendiente.report.date, ACADEMIC_NOTE_KEY, encodeReport({ ...pendiente.report, date: fecha }));
         cuantos++;
       }
+      if (pendiente.cog) {
+        onSave(fecha, COGNITIVE_NOTE_KEY, encodeCog({ ...pendiente.cog, date: fecha }));
+        cuantos++;
+      }
     }
 
     if (cuantos === 0) {
@@ -137,14 +192,15 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
     onClose();
   };
 
-  const hayAlgo = pendientes.some((item) => item.tests.length > 0 || item.report);
+  const hayAlgo = pendientes.some((item) => item.tests.length > 0 || item.report || item.cog);
+  const pideClave = pendientes.some((item) => item.pideClave);
 
   return (
     <div className="space-y-3">
       <p className="text-[12px] leading-snug t-2">
         {kind === 'fisico'
           ? 'Coge el PDF de RX2 —el de «Evolución»— y suéltalo aquí. Saca la talla, el peso, la edad biológica, el salto y el esprint de todas las fechas que traiga.'
-          : 'Coge el boletín del colegio en PDF y suéltalo aquí. Saca todas las asignaturas con la nota de cada evaluación.'}
+          : 'Suelta aquí el boletín del colegio o la valoración neuropsicológica, en PDF. Del boletín saca todas las asignaturas con la nota de cada evaluación; de la valoración, los cinco índices. Si pide contraseña, se pide.'}
       </p>
 
       <div className="rounded-xl border border-dashed p-3 hairline surf-1">
@@ -172,9 +228,38 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
         </p>
       </div>
 
+      {pideClave && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <label className="block text-[12px] font-semibold t-1">
+            Contraseña del PDF
+            <input
+              type="password"
+              value={clave}
+              onChange={(event) => setClave(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void reintentar();
+              }}
+              className="mt-1 w-full rounded-lg border px-2 py-1.5 text-sm hairline surf-1"
+              placeholder="la que os dieron con el informe"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void reintentar()}
+            disabled={!clave || leyendo}
+            className="btn-primary mt-2 w-full text-sm disabled:opacity-40"
+          >
+            {leyendo ? 'Abriendo…' : '🔓 Abrir con esta contraseña'}
+          </button>
+          <p className="mt-1.5 text-[11px] leading-snug t-3">
+            La contraseña se usa aquí y no se guarda en ningún sitio.
+          </p>
+        </div>
+      )}
+
       {kind === 'academico' && (
         <label className="block text-[12px] font-semibold t-2">
-          Fecha con la que se guarda el boletín
+          Fecha con la que se guarda el informe
           <input
             type="date"
             value={fecha}
@@ -221,6 +306,25 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {pendiente.cog && (
+            <div className="mt-2">
+              <p className="text-[11px] font-semibold t-2">
+                Perfil cognitivo{pendiente.cog.age ? ' · baremo ' + pendiente.cog.age : ''}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {Object.entries(pendiente.cog.scores).map(([id, value]) => (
+                  <li key={id} className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="truncate t-2">{COG_BY_ID.get(id as never)?.label ?? id}</span>
+                    <span className="shrink-0 font-black tabular-nums t-1">
+                      {value.score}
+                      {value.pct === undefined ? '' : ' (pct ' + value.pct + ')'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

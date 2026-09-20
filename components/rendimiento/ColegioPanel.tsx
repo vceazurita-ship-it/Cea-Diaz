@@ -16,6 +16,7 @@ import {
   type ReportCard,
 } from '@/lib/academics';
 import { AC_EXPERTS, AC_SOURCES, AC_SOURCE_BY_ID, areasOf, auditReport } from '@/lib/academicsAudit';
+import { COG_INDICES, bandOf, cogFor, type CogProfile } from '@/lib/cognitive';
 import { testsFor } from '@/lib/fitness';
 import { headingFont } from '@/lib/profiles';
 import type { DateKey, DayEntry, Profile, ProfileSkin } from '@/types';
@@ -52,9 +53,11 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
 
   const reports = useMemo(() => reportsFor(entries, profile.id), [entries, profile.id]);
   const tests = useMemo(() => testsFor(entries, profile.id), [entries, profile.id]);
+  const cogs = useMemo(() => cogFor(entries, profile.id), [entries, profile.id]);
+  const cog = cogs[0] ?? null;
   const last = reports[0];
   const before = reports[1] ?? null;
-  const audit = useMemo(() => (last ? auditReport(last, before, tests) : null), [last, before, tests]);
+  const audit = useMemo(() => (last ? auditReport(last, before, tests, cog) : null), [last, before, tests, cog]);
   const areas = useMemo(() => (last ? areasOf(last.rows) : []), [last]);
 
   const heading = headingFont(skin);
@@ -71,18 +74,22 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
           </p>
         </div>
         <button type="button" onClick={() => setSubiendo(true)} className="btn-primary shrink-0 px-3 text-sm">
-          📄 Subir boletín
+          📄 Subir informe
         </button>
       </div>
 
       {!last || !audit ? (
+        <>
+        {cog && <Cognitivo cog={cog} profile={profile} />}
         <div className="card p-4">
           <p className="text-sm font-semibold t-1">Sube el primer boletín y aquí aparece la serie</p>
           <p className="mt-1 text-[12px] leading-snug t-2">
             Del PDF del colegio se sacan todas las asignaturas con la nota de cada evaluación. Con uno ya se ve el
-            curso entero; con dos, cómo va de un año a otro.
+            curso entero; con dos, cómo va de un año a otro. Aquí entra también la valoración neuropsicológica: si
+            está protegida con contraseña, se pide y se abre.
           </p>
         </div>
+        </>
       ) : (
         <>
           {/* El curso de un vistazo. */}
@@ -153,6 +160,8 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
             </ul>
           </section>
 
+          {cog && <Cognitivo cog={cog} profile={profile} />}
+
           {reports.length > 1 && <Historico reports={reports} />}
 
           <button
@@ -202,6 +211,59 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
         </Modal>
       )}
     </div>
+  );
+}
+
+/**
+ * El perfil cognitivo, en barras.
+ *
+ * La escala tiene media 100 y desviación 15, así que la franja del 85 al 115
+ * es donde cae la mitad de la población: se marca para que un 95 no parezca
+ * un suspenso y un 116 no parezca un superpoder.
+ */
+function Cognitivo({ cog, profile }: { cog: CogProfile; profile: Profile }) {
+  return (
+    <section className="card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="text-sm font-black t-1">Cómo funciona su cabeza</h4>
+        <p className="text-[11px] t-3">{cog.age ? 'baremo ' + cog.age : ''}</p>
+      </div>
+      <p className="mt-0.5 text-[11px] leading-snug t-3">
+        Escala de Wechsler. Media 100; entre 85 y 115 está la mitad de los niños. Lo que dice algo no es el número
+        global, es el desnivel entre unos índices y otros.
+      </p>
+
+      <ul className="mt-2 space-y-2">
+        {COG_INDICES.map((index) => {
+          const value = cog.scores[index.id];
+          if (!value) return null;
+          const banda = bandOf(value.score);
+          // De 55 a 145 abarca seis desviaciones: es todo el rango útil.
+          const x = Math.max(0, Math.min(100, ((value.score - 55) / 90) * 100));
+          return (
+            <li key={index.id}>
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="min-w-0 text-[12px] font-black t-1">
+                  {index.label} <span className="font-normal t-3">{index.short}</span>
+                </p>
+                <p className="shrink-0 text-[12px] font-black tabular-nums t-1">
+                  {value.score}
+                  <span className="ml-1 font-normal t-3">{banda.label}</span>
+                </p>
+              </div>
+              <div className="relative mt-1 h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                <span className="absolute inset-y-0 left-[33%] w-[33%] bg-black/10 dark:bg-white/10" />
+                <span
+                  className="absolute top-1/2 h-3 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{ left: x + '%', backgroundColor: profile.accent }}
+                />
+              </div>
+              <p className="mt-0.5 text-[11px] leading-snug t-3">{index.blurb}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
