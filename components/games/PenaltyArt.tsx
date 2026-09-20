@@ -175,6 +175,48 @@ function costado(a: P, b: P, wa: number, wb: number): string {
     .join(' ');
 }
 
+/**
+ * La otra mitad de un tramo: la banda de luz del canto contrario a la
+ * sombra. Con los focos del estadio encima, es lo que despega al jugador del
+ * fondo cuando se ve pequeño; sin ella, la figura se lee como una mancha.
+ */
+function filo(a: P, b: P, wa: number, wb: number): string {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  return [
+    [a[0] + nx * wa, a[1] + ny * wa],
+    [b[0] + nx * wb, b[1] + ny * wb],
+    [b[0] + nx * wb * 0.62, b[1] + ny * wb * 0.62],
+    [a[0] + nx * wa * 0.62, a[1] + ny * wa * 0.62],
+  ]
+    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ');
+}
+
+/**
+ * Una bota de fútbol: caña, suela clara, taco de talón y los cordones. Antes
+ * era una mancha negra con una raya, y a tamaño de juego se leía como un pie
+ * cortado.
+ */
+function Bota({ at, angle, dark = '#15161c' }: { at: P; angle: number; dark?: string }) {
+  return (
+    <g transform={`translate(${at[0]} ${at[1]}) rotate(${angle - 90})`} strokeLinejoin="round">
+      {/* La caña y el empeine, de una pieza. */}
+      <path d="M-6.2 -3.4 Q-7.6 4.4 -3 8.2 L8.6 8.6 Q12.4 6.6 10.4 3 L5.2 -3.4 Z" fill={dark} stroke={TINTA} strokeWidth="1.3" />
+      {/* La suela, que es lo que separa una bota de un calcetín negro. */}
+      <path d="M-3.4 8.2 L8.8 8.6 Q12.2 7.4 10.6 5.6 L-4.2 5.2 Z" fill="#e8eaee" stroke={TINTA} strokeWidth="1.1" />
+      <path d="M-4.2 5.2 L-3.6 7.6" stroke={TINTA} strokeWidth="1" />
+      {/* Cordones y el brillo del empeine. */}
+      <path d="M-2.6 1.4 L3.2 3 M-1.6 -1 L4 0.8" stroke="#f8fafc" strokeWidth="1.1" strokeLinecap="round" opacity="0.85" />
+      <path d="M-5.4 -2.6 Q-6.4 2 -3.6 4.6" fill="none" stroke="#ffffff" strokeWidth="1.1" opacity="0.35" />
+    </g>
+  );
+}
+
 /* -------------------------------------------------------------------------
  * La cabeza de la serie
  *
@@ -441,13 +483,17 @@ function Pierna({
 
   return (
     <g strokeLinejoin="round">
+      {/* La media, con la sombra de un canto y el filo de luz del otro. */}
       <path d={musculo(knee, foot, 5.4, 6.8, 3.6)} fill={socks} stroke={TINTA} strokeWidth="1.4" />
-      {/* La sombra del costado: sin ella la pierna es un tubo pintado. */}
-      <polygon points={costado(knee, foot, 5, 3.4)} fill="#000" opacity="0.14" />
+      <polygon points={costado(knee, foot, 5, 3.4)} fill="#000" opacity="0.16" />
+      <polygon points={filo(knee, foot, 4.8, 3.2)} fill="#fff" opacity="0.24" />
+      {/* El vuelto de la media, que es donde se marca la espinillera. */}
       <path d={musculo(entre(knee, foot, 0.1), entre(knee, foot, 0.22), 6.2, 5.6, 6.6)} fill={band} stroke={TINTA} strokeWidth="1" />
       <circle cx={knee[0]} cy={knee[1]} r="5" fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      {/* El muslo. */}
       <path d={musculo(hip, knee, 8.4, 8.2, 5.4)} fill={skin} stroke={TINTA} strokeWidth="1.4" />
-      <polygon points={costado(hip, knee, 7.6, 5)} fill="#000" opacity="0.13" />
+      <polygon points={costado(hip, knee, 7.6, 5)} fill="#000" opacity="0.15" />
+      <polygon points={filo(hip, knee, 7.2, 4.6)} fill="#fff" opacity="0.2" />
       <path
         d="M-3.5 -0.5 Q0 3 3.5 -0.5"
         transform={`translate(${knee[0]} ${knee[1]}) rotate(${calf - 90})`}
@@ -456,11 +502,11 @@ function Pierna({
         strokeWidth="1.1"
         opacity="0.7"
       />
+      {/* La pernera de la calzona, con su vuelo y su sombra. */}
       <path d={musculo(hip, entre(hip, knee, 0.34), 9.6, 7.6, 9.4)} fill={shorts} stroke={TINTA} strokeWidth="1.4" />
-      <g transform={`translate(${foot[0]} ${foot[1]}) rotate(${calf - 90})`}>
-        <path d="M-6 -3 Q-7 5 -2 9 L9 9 Q12 6 9 3 L5 -3 Z" fill="#111" stroke={TINTA} strokeWidth="1.3" />
-        <path d="M-3 3 L6 5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
-      </g>
+      <polygon points={costado(hip, entre(hip, knee, 0.34), 8.8, 8.6)} fill="#000" opacity="0.18" />
+      <polygon points={filo(hip, entre(hip, knee, 0.34), 8.4, 8.2)} fill="#fff" opacity="0.14" />
+      <Bota at={foot} angle={calf} />
     </g>
   );
 }
@@ -492,8 +538,11 @@ function Brazo({
   return (
     <g strokeLinejoin="round">
       <path d={musculo(elbow, hand, 4, 4.5, 3.1)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
+      <polygon points={costado(elbow, hand, 3.6, 2.8)} fill="#000" opacity="0.14" />
+      <polygon points={filo(elbow, hand, 3.4, 2.6)} fill="#fff" opacity="0.2" />
       <path d={musculo(shoulder, elbow, 4.8, 5.4, 4)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <polygon points={costado(shoulder, elbow, 4.4, 3.6)} fill="#000" opacity="0.13" />
+      <polygon points={costado(shoulder, elbow, 4.4, 3.6)} fill="#000" opacity="0.15" />
+      <polygon points={filo(shoulder, elbow, 4.2, 3.4)} fill="#fff" opacity="0.18" />
       {/* La mano: un puño con su pulgar, en el sentido del antebrazo. Una
           bola de piel al final del brazo es lo que delata a un monigote. */}
       <g transform={`translate(${hand[0]} ${hand[1]}) rotate(${rumbo(elbow, hand) - 90})`}>
@@ -517,6 +566,11 @@ function Brazo({
         fill={sombra(kit, 0.88)}
         stroke={TINTA}
         strokeWidth="1.3"
+      />
+      <polygon
+        points={filo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.2, 5.6)}
+        fill="#fff"
+        opacity="0.16"
       />
       {!bare && (
         <path d={musculo(entre(shoulder, elbow, 0.44), entre(shoulder, elbow, 0.54), 6.3, 4.8, 6.2)} fill={trim} />
@@ -714,6 +768,9 @@ export function tiradorDe(id: TiradorId): Tirador {
     kit: ROPA_FAMILIA[id],
     shorts: CALZONA,
     band: ROPA_FAMILIA[id],
+    // Medias del color del equipo con el vuelto blanco: unas medias blancas
+    // se comen media pierna y dejan al jugador partido en dos.
+    socks: sombra(ROPA_FAMILIA[id], 0.92),
     number: '#fff',
     dorsal: id === 'leo' ? '10' : id === 'hugo' ? '7' : '1',
     // Leo, moreno, con la mata de Oliver; Hugo, rubio, de punta.
@@ -764,9 +821,11 @@ const POSES: Record<'espera' | 'carrera' | 'golpeo' | 'celebra', Pose> = {
     head: [58, 34],
     shoulder: [58, 60],
     hip: [58, 108],
-    nearArm: [[72, 64], [82, 84], [86, 102]],
+    // Los brazos, pegados al cuerpo y con el codo algo doblado: separados
+    // como estaban, el muñeco parecía un espantapájaros.
+    nearArm: [[72, 64], [79, 86], [76, 104]],
     nearLeg: [[64, 108], [69, 155], [70, 200]],
-    farArm: [[44, 64], [34, 84], [30, 102]],
+    farArm: [[44, 64], [37, 86], [40, 104]],
     farLeg: [[52, 108], [48, 155], [47, 200]],
     tilt: 0,
   },
@@ -837,6 +896,21 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
       />
       <polygon points={costado(shortsTop, shortsBottom, 11.5, 13.5)} fill="#000" opacity="0.16" />
 
+      {/* El cuello. Sin él la cabeza se apoya en la camiseta y el muñeco
+          pierde el gesto: lo que da vida es que el cuello asome. */}
+      <polygon
+        points={losa(body.shoulder, entre(body.shoulder, body.head, 0.45), 6.2, 5)}
+        fill={face.skin}
+        stroke={TINTA}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <polygon
+        points={losa(body.shoulder, entre(body.shoulder, body.head, 0.45), 6.2, 5)}
+        fill="#000"
+        opacity="0.22"
+      />
+
       {/* Tronco, con la sombra plana de un costado. */}
       <polygon
         points={losa(waist, body.shoulder, 11.5, 17)}
@@ -846,6 +920,7 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
         strokeLinejoin="round"
       />
       <polygon points={costado(waist, body.shoulder, 11.5, 17)} fill="#000" opacity="0.17" />
+      <polygon points={filo(waist, body.shoulder, 10.8, 16)} fill="#fff" opacity="0.14" />
 
       {/* El cuello de pico, blanco: el de las camisetas de la serie. */}
       <g transform={`translate(${body.shoulder[0]} ${body.shoulder[1]}) rotate(${spine})`}>

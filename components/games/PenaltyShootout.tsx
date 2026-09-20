@@ -1160,7 +1160,7 @@ function Escena({
         }}
       >
         <div className="h-full w-full" style={{ transform: `scaleX(${benji.flip})` }}>
-          <Benji pose={benji.pose} className="h-full w-full drop-shadow-[0_3px_0_rgba(0,0,0,0.25)]" />
+          <Benji pose={benji.pose} className="h-full w-full [filter:drop-shadow(0_2px_0_rgba(0,0,0,0.35))_drop-shadow(0_0_3px_rgba(190,255,214,0.45))]" />
         </div>
       </div>
 
@@ -1294,7 +1294,7 @@ function Escena({
       <div
         // A su tamaño en el campo: puesto junto al balón y sin tapar la
         // portería, que es lo que hay que mirar.
-        className="pointer-events-none absolute bottom-[3%] left-[11%] h-[46%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.35)]"
+        className="pointer-events-none absolute bottom-[3%] left-[11%] h-[46%] [filter:drop-shadow(0_3px_3px_rgba(0,0,0,0.4))_drop-shadow(0_0_4px_rgba(190,255,214,0.4))]"
         style={{ aspectRatio: '120 / 210' }}
       >
         <Chutador
