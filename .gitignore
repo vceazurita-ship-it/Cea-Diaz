@@ -21,3 +21,9 @@ next-env.d.ts
 /*.xlsx
 /*.xls
 /*.csv
+
+# Los informes de los peques —RX2, neuropsicológicos, genéticos, académicos—.
+# NO entran en el repositorio: es público, y esto son datos de salud de dos
+# menores. La app los lee en el navegador y guarda sólo las cifras, en la
+# cuenta de Supabase. Los PDF se quedan en el disco de casa.
+/public/documentos/

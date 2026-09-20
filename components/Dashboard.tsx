@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
 import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
-import { GpsPanel } from '@/components/gps/GpsPanel';
+import { RendimientoPanel } from '@/components/rendimiento/RendimientoPanel';
 import { AttentionCard } from '@/components/experts/AttentionCard';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
 import { FinanceLock } from '@/components/finance/FinanceLock';
@@ -306,10 +306,11 @@ export function Dashboard({
           { id: 'tasks', label: 'Recados', icon: '📋' },
           { id: 'summary', label: 'Estadísticas', icon: '📊' },
           /**
-           * El rastreador que llevan al entrenamiento. Sólo está donde hay
-           * uno de verdad: en los paneles de Leo y de Hugo.
+           * Lo que se le mide: los partidos con el rastreador, las pruebas
+           * físicas y el colegio. Sólo está donde hay algo que medir: en los
+           * paneles de Leo y de Hugo.
            */
-          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'GPS', icon: '🛰️' }] : []),
+          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'Rendimiento', icon: '📈' }] : []),
         ]
       : // El panel de María se lee como un cuento, y sus secciones también:
         // el día es su jornada, la semana su reino, los retos sus deseos.
@@ -588,7 +589,7 @@ export function Dashboard({
         </div>
       ) : tab === 'gps' ? (
         <div role="tabpanel" id="panel-gps" aria-labelledby="tab-gps">
-          <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />
+          <RendimientoPanel profile={profile} store={store} kid={kid} skin={skin} />
         </div>
       ) : tab === 'tasks' ? (
         <div role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">
