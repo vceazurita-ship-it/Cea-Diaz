@@ -23,44 +23,50 @@ import {
   PENALTY_SHOTS,
   SHOT_ORDER,
   SHOT_TYPES,
-  duelState,
+  dianasDe,
+  earnsGolden,
   energyLeft,
   keeperStretch,
   keeperTell,
   keeperZone,
+  medalla,
   overshootPreview,
   penaltyVerdict,
   powerBand,
+  recordKey,
   resolveShot,
+  scoreShot,
   shotAvailability,
+  spotsOf,
+  zonaDe,
+  zoneOf,
 } from '@/lib/penalties';
 import type {
-  DuelState,
+  Diana,
   PenaltyAim,
   PenaltyOutcome,
   PenaltyShot,
   PenaltySide,
   PenaltyZoneId,
-  SaveOutcome,
+  ShotScore,
 } from '@/lib/penalties';
-import { PenaltySave } from '@/components/games/PenaltySave';
 import {
+  BENJI_ANCHO,
+  BENJI_DE_PIE,
   BOCA,
   Cartel,
+  Dianas,
   Marcador,
   NOCHE,
   Noche,
-  PORTERO_ANCHO,
-  PORTERO_DE_PIE,
   PUNTO,
   colorDe,
   enEscena,
   enPorteria,
-  estiradaEn,
+  estirada,
   siglas,
   trayecto,
   volar,
-  type Ronda,
 } from '@/components/games/penaltyScene';
 import { manga } from '@/components/games/mangaFont';
 import { hashSeed } from '@/lib/challenges';
@@ -71,31 +77,46 @@ import type { DateKey, PenaltyResult, ProfileId, ShotKind } from '@/types';
 /* =========================================================================
  *  Tirar los cinco penaltis contra Benji.
  *
- *  Un penalti son tres gestos y los tres pasan **dentro de la escena**:
+ *  Un penalti son cuatro tiempos y los cuatro pasan **dentro de la escena**:
  *  tocar o arrastrar sobre la portería para **colocar** la mira, **mantener
- *  pulsado** para cargar la fuerza y **soltar** para chutar. En el ordenador,
- *  las flechas mueven la mira y la barra espaciadora es el botón: se mantiene
- *  y se suelta. El botón de chutar dice en cada momento lo que toca —«más
- *  fuerza», «¡suelta ahora!» o «¡te pasas!»— con su color.
+ *  pulsado** para cargar la fuerza, **soltar** en la franja verde y **volver
+ *  a tocar** para clavar la segunda barra, la de la puntería. En el ordenador
+ *  las flechas mueven la mira y la barra espaciadora hace lo demás. El botón
+ *  dice en cada momento lo que toca —«más fuerza», «¡suelta ahora!», «toca en
+ *  la diana»— con su color.
  *
- *  Se presenta como un partido en la tele: el marcador en la esquina con la
- *  tanda de los dos —los goles del que tira y las paradas de Benji—, el
- *  estadio de noche con los focos, la barra de potencia con su franja buena,
- *  la mira que se agranda y sube cuando uno se pasa de fuerza —con los mismos
- *  números con los que luego se resuelve el tiro—, el rótulo del resultado y
- *  la repetición a cámara lenta. El dibujo sigue siendo el de Oliver y Benji.
+ *  Se presenta como un partido en la tele: el marcador en la esquina, el
+ *  estadio de noche con los focos, las barras con sus franjas, la mira que se
+ *  agranda y sube cuando uno se pasa de fuerza, el rótulo del resultado y la
+ *  repetición a cámara lenta. El dibujo sigue siendo el de Oliver y Benji.
  *
- *  La pieza que lo convierte en habilidad y no en sorteo es **el aviso del
- *  portero**: antes de cada tiro Benji se carga hacia el lado por el que va
- *  a volar, se le ven las flechas a los pies y lo dice el narrador. Leerlo y
- *  tirar al otro lado es la lección entera del penalti.
+ *  Lo que hace que sean cinco penaltis distintos y no el mismo cinco veces:
+ *
+ *   · **El aviso del portero.** Benji se carga hacia el lado por el que va a
+ *     volar. Leerlo y tirar al otro lado es la lección entera del penalti.
+ *
+ *   · **La memoria de Benji.** Recuerda los rincones por los que ya le han
+ *     marcado y se va a vigilarlos. Encontrar un sitio bueno y repetirlo deja
+ *     de funcionar: hay que ir buscándole los sitios.
+ *
+ *   · **Las dianas.** Dos rincones marcados en cada tiro, que dan puntos si
+ *     el balón cae dentro. A veces están justo donde él va a volar, y ahí
+ *     está la elección: el gol seguro o los puntos.
+ *
+ *   · **Los puntos y el récord.** Un gol suma; suma más lejos de sus guantes,
+ *     en la diana, con la puntería clavada y con un tiro de la serie. Hay un
+ *     número que subir y un mejor que batir.
+ *
+ *   · **El tiro de oro.** Los cinco dentro dan un sexto penalti contra Benji
+ *     a tope, que vale el doble y no cuenta para la tanda.
  *
  *  Y están **los tiros de la serie** para elegir, cada uno con sus reglas en
  *  `lib/penalties.ts`, su coste en energía y su corte a pantalla entera.
  *
  *  Una regla que no es de adorno: **el tiro se anota al dispararse**. Cerrar
  *  la aplicación con un penalti a medias no lo devuelve; volver más tarde
- *  sigue la tanda por donde iba.
+ *  sigue la tanda por donde iba, con la memoria de Benji y los puntos donde
+ *  estaban.
  * ========================================================================= */
 
 interface PenaltyShootoutProps {
@@ -196,16 +217,18 @@ interface Fired {
   keeper: PenaltyZoneId;
   shot: PenaltyShot;
   kind: ShotKind;
+  /** Y lo que ha valido, que es lo que luego se desglosa en pantalla. */
+  score: ShotScore;
 }
 
 /**
- * La tanda entera: quién tira, de quién es el turno y qué pantalla toca.
+ * La tanda entera: quién tira, qué penalti toca y qué pantalla se ve.
  *
- * Aquí no se juega nada —jugar es cosa de `TurnoTiro` y de `PenaltySave`—;
- * aquí se lleva **el duelo**: se recuerda el tirador elegido, se apunta ronda
- * a ronda lo que va pasando y se decide si toca la bola, los guantes o el
- * resumen. El turno no cambia solo al anotarse un tiro: cambia cuando el crío
- * pulsa seguir, para que le dé tiempo a ver cómo acabó.
+ * Aquí no se juega nada —jugar es cosa de `TurnoTiro`—; aquí se lleva la
+ * cuenta: el tirador elegido, cómo fue cada tiro, los puntos, el récord del
+ * aparato y el tiro de oro. La pantalla no pasa de penalti sola al anotarse
+ * un tiro: pasa cuando el crío pulsa seguir, para que le dé tiempo a ver cómo
+ * acabó.
  */
 export function PenaltyShootout({ profileId, name, date, result, onShot, onClose }: PenaltyShootoutProps) {
   const who = profileId as Casero;
@@ -234,157 +257,186 @@ export function PenaltyShootout({ profileId, name, date, result, onShot, onClose
   };
   const shooterName = shooter === who ? name : (tiradorDe(shooter).name ?? name);
 
-  /** Lo último que se sabe de la tanda, para mirarlo al pasar de turno. */
+  /** La presentación sale una vez, y sólo si la tanda está por empezar. */
+  const [seen, setSeen] = useState(() => (result?.taken ?? 0) > 0);
+
+  /**
+   * Cuántos penaltis se han tirado **en esta pantalla**. Es una foto y no el
+   * cálculo en vivo a propósito: en cuanto se anota un tiro la tanda ya dice
+   * otra cosa, y la escena tiene que quedarse donde está hasta que el crío
+   * pulse seguir.
+   */
+  const [turno, setTurno] = useState(0);
+  const avanzar = useCallback(() => setTurno((n) => n + 1), []);
+
+  /**
+   * Cómo acabó cada tiro de los que se han tirado **con esta pantalla
+   * abierta**. Lo guardado en el día sólo dice cuántos entraron, no cuáles;
+   * los de antes de cerrar la app salen en el marcador como tirados, sin más.
+   */
+  const [history, setHistory] = useState<PenaltyOutcome[]>([]);
+  const [firstShown] = useState(result?.taken ?? 0);
+
+  /**
+   * El récord de este aparato. Es una comodidad, no un dato del día: si se
+   * pierde, se vuelve a batir. Por eso vive en el navegador y no en la nube.
+   */
+  const [record, setRecord] = useState(0);
+  useEffect(() => {
+    try {
+      setRecord(Math.max(0, Number(window.localStorage.getItem(recordKey(profileId))) || 0));
+    } catch {
+      // Sin almacenamiento no hay récord, y no pasa nada.
+    }
+  }, [profileId]);
+
+  const guardarRecord = useCallback(
+    (points: number) => {
+      setRecord((best) => {
+        if (points <= best) return best;
+        try {
+          window.localStorage.setItem(recordKey(profileId), String(points));
+        } catch {
+          // Da igual: el número sigue en pantalla hasta que se cierre.
+        }
+        return points;
+      });
+    },
+    [profileId],
+  );
+
+  /**
+   * El tiro de oro: el sexto, el que se gana haciendo pleno. Vale el doble y
+   * **no se guarda con la tanda** —la tanda son cinco y sigue siendo cinco—,
+   * así que vive aquí y sólo puede sumar puntos, nunca quitarlos.
+   */
+  const [golden, setGolden] = useState(false);
+  const [goldenDone, setGoldenDone] = useState(false);
+  const [goldenPoints, setGoldenPoints] = useState(0);
+
+  const points = (result?.points ?? 0) + goldenPoints;
+
+  const registrarTiro = useCallback(
+    (next: PenaltyResult, outcome: PenaltyOutcome, score: ShotScore, esDeOro: boolean) => {
+      if (esDeOro) {
+        setGoldenPoints(score.total);
+        setGoldenDone(true);
+        guardarRecord((latest.current?.points ?? 0) + score.total);
+        return;
+      }
+      setHistory((list) => [...list, outcome]);
+      guardarRecord(next.points ?? 0);
+      onShot(next);
+    },
+    [guardarRecord, onShot],
+  );
+
+  /** Lo último que se sabe de la tanda, para el récord del tiro de oro. */
   const latest = useRef(result);
   latest.current = result;
 
-  /** La presentación sale una vez, y sólo si la tanda está por empezar. */
-  const [seen, setSeen] = useState(() => (result?.taken ?? 0) > 0 || (result?.faced ?? 0) > 0);
-
-  /**
-   * El turno que se está jugando. Es una foto y no el cálculo en vivo a
-   * propósito: en cuanto se anota un tiro el duelo ya dice otra cosa, y la
-   * pantalla tiene que quedarse donde está hasta que el crío pulse seguir.
-   */
-  const [phase, setPhase] = useState<DuelState>(() => duelState(result));
-  const advance = useCallback(() => setPhase(duelState(latest.current)), []);
-
-  /**
-   * Cómo fue cada ronda **con esta pantalla abierta**. Lo guardado en el día
-   * sólo dice cuántos entraron y cuántos se pararon, no cuáles; las rondas de
-   * antes de cerrar la app salen en el marcador como jugadas, sin más.
-   */
-  const [history, setHistory] = useState<Ronda[]>([]);
-  const [firstShown] = useState(() =>
-    result && result.faced === undefined ? (result.taken ?? 0) : Math.min(result?.taken ?? 0, result?.faced ?? 0),
-  );
-
-  const registrarTiro = useCallback((next: PenaltyResult, outcome: PenaltyOutcome) => {
-    setHistory((list) => [...list, { tiro: outcome }]);
-    onShot(next);
-    // `onShot` viene del día y no cambia entre pintadas.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onShot]);
-
-  const registrarParada = useCallback(
-    (outcome: SaveOutcome, palomita: boolean) => {
-      const base = latest.current;
-      setHistory((list) =>
-        list.length ? list.map((r, i) => (i === list.length - 1 ? { ...r, parada: outcome } : r)) : [{ parada: outcome }],
-      );
-      onShot({
-        scored: base?.scored ?? 0,
-        taken: base?.taken ?? 0,
-        total: base?.total ?? PENALTY_SHOTS,
-        at: new Date().toISOString(),
-        specials: base?.specials ?? [],
-        round: base?.round ?? 0,
-        faced: (base?.faced ?? 0) + 1,
-        conceded: (base?.conceded ?? 0) + (outcome === 'encajado' ? 1 : 0),
-        gloves: (base?.gloves ?? 0) + (palomita ? 1 : 0),
-      });
-    },
-    [onShot],
-  );
+  const done = (result?.taken ?? 0) >= PENALTY_SHOTS;
 
   if (!seen) {
     return <CaraACara who={who} shooter={shooter} onPick={setShooter} name={name} onStart={() => setSeen(true)} />;
   }
 
-  if (phase.done) {
+  if (done && !golden) {
     return (
       <Final
         who={shooter}
         shooterName={shooterName}
-        duel={phase}
         result={result}
+        points={points}
+        record={record}
         history={history}
         firstShown={firstShown}
+        golden={earnsGolden(result) && !goldenDone ? () => { setGolden(true); avanzar(); } : undefined}
+        goldenPoints={goldenDone ? goldenPoints : null}
         onClose={onClose}
-      />
-    );
-  }
-
-  if (phase.turn === 'paras' && !phase.legacy) {
-    return (
-      <PenaltySave
-        key={`parada-${phase.round}`}
-        profileId={profileId}
-        kid={who}
-        name={name}
-        date={date}
-        shooter={shooter}
-        shooterName={shooterName}
-        duel={phase}
-        result={result}
-        tanda={result?.round ?? 0}
-        history={history}
-        firstShown={firstShown}
-        onSaved={registrarParada}
-        onNext={advance}
       />
     );
   }
 
   return (
     <TurnoTiro
-      key={`tiro-${phase.round}`}
+      key={`tiro-${turno}`}
       profileId={profileId}
       name={name}
       date={date}
       result={result}
-      duel={phase}
       shooter={shooter}
       shooterName={shooterName}
       history={history}
       firstShown={firstShown}
+      points={points}
+      record={record}
+      golden={golden}
       onShot={registrarTiro}
-      onNext={advance}
+      onNext={() => {
+        if (golden) setGolden(false);
+        avanzar();
+      }}
     />
   );
 }
 
-/** Lo que necesita el turno de tirar, que casi todo se lo dan hecho. */
+/** Lo que necesita un penalti, que casi todo se lo dan hecho. */
 interface TiroProps {
   profileId: ProfileId;
   name: string;
   date: DateKey;
   result: PenaltyResult | null;
-  duel: DuelState;
   shooter: TiradorId;
   shooterName: string;
-  history: Ronda[];
+  history: PenaltyOutcome[];
   firstShown: number;
-  /** Anota el tiro en cuanto se ejecuta, y dice cómo acabó. */
-  onShot: (result: PenaltyResult, outcome: PenaltyOutcome) => void;
-  /** Y pasa el turno cuando el crío lo pide. */
+  /** Los puntos que lleva la tanda. */
+  points: number;
+  record: number;
+  /** Si éste es el sexto, el de oro. */
+  golden: boolean;
+  /** Anota el tiro en cuanto se ejecuta, con lo que ha valido. */
+  onShot: (result: PenaltyResult, outcome: PenaltyOutcome, score: ShotScore, golden: boolean) => void;
+  /** Y pasa al siguiente cuando el crío lo pide. */
   onNext: () => void;
 }
 
 /**
- * El turno de tirar: la escena de siempre —apuntar, fuerza, puntería— con el
- * marcador del duelo arriba y el relevo al portero abajo.
+ * Un penalti: apuntar, fuerza, puntería y a ver qué pasa.
  */
 function TurnoTiro({
   profileId,
   name,
   date,
   result,
-  duel,
   shooter,
   shooterName,
   history,
   firstShown,
+  points,
+  record,
+  golden,
   onShot,
   onNext,
 }: TiroProps) {
   const taken = result?.taken ?? 0;
   const scored = result?.scored ?? 0;
   const who = profileId as Casero;
-  const stretch = keeperStretch(duel.round);
+  const shooting = golden ? PENALTY_SHOTS + 1 : Math.min(taken + 1, PENALTY_SHOTS);
+  const stretch = keeperStretch(shooting, golden);
 
   /** Lo que se abre el balón con éste: su precisión de la carta, en tanto por uno. */
   const spread = Math.max(0.68, Math.min(1.2, 1 - (fichaDe(shooter).pre - 80) / 70));
+
+  /**
+   * Los rincones por los que ya le han marcado. Van con la tanda, así que
+   * Benji no se olvida de ellos al cerrar la aplicación.
+   */
+  const spots = spotsOf(result);
+
+  /** Las dos dianas de este tiro. */
+  const dianas = dianasDe(profileId, date, taken, result?.round ?? 0);
 
   const [step, setStep] = useState<Step>('apuntar');
 
@@ -418,10 +470,16 @@ function TurnoTiro({
   /** Cada vez que sube, la escena repite el último penalti a cámara lenta. */
   const [replay, setReplay] = useState(0);
 
-  /** El portero de este penalti: decidido de antemano, y con su aviso. */
+  /**
+   * El portero de este penalti: decidido de antemano, con su aviso y con lo
+   * que recuerda. En el tiro de oro se le da otro número de tiro para que no
+   * repita el del quinto.
+   */
   const round = result?.round ?? 0;
-  const keeper = keeperZone(profileId, date, taken, round);
+  const keeper = keeperZone(profileId, date, golden ? PENALTY_SHOTS : taken, round, spots);
   const tell = keeperTell(keeper);
+  /** Si está esperando en un rincón por el que ya le marcaron. */
+  const vigila = spots.includes(keeper);
 
   /* ------------------------------------------------------- los relojes */
 
@@ -530,12 +588,13 @@ function TurnoTiro({
     // La semilla del tiro decide hacia qué lado se abre un balón reventado
     // cuando la puntería iba clavada. Va con el perfil, el día y el número de
     // tiro para que el mismo penalti dé siempre lo mismo, como las preguntas.
-    const seed = hashSeed(`${profileId}:desvio:${date}:${taken}${round ? `:r${round}` : ''}`);
+    const seed = hashSeed(`${profileId}:desvio:${date}:${taken}${golden ? ':oro' : ''}${round ? `:r${round}` : ''}`);
     const outcome = resolveShot(aim, charged.current, keeper, seed, kind, accuracy, spread, stretch);
+    const score = scoreShot({ shot: outcome, keeper, accuracy, kind, dianas, golden });
     const flight = SHOT_TYPES[kind].flight;
 
     setPower(charged.current);
-    setFired({ keeper, shot: outcome, kind });
+    setFired({ keeper, shot: outcome, kind, score });
 
     // Con el especial, primero el corte con su nombre a gritos; el golpeo
     // llega al acabar. Sin él, el golpeo es inmediato: cinco cortes seguidos
@@ -569,15 +628,17 @@ function TurnoTiro({
         // energía ni deje repetirlo.
         specials: special ? [...(result?.specials ?? []), kind] : (result?.specials ?? []),
         round,
-        faced: duel.legacy ? undefined : (result?.faced ?? 0),
-        conceded: duel.legacy ? undefined : (result?.conceded ?? 0),
-        gloves: result?.gloves ?? 0,
+        // Y el rincón, si ha entrado: es lo que Benji recuerda.
+        spots: (result?.spots ?? '') + (outcome.outcome === 'gol' ? zonaDe(outcome.landing) : ''),
+        points: (result?.points ?? 0) + score.total,
       },
       outcome.outcome,
+      score,
+      golden,
     );
     // `later` sólo empuja a una lista: no cambia entre pintadas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aim, date, duel, keeper, kind, onShot, profileId, result, round, scored, special, spread, step, stretch, taken]);
+  }, [aim, date, dianas, golden, keeper, kind, onShot, profileId, result, round, scored, special, spread, step, stretch, taken]);
 
   /* --------------------------------------------------------- el teclado */
 
@@ -654,25 +715,10 @@ function TurnoTiro({
   // queda anotado, pero enseñarlo antes de que llegue chivaría el final.
   const marcador = {
     scored: pending && fired?.shot.outcome === 'gol' ? scored - 1 : scored,
+    taken: pending ? taken - 1 : taken,
+    points: pending ? points - (fired?.score.total ?? 0) : points,
     history: pending ? history.slice(0, -1) : history,
   };
-
-  /**
-   * Cómo queda el duelo después de este tiro. Sirve para el botón de seguir:
-   * si la tanda ya está decidida no toca ponerse los guantes, toca el
-   * resumen, y el botón tiene que decirlo antes de pulsarlo.
-   */
-  const tras = fired
-    ? duelState({
-        scored: scored + (fired.shot.outcome === 'gol' ? 1 : 0),
-        taken: taken + 1,
-        total: PENALTY_SHOTS,
-        at: '',
-        round: round,
-        faced: duel.legacy ? undefined : (result?.faced ?? 0),
-        conceded: duel.legacy ? undefined : (result?.conceded ?? 0),
-      })
-    : null;
 
   return (
     <div className={`${manga.variable} mx-auto w-full max-w-2xl space-y-3`}>
@@ -686,12 +732,13 @@ function TurnoTiro({
           who={shooter}
           shooterName={shooterName}
           scored={marcador.scored}
-          conceded={result?.conceded ?? 0}
-          round={duel.round}
-          sudden={duel.sudden}
-          turn="tiras"
+          taken={marcador.taken}
+          shooting={shooting}
           history={marcador.history}
           firstShown={firstShown}
+          points={marcador.points}
+          record={record}
+          golden={golden}
         />
 
         <Escena
@@ -711,9 +758,11 @@ function TurnoTiro({
           aimBar={aimBar}
           abanico={spread}
           replay={replay}
-          penalty={duel.round}
-          sudden={duel.sudden}
+          penalty={shooting}
+          golden={golden}
           cartel={cartel}
+          dianas={dianas}
+          spots={spots}
         />
 
         {/* El narrador, en la cinta de abajo. */}
@@ -734,6 +783,26 @@ function TurnoTiro({
               </>
             ) : step === 'corte' || step === 'vuelo' ? (
               <span className="italic">{grito(shooterName, fired?.kind ?? 'normal', Boolean(tiradorDe(shooter).twin))}</span>
+            ) : golden ? (
+              <>
+                <span className="text-amber-300">Tiro de oro:</span> Benji está a tope y vale el doble.{' '}
+                <span className="font-semibold text-white/70">Ve a por la dorada.</span>
+              </>
+            ) : spots.length > 0 ? (
+              <>
+                {tell === 'centro' ? (
+                  <>
+                    Benji se queda <span className="text-amber-300">en el centro</span>.
+                  </>
+                ) : (
+                  <>
+                    Benji se carga hacia <span className="text-amber-300">tu {tell}</span>.
+                  </>
+                )}{' '}
+                <span className="font-semibold text-white/70">
+                  Y vigila lo que ya le has hecho: cámbiale el rincón.
+                </span>
+              </>
             ) : tell === 'centro' ? (
               <>
                 Benji se queda <span className="text-amber-300">en el centro</span>.{' '}
@@ -873,7 +942,7 @@ function TurnoTiro({
                        to-amber-400 px-4 text-lg font-black uppercase tracking-wide text-[#241a14]
                        shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
           >
-            {tras?.done ? '🏁 Ver el resumen' : duel.legacy ? `Penalti ${taken + 2} ▶` : '🧤 Ahora paras ▶'}
+            {golden || taken >= PENALTY_SHOTS ? '🏁 Ver el resumen' : `Penalti ${taken + 1} ▶`}
           </button>
         </div>
       )}
@@ -912,8 +981,10 @@ function Escena({
   abanico,
   replay,
   penalty,
-  sudden,
+  golden,
   cartel,
+  dianas,
+  spots,
 }: {
   /** El que tira. */
   who: TiradorId;
@@ -938,9 +1009,14 @@ function Escena({
   /** Sube cada vez que se pide la repetición. */
   replay: number;
   penalty: number;
-  sudden: boolean;
-  /** Si toca enseñar el cartel de turno. */
+  /** Si es el tiro de oro. */
+  golden: boolean;
+  /** Si toca enseñar el cartel del penalti. */
   cartel: boolean;
+  /** Las dos dianas de este tiro. */
+  dianas: Diana[];
+  /** Y los rincones por los que ya le han marcado. */
+  spots: PenaltyZoneId[];
 }) {
   const scene = useRef<HTMLDivElement>(null);
   const ballRef = useRef<HTMLDivElement>(null);
@@ -1044,10 +1120,10 @@ function Escena({
   // adonde le tocaba en cuanto sale el balón.
   const lean = tell === 'izquierda' ? -6 : tell === 'derecha' ? 6 : 0;
   const tirado = replaying ? replayDive : diving;
-  const dive = fired && tirado ? estiradaEn(fired.keeper) : null;
+  const dive = fired && tirado ? estirada(fired.keeper) : null;
   const benji = dive ?? {
-    x: PORTERO_DE_PIE.x + (fired ? 0 : lean),
-    y: PORTERO_DE_PIE.y,
+    x: BENJI_DE_PIE.x + (fired ? 0 : lean),
+    y: BENJI_DE_PIE.y,
     pose: 'espera' as PoseBenjiId,
     transform: 'translate(-50%, -50%)',
     flip: 1,
@@ -1111,7 +1187,7 @@ function Escena({
         style={{
           left: `${benji.x}%`,
           top: `${benji.y}%`,
-          width: `${PORTERO_ANCHO}%`,
+          width: `${BENJI_ANCHO}%`,
           aspectRatio: '160 / 150',
           transform: aiming ? undefined : benji.transform,
         }}
@@ -1128,7 +1204,7 @@ function Escena({
           className="pointer-events-none absolute flex animate-pulse gap-0.5 font-black text-amber-300
                      drop-shadow-[0_1px_0_#241a14] [font-size:clamp(14px,4.2vw,22px)]"
           style={{
-            left: `${PORTERO_DE_PIE.x + lean * 2.6}%`,
+            left: `${BENJI_DE_PIE.x + lean * 2.6}%`,
             top: `${BOCA.top + BOCA.height - 7}%`,
             transform: 'translate(-50%, -50%)',
           }}
@@ -1166,6 +1242,29 @@ function Escena({
           />
         </>
       )}
+
+      {/* Los rincones por los que ya le han marcado: una marca pequeña en
+          cada uno. Es información del crío sobre sí mismo —no chiva adónde va
+          Benji—, y es lo que hace que se entienda por qué esta vez no entra. */}
+      {aiming &&
+        spots.map((id, i) => {
+          const at = enEscena(zoneOf(id));
+          return (
+            <span
+              key={`${id}-${i}`}
+              aria-hidden
+              className="pointer-events-none absolute z-[14] -translate-x-1/2 -translate-y-1/2 text-[clamp(11px,3vw,16px)]
+                         font-black leading-none text-white/45 [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]"
+              style={{ left: `${at.x}%`, top: `${at.y}%` }}
+            >
+              ✕
+            </span>
+          );
+        })}
+
+      {/* Las dianas de este tiro. Se ven mientras se apunta y en el resultado,
+          para que se vea si el balón ha caído dentro. */}
+      {(aiming || seen) && <Dianas dianas={dianas} hit={fired?.score.hit ?? null} />}
 
       {/* El efecto que se está cogiendo: la raya que va de la mira al sitio
           al que se abriría el balón si se soltara la segunda barra ahora.
@@ -1274,7 +1373,7 @@ function Escena({
       <div
         aria-hidden
         className="pointer-events-none absolute h-[1.6%] w-[9%] -translate-x-1/2 rounded-[50%] bg-black/35 blur-[2px]"
-        style={{ left: `${benji.x}%`, top: `${PORTERO_DE_PIE.y + 11.4}%` }}
+        style={{ left: `${benji.x}%`, top: `${BENJI_DE_PIE.y + 11.4}%` }}
       />
 
       {/* El que tira, a su tamaño en el campo. */}
@@ -1398,9 +1497,9 @@ function Escena({
           manos sin avisar. */}
       {cartel && step === 'apuntar' && (
         <Cartel
-          titulo={sudden ? '¡MUERTE SÚBITA!' : '¡TIRAS TÚ!'}
-          pie={sudden ? 'Si fallas, se acaba' : `Penalti ${penalty} · ${shooterName}`}
-          color={sudden ? '#e11d48' : '#16a34a'}
+          titulo={golden ? '¡TIRO DE ORO!' : `PENALTI ${penalty}`}
+          pie={golden ? 'Vale el doble · Benji a tope' : `${shooterName} · a por las dianas`}
+          color={golden ? '#f59e0b' : '#16a34a'}
         />
       )}
 
@@ -1438,7 +1537,8 @@ function Escena({
               </p>
             </div>
             <p className="-mt-0.5 animate-floatUp bg-[#0b1220] px-3 py-1 text-[clamp(10px,2.8vw,13px)] font-black uppercase tracking-[0.14em] text-white [animation-delay:180ms]">
-              {subtitulo(outcome, shooterName, fired.kind)} · {sudden ? 'muerte súbita' : `ronda ${penalty}/${PENALTY_SHOTS}`}
+              {subtitulo(outcome, shooterName, fired.kind)} ·{' '}
+              {fired.score.total > 0 ? `+${fired.score.total} pts` : 'sin puntos'}
             </p>
           </div>
         </>
@@ -1597,7 +1697,7 @@ function CaraACara({
           Benji
         </p>
         <p className="absolute inset-x-0 top-7 text-center text-[10px] font-black uppercase tracking-[0.2em] text-amber-300 [paint-order:stroke] [-webkit-text-stroke:3px_#241a14]">
-          {PENALTY_SHOTS} tiras · {PENALTY_SHOTS} paras
+          {PENALTY_SHOTS} penaltis · y él se acuerda
         </p>
       </div>
 
@@ -1622,10 +1722,10 @@ function CaraACara({
         </div>
       </div>
 
-      {/* Cómo se juega: los cuatro tiempos del tiro, y que media tanda se
-          juega con los guantes puestos. */}
+      {/* Cómo se juega: los cuatro tiempos del tiro, y las dos cosas que hay
+          que tener en la cabeza mientras se apunta. */}
       <div className="rounded-2xl p-3 text-white" style={{ backgroundColor: NOCHE }}>
-        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Cuando tiras</p>
+        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Cada penalti</p>
         <ol className="grid grid-cols-4 gap-1.5 text-center text-[11px] font-black leading-tight">
           {[
             ['🎯', 'Apunta', 'toca la portería'],
@@ -1645,23 +1745,31 @@ function CaraACara({
           ))}
         </ol>
 
-        <p className="mb-1.5 mt-3 text-[10px] font-black uppercase tracking-[0.14em] text-amber-300">
-          Y cuando paras 🧤
-        </p>
-        <p className="text-[12px] leading-snug text-white/85">
-          Después de cada tiro tuyo te tiran uno a ti. El rival coge carrerilla y a mitad de camino{' '}
-          <span className="font-black text-amber-300">enseña el pie</span>: ahí te tiras, ni antes —te ve caer y cambia
-          de palo— ni después. Y si te sobra un ⚡, puedes armar la <span className="font-black text-amber-300">palomita</span>:
-          un estirón imposible, una vez.
-        </p>
+        <ul className="mt-3 space-y-1.5 text-[12px] leading-snug text-white/85">
+          <li>
+            <span className="font-black text-amber-300">Léelo:</span> Benji se carga hacia un lado antes de tirarse.
+            Tira al otro.
+          </li>
+          <li>
+            <span className="font-black text-amber-300">No repitas:</span> se acuerda de los rincones por los que ya le
+            has marcado y se va a vigilarlos. Cámbiale el sitio.
+          </li>
+          <li>
+            <span className="font-black text-amber-300">✦ Las dianas:</span> dos por tiro, y dan puntos. La ★ dorada es
+            más pequeña y vale el doble… y a veces está justo donde él vuela.
+          </li>
+          <li>
+            <span className="font-black text-amber-300">★ Tiro de oro:</span> si metes los cinco, te llevas un sexto
+            contra Benji a tope que vale doble.
+          </li>
+        </ul>
 
         <p className="mt-2.5 text-[12px] leading-snug text-white/85">
-          <span className="font-black text-amber-300">El truco:</span> Benji también se carga hacia un lado antes de
-          tirarse; tira al otro. Cada gol da <span className="font-black text-amber-300">⚡</span> para los tiros de la
-          serie (empiezas con {ENERGY_START}).
+          Cada gol da <span className="font-black text-amber-300">⚡</span> para los tiros de la serie (empiezas con{' '}
+          {ENERGY_START}).
         </p>
         <p className="mt-1.5 hidden text-[11px] text-white/60 md:block">
-          En el ordenador: flechas para apuntar o para elegir palo, y la barra espaciadora para todo lo demás.
+          En el ordenador: flechas para apuntar y la barra espaciadora para la fuerza y la puntería.
         </p>
       </div>
 
@@ -1673,7 +1781,7 @@ function CaraACara({
                    to-amber-400 px-4 font-manga text-3xl tracking-wide text-[#241a14] shadow-[0_5px_0_rgba(0,0,0,0.45)]
                    active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
       >
-        ¡Que empiece la tanda!
+        ¡Al punto de penalti!
       </button>
     </div>
   );
@@ -1682,52 +1790,63 @@ function CaraACara({
 /* ---------------------------------------------------------------------------
  * El resumen de la tanda
  *
- * Como el de la tele al acabar: el resultado con los dos escudos, la tanda
- * tiro a tiro, tres cifras y la nota del que ha tirado.
+ * Como el de la tele al acabar: el resultado con la medalla, la tanda tiro a
+ * tiro, las cifras y la nota del que ha tirado. Y, si ha hecho pleno, el
+ * botón del tiro de oro, que es el premio de verdad de meter los cinco.
  * ------------------------------------------------------------------------- */
 
 function Final({
   who,
   shooterName,
-  duel,
   result,
+  points,
+  record,
   history,
   firstShown,
+  golden,
+  goldenPoints,
   onClose,
 }: {
   who: TiradorId;
   shooterName: string;
-  duel: DuelState;
   result: PenaltyResult | null;
-  history: Ronda[];
+  points: number;
+  record: number;
+  history: PenaltyOutcome[];
   firstShown: number;
+  /** El botón del tiro de oro, si se lo ha ganado y no lo ha tirado. */
+  golden?: () => void;
+  /** Y lo que dio, si ya lo tiró. */
+  goldenPoints: number | null;
   onClose: () => void;
 }) {
-  const scored = duel.scored;
-  const conceded = duel.conceded;
-  const good = duel.win === 'ganas';
+  const scored = result?.scored ?? 0;
+  const good = scored >= Math.ceil(PENALTY_SHOTS / 2);
+  const saved = PENALTY_SHOTS - scored;
   const specials = result?.specials ?? [];
-  const rondas = Math.max(PENALTY_SHOTS, result?.taken ?? 0, result?.faced ?? 0);
-  const paradas = Math.max(0, (result?.faced ?? 0) - conceded);
-  // La nota sale de las dos mitades: lo que mete y lo que para. Una tanda
-  // ganada a cero tiene que dar un diez, y una perdida sin parar ninguna no.
-  const nota = Math.min(10, 3.5 + scored * 0.9 + paradas * 0.8).toFixed(1).replace('.', ',');
   const color = colorDe(who);
+  const premio = medalla(points);
+  const batido = points >= record && points > 0;
 
   return (
     <div className={`${manga.variable} mx-auto w-full max-w-2xl space-y-3`}>
-      <div className="overflow-hidden rounded-2xl text-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)] ring-1 ring-black/40" style={{ backgroundColor: NOCHE }}>
+      <div
+        className="overflow-hidden rounded-2xl text-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)] ring-1 ring-black/40"
+        style={{ backgroundColor: NOCHE }}
+      >
         <div className="flex items-center justify-between px-3 pt-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
           <span>Final de la tanda</span>
-          {scored >= 4 && <span className="rounded bg-amber-300 px-1.5 py-0.5 text-[#241a14]">⭐ Jugador del partido</span>}
+          {batido && <span className="animate-latido rounded bg-amber-300 px-1.5 py-0.5 text-[#241a14]">🏅 Récord</span>}
         </div>
 
-        {/* El resultado, con el que tira celebrando o esperando detrás. */}
+        {/* Los puntos, con el que tira celebrando o esperando detrás. */}
         <div className="relative mt-1 aspect-[16/7] overflow-hidden">
           <div
             aria-hidden
             className="absolute inset-0 opacity-50"
-            style={{ background: `radial-gradient(circle at 22% 60%, ${color} 0, transparent 55%), radial-gradient(circle at 80% 60%, #f59e0b 0, transparent 50%)` }}
+            style={{
+              background: `radial-gradient(circle at 22% 60%, ${color} 0, transparent 55%), radial-gradient(circle at 80% 60%, #f59e0b 0, transparent 50%)`,
+            }}
           />
           <div aria-hidden className="absolute -inset-1/2 animate-girar opacity-20 bg-[repeating-conic-gradient(from_0deg_at_50%_50%,rgba(255,255,255,0.8)_0deg_5deg,transparent_5deg_15deg)]" />
           <div className="absolute bottom-[-16%] left-[2%] h-[112%] animate-pop" style={{ aspectRatio: '120 / 210' }}>
@@ -1735,66 +1854,83 @@ function Final({
           </div>
           <div className="absolute inset-y-0 right-[4%] flex flex-col items-end justify-center">
             <p className="text-[11px] font-black uppercase tracking-[0.16em]">
-              {siglas(shooterName)} <span className="text-white/50">vs</span> BEN
+              {premio.icon} {premio.label}
             </p>
-            <p className="animate-golpe font-manga text-[clamp(56px,17vw,96px)] leading-none tracking-wide tabular-nums text-amber-300 [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]">
-              {scored}–{conceded}
+            <p className="animate-golpe font-manga text-[clamp(46px,15vw,84px)] leading-none tracking-wide tabular-nums text-amber-300 [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]">
+              {points}
             </p>
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/80">
-              {duel.win === 'ganas' ? '🏆 Tanda ganada' : 'Tanda perdida'}
-              {duel.sudden ? ' · en muerte súbita' : ''}
+              puntos · {scored} de {PENALTY_SHOTS} dentro
             </p>
           </div>
         </div>
 
-        {/* La tanda, ronda a ronda: arriba lo que tiró, abajo lo que paró. */}
-        <div className="space-y-1 border-t border-white/10 px-3 py-2.5">
-          {(['tira', 'para'] as const).map((side) => (
-            <div key={side} className="flex items-center justify-center gap-1.5">
-              <span aria-hidden className="w-5 shrink-0 text-right text-[11px]">
-                {side === 'tira' ? '⚽' : '🧤'}
+        {/* La tanda, tiro a tiro. */}
+        <div className="flex items-center justify-center gap-1.5 border-t border-white/10 px-3 py-2.5">
+          {Array.from({ length: PENALTY_SHOTS }, (_, i) => {
+            const known = i >= firstShown ? history[i - firstShown] : undefined;
+            const goal = known ? known === 'gol' : undefined;
+            return (
+              <span
+                key={i}
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black
+                  ${goal === true ? 'bg-emerald-400 text-emerald-950' : goal === false ? 'bg-rose-500' : 'bg-white/20'}`}
+                title={known ? TITULAR[known] : undefined}
+              >
+                {goal === true ? '✓' : goal === false ? '✕' : i + 1}
               </span>
-              {Array.from({ length: rondas }, (_, i) => {
-                const known = i >= firstShown ? history[i - firstShown] : undefined;
-                const value = side === 'tira' ? known?.tiro : known?.parada;
-                const bien =
-                  value === undefined ? undefined : side === 'tira' ? value === 'gol' : value !== 'encajado';
-                return (
-                  <span
-                    key={i}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black
-                      ${bien === true ? 'bg-emerald-400 text-emerald-950' : bien === false ? 'bg-rose-500' : 'bg-white/20'}`}
-                  >
-                    {bien === true ? (side === 'tira' ? '✓' : '🧤') : bien === false ? '✕' : i + 1}
-                  </span>
-                );
-              })}
-            </div>
-          ))}
+            );
+          })}
+          {goldenPoints !== null && (
+            <span className="flex h-7 items-center justify-center gap-1 rounded-full bg-amber-300 px-2 text-xs font-black text-[#241a14]">
+              ★ +{goldenPoints}
+            </span>
+          )}
         </div>
 
-        <dl className="grid grid-cols-3 border-t border-white/10 text-center">
+        <dl className="grid grid-cols-4 border-t border-white/10 text-center">
           {(
             [
-              ['Goles', String(scored)],
-              ['Paradas', String(paradas)],
-              ['Nota', nota],
+              ['Goles', `${scored}/${PENALTY_SHOTS}`],
+              ['Paradas', String(saved)],
+              ['Especiales', String(specials.length)],
+              ['Récord', String(Math.max(record, points))],
             ] as const
           ).map(([k, v]) => (
             <div key={k} className="border-r border-white/10 py-2.5 last:border-r-0">
-              <dt className="text-[10px] font-black uppercase tracking-[0.14em] text-white/60">{k}</dt>
-              <dd className="text-xl font-black tabular-nums">{v}</dd>
+              <dt className="text-[9px] font-black uppercase tracking-[0.12em] text-white/60">{k}</dt>
+              <dd className="text-lg font-black tabular-nums">{v}</dd>
             </div>
           ))}
         </dl>
       </div>
 
+      {/* El tiro de oro: sólo con los cinco dentro, y sólo una vez. */}
+      {golden && (
+        <button
+          type="button"
+          onClick={golden}
+          autoFocus
+          className="relative flex min-h-[4.5rem] w-full items-center justify-center gap-2 overflow-hidden rounded-2xl
+                     bg-gradient-to-b from-amber-200 to-amber-500 px-4 font-manga text-3xl tracking-wide text-[#241a14]
+                     shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px] active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"
+        >
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-barrido bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+          <span className="relative">★ ¡Tiro de oro!</span>
+        </button>
+      )}
+
       <div className="text-center">
         <p className="font-display text-xl font-black t-1">
-          {good ? '🏆 ' : ''}
-          {scored} goles y {paradas} {paradas === 1 ? 'parada' : 'paradas'}
+          {scored === PENALTY_SHOTS ? '🏆 ' : ''}
+          {scored} de {PENALTY_SHOTS} dentro
         </p>
-        <p className="mt-1 text-sm t-2">{penaltyVerdict(scored, PENALTY_SHOTS, duel.legacy ? undefined : conceded)}</p>
+        <p className="mt-1 text-sm t-2">{penaltyVerdict(scored, PENALTY_SHOTS)}</p>
+        {golden && (
+          <p className="mt-1 text-[12px] font-bold text-amber-500">
+            Los cinco dentro: te has ganado un sexto contra Benji a tope, y vale el doble.
+          </p>
+        )}
         {specials.length > 0 && (
           <p className="mt-1 text-[12px] t-3">
             Tiros de la serie: {specials.map((k) => `${SHOT_TYPES[k].icon} ${SHOT_TYPES[k].name}`).join(' · ')}
@@ -1803,13 +1939,12 @@ function Final({
       </div>
 
       <p className="text-center text-[11px] leading-snug t-3">
-        Una tanda al día. Mañana hay otras cinco preguntas, otro día que hacer y Benji esperando.
+        Una tanda al día. Mañana hay otras cinco preguntas, otro día que hacer y Benji esperando —y acordándose—.
       </p>
 
       <button
         type="button"
         onClick={onClose}
-        autoFocus
         className="flex min-h-[3.5rem] w-full items-center justify-center rounded-2xl px-4 text-base font-black uppercase
                    tracking-wide text-white shadow-[0_5px_0_rgba(0,0,0,0.45)] active:translate-y-[3px]
                    active:shadow-[0_2px_0_rgba(0,0,0,0.45)]"

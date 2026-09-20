@@ -871,84 +871,8 @@ function losa(a: P, b: P, wa: number, wb: number): string {
  * cadera al hombro— y no como un rectángulo de pie, que es lo que permite
  * tumbarlo en una estirada sin que la camiseta se quede vertical.
  */
-/**
- * Cómo se pinta un portero: la cara, la equipación y si lleva gorra.
- *
- * Benji es uno de ellos y no un dibujo aparte, porque en el duelo **el crío
- * también para**: media tanda se juega bajo los palos, y ahí el que se tira
- * a las escuadras es él, con su cara y con su color. Un portero de repuesto
- * con otra cara habría roto justo lo que hace gracia.
- */
-interface Guardameta {
-  face: Face;
-  pelo: PeloAnime;
-  /** La camiseta y su vivo. */
-  jersey: string;
-  vivo: string;
-  /** Las franjas de los hombros, los guantes y el ribete: su color de equipo. */
-  franjas: string;
-  calzona: string;
-  medias: string;
-  vuelto: string;
-  dorsal: string;
-  numero: string;
-  gorra?: boolean;
-  cinta?: string;
-}
-
-const BENJI_GUARDAMETA: Guardameta = {
-  face: CARA_BENJI,
-  pelo: 'mata',
-  jersey: JERSEY_BENJI,
-  vivo: '#dc2626',
-  franjas: AMARILLO,
-  calzona: '#111827',
-  medias: GORRA,
-  vuelto: AMARILLO,
-  dorsal: '1',
-  numero: '#fff',
-  gorra: true,
-};
-
-/** El portero que es uno de los nuestros: su cara, su color y guantes. */
-export function guardametaDe(id: TiradorId): Guardameta {
-  const player = tiradorDe(id);
-  const equipo = player.trim ?? player.band ?? player.kit;
-
-  return {
-    face: player.face,
-    pelo: player.pelo,
-    // Camiseta de portero: la suya un tono por debajo, que es como se
-    // distingue a un portero de su propio equipo sin inventarle otro color.
-    jersey: sombra(player.kit, 0.58),
-    vivo: equipo,
-    franjas: equipo === '#f4f4f2' || equipo === '#f8fafc' ? '#fbbf24' : equipo,
-    calzona: CALZONA,
-    medias: sombra(player.kit, 0.58),
-    vuelto: equipo,
-    dorsal: '1',
-    numero: '#fff',
-    cinta: player.headband,
-  };
-}
-
-/** Benji, que es el portero de siempre. Se deja por su nombre. */
 export function Benji({ pose, className }: { pose: PoseBenjiId; className?: string }) {
-  return <Portero pose={pose} who="benji" className={className} />;
-}
-
-export function Portero({
-  pose,
-  who,
-  className,
-}: {
-  pose: PoseBenjiId;
-  /** Benji, o cualquiera de los que pueden ponerse los guantes. */
-  who: TiradorId | 'benji';
-  className?: string;
-}) {
-  const kit = who === 'benji' ? BENJI_GUARDAMETA : guardametaDe(who);
-  const face = kit.face;
+  const face = CARA_BENJI;
   const body = POSES_BENJI[pose];
 
   // Hacia dónde va la columna, para girar la cabeza con ella.
@@ -978,35 +902,35 @@ export function Portero({
             <Muslo piel={face.skin} />
           </Pieza>
           <Pieza from={leg[1]} to={leg[2]} base={28} flip={i === 0 ? -1 : 1}>
-            <Pantorrilla media={kit.medias} vuelto={kit.vuelto} />
+            <Pantorrilla media={GORRA} vuelto={AMARILLO} />
           </Pieza>
           <Bota at={leg[2]} angle={rumbo(leg[1], leg[2])} flip={i === 0 ? -1 : 1} />
         </g>
       ))}
 
-      {/* Calzona y camiseta de portero, con las rayas de los hombros. */}
+      {/* Calzona y camiseta de portero: negra, con las rayas de los hombros. */}
       <g transform={`translate(${body.hip[0]} ${body.hip[1]}) rotate(${headTurn}) scale(1 ${largo(body.hip, body.shoulder) / 48})`}>
-        <Calzona tela={kit.calzona} ribete={kit.franjas} />
-        <Tronco camiseta={kit.jersey} vivo={kit.vivo} dorsal={kit.dorsal} numero={kit.numero} franjas={kit.franjas} />
+        <Calzona tela="#111827" ribete={AMARILLO} />
+        <Tronco camiseta={JERSEY_BENJI} vivo="#dc2626" dorsal="1" numero="#fff" franjas={AMARILLO} />
       </g>
 
       {/* Brazos, por delante del pecho: son lo que para. */}
       {[body.armA, body.armB].map((arm, i) => (
         <g key={`b${i}`} opacity={i === 0 ? 0.9 : 1}>
           <Pieza from={arm[0]} to={arm[1]} base={23} flip={i === 0 ? -1 : 1}>
-            <BrazoAlto piel={face.skin} manga={kit.jersey} vivo={kit.franjas} />
+            <BrazoAlto piel={face.skin} manga={JERSEY_BENJI} vivo={AMARILLO} />
           </Pieza>
           <Pieza from={arm[1]} to={arm[2]} base={20} flip={i === 0 ? -1 : 1}>
             <Antebrazo piel={face.skin} />
           </Pieza>
-          <Mano at={arm[2]} angle={rumbo(arm[1], arm[2])} piel={face.skin} guante={kit.franjas} tamano={1.4} />
+          <Mano at={arm[2]} angle={rumbo(arm[1], arm[2])} piel={face.skin} guante={AMARILLO} tamano={1.4} />
         </g>
       ))}
 
-      {/* La cabeza, con su gorra si la lleva. */}
+      {/* La cabeza, con su gorra. */}
       <g transform={`translate(${body.head[0]} ${body.head[1]}) rotate(${headTurn}) scale(0.62)`}>
-        <path d="M-9 20 Q0 26 9 20 L9 30 Q0 34 -9 30 Z" fill={kit.jersey} stroke={TINTA} strokeWidth="1.4" />
-        <CabezaAnime face={face} pelo={kit.pelo} cinta={kit.cinta} gorra={kit.gorra} />
+        <path d="M-9 20 Q0 26 9 20 L9 30 Q0 34 -9 30 Z" fill={JERSEY_BENJI} stroke={TINTA} strokeWidth="1.4" />
+        <CabezaAnime face={face} pelo="mata" gorra />
       </g>
     </svg>
   );
