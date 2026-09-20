@@ -1092,7 +1092,9 @@ function Escena({
           flashes de la grada, la luz sobre el césped y el viñeteado de la
           cámara. Todo por encima del estadio y por debajo de los jugadores. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(6,12,34,0.82)_0%,rgba(6,12,34,0.45)_12%,rgba(6,12,34,0.12)_24%,transparent_34%)]" />
+        {/* El estadio ya está pintado de noche, así que aquí sólo se asienta
+            un poco el cielo: con el velo de antes se volvía todo gris. */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(6,12,34,0.35)_0%,rgba(6,12,34,0.12)_14%,transparent_28%)]" />
         <div className="absolute inset-0 mix-blend-screen bg-[radial-gradient(circle_at_5%_4%,rgba(255,250,214,0.95)_0,rgba(255,240,180,0.35)_5%,transparent_20%),radial-gradient(circle_at_95%_4%,rgba(255,250,214,0.95)_0,rgba(255,240,180,0.35)_5%,transparent_20%)]" />
         <div className="absolute inset-0 opacity-40 mix-blend-screen bg-[linear-gradient(115deg,transparent_20%,rgba(255,250,220,0.18)_32%,transparent_44%),linear-gradient(245deg,transparent_20%,rgba(255,250,220,0.18)_32%,transparent_44%)]" />
         {FLASHES.map(([x, y, delay]) => (
@@ -1279,9 +1281,20 @@ function Escena({
         <Balon className="h-auto w-full drop-shadow-[0_2px_0_rgba(0,0,0,0.3)]" />
       </div>
 
-      {/* El que tira, en primer plano y a su tamaño de protagonista. */}
+      {/* Las sombras en el césped: sin ellas los dos parecen pegatinas
+          puestas encima del campo en vez de estar de pie en él. */}
+      <div aria-hidden className="pointer-events-none absolute bottom-[3.4%] left-[13%] h-[2.2%] w-[13%] rounded-[50%] bg-black/40 blur-[2px]" />
       <div
-        className="pointer-events-none absolute bottom-[-2%] left-[15%] h-[59%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.3)]"
+        aria-hidden
+        className="pointer-events-none absolute h-[1.6%] w-[9%] -translate-x-1/2 rounded-[50%] bg-black/35 blur-[2px]"
+        style={{ left: `${benji.x}%`, top: `${BENJI_DE_PIE.y + 11.4}%` }}
+      />
+
+      {/* El que tira, a su tamaño en el campo. */}
+      <div
+        // A su tamaño en el campo: puesto junto al balón y sin tapar la
+        // portería, que es lo que hay que mirar.
+        className="pointer-events-none absolute bottom-[3%] left-[11%] h-[46%] drop-shadow-[0_4px_4px_rgba(0,0,0,0.35)]"
         style={{ aspectRatio: '120 / 210' }}
       >
         <Chutador
@@ -1317,11 +1330,11 @@ function Escena({
       {aiming && (
         <div
           aria-hidden
-          className={`pointer-events-none absolute bottom-[4%] right-[3%] z-20 w-[46%] transition-opacity ${
-            charging ? 'opacity-100' : 'opacity-80'
-          }`}
+          className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#0b1220]/95 via-[#0b1220]/70 to-transparent
+                      px-[3%] pb-[2.5%] pt-[6%] transition-opacity ${charging ? 'opacity-100' : 'opacity-90'}`}
         >
-          <div className="mb-0.5 flex items-end justify-between px-0.5 text-[clamp(8px,2.2vw,11px)] font-black uppercase tracking-[0.14em] text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+          <div className="ml-auto w-[54%] min-w-[9rem]">
+          <div className="mb-0.5 flex items-end justify-end gap-2 px-0.5 text-[clamp(8px,2.2vw,11px)] font-black uppercase tracking-[0.14em] text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
             <span>Potencia</span>
             {charging && (
               <span style={{ color: ring }}>{zone === 'buena' ? '¡Ahora!' : zone === 'pasado' ? 'Demasiada' : `${power}`}</span>
@@ -1340,6 +1353,7 @@ function Escena({
               <span key={i} className="absolute inset-y-0 w-px bg-[#0b1220]/50" style={{ left: `${(i + 1) * 10}%` }} />
             ))}
             <div className="absolute inset-y-[-2px] w-[3px] bg-white shadow-[0_0_6px_white]" style={{ left: `calc(${power}% - 1px)` }} />
+          </div>
           </div>
         </div>
       )}

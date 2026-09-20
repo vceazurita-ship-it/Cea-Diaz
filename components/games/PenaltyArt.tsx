@@ -442,9 +442,12 @@ function Pierna({
   return (
     <g strokeLinejoin="round">
       <path d={musculo(knee, foot, 5.4, 6.8, 3.6)} fill={socks} stroke={TINTA} strokeWidth="1.4" />
+      {/* La sombra del costado: sin ella la pierna es un tubo pintado. */}
+      <polygon points={costado(knee, foot, 5, 3.4)} fill="#000" opacity="0.14" />
       <path d={musculo(entre(knee, foot, 0.1), entre(knee, foot, 0.22), 6.2, 5.6, 6.6)} fill={band} stroke={TINTA} strokeWidth="1" />
       <circle cx={knee[0]} cy={knee[1]} r="5" fill={skin} stroke={TINTA} strokeWidth="1.3" />
       <path d={musculo(hip, knee, 8.4, 8.2, 5.4)} fill={skin} stroke={TINTA} strokeWidth="1.4" />
+      <polygon points={costado(hip, knee, 7.6, 5)} fill="#000" opacity="0.13" />
       <path
         d="M-3.5 -0.5 Q0 3 3.5 -0.5"
         transform={`translate(${knee[0]} ${knee[1]}) rotate(${calf - 90})`}
@@ -490,7 +493,25 @@ function Brazo({
     <g strokeLinejoin="round">
       <path d={musculo(elbow, hand, 4, 4.5, 3.1)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
       <path d={musculo(shoulder, elbow, 4.8, 5.4, 4)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <circle cx={hand[0]} cy={hand[1]} r={gloves ? 5.6 : 4.4} fill={gloves ?? skin} stroke={TINTA} strokeWidth="1.3" />
+      <polygon points={costado(shoulder, elbow, 4.4, 3.6)} fill="#000" opacity="0.13" />
+      {/* La mano: un puño con su pulgar, en el sentido del antebrazo. Una
+          bola de piel al final del brazo es lo que delata a un monigote. */}
+      <g transform={`translate(${hand[0]} ${hand[1]}) rotate(${rumbo(elbow, hand) - 90})`}>
+        <path
+          d={gloves ? 'M-5.6 -4 Q0 -7.4 5.6 -4 L6 4.4 Q0 8.6 -6 4.4 Z' : 'M-4.2 -3.4 Q0 -6 4.2 -3.4 L4.4 3 Q0 6.4 -4.4 3 Z'}
+          fill={gloves ?? skin}
+          stroke={TINTA}
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <path
+          d={gloves ? 'M5.4 -2.6 Q8.6 -1 7 2.2' : 'M4 -2.2 Q6.6 -0.9 5.4 1.8'}
+          fill={gloves ?? skin}
+          stroke={TINTA}
+          strokeWidth="1.2"
+          strokeLinecap="round"
+        />
+      </g>
       <path
         d={musculo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.8, 5.6, 6.2)}
         fill={sombra(kit, 0.88)}
@@ -806,7 +827,7 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
         <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
       </g>
 
-      {/* Calzona. */}
+      {/* Calzona, con su costado en sombra. */}
       <polygon
         points={losa(shortsTop, shortsBottom, 12.5, 14.5)}
         fill={player.shorts}
@@ -814,6 +835,7 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
+      <polygon points={costado(shortsTop, shortsBottom, 11.5, 13.5)} fill="#000" opacity="0.16" />
 
       {/* Tronco, con la sombra plana de un costado. */}
       <polygon
@@ -1280,41 +1302,57 @@ export function Balon({ className }: { className?: string }) {
  * Una nube de las de la serie: algodón blanco con la tripa azulada y plana,
  * sin línea de tinta, que en el anime las nubes no la llevan.
  */
-function Nube({ x, y, s }: { x: number; y: number; s: number }) {
-  const bolas: [number, number, number][] = [
-    [0, 0, 11],
-    [13, -8, 15],
-    [30, -4, 12],
-    [42, 2, 8],
-    [-10, 4, 7],
-  ];
-
-  return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
-      {bolas.map(([cx, cy, r]) => (
-        <circle key={`s${cx}`} cx={cx} cy={cy + 3} r={r} fill="#cfe6f7" />
-      ))}
-      {bolas.map(([cx, cy, r]) => (
-        <circle key={`b${cx}`} cx={cx} cy={cy} r={r} fill="#fff" />
-      ))}
-      <rect x="-14" y="4" width="62" height="8" rx="4" fill="#cfe6f7" />
-    </g>
-  );
-}
-
-/** Una torre de luz: el mástil y el panel de focos arriba. */
+/**
+ * Una torre de luz encendida: el mástil, el panel de focos y el halo. De
+ * noche la torre no se ve: se ve la luz, así que lo que manda es el halo.
+ */
 function Torre({ x }: { x: number }) {
   return (
     <g>
-      <path d={`M${x - 2} 70 L${x - 1} 16 L${x + 1} 16 L${x + 2} 70 Z`} fill="#8b9bb0" stroke={TINTA} strokeWidth="0.8" />
-      <rect x={x - 12} y="4" width="24" height="14" rx="1.5" fill="#dbe4ee" stroke={TINTA} strokeWidth="1.2" />
+      <path d={`M${x - 2.4} 74 L${x - 1.2} 18 L${x + 1.2} 18 L${x + 2.4} 74 Z`} fill="#2c3950" />
+      <circle cx={x} cy="12" r="26" fill="url(#halo)" />
+      <rect x={x - 13} y="3" width="26" height="15" rx="2" fill="#39465e" />
       {[0, 1, 2].map((col) =>
         [0, 1].map((row) => (
-          <circle key={`${col}${row}`} cx={x - 7 + col * 7} cy={8 + row * 6} r="2.2" fill="#fff8c4" />
+          <circle key={`${col}${row}`} cx={x - 7 + col * 7} cy={7.5 + row * 6} r="2.4" fill="#fffbe6" />
         )),
       )}
     </g>
   );
+}
+
+/**
+ * Las luces de la grada: puntos de gente iluminada por los focos. Van en
+ * filas escalonadas y con tres tonos, que es lo que hace que de lejos parezca
+ * gente y no una trama de lunares.
+ */
+function Grada({ y, filas, alto }: { y: number; filas: number; alto: number }) {
+  const tonos = ['#f7d9a8', '#ffe9c2', '#cfd8ea', '#f3c9a0', '#e8eefc'];
+  const puntos: React.ReactNode[] = [];
+
+  for (let fila = 0; fila < filas; fila++) {
+    const fy = y + 2 + fila * (alto / filas);
+    // Las filas de atrás van más apretadas y más apagadas: profundidad.
+    const paso = 7 + fila * 0.5;
+    for (let i = 0; i < Math.ceil(400 / paso); i++) {
+      const cx = (i * paso + (fila % 2 ? paso / 2 : 0)) % 402;
+      const semilla = (fila * 37 + i * 91) % 100;
+      // Ni todos iguales ni todos encendidos: la grada se lee por la mezcla.
+      if (semilla % 5 === 0) continue;
+      puntos.push(
+        <circle
+          key={`${fila}-${i}`}
+          cx={cx + (semilla % 3) - 1}
+          cy={fy + ((semilla % 4) - 1.5) * 0.4}
+          r={1.25 - fila * 0.06}
+          fill={tonos[semilla % tonos.length]}
+          opacity={0.16 + (semilla % 7) * 0.045}
+        />,
+      );
+    }
+  }
+
+  return <g>{puntos}</g>;
 }
 
 /**
@@ -1349,136 +1387,165 @@ export function Estadio({
   const back = { l: x + 18, r: right - 18, t: y + 9, b: line - 18 };
 
   // Franjas de siega que se ensanchan hacia uno: la perspectiva del anime.
-  const franjas = [121, 129, 139, 152, 169, 191, 220, 258, 300];
+  // Las franjas de siega, contadas desde el centro hacia los lados: se
+  // abren hacia uno, que es la perspectiva sin necesidad de calcularla.
+  const franjas = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
 
   return (
     <svg viewBox="0 0 400 300" preserveAspectRatio="none" className={className} aria-hidden>
       <defs>
+        {/* Noche: el cielo casi negro arriba y el resplandor del estadio
+            abajo, que es lo que se ve de verdad desde dentro de un campo. */}
         <linearGradient id="cielo" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2a86dc" />
-          <stop offset="0.55" stopColor="#58b0ee" />
-          <stop offset="1" stopColor="#bde3fb" />
+          <stop offset="0" stopColor="#05070f" />
+          <stop offset="0.6" stopColor="#0c1730" />
+          <stop offset="1" stopColor="#1b2c50" />
         </linearGradient>
-        {/* La gente: puntos de cabeza y de camiseta, en dos tramas. */}
-        <pattern id="gente" width="9" height="8" patternUnits="userSpaceOnUse">
-          <rect width="9" height="8" fill="#23446d" />
-          <circle cx="2" cy="2.2" r="1.5" fill="#f1c9a5" />
-          <circle cx="2" cy="5.6" r="1.8" fill="#e5e7eb" />
-          <circle cx="6.6" cy="3.4" r="1.5" fill="#d9a77f" />
-          <circle cx="6.6" cy="6.8" r="1.8" fill={color} />
+        <radialGradient id="halo">
+          <stop offset="0" stopColor="#fff6cc" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fff6cc" stopOpacity="0" />
+        </radialGradient>
+        {/* El charco de luz de los focos sobre el césped. */}
+        <radialGradient id="foco" cx="0.5" cy="0.42" r="0.62">
+          <stop offset="0" stopColor="#b9ffd0" stopOpacity="0.34" />
+          <stop offset="0.55" stopColor="#7cf0a6" stopOpacity="0.12" />
+          <stop offset="1" stopColor="#031409" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="palo" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.45" stopColor="#f1f5f9" />
+          <stop offset="1" stopColor="#9aa7b8" />
+        </linearGradient>
+        {/* La red: rombos finos, más apretados en los laterales. */}
+        <pattern id="red" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <path d="M0 0 H10 M0 0 V10" stroke="#dbe7f5" strokeWidth="0.55" opacity="0.5" />
         </pattern>
-        <pattern id="gente2" width="8" height="7" patternUnits="userSpaceOnUse">
-          <rect width="8" height="7" fill="#1a3456" />
-          <circle cx="2" cy="2" r="1.3" fill="#e7bb95" />
-          <circle cx="2" cy="5" r="1.6" fill="#f8fafc" />
-          <circle cx="6" cy="3" r="1.3" fill="#c98f66" />
-          <circle cx="6" cy="6" r="1.6" fill="#fbbf24" />
-        </pattern>
-        <pattern id="red" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <path d="M0 0 H9 M0 0 V9" stroke="#fff" strokeWidth="0.9" opacity="0.7" />
-        </pattern>
-        <pattern id="red-lado" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <path d="M0 0 H6 M0 0 V6" stroke="#fff" strokeWidth="0.7" opacity="0.55" />
+        <pattern id="red-lado" width="6.5" height="6.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <path d="M0 0 H6.5 M0 0 V6.5" stroke="#cdddf0" strokeWidth="0.45" opacity="0.38" />
         </pattern>
       </defs>
 
-      {/* Cielo y nubes. */}
-      <rect width="400" height="130" fill="url(#cielo)" />
-      <Nube x={34} y={20} s={0.9} />
-      <Nube x={186} y={14} s={1.15} />
-      <Nube x={320} y={24} s={0.8} />
+      {/* Cielo de noche con sus estrellas. */}
+      <rect width="400" height="126" fill="url(#cielo)" />
+      {[
+        [30, 12],
+        [96, 7],
+        [150, 18],
+        [232, 9],
+        [286, 16],
+        [352, 10],
+      ].map(([sx, sy]) => (
+        <circle key={sx} cx={sx} cy={sy} r="0.8" fill="#fff" opacity="0.5" />
+      ))}
 
       <Torre x={20} />
       <Torre x={380} />
 
-      {/* La grada, en dos anillos, con la visera del anillo de arriba. */}
-      <path d="M0 44 Q200 30 400 44 V80 H0 Z" fill="url(#gente)" />
-      <path d="M0 44 Q200 30 400 44" fill="none" stroke="#0f1f33" strokeWidth="3" />
-      <rect x="0" y="80" width="400" height="4" fill="#0f1f33" />
-      <rect x="0" y="84" width="400" height="24" fill="url(#gente2)" />
+      {/* La grada: el bloque oscuro con la gente iluminada, y la visera
+          encima, que es lo que le pone techo al estadio. */}
+      <path d="M0 40 Q200 26 400 40 V104 H0 Z" fill="#0d1526" />
+      <path d="M0 40 Q200 26 400 40 V50 H0 Z" fill="#070c18" />
+      <Grada y={50} filas={7} alto={52} />
+      <rect x="0" y="76" width="400" height="1.6" fill="#070c18" opacity="0.7" />
 
-      {/* Pancartas en la grada: la del que tira, y dos más de ambiente. */}
-      <g stroke={TINTA} strokeWidth="1">
-        <rect x="2" y="86" width="42" height="15" fill={color} />
-        <rect x="358" y="87" width="40" height="13" fill="#fde047" />
+      {/* Pancartas en la grada: la del que tira, y una de ánimo. */}
+      <g stroke={TINTA} strokeWidth="0.8">
+        <rect x="6" y="84" width="44" height="14" rx="1" fill={color} />
+        <rect x="352" y="85" width="42" height="12" rx="1" fill="#fde047" />
       </g>
-      <g fontFamily="var(--font-pitch)" fontWeight="900" textAnchor="middle" fill="#fff">
-        <text x="23" y="97" fontSize="8" stroke={TINTA} strokeWidth="0.5">
+      <g fontFamily="var(--font-pitch)" fontWeight="900" textAnchor="middle">
+        <text x="28" y="94.6" fontSize="8" fill="#fff" stroke={TINTA} strokeWidth="0.5">
           ¡{name.toUpperCase()}!
         </text>
-        <text x="378" y="96.6" fontSize="6.6" fill={TINTA}>
+        <text x="373" y="94" fontSize="6.6" fill={TINTA}>
           ¡ÁNIMO!
         </text>
       </g>
 
-      {/* La valla de publicidad. */}
-      <rect x="0" y="108" width="400" height="13" fill="#f4f4f2" stroke={TINTA} strokeWidth="1.6" />
+      {/* La valla de publicidad, encendida por dentro. */}
+      <rect x="0" y="104" width="400" height="15" fill="#0a1120" />
       {[0, 100, 200, 300].map((vx, i) => (
         <g key={vx}>
-          <rect x={vx} y="108" width="100" height="13" fill={i % 2 ? '#1d4ed8' : '#f4f4f2'} />
+          <rect x={vx + 1} y="105.5" width="98" height="12" rx="1" fill={i % 2 ? '#123a8a' : '#101a2c'} />
           <text
             x={vx + 50}
-            y="117.8"
-            fontSize="8"
+            y="114.4"
+            fontSize="7.6"
             fontWeight="900"
             fontFamily="var(--font-pitch)"
             textAnchor="middle"
-            fill={i % 2 ? '#fff' : '#d62828'}
+            fill={i % 2 ? '#dbeafe' : '#fca5a5'}
             fontStyle="italic"
           >
             {['NANKATSU', 'CEA·DÍAZ', 'FÚTBOL', 'CAMPEONES'][i]}
           </text>
         </g>
       ))}
-      <rect x="0" y="108" width="400" height="13" fill="none" stroke={TINTA} strokeWidth="1.6" />
 
-      {/* El césped a franjas. */}
-      {franjas.slice(0, -1).map((top, i) => (
-        <rect key={top} x="0" y={top} width="400" height={franjas[i + 1] - top} fill={i % 2 ? '#2f9a47' : '#37a852'} />
+      {/* El césped. Primero el verde de fondo, después las franjas de siega
+          en perspectiva —se abren hacia uno— y encima el charco de luz. */}
+      <rect x="0" y="119" width="400" height="181" fill="#17803d" />
+      {franjas.map((k) => (
+        <path
+          key={k}
+          d={`M${200 + k * 34} 119 L${200 + (k + 1) * 34} 119 L${200 + (k + 1) * 92} 300 L${200 + k * 92} 300 Z`}
+          fill="#ffffff"
+          opacity={k % 2 ? 0.05 : 0}
+        />
       ))}
+      <rect x="0" y="119" width="400" height="181" fill="url(#foco)" />
+      <path d="M0 119 H400 V140 H0 Z" fill="#04140b" opacity="0.28" />
 
-      {/* Las líneas: la de gol, la del área pequeña y el punto. */}
-      <g fill="none" stroke="#fff" strokeLinecap="round" opacity="0.92">
-        <path d={`M0 ${line} H400`} strokeWidth="2.4" />
-        <path d="M-10 186 H410" strokeWidth="3" />
-        <path d={`M${x - 36} ${line} L${x - 70} 186 M${right + 36} ${line} L${right + 70} 186`} strokeWidth="2.6" />
+      {/* Las líneas, en perspectiva: la de gol, el área pequeña, el área
+          grande, el punto de penalti y la media luna. */}
+      <g fill="none" stroke="#eaf6ee" strokeLinecap="round" opacity="0.85">
+        <path d={`M0 ${line} H400`} strokeWidth="1.8" />
+        <path d={`M${x - 34} ${line} L${x - 66} 188 H${right + 66} L${right + 34} ${line}`} strokeWidth="2" />
+        <path d="M-26 232 H426" strokeWidth="2.4" />
+        <path d={`M${x - 100} ${line} L-26 232 M${right + 100} ${line} L426 232`} strokeWidth="2.4" />
+        <path d="M104 232 A 62 26 0 0 0 216 232" strokeWidth="2.2" />
       </g>
-      <ellipse cx="160" cy="263" rx="9" ry="3.4" fill="#fff" opacity="0.92" />
+      <ellipse cx="160" cy="263" rx="7" ry="2.6" fill="#eaf6ee" opacity="0.9" />
 
       {/* La portería. Primero lo de dentro —el suelo, el fondo y los
           laterales, con su red— y después los palos, por delante. */}
       <g>
         {/* Suelo de dentro de la portería, en sombra. */}
-        <path d={`M${x} ${line} L${back.l} ${back.b} H${back.r} L${right} ${line} Z`} fill="#1f7a37" />
-        {/* El fondo, con la red y un velo oscuro para que la mira y el
-            balón se lean encima. */}
-        <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="#0c1c2e" opacity="0.48" />
+        <path d={`M${x} ${line} L${back.l} ${back.b} H${back.r} L${right} ${line} Z`} fill="#0f5c2c" />
+        {/* El fondo, oscuro para que la mira y el balón se lean encima. */}
+        <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="#060d18" opacity="0.72" />
         <rect x={back.l} y={back.t} width={back.r - back.l} height={back.b - back.t} fill="url(#red)" />
         {/* Laterales y techo, con una red más apretada y más sombra. */}
-        <path d={`M${x} ${y} L${back.l} ${back.t} V${back.b} L${x} ${line} Z`} fill="#0b1b2c" opacity="0.55" />
+        <path d={`M${x} ${y} L${back.l} ${back.t} V${back.b} L${x} ${line} Z`} fill="#050b14" opacity="0.72" />
         <path d={`M${x} ${y} L${back.l} ${back.t} V${back.b} L${x} ${line} Z`} fill="url(#red-lado)" />
-        <path d={`M${right} ${y} L${back.r} ${back.t} V${back.b} L${right} ${line} Z`} fill="#0b1b2c" opacity="0.55" />
+        <path d={`M${right} ${y} L${back.r} ${back.t} V${back.b} L${right} ${line} Z`} fill="#050b14" opacity="0.72" />
         <path d={`M${right} ${y} L${back.r} ${back.t} V${back.b} L${right} ${line} Z`} fill="url(#red-lado)" />
-        <path d={`M${x} ${y} L${back.l} ${back.t} H${back.r} L${right} ${y} Z`} fill="#0b1b2c" opacity="0.45" />
+        <path d={`M${x} ${y} L${back.l} ${back.t} H${back.r} L${right} ${y} Z`} fill="#050b14" opacity="0.6" />
         <path d={`M${x} ${y} L${back.l} ${back.t} H${back.r} L${right} ${y} Z`} fill="url(#red-lado)" />
         {/* Los tubos de atrás. */}
         <path
           d={`M${back.l} ${back.b} V${back.t} H${back.r} V${back.b}`}
           fill="none"
-          stroke="#e2e8f0"
-          strokeWidth="1.6"
-          opacity="0.8"
+          stroke="#8fa3bb"
+          strokeWidth="1.1"
+          opacity="0.4"
         />
       </g>
 
-      {/* La sombra de la portería en el césped, plana. */}
-      <path d={`M${x - 6} ${line + 2} H${right + 6} L${right + 18} ${line + 8} H${x - 18} Z`} fill="#000" opacity="0.14" />
+      {/* La sombra de la portería en el césped. */}
+      <path d={`M${x - 6} ${line + 1} H${right + 6} L${right + 22} ${line + 10} H${x - 22} Z`} fill="#031008" opacity="0.3" />
 
-      {/* Palos y larguero, blancos con tinta y su sombra plana. */}
-      <g stroke={TINTA} strokeWidth="1.6" strokeLinejoin="round">
-        <path d={`M${x - 6} ${line + 1} V${y - 6} H${right + 6} V${line + 1} H${right} V${y} H${x} V${line + 1} Z`} fill="#fbfbf9" />
+      {/* Palos y larguero: redondos, con el brillo del foco en un lado. */}
+      <g stroke={TINTA} strokeWidth="1.2" strokeLinejoin="round">
+        <rect x={x - 6} y={y - 6} width={right - x + 12} height="6.5" rx="3" fill="url(#palo)" />
+        <rect x={x - 6} y={y - 6} width="6.5" height={line - y + 7} rx="3" fill="url(#palo)" />
+        <rect x={right - 0.5} y={y - 6} width="6.5" height={line - y + 7} rx="3" fill="url(#palo)" />
       </g>
-      <path d={`M${x - 2} ${line} V${y - 2} H${right - 20}`} fill="none" stroke="#cbd5e1" strokeWidth="2" />
+      <g opacity="0.55" fill="#ffffff">
+        <rect x={x - 5} y={y - 5} width={right - x + 10} height="1.6" rx="0.8" />
+        <rect x={x - 5} y={y - 5} width="1.6" height={line - y + 5} rx="0.8" />
+        <rect x={right + 0.6} y={y - 5} width="1.6" height={line - y + 5} rx="0.8" />
+      </g>
     </svg>
   );
 }
