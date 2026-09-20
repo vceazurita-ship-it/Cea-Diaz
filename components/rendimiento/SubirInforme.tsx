@@ -1,243 +1,202 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/Toast';
-import { parseReport, encodeReport, ACADEMIC_NOTE_KEY, type ReportCard } from '@/lib/academics';
-import {
-  COGNITIVE_NOTE_KEY,
-  COG_BY_ID,
-  encodeCog,
-  parseWisc,
-  type CogProfile,
-} from '@/lib/cognitive';
-import { FITNESS_NOTE_KEY, encodeTest, hasData, type FitnessTest } from '@/lib/fitness';
-import { PdfProtegido, parseRx2, pdfLines } from '@/lib/rx2';
-import { todayKey } from '@/lib/dates';
-import type { DateKey, Profile } from '@/types';
+import { CLASE_ICON, CLASE_LABEL, leerInforme, type Lectura } from '@/lib/informes';
+import { PROFILES } from '@/lib/profiles';
+import type { DateKey, Profile, ProfileId } from '@/types';
 
 /* =========================================================================
- *  Soltar aquí el informe y que se entienda solo.
+ *  Soltar aquí los informes y que se repartan solos.
  *
  *  Es el botón que hace que todo lo demás exista. Sin él, cada trimestre hay
- *  que copiar a mano ocho cifras de un PDF para dos niños, y eso se deja de
- *  hacer al segundo intento.
+ *  que copiar a mano ocho cifras de un PDF, para dos niños y cuatro clases de
+ *  documento, y eso se deja de hacer al segundo intento.
  *
- *  Tres reglas:
+ *  Se puede soltar **la carpeta entera**. Cada archivo dice de quién es —lo
+ *  lleva escrito dentro, o en el nombre—, qué es y de cuándo, así que no hay
+ *  que elegir nada: se elige la carpeta, se escribe una vez la contraseña de
+ *  los informes cerrados, y se guarda.
  *
- *   1. **El archivo no sale del aparato.** Se lee aquí, en el navegador, y
- *      se tira. No se sube a ningún sitio y no entra en el repositorio, que
- *      es público. Lo único que se guarda son las cifras, en la cuenta de la
- *      familia, junto al resto de lo suyo.
+ *  Tres reglas que no se tocan:
+ *
+ *   1. **Los archivos no salen del aparato.** Se leen aquí y se tiran. No se
+ *      suben a ningún sitio y no entran en el repositorio, que es público.
+ *      Lo único que se guarda son las cifras, en la cuenta de la familia.
  *   2. **Nada se guarda sin verlo.** Un lector de PDF se equivoca, y una
- *      cifra mal leída envenena el análisis entero. Así que primero se
- *      enseña lo que ha entendido, y se guarda al confirmarlo.
- *   3. **Si no lo entiende, lo dice.** Un informe protegido con contraseña,
- *      o uno de otro centro, no se adivina: se avisa y se ofrece meterlo a
- *      mano.
+ *      cifra mal leída envenena el análisis entero. Primero se enseña lo que
+ *      ha entendido, y se guarda al confirmarlo.
+ *   3. **Lo que no entiende, lo dice.** Sin adivinar y sin callarse.
  * ========================================================================= */
 
-type Kind = 'fisico' | 'academico';
-
 interface SubirInformeProps {
+  /** El perfil desde el que se abre: el que se supone si un archivo no lo dice. */
   profile: Profile;
-  kind: Kind;
-  /** Guarda una línea en las notas del día que toque. */
-  onSave: (date: DateKey, key: string, line: string) => void;
+  /** Guarda una línea en las notas del día de quien sea. */
+  onSave: (profileId: ProfileId, date: DateKey, key: string, line: string) => void;
   onClose: () => void;
 }
 
-/** Lo que ha entendido de un archivo, a la espera de que lo confirmen. */
-interface Pendiente {
-  file: string;
-  tests: FitnessTest[];
-  report: ReportCard | null;
-  cog: CogProfile | null;
-  /** El archivo tal cual, para volver a intentarlo con contraseña. */
-  data?: ArrayBuffer;
-  pideClave?: boolean;
-  warnings: string[];
-}
-
-export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformeProps) {
+export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
   const toast = useToast();
-  const input = useRef<HTMLInputElement>(null);
+  const archivosRef = useRef<HTMLInputElement>(null);
+  const carpetaRef = useRef<HTMLInputElement>(null);
+
   const [leyendo, setLeyendo] = useState(false);
-  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const [progreso, setProgreso] = useState({ hechos: 0, total: 0 });
   const [archivos, setArchivos] = useState<File[]>([]);
-  const [fecha, setFecha] = useState<DateKey>(todayKey());
+  const [lecturas, setLecturas] = useState<Lectura[]>([]);
   const [clave, setClave] = useState('');
 
-  /** Lee un archivo y saca de él lo que sepa. */
-  const leer = async (file: File, data?: ArrayBuffer, password?: string): Promise<Pendiente> => {
-    const base: Pendiente = { file: file.name, tests: [], report: null, cog: null, warnings: [] };
+  const nombreDe = (id: ProfileId) => PROFILES.find((item) => item.id === id)?.name ?? id;
 
-    let lines: string[];
+  const procesar = async (files: File[], password?: string, previas?: Lectura[]) => {
+    setLeyendo(true);
+    setProgreso({ hechos: 0, total: files.length });
     try {
-      if (/\.pdf$/i.test(file.name)) {
-        const buffer = data ?? (await file.arrayBuffer());
-        lines = await pdfLines(buffer, password);
-        base.data = buffer;
-      } else {
-        lines = (await file.text()).split(/\r?\n/);
+      const salida: Lectura[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const previa = previas?.[i];
+        // Con contraseña sólo se vuelven a abrir los que la pedían; los demás
+        // ya están leídos y no hace falta tocarlos.
+        if (password && previa && !previa.pideClave) salida.push(previa);
+        else salida.push(await leerInforme(files[i], profile.id, { data: previa?.data, password }));
+        setProgreso({ hechos: i + 1, total: files.length });
       }
-    } catch (error) {
-      if (error instanceof PdfProtegido) {
-        return {
-          ...base,
-          data: data ?? undefined,
-          pideClave: true,
-          warnings: [
-            error.malaClave
-              ? 'Esa contraseña no abre el PDF. Prueba otra vez.'
-              : 'Este PDF pide contraseña. Escríbela aquí abajo y vuelve a intentarlo.',
-          ],
-        };
-      }
-      return { ...base, warnings: ['No he podido leer el archivo.'] };
+      setLecturas(salida);
+    } finally {
+      setLeyendo(false);
     }
-
-    if (lines.length === 0) {
-      return { ...base, warnings: ['El archivo no trae texto: puede ser un escaneo. Un escaneo no se puede leer aquí.'] };
-    }
-
-    if (kind === 'fisico') {
-      const parsed = parseRx2(lines, profile.id);
-      if (parsed.kind === 'genetico') {
-        return {
-          ...base,
-          warnings: [
-            'Esto es un informe genético, no de pruebas físicas. No se guarda ninguna cifra suya: en la pestaña de Físico tienes lo que dice la ciencia sobre estos estudios en niños.',
-          ],
-        };
-      }
-      return { ...base, tests: parsed.tests.filter(hasData), warnings: parsed.warnings };
-    }
-
-    const parsed = parseReport(lines);
-    if (parsed.rows.length > 0) {
-      return {
-        ...base,
-        report: { profileId: profile.id, date: fecha, course: parsed.course ?? '', rows: parsed.rows },
-        warnings: parsed.warnings,
-      };
-    }
-
-    // No es un boletín: puede ser la valoración neuropsicológica, que va en
-    // esta misma área porque cuenta la otra mitad de lo mismo.
-    const wisc = parseWisc(lines);
-    if (Object.keys(wisc.scores).length > 0) {
-      return {
-        ...base,
-        cog: { profileId: profile.id, date: fecha, age: wisc.age, scores: wisc.scores },
-        warnings: wisc.warnings,
-      };
-    }
-
-    return { ...base, warnings: [...parsed.warnings, ...wisc.warnings] };
   };
 
-  const elegir = async (files: FileList | null) => {
+  const elegir = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setLeyendo(true);
-    try {
-      const leidos: Pendiente[] = [];
-      for (const file of Array.from(files)) leidos.push(await leer(file));
-      setArchivos(Array.from(files));
-      setPendientes(leidos);
-    } finally {
-      setLeyendo(false);
+    // De una carpeta llegan también archivos que no vienen a cuento.
+    const utiles = Array.from(files).filter((file) => /\.(pdf|txt|csv|md)$/i.test(file.name));
+    if (utiles.length === 0) {
+      toast({ message: 'En esa carpeta no hay ningún PDF ni archivo de texto.' });
+      return;
     }
+    setArchivos(utiles);
+    void procesar(utiles);
   };
 
-  /** Vuelve a intentarlo con la contraseña escrita. */
-  const reintentar = async () => {
+  const reintentar = () => {
     if (!clave) return;
-    setLeyendo(true);
-    try {
-      const leidos: Pendiente[] = [];
-      for (let i = 0; i < archivos.length; i++) {
-        const previo = pendientes[i];
-        leidos.push(previo?.pideClave ? await leer(archivos[i], previo.data, clave) : previo);
-      }
-      setPendientes(leidos);
-    } finally {
-      setLeyendo(false);
-    }
+    void procesar(archivos, clave, lecturas);
   };
+
+  /** Lo que se va a guardar, agrupado por niño. */
+  const porNino = useMemo(() => {
+    const mapa = new Map<ProfileId, number>();
+    for (const lectura of lecturas) {
+      for (const apunte of lectura.apuntes) {
+        mapa.set(apunte.profileId, (mapa.get(apunte.profileId) ?? 0) + 1);
+      }
+    }
+    return [...mapa.entries()];
+  }, [lecturas]);
+
+  const total = porNino.reduce((sum, [, cuantos]) => sum + cuantos, 0);
+  const pideClave = lecturas.some((lectura) => lectura.pideClave);
 
   const guardar = () => {
     let cuantos = 0;
-
-    for (const pendiente of pendientes) {
-      for (const test of pendiente.tests) {
-        onSave(test.date, FITNESS_NOTE_KEY, encodeTest(test));
-        cuantos++;
-      }
-      if (pendiente.report) {
-        onSave(pendiente.report.date, ACADEMIC_NOTE_KEY, encodeReport({ ...pendiente.report, date: fecha }));
-        cuantos++;
-      }
-      if (pendiente.cog) {
-        onSave(fecha, COGNITIVE_NOTE_KEY, encodeCog({ ...pendiente.cog, date: fecha }));
+    for (const lectura of lecturas) {
+      for (const apunte of lectura.apuntes) {
+        onSave(apunte.profileId, apunte.date, apunte.key, apunte.line);
         cuantos++;
       }
     }
-
     if (cuantos === 0) {
       toast({ message: 'No hay nada que guardar.' });
       return;
     }
-    toast({ icon: '📄', message: `Guardado: ${cuantos} ${cuantos === 1 ? 'informe' : 'informes'} de ${profile.name}.` });
+    toast({
+      icon: '📄',
+      message: `Guardado: ${cuantos} ${cuantos === 1 ? 'informe' : 'informes'} en ${porNino
+        .map(([id]) => nombreDe(id))
+        .join(' y ')}.`,
+    });
     onClose();
   };
-
-  const hayAlgo = pendientes.some((item) => item.tests.length > 0 || item.report || item.cog);
-  const pideClave = pendientes.some((item) => item.pideClave);
 
   return (
     <div className="space-y-3">
       <p className="text-[12px] leading-snug t-2">
-        {kind === 'fisico'
-          ? 'Coge el PDF de RX2 —el de «Evolución»— y suéltalo aquí. Saca la talla, el peso, la edad biológica, el salto y el esprint de todas las fechas que traiga.'
-          : 'Suelta aquí el boletín del colegio o la valoración neuropsicológica, en PDF. Del boletín saca todas las asignaturas con la nota de cada evaluación; de la valoración, los cinco índices. Si pide contraseña, se pide.'}
+        Suelta aquí los informes —o la carpeta entera— y cada uno se coloca solo: pruebas físicas de RX2, boletines del
+        colegio y valoraciones neuropsicológicas, de Leo y de Hugo a la vez. Se leen en este aparato y no se suben a
+        ningún sitio: sólo se guardan las cifras.
       </p>
 
-      <div className="rounded-xl border border-dashed p-3 hairline surf-1">
+      <div className="grid grid-cols-2 gap-2">
         <input
-          ref={input}
+          ref={archivosRef}
           type="file"
-          accept=".pdf,.txt"
+          accept=".pdf,.txt,.csv,.md"
           multiple
           className="hidden"
           onChange={(event) => {
-            void elegir(event.target.files);
+            elegir(event.target.files);
+            event.target.value = '';
+          }}
+        />
+        <input
+          ref={carpetaRef}
+          type="file"
+          className="hidden"
+          multiple
+          // Sólo lo entienden los navegadores de escritorio; en el móvil el
+          // botón de archivos sueltos hace lo mismo.
+          {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+          onChange={(event) => {
+            elegir(event.target.files);
             event.target.value = '';
           }}
         />
         <button
           type="button"
-          onClick={() => input.current?.click()}
+          onClick={() => archivosRef.current?.click()}
           disabled={leyendo}
-          className="btn-primary w-full text-sm"
+          className="btn-primary text-sm"
         >
-          {leyendo ? 'Leyendo…' : '📄 Elegir el informe'}
+          📄 Archivos
         </button>
-        <p className="mt-2 text-[11px] leading-snug t-3">
-          El archivo se lee aquí mismo y no se sube a ningún sitio. Sólo se guardan las cifras.
-        </p>
+        <button
+          type="button"
+          onClick={() => carpetaRef.current?.click()}
+          disabled={leyendo}
+          className="btn-ghost text-sm"
+        >
+          📁 Carpeta entera
+        </button>
       </div>
+
+      {leyendo && (
+        <div className="rounded-xl border p-3 hairline surf-1">
+          <p className="text-[12px] font-semibold t-1">
+            Leyendo {progreso.hechos} de {progreso.total}…
+          </p>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width]"
+              style={{ width: `${progreso.total ? (progreso.hechos / progreso.total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {pideClave && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
           <label className="block text-[12px] font-semibold t-1">
-            Contraseña del PDF
+            Contraseña de los informes cerrados
             <input
               type="password"
               value={clave}
               onChange={(event) => setClave(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void reintentar();
+                if (event.key === 'Enter') reintentar();
               }}
               className="mt-1 w-full rounded-lg border px-2 py-1.5 text-sm hairline surf-1"
               placeholder="la que os dieron con el informe"
@@ -245,114 +204,67 @@ export function SubirInforme({ profile, kind, onSave, onClose }: SubirInformePro
           </label>
           <button
             type="button"
-            onClick={() => void reintentar()}
+            onClick={reintentar}
             disabled={!clave || leyendo}
             className="btn-primary mt-2 w-full text-sm disabled:opacity-40"
           >
-            {leyendo ? 'Abriendo…' : '🔓 Abrir con esta contraseña'}
+            🔓 Abrir los que faltan
           </button>
           <p className="mt-1.5 text-[11px] leading-snug t-3">
-            La contraseña se usa aquí y no se guarda en ningún sitio.
+            Se usa aquí para abrirlos y no se guarda en ningún sitio. Si cada niño tiene la suya, se hace en dos veces.
           </p>
         </div>
       )}
 
-      {kind === 'academico' && (
-        <label className="block text-[12px] font-semibold t-2">
-          Fecha con la que se guarda el informe
-          <input
-            type="date"
-            value={fecha}
-            onChange={(event) => setFecha(event.target.value as DateKey)}
-            className="mt-1 w-full rounded-lg border px-2 py-1.5 text-sm hairline surf-1"
-          />
-          <span className="mt-1 block text-[11px] font-normal t-3">
-            Normalmente, el día en que os lo dieron: es lo que ordena los boletines entre sí.
-          </span>
-        </label>
+      {lecturas.length > 0 && (
+        <ul className="space-y-2">
+          {lecturas.map((lectura) => (
+            <li key={lectura.file} className="rounded-xl border p-2.5 hairline surf-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="min-w-0 truncate text-[12px] font-black t-1">
+                  <span aria-hidden>{CLASE_ICON[lectura.clase]}</span> {lectura.file}
+                </p>
+                {lectura.apuntes.length > 0 && lectura.who && (
+                  <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                    {nombreDe(lectura.who)}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] t-3">{CLASE_LABEL[lectura.clase]}</p>
+
+              {lectura.warnings.map((warning) => (
+                <p key={warning} className="mt-1 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                  ⚠️ {warning}
+                </p>
+              ))}
+
+              {lectura.apuntes.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5">
+                  {lectura.apuntes.map((apunte) => (
+                    <li key={`${apunte.date}-${apunte.key}`} className="flex items-baseline gap-2 text-[11px]">
+                      <span className="shrink-0 font-black tabular-nums t-2">{apunte.date}</span>
+                      <span className="min-w-0 flex-1 t-3">{apunte.resumen}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
 
-      {pendientes.map((pendiente) => (
-        <div key={pendiente.file} className="rounded-xl border p-3 hairline surf-1">
-          <p className="text-[12px] font-black t-1">{pendiente.file}</p>
-
-          {pendiente.warnings.map((warning) => (
-            <p key={warning} className="mt-1 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
-              ⚠️ {warning}
-            </p>
-          ))}
-
-          {pendiente.tests.length > 0 && (
-            <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="t-3">
-                    <th className="pb-1 text-left font-black">Fecha</th>
-                    <th className="pb-1 text-right font-black">Salto</th>
-                    <th className="pb-1 text-right font-black">20 m</th>
-                    <th className="pb-1 text-right font-black">V. máx.</th>
-                    <th className="pb-1 text-right font-black">Altura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendiente.tests.map((test) => (
-                    <tr key={test.id} className="border-t hairline">
-                      <td className="py-1 font-semibold t-2">{test.date}</td>
-                      <td className="py-1 text-right tabular-nums t-2">{test.jumpHeight?.toFixed(2) ?? '—'}</td>
-                      <td className="py-1 text-right tabular-nums t-2">{test.sprint20?.toFixed(2) ?? '—'}</td>
-                      <td className="py-1 text-right tabular-nums t-2">{test.topSpeed?.toFixed(1) ?? '—'}</td>
-                      <td className="py-1 text-right tabular-nums t-2">{test.height?.toFixed(1) ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {pendiente.cog && (
-            <div className="mt-2">
-              <p className="text-[11px] font-semibold t-2">
-                Perfil cognitivo{pendiente.cog.age ? ' · baremo ' + pendiente.cog.age : ''}
-              </p>
-              <ul className="mt-1 space-y-0.5">
-                {Object.entries(pendiente.cog.scores).map(([id, value]) => (
-                  <li key={id} className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="truncate t-2">{COG_BY_ID.get(id as never)?.label ?? id}</span>
-                    <span className="shrink-0 font-black tabular-nums t-1">
-                      {value.score}
-                      {value.pct === undefined ? '' : ' (pct ' + value.pct + ')'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {pendiente.report && (
-            <div className="mt-2">
-              <p className="text-[11px] font-semibold t-2">
-                Curso {pendiente.report.course || '—'} · {pendiente.report.rows.length} asignaturas
-              </p>
-              <ul className="mt-1 space-y-0.5">
-                {pendiente.report.rows.map((row) => (
-                  <li key={row.label} className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="truncate t-2">{row.label}</span>
-                    <span className="shrink-0 font-black tabular-nums t-1">
-                      {row.terms.join(' ')} {row.final ? `· ${row.final}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      ))}
+      {total > 0 && (
+        <p className="text-center text-[12px] font-semibold t-1">
+          {total} {total === 1 ? 'informe' : 'informes'} para{' '}
+          {porNino.map(([id, n]) => `${nombreDe(id)} (${n})`).join(' y ')}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={onClose} className="btn-ghost text-sm">
           Cancelar
         </button>
-        <button type="button" onClick={guardar} disabled={!hayAlgo} className="btn-primary text-sm disabled:opacity-40">
+        <button type="button" onClick={guardar} disabled={total === 0} className="btn-primary text-sm disabled:opacity-40">
           Guardar
         </button>
       </div>

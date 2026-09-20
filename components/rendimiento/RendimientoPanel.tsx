@@ -9,7 +9,7 @@ import { useGpsSessions } from '@/hooks/useGps';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { reportsFor } from '@/lib/academics';
 import { testsFor } from '@/lib/fitness';
-import type { DateKey, Profile, ProfileSkin } from '@/types';
+import type { DateKey, Profile, ProfileId, ProfileSkin } from '@/types';
 
 /* =========================================================================
  *  Rendimiento: las tres cosas que se le miden a un niño, en el mismo sitio.
@@ -43,8 +43,8 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
   const reports = useMemo(() => reportsFor(store.entries, profile.id), [store.entries, profile.id]);
 
   /** Guardar un informe es guardar una línea en las notas de su día. */
-  const guardar = (date: DateKey, key: string, line: string) => {
-    store.setEntryNote(profile.id, date, key, line);
+  const guardar = (quien: ProfileId, date: DateKey, key: string, line: string) => {
+    store.setEntryNote(quien, date, key, line);
   };
 
   const areas: { id: Area; label: string; icon: string; count: number }[] = [

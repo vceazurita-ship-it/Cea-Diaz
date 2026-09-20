@@ -235,7 +235,10 @@ export async function pdfLines(file: ArrayBuffer, password?: string): Promise<st
     // Ojo con los corchetes: escritos con alternancia, el motor de
     // expresiones regulares entra en retroceso exponencial en cuanto el
     // cierre tarda en aparecer, y el navegador se queda colgado.
-    const token = /\/([A-Za-z0-9]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]*)>\s*Tj|\([^)]{0,4000}\)\s*Tj|\[[^\]]{0,6000}\]\s*TJ|T\*|Td|TD|ET/g;
+    // Sólo `T*` y `ET` cierran línea. `Td` y `TD` sólo mueven el cursor, y a
+    // veces lo mueven **dentro de un número**: partir ahí convertía un «24,5»
+    // en «24» y «5», y con eso el peso de un niño pasaba a ser cinco kilos.
+    const token = /\/([A-Za-z0-9]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]*)>\s*Tj|\([^)]{0,4000}\)\s*Tj|\[[^\]]{0,6000}\]\s*TJ|T\*|ET/g;
     let piece: RegExpExecArray | null;
 
     while ((piece = token.exec(texto))) {
@@ -245,7 +248,7 @@ export async function pdfLines(file: ArrayBuffer, password?: string): Promise<st
         isWide = wide.has(piece[1]);
         continue;
       }
-      if (chunk === 'T*' || chunk === 'ET' || chunk === 'Td' || chunk === 'TD') {
+      if (chunk === 'T*' || chunk === 'ET') {
         if (line.trim()) lines.push(line.trim());
         line = '';
         continue;
@@ -354,8 +357,13 @@ function after(text: string, label: RegExp, range: [number, number]): number | u
 
 /** Los números de un trozo de texto, en orden. */
 function numbers(text: string, count: number): number[] {
+  // Fuera la columna de evolución antes de contar nada. Un «+22,1 %» al final
+  // de la fila es una columna de más, y una columna de más corre todas las
+  // fechas un sitio: la talla de 2024 acababa puesta en 2025.
+  const limpio = text.replace(/[+-]?\s?\d+(?:[.,]\d+)?\s?%/g, ' ');
+
   const out: number[] = [];
-  for (const m of text.matchAll(/-\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g)) {
+  for (const m of limpio.matchAll(/-\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g)) {
     const value = Number(m[0].replace(/\s/g, '').replace(',', '.'));
     if (Number.isFinite(value)) out.push(value);
     if (out.length >= count) break;
@@ -367,16 +375,25 @@ function numbers(text: string, count: number): number[] {
  * Las filas que sabe reconocer, con el campo al que van. El orden importa
  * poco: lo que manda es dónde cae cada rótulo dentro de la tabla.
  */
-const ROWS: { id: keyof FitnessTest; re: RegExp }[] = [
-  { id: 'jumpHeight', re: /jump\s*height/g },
-  { id: 'peakBraking', re: /peak\s*braking\s*force/g },
-  { id: 'peakPropulsive', re: /peak\s*propulsive\s*force/g },
-  { id: 'takeOff', re: /time\s*to\s*take\s*-?\s*off/g },
-  { id: 'sprint20', re: /tiempo\s*a\s*20\s*m/g },
-  { id: 'topSpeed', re: /velocidad\s*maxima/g },
-  { id: 'height', re: /\baltura\b/g },
-  { id: 'weight', re: /\bpeso\b/g },
-  { id: 'legLength', re: /longitud\s*(?:de\s*)?piernas/g },
+/**
+ * Las filas que sabe reconocer, con su campo y **su rango de cordura**.
+ *
+ * El rango no es una manía: el informe mete en la misma línea el porcentaje
+ * de evolución, las notas al pie y hasta el teléfono del centro, y un lector
+ * de PDF nunca corta por donde uno cree. Con el rango puesto, un «5» que se
+ * cuela donde iba el peso no convierte a un niño de ocho años en uno de
+ * cinco kilos: simplemente se descarta.
+ */
+const ROWS: { id: keyof FitnessTest; re: RegExp; min: number; max: number }[] = [
+  { id: 'jumpHeight', re: /jump\s*height/g, min: 0.05, max: 1.2 },
+  { id: 'peakBraking', re: /peak\s*braking\s*force/g, min: 40, max: 4000 },
+  { id: 'peakPropulsive', re: /peak\s*propulsive\s*force/g, min: 40, max: 4000 },
+  { id: 'takeOff', re: /time\s*to\s*take\s*-?\s*off/g, min: 0.2, max: 3 },
+  { id: 'sprint20', re: /tiempo\s*a\s*20\s*m/g, min: 2, max: 12 },
+  { id: 'topSpeed', re: /velocidad\s*maxima/g, min: 5, max: 40 },
+  { id: 'height', re: /\baltura\b/g, min: 80, max: 200 },
+  { id: 'weight', re: /\bpeso\b/g, min: 10, max: 120 },
+  { id: 'legLength', re: /longitud\s*(?:de\s*)?piernas/g, min: 40, max: 130 },
 ];
 
 export interface Rx2Parse {
@@ -405,7 +422,9 @@ export function parseRx2(lines: string[], profileId: ProfileId): Rx2Parse {
   // Los informes acaban con una página de servicios del centro llena de
   // números sueltos («bonos de 5 y de 10 sesiones») y de palabras que
   // coinciden con los rótulos de las tablas. Se corta antes de empezar.
-  const cola = /servicios\s*rx2|estudios\s*biomecanicos|localizacion\s*paseo/.exec(entero);
+  const cola = /servicios\W{0,3}rx2|estudios\W{0,3}biomecanicos|localizacion\W{0,3}paseo|contacto\W{0,3}\+\s*34/.exec(
+    entero,
+  );
   const text = cola ? entero.slice(0, cola.index) : entero;
 
   const who = /leo\s+cea/.test(entero) ? 'leo' : /hugo\s+cea/.test(entero) ? 'hugo' : undefined;
@@ -437,30 +456,63 @@ export function parseRx2(lines: string[], profileId: ProfileId): Rx2Parse {
   const bloques = text.split(/metrica/g);
   const portada = bloques[0] ?? '';
 
-  for (const bloque of bloques.slice(1)) {
-    // Dónde empieza cada fila conocida dentro de la tabla.
-    const marcas: { id: keyof FitnessTest; from: number; to: number }[] = [];
+  /** Dónde empieza cada fila conocida dentro de una tabla. */
+  const marcasDe = (bloque: string) => {
+    const marcas: { id: keyof FitnessTest; from: number; to: number; min: number; max: number }[] = [];
     for (const row of ROWS) {
       const re = new RegExp(row.re.source, 'g');
       let m: RegExpExecArray | null;
       while ((m = re.exec(bloque))) {
-        marcas.push({ id: row.id, from: m.index, to: m.index + m[0].length });
+        marcas.push({ id: row.id, from: m.index, to: m.index + m[0].length, min: row.min, max: row.max });
       }
     }
-    marcas.sort((a, b) => a.from - b.from);
+    return marcas.sort((a, b) => a.from - b.from);
+  };
+
+  /**
+   * Las fechas de las columnas, que son las mismas en todas las tablas del
+   * informe. Se toma **la cabecera que mejor se haya leído**: a veces el
+   * lector pierde dígitos sueltos de una y deja «- 04 -» donde iba
+   * «16-04-2026», y con eso se inventaría una fecha y correría las columnas.
+   */
+  let mejores: DateKey[] = [];
+  for (const bloque of bloques.slice(1)) {
+    const marcas = marcasDe(bloque);
+    if (marcas.length === 0) continue;
+    const fechas = datesIn(bloque.slice(0, marcas[0].from));
+    if (fechas.length > mejores.length) mejores = fechas;
+  }
+
+  for (const bloque of bloques.slice(1)) {
+    // Dónde empieza cada fila conocida dentro de la tabla.
+    const marcas = marcasDe(bloque);
     if (marcas.length === 0) continue;
 
     // La cabecera es lo que hay antes de la primera fila: ahí están las
-    // fechas, una por columna.
-    const fechas = datesIn(bloque.slice(0, marcas[0].from));
+    // fechas, una por columna. Si esta tabla tiene menos columnas que sus
+    // propias filas, su cabecera se leyó mal y se usan las buenas.
+    const propias = datesIn(bloque.slice(0, marcas[0].from));
+    const anchoFilas = Math.max(
+      ...marcas.map((marca, i) => {
+        const hasta = i + 1 < marcas.length ? marcas[i + 1].from : bloque.length;
+        return numbers(bloque.slice(marca.to, hasta), 8).filter((v) => v >= marca.min && v <= marca.max).length;
+      }),
+      0,
+    );
+    const fechas = propias.length >= Math.min(anchoFilas, mejores.length) ? propias : mejores;
     if (fechas.length === 0) continue;
 
     for (let i = 0; i < marcas.length; i++) {
       const marca = marcas[i];
       const hasta = i + 1 < marcas.length ? marcas[i + 1].from : bloque.length;
-      const valores = numbers(bloque.slice(marca.to, hasta), fechas.length);
+      // Sólo los que caen dentro de lo posible para esa métrica, y sin
+      // saltarse columnas: si el primero ya es imposible, la fila está mal
+      // leída entera y vale más dejarla vacía que inventarla.
+      const valores = numbers(bloque.slice(marca.to, hasta), fechas.length + 3).filter(
+        (value) => value >= marca.min && value <= marca.max,
+      );
 
-      valores.forEach((value, column) => {
+      valores.slice(0, fechas.length).forEach((value, column) => {
         const date = fechas[column];
         if (!date) return;
         const test = take(date);

@@ -40,7 +40,7 @@ interface FisicoPanelProps {
   entries: Record<string, import('@/types').DayEntry>;
   sessions: GpsSession[];
   skin: ProfileSkin;
-  onSave: (date: DateKey, key: string, line: string) => void;
+  onSave: (profileId: import('@/types').ProfileId, date: DateKey, key: string, line: string) => void;
 }
 
 const TONE: Record<string, string> = {
@@ -179,8 +179,8 @@ export function FisicoPanel({ profile, entries, sessions, skin, onSave }: Fisico
       )}
 
       {subiendo && (
-        <Modal title={`Subir informe físico de ${profile.name}`} onClose={() => setSubiendo(false)}>
-          <SubirInforme profile={profile} kind="fisico" onSave={onSave} onClose={() => setSubiendo(false)} />
+        <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
+          <SubirInforme profile={profile} onSave={onSave} onClose={() => setSubiendo(false)} />
         </Modal>
       )}
     </div>

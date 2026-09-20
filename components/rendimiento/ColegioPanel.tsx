@@ -35,7 +35,7 @@ interface ColegioPanelProps {
   profile: Profile;
   entries: Record<string, DayEntry>;
   skin: ProfileSkin;
-  onSave: (date: DateKey, key: string, line: string) => void;
+  onSave: (profileId: import('@/types').ProfileId, date: DateKey, key: string, line: string) => void;
 }
 
 const TONE: Record<string, string> = {
@@ -206,8 +206,8 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
       )}
 
       {subiendo && (
-        <Modal title={`Subir boletín de ${profile.name}`} onClose={() => setSubiendo(false)}>
-          <SubirInforme profile={profile} kind="academico" onSave={onSave} onClose={() => setSubiendo(false)} />
+        <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
+          <SubirInforme profile={profile} onSave={onSave} onClose={() => setSubiendo(false)} />
         </Modal>
       )}
     </div>
