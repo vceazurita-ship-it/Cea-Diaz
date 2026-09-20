@@ -1487,8 +1487,8 @@ function TandaDeHoy({
         ? `Tanda ${round} de hoy, sin empezar.`
         : 'Hoy aún no ha tirado.'
       : result && isPenaltyDone(result)
-        ? `Hoy: ${result.scored} de ${PENALTY_SHOTS} dentro${round > 1 ? ` en la tanda ${round}` : ''}.`
-        : `Hoy: va por el penalti ${taken + 1}, con ${result?.scored ?? 0} dentro.`;
+        ? `Hoy: acabó ${result.scored}–${result.conceded ?? PENALTY_SHOTS - result.scored}${round > 1 ? ` en la tanda ${round}` : ''}.`
+        : `Hoy: va la tanda ${result?.scored ?? 0}–${result?.conceded ?? 0}.`;
 
   return (
     <div className="ml-1 flex items-center gap-2 rounded-xl border px-3 py-2 hairline surf-2">

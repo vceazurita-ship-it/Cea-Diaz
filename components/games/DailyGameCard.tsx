@@ -392,18 +392,18 @@ function Penaltis({
   return (
     <div className="mt-2 rounded-xl border border-accent bg-accent-faint p-2">
       <p className="text-[11px] font-semibold leading-snug t-1">
-        🥅 {gate.granted ? 'Hoy te la han dado' : 'Te la has ganado'}: tanda de {PENALTY_SHOTS}{' '}
-        penaltis.
+        🥅 {gate.granted ? 'Hoy te la han dado' : 'Te la has ganado'}: duelo de {PENALTY_SHOTS} penaltis contra Benji
+        —tiras uno y paras otro—.
         {done
-          ? ` Marcaste ${result?.scored} de ${result?.total}.`
-          : result && result.taken > 0
-            ? ` Vas por el ${result.taken + 1}.`
+          ? ` Acabó ${result?.scored}–${result?.conceded ?? 0}.`
+          : result && (result.taken > 0 || (result.faced ?? 0) > 0)
+            ? ` Vas ${result.scored}–${result.conceded ?? 0}.`
             : ''}
       </p>
 
       {!done && (
         <button type="button" onClick={onShoot} className="btn-primary mt-2 px-4 text-sm">
-          {result && result.taken > 0 ? '⏵ Seguir la tanda' : '🥅 Tirar los penaltis'}
+          {result && result.taken > 0 ? '⏵ Seguir la tanda' : '🥅 Empezar el duelo'}
         </button>
       )}
     </div>
@@ -583,19 +583,21 @@ function Scoreboard({
         <div className="rounded-2xl border p-4 border-accent bg-accent-faint">
           <p className="text-sm font-black t-1">🥅 Y ahora, penaltis</p>
           <p className="mt-1 text-[11px] leading-snug t-2">
-            Te has ganado una tanda de cinco contra Benji. Eliges el sitio y la fuerza; él ya ha
-            decidido adónde se tira.
+            Te has ganado un duelo contra Benji: cinco los tiras tú y cinco los paras tú. Y si acabáis
+            empatados, muerte súbita.
           </p>
           <button type="button" onClick={onShoot} className="btn-primary mt-3 w-full">
-            {penalties && penalties.taken > 0 ? 'Seguir la tanda' : 'Tirar la tanda'}
+            {penalties && penalties.taken > 0 ? 'Seguir la tanda' : 'Empezar el duelo'}
           </button>
         </div>
       )}
 
       {penalties && !onShoot && (
         <p className="text-sm font-semibold t-1">
-          🥅 Tanda de penaltis: {penalties.scored} de {penalties.total}.{' '}
-          <span className="font-normal t-2">{penaltyVerdict(penalties.scored, penalties.total)}</span>
+          🥅 Duelo de penaltis: {penalties.scored}–{penalties.conceded ?? penalties.total - penalties.scored}.{' '}
+          <span className="font-normal t-2">
+            {penaltyVerdict(penalties.scored, penalties.total, penalties.conceded)}
+          </span>
         </p>
       )}
 

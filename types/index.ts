@@ -629,6 +629,23 @@ export interface PenaltyResult {
   /** Momento del último tiro (ISO). */
   at: string;
   /**
+   * Penaltis **parados**: los que le han tirado a él. La tanda es un duelo
+   * —tiras uno, paras otro—, así que hace falta llevar las dos cuentas.
+   *
+   * Sin definir en las tandas de antes del duelo, que eran sólo de tirar:
+   * por eso es opcional y por eso `undefined` no es lo mismo que `0`.
+   */
+  faced?: number;
+  /** Y cuántos de ésos acabaron dentro. */
+  conceded?: number;
+  /**
+   * Cuántas **palomitas** lleva gastadas: el estirón de más que se paga con
+   * energía cuando toca parar, que es lo que los tiros especiales son cuando
+   * toca tirar. Se guarda por lo mismo que los especiales: para que cerrar
+   * la aplicación a media ronda no devuelva lo gastado.
+   */
+  gloves?: number;
+  /**
    * Los tiros especiales ya gastados en esta tanda —`halcon`, `tigre`…—.
    * Se guardan porque cada uno sale una vez y cuesta energía, y la tanda se
    * puede dejar a medias: sin esto, cerrar la app entre el tercer y el cuarto

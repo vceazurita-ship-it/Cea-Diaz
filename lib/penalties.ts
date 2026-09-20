@@ -22,9 +22,17 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/ty
  *  desde los ajustes (⚙️ → 🎮 Juegos) y entonces la tanda está y no hay que
  *  explicar por qué. Un cumpleaños, una tarde regular, o querer verle jugar.
  *
+ *  Y no es una tanda de tirar y ya: es **un duelo**. Se tira uno y se para
+ *  otro, ronda a ronda, como en cualquier juego de penaltis de móvil y como
+ *  en cualquier final de verdad. Media tanda es ponerse los guantes, y eso
+ *  cambia el juego entero: ya no se cuentan goles, se gana o se pierde.
+ *  Si se llega empatado a las cinco, **muerte súbita**; y si uno saca una
+ *  ventaja que ya no se puede remontar, la tanda se acaba ahí, como en el
+ *  fútbol.
+ *
  *  Está montado como el penalti de un videojuego de fútbol, y no como un
- *  sorteo con botones, porque la gracia está en las tres cosas que hay que
- *  hacer bien y que son las tres del penalti de verdad:
+ *  sorteo con botones, porque la gracia está en las cosas que hay que hacer
+ *  bien y que son las del penalti de verdad:
  *
  *   1. **Leer al portero.** Antes de tirar, el portero **se coloca**: se
  *      carga hacia el lado por el que va a volar. No es una trampa ni un
@@ -42,6 +50,18 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/ty
  *      entra. Quedarse corto le da tiempo al portero a llegar a casi media
  *      portería.
  *
+ *   4. **Clavar la puntería.** Puesta la fuerza, una segunda barra corta y
+ *      rápida cruza una diana: pararla en el centro manda el balón justo
+ *      adonde se apuntó, y pararla a un lado lo abre a ese lado. Es el
+ *      efecto, y es lo que hace que dos tiros al mismo sitio no sean el
+ *      mismo tiro. La precisión de la carta del que tira estrecha el
+ *      abanico, que es para lo que sirve elegir jugador.
+ *
+ *   5. **Y parar.** Cuando toca bajo palos, el rival hace su carrerilla y
+ *      **enseña el pie** a mitad de camino: ahí está el momento de tirarse.
+ *      Antes de eso, el rival te ve venir y cambia de palo; después del
+ *      golpeo, ya no se llega. Es la misma lección del otro lado.
+ *
  *  El portero de cada tiro sale de una semilla hecha con el perfil, el día y
  *  el número de tiro, igual que las preguntas del juego. Y por la misma
  *  razón: cerrar la aplicación y volver a abrirla no cambia adónde se tira
@@ -52,7 +72,7 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/ty
 /** Clave con la que la tanda se anota en las notas del día. */
 export const PENALTY_NOTE_KEY = 'penaltis';
 
-/** Penaltis de una tanda. */
+/** Rondas de la tanda: en cada una se tira uno y se para otro. */
 export const PENALTY_SHOTS = 5;
 
 /* ---------------------------------------------------------------------------
@@ -408,10 +428,17 @@ export function powerBand(kind: ShotKind = 'normal'): [number, number] {
   return SHOT_TYPES[kind].band;
 }
 
-/** La energía que queda: la de salida, más un punto por gol, menos lo gastado. */
+/**
+ * La energía que queda: la de salida, más un punto por gol, menos lo gastado
+ * —en tiros especiales cuando se tira, y en palomitas cuando se para—.
+ *
+ * Es **una sola bolsa** para las dos mitades a propósito: gastarse el rayo en
+ * el Tiro del Tigre significa no tenerlo para la parada de la ronda siguiente,
+ * y ahí está la decisión. Si cada mitad tuviera la suya, no habría ninguna.
+ */
 export function energyLeft(result: PenaltyResult | null): number {
   const spent = (result?.specials ?? []).reduce((sum, kind) => sum + (SHOT_TYPES[kind]?.cost ?? 0), 0);
-  return ENERGY_START + (result?.scored ?? 0) - spent;
+  return ENERGY_START + (result?.scored ?? 0) - spent - (result?.gloves ?? 0) * PALOMITA_COSTE;
 }
 
 /** Si se puede tirar ése ahora, y si no, por qué. */
@@ -452,6 +479,271 @@ export function keeperTell(id: PenaltyZoneId): PenaltySide {
   return zoneOf(id).side;
 }
 
+/**
+ * Lo que alcanza Benji en esa ronda. En las cinco de la tanda, lo de siempre;
+ * en la muerte súbita se crece —ya le ha cogido el aire al que tira— y llega
+ * un poco más lejos. Es toda la subida de dificultad que hay, y es honrada:
+ * no hay fintas ni sorpresas, sólo un portero que cada vez para más.
+ */
+export function keeperStretch(round: number): number {
+  return round <= PENALTY_SHOTS ? 0 : Math.min(8, (round - PENALTY_SHOTS) * 3);
+}
+
+/* ---------------------------------------------------------------------------
+ * El duelo
+ *
+ * La tanda son dos cuentas a la vez —lo que uno mete y lo que le meten— y
+ * un orden fijo: en cada ronda se tira primero y se para después. De ahí
+ * sale todo lo demás: a quién le toca, en qué ronda va, si ya no hay remonte
+ * posible y quién ha ganado.
+ * ------------------------------------------------------------------------- */
+
+export type DuelTurn = 'tiras' | 'paras';
+
+export interface DuelState {
+  /** Qué toca ahora. */
+  turn: DuelTurn;
+  /** La ronda en curso, desde 1. */
+  round: number;
+  /** Si se ha pasado de las cinco: cada ronda es a vida o muerte. */
+  sudden: boolean;
+  /** Si la tanda está acabada. */
+  done: boolean;
+  /** Y cómo: `null` mientras siga viva. */
+  win: 'ganas' | 'pierdes' | null;
+  /** Goles de cada uno. */
+  scored: number;
+  conceded: number;
+  /**
+   * Una tanda de antes del duelo, dejada a medias: sólo se tira, como
+   * entonces. No se le cambian las reglas a una tanda ya empezada.
+   */
+  legacy: boolean;
+}
+
+/**
+ * Cómo va el duelo.
+ *
+ * La regla del fútbol de «ya no le da» está aquí y no es un adorno: una
+ * tanda que se decide en el cuarto penalti se acaba en el cuarto penalti,
+ * y eso es exactamente lo que hace que el cuarto penalti importe.
+ */
+export function duelState(result: PenaltyResult | null): DuelState {
+  const total = result?.total || PENALTY_SHOTS;
+  const taken = Math.max(0, result?.taken ?? 0);
+  const scored = Math.max(0, result?.scored ?? 0);
+  const faced = Math.max(0, result?.faced ?? 0);
+  const conceded = Math.max(0, result?.conceded ?? 0);
+
+  // Las tandas viejas no traen `faced`. Las que ya iban por la mitad se
+  // terminan con las reglas con las que empezaron.
+  if (result && result.faced === undefined && taken > 0) {
+    const done = taken >= total;
+    return {
+      turn: 'tiras',
+      round: Math.min(taken + 1, total),
+      sudden: false,
+      done,
+      win: done ? (scored * 2 >= total ? 'ganas' : 'pierdes') : null,
+      scored,
+      conceded: total - scored,
+      legacy: true,
+    };
+  }
+
+  // Se tira primero y se para después, así que mientras no se haya tirado
+  // más que parado, toca tirar.
+  const turn: DuelTurn = taken <= faced ? 'tiras' : 'paras';
+  const round = Math.min(taken, faced) + 1;
+
+  const regulation = taken <= total && faced <= total;
+  const mine = Math.max(0, total - taken);
+  const theirs = Math.max(0, total - faced);
+  const decided = regulation
+    ? scored > conceded + theirs || conceded > scored + mine
+    : // En la muerte súbita no vale la ventaja a medias: hay que dejarle
+      // responder, y se cierra sólo con la ronda entera.
+      taken === faced && scored !== conceded;
+
+  return {
+    turn,
+    round,
+    sudden: round > total,
+    done: decided,
+    win: decided ? (scored > conceded ? 'ganas' : 'pierdes') : null,
+    scored,
+    conceded,
+    legacy: false,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+ * Cuando toca parar
+ *
+ * El otro lado de la tanda. El rival hace su carrerilla y **enseña el pie**
+ * a mitad de camino: ése es el aviso, igual que el de Benji, y la lección
+ * es la misma leída del revés. Tirarse antes de verlo no es adelantarse, es
+ * regalarle el palo: el rival mira, te ve caer y la pone al otro lado.
+ * ------------------------------------------------------------------------- */
+
+/** Lo que alcanza uno tirándose en su momento. */
+export const GUANTES = 40;
+
+/**
+ * Y lo que alcanza con **palomita**: el estirón de más que se paga con un
+ * rayo de energía. Es lo que los tiros especiales son cuando toca tirar —una
+ * decisión, no un botón de ganar—: se arma antes de la carrerilla, se gasta
+ * salga como salga, y sigue habiendo que tirarse al lado bueno y a tiempo.
+ */
+export const GUANTES_PALOMITA = 56;
+
+/** Lo que cuesta armarla. */
+export const PALOMITA_COSTE = 1;
+
+/** Lo que alcanza saliendo tarde, con el balón ya en el aire. */
+export const GUANTES_TARDE = 19;
+
+/** Y lo que tapa quedándose quieto en el centro, que algo tapa. */
+export const GUANTES_QUIETO = 24;
+
+/** Dónde se planta uno cuando no se tira a ningún lado. */
+export const PLANTADO: PenaltyAim = { x: 50, y: 72 };
+
+/** El penalti que tira el rival. */
+export interface RivalKick {
+  /** Cuál de los rivales tira: un número, que el dibujo reparte. */
+  rival: number;
+  /** La zona a la que va. */
+  zone: PenaltyZoneId;
+  /** Y el punto exacto, que no es el centro clavado de la zona. */
+  aim: PenaltyAim;
+  /** El lado que deja ver al colocar el pie. */
+  tell: PenaltySide;
+  /** Si se le va fuera a él solo. */
+  wide: boolean;
+  /** Lo que tarda su carrerilla, en milisegundos. */
+  runUp: number;
+  /** La semilla, para lo que haga falta decidir al resolver. */
+  seed: number;
+}
+
+/**
+ * El penalti que te tiran en esa ronda. Sale de la misma semilla que todo lo
+ * demás —perfil, día, número y tanda—, así que cerrar la aplicación no
+ * cambia adónde te la ponen.
+ */
+export function rivalKick(profileId: ProfileId, date: DateKey, index: number, round = 0): RivalKick {
+  const seed = hashSeed(`${profileId}:rival:${date}:${index}${round ? `:r${round}` : ''}`);
+  const zone = PENALTY_ZONES[seed % PENALTY_ZONES.length];
+
+  // No tiran al centro clavado de la zona: la mueven un poco, que es lo que
+  // impide aprenderse seis sitios y acabar con el juego.
+  const jitter = (bits: number, span: number) => (((seed >> bits) % (span * 2 + 1)) - span);
+
+  return {
+    rival: (seed >> 5) % 8,
+    zone: zone.id,
+    aim: {
+      x: Math.max(8, Math.min(92, zone.x + jitter(3, 9))),
+      y: Math.max(10, Math.min(92, zone.y + jitter(9, 8))),
+    },
+    tell: zone.side,
+    // Uno de cada ocho la manda a la grada él solito. Es el respiro de la
+    // tanda, y el que hace que ponerse los guantes no dé miedo.
+    wide: ((seed >> 14) % 8) === 0,
+    runUp: 1500 + ((seed >> 17) % 8) * 90,
+    seed,
+  };
+}
+
+/** Cuándo te has tirado, medido contra su carrerilla. */
+export type SaveTiming = 'pronto' | 'buena' | 'tarde' | 'quieto';
+
+/** En qué momento de la carrerilla enseña el pie: a mitad de camino. */
+export function tellAt(kick: RivalKick): number {
+  return Math.round(kick.runUp * 0.5);
+}
+
+export type SaveOutcome = 'parada' | 'encajado' | 'fallado';
+
+export interface SaveShot {
+  outcome: SaveOutcome;
+  /** Dónde acabó el balón. */
+  landing: PenaltyAim;
+  /** Adónde te tiraste tú. */
+  dive: PenaltyAim;
+  /** Y por qué acabó así. */
+  why: string;
+}
+
+/**
+ * Si la paras.
+ *
+ *  1. lo que se le va fuera a él no lo para nadie, pero tampoco es gol;
+ *  2. tirándose a tiempo se alcanza casi media portería;
+ *  3. tirándose pronto **él cambia de palo**, que es el castigo de verdad;
+ *  4. tirándose tarde se llega a poco, y quedándose quieto sólo al centro.
+ */
+export function resolveSave(
+  kick: RivalKick,
+  dive: PenaltyAim | null,
+  when: SaveTiming,
+  palomita = false,
+): SaveShot {
+  const at = { ...kick.aim };
+  const guantes = dive ?? PLANTADO;
+
+  if (when === 'pronto' && dive) {
+    // Te ha visto caer: se va al otro palo, y con margen.
+    const away = dive.x < 50 ? 1 : -1;
+    at.x = Math.max(9, Math.min(91, 50 + away * (26 + ((kick.seed >> 21) % 12))));
+  }
+
+  if (kick.wide) {
+    return {
+      outcome: 'fallado',
+      landing: { x: at.x < 50 ? -4 : 104, y: Math.max(-4, at.y - 20) },
+      dive: guantes,
+      why: '¡La ha mandado fuera él solo! No todas las para el portero: algunas se fallan.',
+    };
+  }
+
+  const base = when === 'tarde' ? GUANTES_TARDE : when === 'quieto' ? GUANTES_QUIETO : GUANTES;
+  // La palomita sólo estira lo que ya es un vuelo: saliendo tarde o sin
+  // moverse no hay estirón que valga, y ahí el rayo se pierde.
+  const alcance = palomita && when !== 'quieto' ? Math.max(base, GUANTES_PALOMITA - (when === 'tarde' ? 24 : 0)) : base;
+  const gap = reach(at, guantes);
+
+  if (gap < alcance) {
+    return {
+      outcome: 'parada',
+      landing: at,
+      dive: guantes,
+      why: palomita
+        ? '¡PALOMITA! Un estirón imposible y la saca con la punta del guante.'
+        : when === 'quieto'
+          ? '¡Se te ha quedado en las manos! Te quedaste plantado y la tiró por el centro.'
+          : when === 'tarde'
+            ? '¡Parada con lo justo! Saliste tarde y aun así llegaste. No siempre saldrá.'
+            : '¡PARADÓN! Esperaste a que enseñara el pie y volaste a su palo.',
+    };
+  }
+
+  return {
+    outcome: 'encajado',
+    landing: at,
+    dive: guantes,
+    why:
+      when === 'pronto'
+        ? 'Te tiraste antes de tiempo, te vio caer y la puso al otro lado. Hay que esperar al pie.'
+        : when === 'tarde'
+          ? 'Saliste tarde: cuando te tiraste, el balón ya estaba dentro.'
+          : when === 'quieto'
+            ? 'Te quedaste quieto y la puso a un palo. Quieto sólo se paran las del centro.'
+            : 'Voló al otro palo. Le leíste el pie al revés: a la próxima, al lado que enseña.',
+  };
+}
+
 /* ---------------------------------------------------------------------------
  * Qué pasa con el tiro
  * ------------------------------------------------------------------------- */
@@ -484,6 +776,14 @@ function overshoot(power: number, band: [number, number]): number {
  * la fuerza —el cerco que sube y se agranda—, con los mismos números con los
  * que luego se resuelve el tiro.
  */
+/**
+ * Cuánto se abre el balón cuando la segunda barra —la de la puntería— se
+ * para en una punta en vez de en la diana, medido en tanto por ciento de
+ * portería. Es medio ancho de portería en el peor caso, que es mucho: el
+ * castigo tiene que verse, o la barra no serviría para nada.
+ */
+export const ABANICO = 26;
+
 export function overshootPreview(
   kind: ShotKind,
   power: number,
@@ -514,12 +814,17 @@ function landingOf(
   power: number,
   seed: number,
   kind: ShotKind,
+  accuracy: number,
+  spread: number,
 ): { at: PenaltyAim; drift: number } {
   const { drift, up, open } = overshootPreview(kind, power);
-  const away = seed % 2 === 0 ? 1 : -1;
+  // Hacia dónde se abre al reventarla: hacia el lado por el que se falló la
+  // puntería, y sólo si no se falló hacia ninguno, la semilla.
+  const away = Math.abs(accuracy) > 0.06 ? Math.sign(accuracy) : seed % 2 === 0 ? 1 : -1;
 
   const at = {
-    x: aim.x + drift * open * away,
+    // El efecto: lo que se desvía por no clavar la segunda barra.
+    x: aim.x + accuracy * ABANICO * spread + drift * open * away,
     // Hacia arriba, que en esta portería es hacia el 0.
     y: aim.y - drift * up,
   };
@@ -560,19 +865,28 @@ export function resolveShot(
   keeperId: PenaltyZoneId,
   seed = 0,
   kind: ShotKind = 'normal',
+  /** La segunda barra: 0 clavada, ±1 parada en una punta. */
+  accuracy = 0,
+  /** Lo que abre el abanico este jugador: menos de 1, menos se le va. */
+  spread = 1,
+  /** Lo que se crece Benji en esta ronda. */
+  stretch = 0,
 ): PenaltyShot {
   const keeper = zoneOf(keeperId);
   const type = SHOT_TYPES[kind];
   const [low] = type.band;
-  const { at, drift } = landingOf(aim, power, seed, kind);
+  const { at, drift } = landingOf(aim, power, seed, kind, accuracy, spread);
   const special = kind !== 'normal';
+  const fallado = Math.abs(accuracy) > 0.35;
 
   if (at.x < 0 || at.x > 100 || at.y < 0) {
     return {
       outcome: 'fuera',
       landing: at,
       drift,
-      why: drift
+      why: fallado
+        ? 'Se te ha ido fuera: fallaste la puntería y el balón se ha abierto hacia ese lado. Para la segunda barra en la diana.'
+        : drift
         ? special
           ? `${type.article === 'la' ? 'La' : 'El'} ${type.name} se te ha ido fuera: te has pasado de fuerza. Suéltalo dentro de su franja.`
           : 'Demasiada fuerza: al reventarla se te ha subido y abierto, y se ha ido fuera. El penalti se coloca.'
@@ -614,7 +928,8 @@ export function resolveShot(
 
   // La Catapulta cae desde arriba: a lo alto Benji no llega, pero lo que
   // cae abajo lo tiene a mano.
-  const covered = soft ? ALCANCE_BLANDO : kind === 'catapulta' && at.y > 45 ? 32 : type.reach;
+  const covered =
+    (soft ? ALCANCE_BLANDO : kind === 'catapulta' && at.y > 45 ? 32 : type.reach) + stretch;
   const gap = reach(at, keeper);
 
   if (gap < covered) {
@@ -624,7 +939,9 @@ export function resolveShot(
       drift,
       why: soft
         ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
-        : special
+        : fallado
+          ? `Fallaste la puntería y el balón se abrió justo adonde él volaba (${keeper.label}). Clava la segunda barra.`
+          : special
           ? `Ni con ${type.article} ${type.name}: Benji voló ${keeper.label} y se lo has puesto en las manos. Al lado contrario.`
           : `Benji voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
     };
@@ -658,24 +975,40 @@ export function encodePenaltyResult(result: PenaltyResult): string {
     result.at,
     // Los especiales gastados, separados por comas: `halcon,tigre`.
     (result.specials ?? []).join(','),
-    // Y qué tanda del día es, sólo si no es la primera: así la línea de
-    // una tanda normal queda exactamente como era.
-    ...(result.round ? [String(result.round)] : []),
+    // Qué tanda del día es. Antes sólo se escribía si no era la primera,
+    // pero desde que detrás van las paradas tiene que ocupar siempre su
+    // sitio, o las cuentas se leerían corridas.
+    result.round ?? 0,
+    // Y el otro lado del duelo: penaltis parados, goles encajados y las
+    // palomitas gastadas.
+    result.faced ?? 0,
+    result.conceded ?? 0,
+    result.gloves ?? 0,
   ].join('|');
 }
 
 export function parsePenaltyResult(text: string | undefined | null): PenaltyResult | null {
   if (!text) return null;
 
-  const [scored, taken, total, at, specials, round] = text.split('|');
+  const [scored, taken, total, at, specials, round, faced, conceded, gloves] = text.split('|');
   const numbers = [scored, taken, total].map(Number);
   if (numbers.some((value) => !Number.isFinite(value)) || numbers[2] <= 0) return null;
 
+  // La muerte súbita pasa de las cinco, así que lo tirado ya no se recorta
+  // contra el total; lo que se guarda es lo que se ha tirado de verdad, y el
+  // tope es sólo una red por si la línea viene rota.
+  const cap = 99;
+
   return {
-    scored: Math.max(0, Math.min(numbers[0], numbers[2])),
-    taken: Math.max(0, Math.min(numbers[1], numbers[2])),
+    scored: Math.max(0, Math.min(numbers[0], cap)),
+    taken: Math.max(0, Math.min(numbers[1], cap)),
     total: numbers[2],
     at: at ?? '',
+    // Sin este campo la línea es de antes del duelo, y `undefined` es lo que
+    // lo dice: esa tanda se termina como empezó, sólo tirando.
+    faced: faced === undefined ? undefined : Math.max(0, Math.min(Number(faced) || 0, cap)),
+    conceded: conceded === undefined ? undefined : Math.max(0, Math.min(Number(conceded) || 0, cap)),
+    gloves: Math.max(0, Math.min(Number(gloves) || 0, cap)),
     // Las tandas de antes de los especiales no traen nada. Y las del único
     // especial que hubo, el relámpago, traen una «S»: era un tiro de pura
     // potencia, así que cuenta como el del Tigre ya gastado.
@@ -712,16 +1045,39 @@ export function restartedPenaltyNote(current: PenaltyResult | null): string {
     at: new Date().toISOString(),
     specials: [],
     round: (current?.round ?? 0) + 1,
+    faced: 0,
+    conceded: 0,
+    gloves: 0,
   });
 }
 
 /** ¿Tirados los cinco? */
 export function isPenaltyDone(result: PenaltyResult): boolean {
-  return result.taken >= result.total;
+  return duelState(result).done;
 }
 
-/** Cómo se llama una tanda según cómo haya salido. */
-export function penaltyVerdict(scored: number, total: number): string {
+/**
+ * Cómo se llama una tanda según cómo haya salido.
+ *
+ * Con las dos cuentas —lo metido y lo encajado— cuenta el duelo, que es lo
+ * que de verdad se ha jugado. Con una sola, la tanda vieja de sólo tirar.
+ */
+export function penaltyVerdict(scored: number, total: number, conceded?: number): string {
+  if (conceded !== undefined) {
+    if (scored > conceded) {
+      if (conceded === 0) {
+        return scored >= total
+          ? '¡Tanda perfecta y a cero! De las de contar en el cole.'
+          : '¡Ganada sin encajar ni una! Eso es ponerse los guantes.';
+      }
+      if (scored - conceded === 1) return '¡Ganada por la mínima! Así se gana una final.';
+      return '¡Ganada! Le has metido y le has parado.';
+    }
+    if (scored === conceded) return 'Tanda empatada: se ha quedado a medias.';
+    if (conceded - scored === 1) return 'Perdida por un penalti. Duele, y por eso se vuelve mañana.';
+    return 'Se le ha escapado la tanda. Mañana hay otra final.';
+  }
+
   if (scored === total) return '¡Los cinco dentro! Tanda perfecta.';
   if (scored >= total - 1) return 'Gran tanda: así se gana una final.';
   if (scored >= Math.ceil(total / 2)) return 'Más dentro que fuera. Se puede pedir la bola otra vez.';
