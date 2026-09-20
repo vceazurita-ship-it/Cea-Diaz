@@ -1,4 +1,17 @@
 import { Cabeza, TINTA } from '@/components/ui/CromoFace';
+import {
+  Antebrazo,
+  Bota,
+  BrazoAlto,
+  Calzona,
+  Cuello,
+  Mano,
+  Muslo,
+  Pantorrilla,
+  Pieza,
+  Tronco,
+  largo,
+} from '@/components/games/PenaltyBody';
 import { ROPA_FAMILIA, caraDe, faceOf, type Casero, type Face } from '@/lib/cromoArt';
 import type { ShotKind } from '@/types';
 
@@ -60,92 +73,8 @@ function sombra(hex: string, f = 0.74): string {
 /** Color de los pantalones: oscuro, para que la camiseta sea lo que canta. */
 const CALZONA = '#1f2937';
 
-/** Las medias, que es lo que separa una pierna de fútbol de una pierna. */
+/** Las medias por defecto, para quien no traiga las suyas. */
 const MEDIAS = '#f4f4f2';
-
-/** Un tramo suelto, con su línea de tinta por debajo. */
-function Tramo({ from, to, color, w }: { from: P; to: P; color: string; w: number }) {
-  const d = `M${from[0]} ${from[1]} L${to[0]} ${to[1]}`;
-
-  return (
-    <g>
-      <path d={d} fill="none" stroke={TINTA} strokeWidth={w + 2.6} strokeLinecap="round" />
-      <path d={d} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" />
-    </g>
-  );
-}
-
-/**
- * Un miembro: dos tramos —muslo y pierna, o brazo y antebrazo— cada uno con
- * su color, la línea de tinta por debajo y la punta acabada.
- *
- * Que los dos tramos puedan ir de distinto color es lo que permite que la
- * pierna lleve medias y el brazo lleve manga, y eso es justo lo que separa un
- * muñeco de fútbol de un monigote de palotes.
- */
-function Miembro({
-  points,
-  upper,
-  lower,
-  w,
-  end,
-  boot,
-  glove,
-}: {
-  points: [P, P, P];
-  /** Color del primer tramo: el muslo, o la manga y el brazo. */
-  upper: string;
-  /** Color del segundo: la media, o el antebrazo. */
-  lower: string;
-  w: number;
-  /** Color de la mano o de la bota. */
-  end: string;
-  /** La punta se alarga en el sentido de la marcha: es una bota, no un puño. */
-  boot?: boolean;
-  /** La punta es un guante de portero: grande y con los dedos abiertos. */
-  glove?: boolean;
-}) {
-  const [, knee, foot] = points;
-  const angle = (Math.atan2(foot[1] - knee[1], foot[0] - knee[0]) * 180) / Math.PI;
-
-  return (
-    <g>
-      <Tramo from={points[0]} to={knee} color={upper} w={w} />
-      <Tramo from={knee} to={foot} color={lower} w={w * 0.88} />
-      {boot ? (
-        <ellipse
-          cx={foot[0]}
-          cy={foot[1]}
-          rx={w * 0.95}
-          ry={w * 0.55}
-          fill={end}
-          stroke={TINTA}
-          strokeWidth="1.5"
-          transform={`rotate(${angle + 90} ${foot[0]} ${foot[1]})`}
-        />
-      ) : glove ? (
-        // El guante: la palma y cuatro dedos en abanico, en la dirección del
-        // brazo. Es lo único de Benji que se ve volar, así que va grande.
-        <g transform={`translate(${foot[0]} ${foot[1]}) rotate(${angle - 90})`}>
-          <path
-            d="M-7 -2 L-8.4 9 Q-8.6 12.4 -6 12.2 L-4.2 7.8 L-3.4 14 Q-1.8 16.4 0 14 L0.4 8.4 L2.4 14 Q4.4 15.6 5.4 13 L4.6 7.6 L7.4 11.4 Q9.6 12 9.2 9.4 L7 -2 Q0 -6.4 -7 -2 Z"
-            fill={end}
-            stroke={TINTA}
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-          <path d="M-6.6 -1.6 Q0 -5 6.6 -1.6" fill="none" stroke="#dc2626" strokeWidth="2.6" />
-        </g>
-      ) : (
-        <circle cx={foot[0]} cy={foot[1]} r={w * 0.58} fill={end} stroke={TINTA} strokeWidth="1.4" />
-      )}
-    </g>
-  );
-}
-
-/* -------------------------------------------------------------------------
- * El que tira
- * ----------------------------------------------------------------------- */
 
 /** Un punto entre dos, a una fracción del camino. */
 function entre(a: P, b: P, t: number): P {
@@ -157,71 +86,11 @@ function rumbo(a: P, b: P): number {
   return (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
 }
 
-/** La mitad de un lado de una losa: para la sombra plana del costado. */
-function costado(a: P, b: P, wa: number, wb: number): string {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-
-  return [
-    [a[0] - nx * wa, a[1] - ny * wa],
-    [b[0] - nx * wb, b[1] - ny * wb],
-    [b[0] - nx * wb * 0.3, b[1] - ny * wb * 0.3],
-    [a[0] - nx * wa * 0.3, a[1] - ny * wa * 0.3],
-  ]
-    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
-    .join(' ');
-}
-
-/**
- * La otra mitad de un tramo: la banda de luz del canto contrario a la
- * sombra. Con los focos del estadio encima, es lo que despega al jugador del
- * fondo cuando se ve pequeño; sin ella, la figura se lee como una mancha.
- */
-function filo(a: P, b: P, wa: number, wb: number): string {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-
-  return [
-    [a[0] + nx * wa, a[1] + ny * wa],
-    [b[0] + nx * wb, b[1] + ny * wb],
-    [b[0] + nx * wb * 0.62, b[1] + ny * wb * 0.62],
-    [a[0] + nx * wa * 0.62, a[1] + ny * wa * 0.62],
-  ]
-    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
-    .join(' ');
-}
-
-/**
- * Una bota de fútbol: caña, suela clara, taco de talón y los cordones. Antes
- * era una mancha negra con una raya, y a tamaño de juego se leía como un pie
- * cortado.
- */
-function Bota({ at, angle, dark = '#15161c' }: { at: P; angle: number; dark?: string }) {
-  return (
-    <g transform={`translate(${at[0]} ${at[1]}) rotate(${angle - 90})`} strokeLinejoin="round">
-      {/* La caña y el empeine, de una pieza. */}
-      <path d="M-6.2 -3.4 Q-7.6 4.4 -3 8.2 L8.6 8.6 Q12.4 6.6 10.4 3 L5.2 -3.4 Z" fill={dark} stroke={TINTA} strokeWidth="1.3" />
-      {/* La suela, que es lo que separa una bota de un calcetín negro. */}
-      <path d="M-3.4 8.2 L8.8 8.6 Q12.2 7.4 10.6 5.6 L-4.2 5.2 Z" fill="#e8eaee" stroke={TINTA} strokeWidth="1.1" />
-      <path d="M-4.2 5.2 L-3.6 7.6" stroke={TINTA} strokeWidth="1" />
-      {/* Cordones y el brillo del empeine. */}
-      <path d="M-2.6 1.4 L3.2 3 M-1.6 -1 L4 0.8" stroke="#f8fafc" strokeWidth="1.1" strokeLinecap="round" opacity="0.85" />
-      <path d="M-5.4 -2.6 Q-6.4 2 -3.6 4.6" fill="none" stroke="#ffffff" strokeWidth="1.1" opacity="0.35" />
-    </g>
-  );
-}
-
 /* -------------------------------------------------------------------------
  * La cabeza de la serie
  *
- * Copiada de los fotogramas que pasó Víctor —el póster de «Campeones hacia
- * el Mundial», la foto de equipo de Japón y el choque de Oliver y Hyuga—, y
+ * Copiada de los fotogramas que pasó Víctor —el póster de «Campeones hacia el
+ * Mundial», la foto de equipo de Japón y el choque de Oliver y Hyuga—, y
  * no la del cromo, que es más de retrato: aquí los **ojos son grandes y
  * redondos**, con el iris oscuro casi entero y dos brillos; las cejas, gruesas
  * y bajando hacia la nariz; la nariz, una sombra en ángulo; la boca, una raya,
@@ -434,154 +303,6 @@ export function CabezaAnime({
           <path d="M-23.5 -10.5 Q0 -17 23.5 -10.5 Q12.5 -3.2 0 -3.6 Q-12.5 -3.2 -23.5 -10.5 Z" fill="#0b0b0d" stroke={TINTA} strokeWidth="1.4" strokeLinejoin="round" />
           <path d="M-18 -3 Q0 3 18 -3 L18 1 Q0 7 -18 1 Z" fill="#000" opacity="0.14" />
         </g>
-      )}
-    </g>
-  );
-}
-
-/* -------------------------------------------------------------------------
- * Brazos y piernas de futbolista
- * ----------------------------------------------------------------------- */
-
-/**
- * Un músculo entre dos puntos: ancho en el arranque, abultado a un tercio y
- * estrecho al final. Es lo que hace que un muslo parezca un muslo —en la
- * serie las piernas son gordas y fibrosas— y no un tubo.
- */
-function musculo(a: P, b: P, wa: number, wm: number, wb: number): string {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-  const m = entre(a, b, 0.4);
-  const at = (q: P, w: number) => `${(q[0] + nx * w).toFixed(1)} ${(q[1] + ny * w).toFixed(1)}`;
-
-  return `M${at(a, wa)} Q${at(m, wm * 1.35)} ${at(b, wb)} L${at(b, -wb)} Q${at(m, -wm * 1.35)} ${at(a, -wa)} Z`;
-}
-
-/**
- * Una pierna de futbolista de la serie: **muslo gordo**, la pernera de la
- * calzona por encima, la rodilla marcada, la media del color del equipo con
- * su franja y la bota con su tira.
- */
-function Pierna({
-  points,
-  skin,
-  band,
-  shorts = CALZONA,
-  socks = MEDIAS,
-}: {
-  points: [P, P, P];
-  skin: string;
-  band: string;
-  shorts?: string;
-  socks?: string;
-}) {
-  const [hip, knee, foot] = points;
-  const calf = rumbo(knee, foot);
-
-  return (
-    <g strokeLinejoin="round">
-      {/* La media, con la sombra de un canto y el filo de luz del otro. */}
-      <path d={musculo(knee, foot, 5.4, 6.8, 3.6)} fill={socks} stroke={TINTA} strokeWidth="1.4" />
-      <polygon points={costado(knee, foot, 5, 3.4)} fill="#000" opacity="0.16" />
-      <polygon points={filo(knee, foot, 4.8, 3.2)} fill="#fff" opacity="0.24" />
-      {/* El vuelto de la media, que es donde se marca la espinillera. */}
-      <path d={musculo(entre(knee, foot, 0.1), entre(knee, foot, 0.22), 6.2, 5.6, 6.6)} fill={band} stroke={TINTA} strokeWidth="1" />
-      <circle cx={knee[0]} cy={knee[1]} r="5" fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      {/* El muslo. */}
-      <path d={musculo(hip, knee, 8.4, 8.2, 5.4)} fill={skin} stroke={TINTA} strokeWidth="1.4" />
-      <polygon points={costado(hip, knee, 7.6, 5)} fill="#000" opacity="0.15" />
-      <polygon points={filo(hip, knee, 7.2, 4.6)} fill="#fff" opacity="0.2" />
-      <path
-        d="M-3.5 -0.5 Q0 3 3.5 -0.5"
-        transform={`translate(${knee[0]} ${knee[1]}) rotate(${calf - 90})`}
-        fill="none"
-        stroke={TINTA}
-        strokeWidth="1.1"
-        opacity="0.7"
-      />
-      {/* La pernera de la calzona, con su vuelo y su sombra. */}
-      <path d={musculo(hip, entre(hip, knee, 0.34), 9.6, 7.6, 9.4)} fill={shorts} stroke={TINTA} strokeWidth="1.4" />
-      <polygon points={costado(hip, entre(hip, knee, 0.34), 8.8, 8.6)} fill="#000" opacity="0.18" />
-      <polygon points={filo(hip, entre(hip, knee, 0.34), 8.4, 8.2)} fill="#fff" opacity="0.14" />
-      <Bota at={foot} angle={calf} />
-    </g>
-  );
-}
-
-/**
- * Un brazo con **manga corta** y su vivo, y el brazo al aire con su músculo.
- * Con `captain`, el brazalete amarillo de capitán, el de Oliver.
- */
-function Brazo({
-  points,
-  skin,
-  kit,
-  bare,
-  trim = '#fff',
-  captain,
-  gloves,
-}: {
-  points: [P, P, P];
-  skin: string;
-  kit: string;
-  /** Arremangado hasta el hombro, como Hyuga. */
-  bare?: boolean;
-  trim?: string;
-  captain?: boolean;
-  gloves?: string;
-}) {
-  const [shoulder, elbow, hand] = points;
-
-  return (
-    <g strokeLinejoin="round">
-      <path d={musculo(elbow, hand, 4, 4.5, 3.1)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <polygon points={costado(elbow, hand, 3.6, 2.8)} fill="#000" opacity="0.14" />
-      <polygon points={filo(elbow, hand, 3.4, 2.6)} fill="#fff" opacity="0.2" />
-      <path d={musculo(shoulder, elbow, 4.8, 5.4, 4)} fill={skin} stroke={TINTA} strokeWidth="1.3" />
-      <polygon points={costado(shoulder, elbow, 4.4, 3.6)} fill="#000" opacity="0.15" />
-      <polygon points={filo(shoulder, elbow, 4.2, 3.4)} fill="#fff" opacity="0.18" />
-      {/* La mano: un puño con su pulgar, en el sentido del antebrazo. Una
-          bola de piel al final del brazo es lo que delata a un monigote. */}
-      <g transform={`translate(${hand[0]} ${hand[1]}) rotate(${rumbo(elbow, hand) - 90})`}>
-        <path
-          d={gloves ? 'M-5.6 -4 Q0 -7.4 5.6 -4 L6 4.4 Q0 8.6 -6 4.4 Z' : 'M-4.2 -3.4 Q0 -6 4.2 -3.4 L4.4 3 Q0 6.4 -4.4 3 Z'}
-          fill={gloves ?? skin}
-          stroke={TINTA}
-          strokeWidth="1.3"
-          strokeLinejoin="round"
-        />
-        <path
-          d={gloves ? 'M5.4 -2.6 Q8.6 -1 7 2.2' : 'M4 -2.2 Q6.6 -0.9 5.4 1.8'}
-          fill={gloves ?? skin}
-          stroke={TINTA}
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </g>
-      <path
-        d={musculo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.8, 5.6, 6.2)}
-        fill={sombra(kit, 0.88)}
-        stroke={TINTA}
-        strokeWidth="1.3"
-      />
-      <polygon
-        points={filo(shoulder, entre(shoulder, elbow, bare ? 0.18 : 0.54), 6.2, 5.6)}
-        fill="#fff"
-        opacity="0.16"
-      />
-      {!bare && (
-        <path d={musculo(entre(shoulder, elbow, 0.44), entre(shoulder, elbow, 0.54), 6.3, 4.8, 6.2)} fill={trim} />
-      )}
-      {captain && (
-        <path
-          d={musculo(entre(shoulder, elbow, 0.6), entre(shoulder, elbow, 0.74), 5.6, 4.3, 5.4)}
-          fill={AMARILLO}
-          stroke={TINTA}
-          strokeWidth="1"
-        />
       )}
     </g>
   );
@@ -869,79 +590,59 @@ export type PoseChutador = keyof typeof POSES;
  */
 function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; dorsal: string; grito?: boolean }) {
   const { face, kit } = player;
-
-  // El tronco va a lo largo de la columna: estrecho en la cintura y ancho de
-  // hombros, la V del futbolista de la serie.
-  const waist = entre(body.hip, body.shoulder, 0.1);
+  const piel = face.skin;
+  const media = player.socks ?? MEDIAS;
   const spine = rumbo(body.hip, body.shoulder) + 90;
-  const chest = entre(body.hip, body.shoulder, 0.55);
-  const shortsTop = entre(body.hip, body.shoulder, 0.16);
-  const shortsBottom = entre(body.hip, body.shoulder, -0.2);
+  const torso = largo(body.hip, body.shoulder) / 48;
+
+  /** Un brazo entero: manga, antebrazo y mano, cada pieza en su sitio. */
+  const brazo = (points: [P, P, P], flip: 1 | -1) => (
+    <>
+      <Pieza from={points[0]} to={points[1]} base={23} flip={flip}>
+        <BrazoAlto piel={piel} manga={kit} vivo={player.trim ?? '#fff'} desnudo={player.bare} />
+      </Pieza>
+      <Pieza from={points[1]} to={points[2]} base={20} flip={flip}>
+        <Antebrazo piel={piel} />
+      </Pieza>
+      <Mano at={points[2]} angle={rumbo(points[1], points[2])} piel={piel} guante={player.gloves} />
+    </>
+  );
+
+  /** Y una pierna: muslo, media y bota. */
+  const pierna = (points: [P, P, P], flip: 1 | -1) => (
+    <>
+      <Pieza from={points[0]} to={points[1]} base={31} flip={flip}>
+        <Muslo piel={piel} />
+      </Pieza>
+      <Pieza from={points[1]} to={points[2]} base={28} flip={flip}>
+        <Pantorrilla media={media} vuelto={player.band} />
+      </Pieza>
+      <Bota at={points[2]} angle={rumbo(points[1], points[2])} flip={flip} />
+    </>
+  );
 
   return (
     <g>
       {/* Lo de detrás, un punto apagado para que se lea más lejos. */}
-      <g opacity="0.85">
-        <Brazo points={body.farArm} skin={face.skin} kit={kit} bare={player.bare} trim={player.trim} gloves={player.gloves} />
-        <Pierna points={body.farLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
+      <g opacity="0.82">
+        {brazo(body.farArm, -1)}
+        {pierna(body.farLeg, -1)}
       </g>
 
-      {/* Calzona, con su costado en sombra. */}
-      <polygon
-        points={losa(shortsTop, shortsBottom, 12.5, 14.5)}
-        fill={player.shorts}
-        stroke={TINTA}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <polygon points={costado(shortsTop, shortsBottom, 11.5, 13.5)} fill="#000" opacity="0.16" />
+      {/* La pierna de acá va por debajo de la calzona, como en un cuerpo. */}
+      {pierna(body.nearLeg, 1)}
 
-      {/* El cuello. Sin él la cabeza se apoya en la camiseta y el muñeco
-          pierde el gesto: lo que da vida es que el cuello asome. */}
-      <polygon
-        points={losa(body.shoulder, entre(body.shoulder, body.head, 0.45), 6.2, 5)}
-        fill={face.skin}
-        stroke={TINTA}
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <polygon
-        points={losa(body.shoulder, entre(body.shoulder, body.head, 0.45), 6.2, 5)}
-        fill="#000"
-        opacity="0.22"
-      />
+      <g transform={`translate(${body.hip[0]} ${body.hip[1]}) rotate(${spine}) scale(1 ${torso})`}>
+        <Calzona tela={player.shorts} ribete={player.band} />
+      </g>
 
-      {/* Tronco, con la sombra plana de un costado. */}
-      <polygon
-        points={losa(waist, body.shoulder, 11.5, 17)}
-        fill={kit}
-        stroke={TINTA}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <polygon points={costado(waist, body.shoulder, 11.5, 17)} fill="#000" opacity="0.17" />
-      <polygon points={filo(waist, body.shoulder, 10.8, 16)} fill="#fff" opacity="0.14" />
-
-      {/* El cuello de pico, blanco: el de las camisetas de la serie. */}
       <g transform={`translate(${body.shoulder[0]} ${body.shoulder[1]}) rotate(${spine})`}>
-        <path d="M-7 -1.5 L0 7 L7 -1.5" fill="none" stroke={TINTA} strokeWidth="4.4" strokeLinejoin="round" />
-        <path d="M-7 -1.5 L0 7 L7 -1.5" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinejoin="round" />
+        <Cuello piel={piel} />
       </g>
 
-      {/* El dorsal. */}
-      <text
-        x={chest[0]}
-        y={chest[1] + 7}
-        textAnchor="middle"
-        fontSize="19"
-        fontWeight="900"
-        fill={player.number}
-        stroke={TINTA}
-        strokeWidth="0.8"
-        transform={`rotate(${spine} ${chest[0]} ${chest[1]})`}
-      >
-        {dorsal}
-      </text>
+      <g transform={`translate(${body.hip[0]} ${body.hip[1]}) rotate(${spine}) scale(1 ${torso})`}>
+        <Tronco camiseta={kit} vivo={player.trim ?? '#fff'} dorsal={dorsal} numero={player.number} />
+      </g>
 
       {/* La cabeza, la misma de su cromo, pequeña: en la serie los
           jugadores miden seis cabezas y media. */}
@@ -949,20 +650,17 @@ function Cuerpo({ player, body, dorsal, grito }: { player: Tirador; body: Pose; 
         <CabezaDe player={player} grito={grito} />
       </g>
 
-      {/* Y lo de delante, encima de todo. */}
-      <Pierna points={body.nearLeg} skin={face.skin} band={player.band} shorts={player.shorts} socks={player.socks} />
-      <Brazo
-        points={body.nearArm}
-        skin={face.skin}
-        kit={kit}
-        bare={player.bare}
-        trim={player.trim}
-        captain={player.captain}
-        gloves={player.gloves}
-      />
+      {/* Y el brazo de delante, encima de todo. */}
+      {brazo(body.nearArm, 1)}
+      {player.captain && (
+        <g transform={`translate(${body.nearArm[0][0]} ${body.nearArm[0][1]}) rotate(${rumbo(body.nearArm[0], body.nearArm[1]) - 90})`}>
+          <path d="M-6.4 13 C-1.6 15.4 3.2 15.4 6.6 13 L6.2 17.6 C2.8 19.8 -1.8 19.8 -6 17.6 Z" fill="#facc15" stroke={TINTA} strokeWidth="1.1" />
+        </g>
+      )}
     </g>
   );
 }
+
 
 /**
  * El que tira: uno de los dos peques, entero y a tamaño de protagonista.
@@ -1197,48 +895,35 @@ export function Benji({ pose, className }: { pose: PoseBenjiId; className?: stri
 
   return (
     <svg viewBox="0 0 160 150" className={className} aria-hidden overflow="visible">
-      {/* Piernas. */}
-      <Pierna points={body.legA} skin={face.skin} band={AMARILLO} shorts={GORRA} socks={GORRA} />
-      <Pierna points={body.legB} skin={face.skin} band={AMARILLO} shorts={GORRA} socks={GORRA} />
+      {/* Piernas, con las piezas dibujadas: muslo, media y bota. */}
+      {[body.legA, body.legB].map((leg, i) => (
+        <g key={`p${i}`} opacity={i === 0 ? 0.86 : 1}>
+          <Pieza from={leg[0]} to={leg[1]} base={31} flip={i === 0 ? -1 : 1}>
+            <Muslo piel={face.skin} />
+          </Pieza>
+          <Pieza from={leg[1]} to={leg[2]} base={28} flip={i === 0 ? -1 : 1}>
+            <Pantorrilla media={GORRA} vuelto={AMARILLO} />
+          </Pieza>
+          <Bota at={leg[2]} angle={rumbo(leg[1], leg[2])} flip={i === 0 ? -1 : 1} />
+        </g>
+      ))}
 
-      {/* Calzona. */}
-      <polygon
-        points={losa(shortsTop, shortsBottom, 14, 15.5)}
-        fill="#111827"
-        stroke={TINTA}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-
-      {/* Tronco, con el vivo rojo del cuello y la sombra de un costado. */}
-      <polygon
-        points={losa(body.hip, body.shoulder, 13.5, 17)}
-        fill={JERSEY_BENJI}
-        stroke={TINTA}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      {/* Las rayas amarillas de los hombros. */}
-      <polygon points={losa(body.shoulder, [body.shoulder[0] - up[0] * 5, body.shoulder[1] - up[1] * 5], 17, 16.4)} fill={AMARILLO} stroke={TINTA} strokeWidth="1.2" />
-      <text
-        x={chest[0]}
-        y={chest[1] + 6}
-        textAnchor="middle"
-        fontSize="17"
-        fontWeight="900"
-        fill="#fff"
-        stroke={TINTA}
-        strokeWidth="0.7"
-        transform={`rotate(${headTurn} ${chest[0]} ${chest[1]})`}
-      >
-        1
-      </text>
+      {/* Calzona y camiseta de portero: negra, con las rayas de los hombros. */}
+      <g transform={`translate(${body.hip[0]} ${body.hip[1]}) rotate(${headTurn}) scale(1 ${largo(body.hip, body.shoulder) / 48})`}>
+        <Calzona tela="#111827" ribete={AMARILLO} />
+        <Tronco camiseta={JERSEY_BENJI} vivo="#dc2626" dorsal="1" numero="#fff" franjas={AMARILLO} />
+      </g>
 
       {/* Brazos, por delante del pecho: son lo que para. */}
       {[body.armA, body.armB].map((arm, i) => (
-        <g key={i}>
-          <Miembro points={arm} upper={JERSEY_BENJI} lower={JERSEY_BENJI} w={9.5} end={AMARILLO} glove />
-          <path d={`M${arm[0].join(' ')} L${arm[1].join(' ')} L${entre(arm[1], arm[2], 0.8).join(' ')}`} fill="none" stroke={AMARILLO} strokeWidth="2" strokeLinejoin="round" />
+        <g key={`b${i}`} opacity={i === 0 ? 0.9 : 1}>
+          <Pieza from={arm[0]} to={arm[1]} base={23} flip={i === 0 ? -1 : 1}>
+            <BrazoAlto piel={face.skin} manga={JERSEY_BENJI} vivo={AMARILLO} />
+          </Pieza>
+          <Pieza from={arm[1]} to={arm[2]} base={20} flip={i === 0 ? -1 : 1}>
+            <Antebrazo piel={face.skin} />
+          </Pieza>
+          <Mano at={arm[2]} angle={rumbo(arm[1], arm[2])} piel={face.skin} guante={AMARILLO} tamano={1.4} />
         </g>
       ))}
 
