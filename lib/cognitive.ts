@@ -126,13 +126,20 @@ export function extremos(profile: CogProfile): { alto?: IndexId; bajo?: IndexId;
  * la suma de escalares y otra para el índice.
  * ------------------------------------------------------------------------- */
 
+/**
+ * Los códigos de índice, tal como salen del informe.
+ *
+ * El paréntesis de cierre **no se puede exigir**: al leer estos PDF algunos
+ * glifos se pierden y «(ICV)» sale como «(ICV\». Exigiéndolo se guardaba el
+ * CI total y nada más, que es justo la cifra que menos dice.
+ */
 const CODIGOS: [IndexId, RegExp][] = [
-  ['icv', /\(\s*icv\s*\)/],
-  ['ive', /\(\s*ive\s*\)/],
-  ['irf', /\(\s*irf\s*\)/],
-  ['imt', /\(\s*imt\s*\)/],
-  ['ivp', /\(\s*ivp\s*\)/],
-  ['cit', /ci\s*total/],
+  ['icv', /[([]\s*icv\s*[)\]\\]?/g],
+  ['ive', /[([]\s*ive\s*[)\]\\]?/g],
+  ['irf', /[([]\s*irf\s*[)\]\\]?/g],
+  ['imt', /[([]\s*imt\s*[)\]\\]?/g],
+  ['ivp', /[([]\s*ivp\s*[)\]\\]?/g],
+  ['cit', /ci\s*total/g],
 ];
 
 function flat(lines: string[]): string {
@@ -164,16 +171,21 @@ export function parseWisc(lines: string[]): ParsedCog {
   }
 
   for (const [id, re] of CODIGOS) {
-    const at = re.exec(text);
-    if (!at) continue;
-    const resto = text.slice(at.index + at[0].length, at.index + at[0].length + 60);
-    // Primero la puntuación (de 40 a 160) y después, si está, su percentil.
-    const nums = [...resto.matchAll(/\d+/g)].map((m) => Number(m[0]));
-    const score = nums.find((value) => value >= 40 && value <= 160);
-    if (score === undefined) continue;
-    const tras = resto.slice(resto.indexOf(String(score)) + String(score).length);
-    const pct = Number((/pct\D{0,4}(\d{1,2})\b/.exec(tras) || [])[1]);
-    scores[id] = { score, pct: Number.isFinite(pct) ? pct : undefined };
+    // Cada código sale dos veces: en la tabla, seguido de su puntuación, y
+    // en el texto que lo explica, seguido de prosa. Se miran todas las
+    // veces y se coge la primera que traiga un número que pueda serlo.
+    const buscar = new RegExp(re.source, 'g');
+    let at: RegExpExecArray | null;
+    while ((at = buscar.exec(text))) {
+      const resto = text.slice(at.index + at[0].length, at.index + at[0].length + 60);
+      const nums = [...resto.matchAll(/\d+/g)].map((m) => Number(m[0]));
+      const score = nums.find((value) => value >= 40 && value <= 160);
+      if (score === undefined) continue;
+      const tras = resto.slice(resto.indexOf(String(score)) + String(score).length);
+      const pct = Number((/pct\D{0,4}(\d{1,2})\b/.exec(tras) || [])[1]);
+      scores[id] = { score, pct: Number.isFinite(pct) ? pct : undefined };
+      break;
+    }
   }
 
   const edad = /edad\s*\(?\s*baremos?\s*\)?\D{0,4}(\d{1,2})\s*:\s*(\d{1,2})/.exec(text);
