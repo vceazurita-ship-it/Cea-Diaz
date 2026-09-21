@@ -4,7 +4,10 @@ import { useMemo, useState } from 'react';
 
 import { ColegioPanel } from '@/components/rendimiento/ColegioPanel';
 import { FisicoPanel } from '@/components/rendimiento/FisicoPanel';
+import { Inventario } from '@/components/rendimiento/Inventario';
+import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { GpsPanel } from '@/components/gps/GpsPanel';
+import { Modal } from '@/components/ui/Modal';
 import { useGpsSessions } from '@/hooks/useGps';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { reportsFor } from '@/lib/academics';
@@ -37,6 +40,7 @@ type Area = 'partidos' | 'fisico' | 'colegio';
 
 export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanelProps) {
   const [area, setArea] = useState<Area>('partidos');
+  const [subiendo, setSubiendo] = useState(false);
   const sessions = useGpsSessions(profile.id);
 
   const tests = useMemo(() => testsFor(store.entries, profile.id), [store.entries, profile.id]);
@@ -83,12 +87,25 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
         })}
       </div>
 
+      {/* Lo primero que se ve: qué hay cargado y qué falta, de los dos. */}
+      <Inventario
+        entries={store.entries}
+        accent={profile.accentDeep ?? profile.accent}
+        onSubir={() => setSubiendo(true)}
+      />
+
       {area === 'partidos' && <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />}
       {area === 'fisico' && (
         <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
       )}
       {area === 'colegio' && (
         <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
+      )}
+
+      {subiendo && (
+        <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
+          <SubirInforme profile={profile} onSave={guardar} onClose={() => setSubiendo(false)} />
+        </Modal>
       )}
     </div>
   );
