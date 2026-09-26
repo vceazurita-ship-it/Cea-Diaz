@@ -222,7 +222,17 @@ async function api<T>(path: string, access: string): Promise<T> {
   });
   if (response.status === 401) throw new FootbarError('Footbar no reconoce el permiso.', 401, true);
   if (response.status === 429) {
-    throw new FootbarError('Footbar dice que se le han hecho demasiadas consultas esta semana.', 429);
+    // El cupo es de la aplicación, no de cada peque: Leo y Hugo tiran del
+    // mismo saco, así que da igual en cuál de los dos se haya pedido menos.
+    const wait = Number(response.headers.get('retry-after'));
+    const when =
+      Number.isFinite(wait) && wait > 0
+        ? ` Vuelve a dejar en unas ${Math.max(1, Math.round(wait / 3600))} h.`
+        : '';
+    throw new FootbarError(
+      `Footbar ha cortado: las 100 consultas de la semana son para toda la app, Leo y Hugo juntos.${when} Lo ya bajado queda guardado.`,
+      429,
+    );
   }
   if (!response.ok) throw new FootbarError(`Footbar ha respondido ${response.status}.`, response.status);
   return (await response.json()) as T;

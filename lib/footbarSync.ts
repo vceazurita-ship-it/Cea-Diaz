@@ -209,6 +209,8 @@ export interface SyncOutcome {
   updated: number;
   error?: string;
   needsReconnect?: boolean;
+  /** Footbar ha dicho que basta por esta semana. */
+  throttled?: boolean;
 }
 
 async function syncRow(
@@ -225,6 +227,7 @@ async function syncRow(
     let { sessions } = book;
     let removed = { ...book.removed };
     let changed = false;
+    let halted: unknown;
     const now = new Date().toISOString();
 
     // Una sesión borrada en Footbar se borra aquí también, con su marca
@@ -249,7 +252,16 @@ async function syncRow(
       }
 
       for (const id of ids) {
-        const incoming = toGps(await sessionDetail(access, id), profileId, now);
+        let detail;
+        try {
+          detail = await sessionDetail(access, id);
+        } catch (problem) {
+          // Si Footbar corta a mitad (el cupo), lo que ya ha llegado se
+          // guarda: cada detalle ha costado una consulta y no se repite.
+          halted = problem;
+          break;
+        }
+        const incoming = toGps(detail, profileId, now);
         if (!incoming) continue;
         const existed = sessions.some((item) => item.footbarId === id);
         const merged = mergeInto(sessions, removed, incoming);
@@ -266,6 +278,7 @@ async function syncRow(
       sessions.sort((a, b) => a.date.localeCompare(b.date));
       await writeBook(row.owner, profileId, sessions, removed);
     }
+    if (halted) throw halted;
     await patchRow(row, { checked_at: now, broken: false });
     return outcome;
   } catch (problem) {
@@ -273,6 +286,7 @@ async function syncRow(
       ...outcome,
       error: problem instanceof Error ? problem.message : 'No se ha podido revisar Footbar.',
       needsReconnect: problem instanceof FootbarError && problem.revoked,
+      throttled: problem instanceof FootbarError && problem.status === 429,
     };
   }
 }
@@ -283,17 +297,31 @@ export async function syncOwner(owner: string, profileId?: ProfileId): Promise<S
     const row = await findRow(owner, profileId);
     return row ? [await syncRow(row)] : [];
   }
-  const rows = (await allRows()).filter((row) => row.owner === owner);
+  return syncRows((await allRows()).filter((row) => row.owner === owner));
+}
+
+/**
+ * Uno detrás de otro. Si Footbar corta con el primero, el segundo ni se
+ * intenta: el cupo es de la app entera y con él tampoco entraría.
+ */
+async function syncRows(rows: LinkRow[]): Promise<SyncOutcome[]> {
   const out: SyncOutcome[] = [];
-  for (const row of rows) out.push(await syncRow(row));
+  let cut: SyncOutcome | undefined;
+  for (const row of rows) {
+    if (cut) {
+      out.push({ profileId: profileOf(row), added: 0, updated: 0, error: cut.error, throttled: true });
+      continue;
+    }
+    const outcome = await syncRow(row);
+    if (outcome.throttled) cut = outcome;
+    out.push(outcome);
+  }
   return out;
 }
 
 /** La revisión de las 21:00: todos los enlaces de todas las cuentas. */
 export async function syncEverything(): Promise<SyncOutcome[]> {
-  const out: SyncOutcome[] = [];
-  for (const row of await allRows()) out.push(await syncRow(row));
-  return out;
+  return syncRows(await allRows());
 }
 
 /** Lo que dispara un aviso de Footbar: sólo esa sesión, o su borrado. */

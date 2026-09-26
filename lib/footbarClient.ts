@@ -29,6 +29,7 @@ export interface FootbarSyncResult {
   updated: number;
   error?: string;
   needsReconnect?: boolean;
+  throttled?: boolean;
 }
 
 /** Dónde deja la vuelta de Footbar su desenlace para que lo cuente la pantalla. */

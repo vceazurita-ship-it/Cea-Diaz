@@ -39,9 +39,15 @@ function when(iso?: string): string {
 /** Lo que ha traído una revisión, dicho en una frase. */
 function summary(results: FootbarSyncResult[]): string {
   if (results.length === 0) return 'No hay nadie conectado a Footbar todavía.';
-  return results
+  // El corte del cupo es uno para todos: se dice una vez, al final.
+  const cut = results.find((result) => result.throttled)?.error;
+  const lines = results
     .map((result) => {
       const name = PROFILES.find((profile) => profile.id === result.profileId)?.name ?? result.profileId;
+      if (result.throttled) {
+        const got = result.added + result.updated;
+        return got > 0 ? `${name}: ${got} bajadas antes del corte` : '';
+      }
       if (result.error) return `${name}: ${result.error}`;
       if (result.added === 0 && result.updated === 0) return `${name}: nada nuevo`;
       const parts = [];
@@ -49,7 +55,9 @@ function summary(results: FootbarSyncResult[]): string {
       if (result.updated) parts.push(`${result.updated} ${result.updated === 1 ? 'corregida' : 'corregidas'}`);
       return `${name}: ${parts.join(' y ')}`;
     })
-    .join(' · ');
+    .filter(Boolean);
+  if (cut) lines.push(cut);
+  return lines.join(' · ');
 }
 
 export function FootbarSettings({ store }: { store: HabitStore }) {
