@@ -40,9 +40,20 @@ export class FootbarError extends Error {
     message: string,
     readonly status = 0,
     readonly revoked = false,
+    /** Si Footbar ha cortado por el cupo: hasta cuándo, en milisegundos desde 1970. */
+    readonly hasta?: number,
   ) {
     super(message);
   }
+}
+
+/**
+ * La cuenta de lo gastado: cada consulta a la API de sesiones apunta aquí su
+ * momento. Con eso se sabe cuánto queda del cupo de la semana. Las de los
+ * permisos (`/oauth/token/`) no cuentan: no son de la API.
+ */
+export interface Cuenta {
+  momentos: number[];
 }
 
 /** A dónde vuelve Footbar tras el permiso. Tiene que estar declarado en su portal. */
@@ -215,7 +226,8 @@ export interface FootbarSession {
   hsr_plus?: number | null;
 }
 
-async function api<T>(path: string, access: string): Promise<T> {
+async function api<T>(path: string, access: string, cuenta?: Cuenta): Promise<T> {
+  cuenta?.momentos.push(Date.now());
   const response = await fetch(`${BASE}${path}`, {
     headers: { Authorization: `Bearer ${access}` },
     cache: 'no-store',
@@ -225,17 +237,24 @@ async function api<T>(path: string, access: string): Promise<T> {
     // El cupo es de la aplicación, no de cada peque: Leo y Hugo tiran del
     // mismo saco, así que da igual en cuál de los dos se haya pedido menos.
     const wait = Number(response.headers.get('retry-after'));
-    const when =
-      Number.isFinite(wait) && wait > 0
-        ? ` Vuelve a dejar en unas ${Math.max(1, Math.round(wait / 3600))} h.`
-        : '';
-    throw new FootbarError(
-      `Footbar ha cortado: las 100 consultas de la semana son para toda la app, Leo y Hugo juntos.${when} Lo ya bajado queda guardado.`,
-      429,
-    );
+    // Sin la cabecera, se da por hecho lo peor: una semana.
+    const hasta = Date.now() + (Number.isFinite(wait) && wait > 0 ? wait : 7 * 24 * 3600) * 1000;
+    throw new FootbarError(cortadoHasta(hasta), 429, false, hasta);
   }
   if (!response.ok) throw new FootbarError(`Footbar ha respondido ${response.status}.`, response.status);
   return (await response.json()) as T;
+}
+
+/** El aviso del corte, con el día y la hora en que Footbar vuelve a dejar. */
+export function cortadoHasta(hasta: number): string {
+  const cuando = new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'Europe/Madrid',
+    weekday: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(hasta));
+  return `Footbar ha cortado: las 100 consultas de la semana son para toda la app, Leo y Hugo juntos. Vuelve a dejar el ${cuando}. Lo ya bajado queda guardado, y el resto entra después poco a poco.`;
 }
 
 interface Page {
@@ -250,8 +269,8 @@ interface Page {
  * se salta a la última, que es donde están las de esta semana. Como mucho
  * dos peticiones, que el plan gratuito va contado.
  */
-export async function recentSessions(access: string): Promise<FootbarSession[]> {
-  const first = await api<Page>('/v1/session/list/', access);
+export async function recentSessions(access: string, cuenta?: Cuenta): Promise<FootbarSession[]> {
+  const first = await api<Page>('/v1/session/list/', access, cuenta);
   let results = first.results ?? [];
 
   const time = (session: FootbarSession) => Date.parse(session.start_date ?? '') || 0;
@@ -260,7 +279,7 @@ export async function recentSessions(access: string): Promise<FootbarSession[]> 
   if (ascending && first.next && first.count && results.length > 0) {
     const last = Math.ceil(first.count / results.length);
     if (last > 1) {
-      const page = await api<Page>(`/v1/session/list/?page=${last}`, access);
+      const page = await api<Page>(`/v1/session/list/?page=${last}`, access, cuenta);
       results = [...results, ...(page.results ?? [])];
     }
   }
@@ -273,8 +292,26 @@ export async function recentSessions(access: string): Promise<FootbarSession[]> 
  * envuelto en una página de un solo elemento —`{count, results: [sesión]}`—:
  * se desenvuelve aquí, y si algún día llega suelto también vale.
  */
-export async function sessionDetail(access: string, id: number): Promise<FootbarSession> {
-  const data = await api<FootbarSession | Page>(`/v1/session/detail/?id=${id}`, access);
+/**
+ * Una página de la lista, para repasar el historial entero poco a poco. Una
+ * página que ya no existe (404) es que se ha llegado al final.
+ */
+export async function sessionPage(
+  access: string,
+  pagina: number,
+  cuenta?: Cuenta,
+): Promise<{ sesiones: FootbarSession[]; hayMas: boolean; total?: number }> {
+  try {
+    const page = await api<Page>(`/v1/session/list/?page=${pagina}`, access, cuenta);
+    return { sesiones: page.results ?? [], hayMas: Boolean(page.next), total: page.count };
+  } catch (problem) {
+    if (problem instanceof FootbarError && problem.status === 404) return { sesiones: [], hayMas: false };
+    throw problem;
+  }
+}
+
+export async function sessionDetail(access: string, id: number, cuenta?: Cuenta): Promise<FootbarSession> {
+  const data = await api<FootbarSession | Page>(`/v1/session/detail/?id=${id}`, access, cuenta);
   const inner = 'results' in data && Array.isArray(data.results) ? data.results[0] : (data as FootbarSession);
   if (!inner) throw new FootbarError(`Footbar no encuentra la sesión ${id}.`, 404);
   return inner;

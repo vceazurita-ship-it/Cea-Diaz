@@ -224,6 +224,8 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
         </p>
       ) : (
         <>
+          {status.cupo && <Cupo {...status.cupo} />}
+
           <button
             type="button"
             onClick={() => update()}
@@ -248,6 +250,7 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
                         ? 'Footbar ya no acepta el permiso: vuelve a conectarlo.'
                         : `Última revisión: ${when(link.lastSync)}.`}
                   </p>
+                  {link?.historial && !link.needsReconnect && <Historial {...link.historial} />}
                 </div>
                 {link && !link.needsReconnect ? (
                   <>
@@ -284,5 +287,44 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
         </>
       )}
     </section>
+  );
+}
+
+/** Cómo va el historial de un peque: una barra con las que ya están en casa. */
+function Historial({ tengo, total, completo }: { tengo: number; total?: number; completo: boolean }) {
+  if (completo || (total !== undefined && tengo >= total)) {
+    return <p className="mt-0.5 text-[11px] font-bold text-emerald-600">📚 Historial al día: {tengo} sesiones.</p>;
+  }
+  const parte = total ? Math.min(1, tengo / total) : 0;
+  return (
+    <div className="mt-1">
+      <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
+        <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.round(parte * 100)}%` }} />
+      </div>
+      <p className="mt-0.5 text-[11px] leading-snug t-3">
+        📚 Historial: {tengo}
+        {total ? ` de ${total}` : ''} sesiones. El resto entra solo, poco a poco, cada noche.
+      </p>
+    </div>
+  );
+}
+
+/** Lo que queda de las 100 consultas de la semana, que son para Leo y Hugo juntos. */
+function Cupo({ usadas, libres, cortadoHasta }: { usadas: number; libres: number; cortadoHasta?: number }) {
+  if (cortadoHasta && cortadoHasta > Date.now()) {
+    const cuando = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(
+      new Date(cortadoHasta),
+    );
+    return (
+      <p className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed t-2">
+        ⏸️ Footbar ha cortado por esta semana. Vuelve a dejar el <b>{cuando}</b> y entonces sigue sola, sin perder ninguna.
+      </p>
+    );
+  }
+  return (
+    <p className="text-[11px] leading-snug t-3">
+      📊 Consultas a Footbar esta semana: {usadas} de 100 (Leo y Hugo juntos). Quedan {libres}; el historial viejo deja
+      siempre 30 para los entrenos nuevos.
+    </p>
   );
 }

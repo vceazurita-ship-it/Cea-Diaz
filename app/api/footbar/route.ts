@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { consentUrl, footbarConfigured, packState, pkce, redirectUri } from '@/lib/footbar';
-import { dropFootbarLink, listFootbarLinks, syncOwner } from '@/lib/footbarSync';
+import { cupoFootbar, dropFootbarLink, listFootbarLinks, syncOwner } from '@/lib/footbarSync';
 import { PROFILES_BY_ID } from '@/lib/profiles';
 import { clientIp, isRateLimited } from '@/lib/rateLimit';
 import { adminConfigured, userFromRequest } from '@/lib/supabaseAdmin';
@@ -56,7 +56,8 @@ export async function GET(request: Request) {
   if (!owner) return bad('Hay que entrar en la cuenta de casa.', 401);
 
   try {
-    return NextResponse.json({ configured: true, links: await listFootbarLinks(owner) });
+    const [links, cupo] = await Promise.all([listFootbarLinks(owner), cupoFootbar()]);
+    return NextResponse.json({ configured: true, links, cupo });
   } catch {
     return bad('No se ha podido consultar la conexión con Footbar.', 502);
   }

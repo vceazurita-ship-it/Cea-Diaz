@@ -15,12 +15,16 @@ export interface FootbarLink {
   connectedAt: string;
   lastSync?: string;
   needsReconnect: boolean;
+  /** Cómo va el historial: las que ya están en casa de las que dice Footbar que tiene. */
+  historial?: { tengo: number; total?: number; completo: boolean };
 }
 
 export interface FootbarStatus {
   configured: boolean;
   reason?: string;
   links: FootbarLink[];
+  /** Lo gastado de las 100 consultas de la semana, y si Footbar tiene cortado hasta una fecha (ms). */
+  cupo?: { usadas: number; libres: number; cortadoHasta?: number };
 }
 
 export interface FootbarSyncResult {
