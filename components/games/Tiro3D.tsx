@@ -530,6 +530,21 @@ export function Tiro3D({
   const pulso = Math.abs(wobble.x) / (ABANICO * spread);
   const clavada = step === 'fuerza' && pulso <= 0.14;
 
+  // Un toque en la mano al entrar en la franja verde y cada vez que la mira
+  // pasa por el centro: se juega sin tener que mirar el medidor.
+  const enVerde = step === 'fuerza' && zona === 'buena';
+  const tocado = useRef({ enVerde: false, clavada: false });
+  useEffect(() => {
+    const sube = (enVerde && !tocado.current.enVerde) || (clavada && !tocado.current.clavada);
+    tocado.current = { enVerde, clavada };
+    if (!sube) return;
+    try {
+      navigator.vibrate?.(clavada ? 8 : 15);
+    } catch {
+      // Hay navegadores que tienen la función y la prohíben.
+    }
+  }, [enVerde, clavada]);
+
   const tellText =
     tell === 'centro' ? (
       <>
@@ -637,12 +652,26 @@ export function Tiro3D({
           </svg>
         )}
 
-        {/* La pista de cómo se juega, mientras no se ha tocado nada. */}
+        {/* La pista de cómo se juega: una mano fantasma que tira del balón, encima del balón. */}
+        {step === 'apuntar' && !cartel && ball && (
+          <div className="pointer-events-none absolute z-10" style={{ left: ball.x, top: ball.y }} aria-hidden>
+            <style>{`
+              @keyframes tirachinas-mano { 0%, 12% { transform: translate(-50%, -30%); opacity: 0 } 22% { opacity: 1 } 62% { transform: translate(-50%, 70px); opacity: 1 } 72%, 100% { transform: translate(-50%, 70px); opacity: 0 } }
+              @keyframes tirachinas-goma { 0%, 18% { height: 0; opacity: 0 } 62% { height: 70px; opacity: 0.9 } 72%, 100% { height: 70px; opacity: 0 } }
+            `}</style>
+            <span
+              className="absolute left-0 top-0 w-1.5 -translate-x-1/2 rounded-full bg-[repeating-linear-gradient(180deg,#4ade80_0_6px,transparent_6px_12px)]"
+              style={{ animation: 'tirachinas-goma 2.2s ease-in-out infinite' }}
+            />
+            <span className="absolute left-0 top-0 text-[30px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" style={{ animation: 'tirachinas-mano 2.2s ease-in-out infinite' }}>
+              👆
+            </span>
+          </div>
+        )}
         {step === 'apuntar' && !cartel && (
           <div className="pointer-events-none absolute inset-x-[26%] bottom-[3%] z-10 flex justify-center">
-            <div className="flex animate-floatUp items-center gap-1.5 rounded-2xl bg-white/90 px-2.5 py-1 text-center text-[10px] font-black leading-tight text-[#0b1220] shadow-lg">
-              <span className="animate-bounce text-sm">👇</span>
-              <span>Estira el balón hacia atrás y suelta</span>
+            <div className="animate-floatUp rounded-2xl bg-white/90 px-2.5 py-1 text-center text-[10px] font-black leading-tight text-[#0b1220] shadow-lg">
+              Estira el balón hacia atrás y suelta
             </div>
           </div>
         )}
