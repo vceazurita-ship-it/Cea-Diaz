@@ -55,6 +55,10 @@ export interface Equipacion {
   dorsal: string;
   nombre: string;
   bare?: boolean;
+  /** El segundo color: cuello, puños y rayas del pantalón. */
+  trim?: string;
+  capitan?: boolean;
+  guantes?: string;
 }
 
 export interface Reparto {
@@ -525,15 +529,10 @@ export class Estadio3D {
       skin: '#f1c9a5',
       guantes: '#facc15',
       mangaLarga: true,
+      // Las rayas amarillas de los hombros de su camiseta, y el cuello a juego.
+      hombreras: '#facc15',
+      trim: '#facc15',
     });
-    // Las rayas amarillas de los hombros de su camiseta.
-    const amarillo = this.mat(new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.5 }));
-    for (const s of [-1, 1]) {
-      const raya = new THREE.Mesh(this.geo(new THREE.BoxGeometry(0.06, 0.03, 0.27)), amarillo);
-      raya.position.set(s * 0.19, 0.64, 0);
-      raya.rotation.z = s * 0.35;
-      this.benji.hips.add(raya);
-    }
     this.scene.add(this.benji.root);
 
     // Las cabezas llegan un instante después: son SVG que hay que pintar.

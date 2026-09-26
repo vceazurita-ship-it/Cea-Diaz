@@ -216,6 +216,9 @@ export function Tiro3D({
         dorsal: player.dorsal,
         nombre: player.short ?? shooterName,
         bare: player.bare,
+        trim: player.trim,
+        capitan: player.captain,
+        guantes: player.gloves,
       },
       gemelo: player.twin,
       grada: [ROPA_FAMILIA[kid] ?? kit, kit],
@@ -752,6 +755,34 @@ export function Tiro3D({
               {SHOT_TYPES[fired.kind].shout}
             </p>
           </div>
+        )}
+
+        {/* Las líneas de velocidad del manga, hacia la portería, mientras vuela. */}
+        {step === 'vuelo' && !landed && (
+          <svg
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full animate-floatUp"
+            viewBox="0 0 100 130"
+            preserveAspectRatio="none"
+          >
+            {Array.from({ length: 44 }, (_, i) => {
+              const a = (i / 44) * Math.PI * 2 + (i % 3) * 0.04;
+              const r0 = 34 + ((i * 7) % 16);
+              return (
+                <line
+                  key={i}
+                  x1={50 + Math.cos(a) * r0}
+                  y1={42 + Math.sin(a) * r0}
+                  x2={50 + Math.cos(a) * 130}
+                  y2={42 + Math.sin(a) * 130}
+                  stroke="#ffffff"
+                  strokeOpacity={0.35 + (i % 4) * 0.1}
+                  strokeWidth={0.35 + (i % 4) * 0.3}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </svg>
         )}
 
         {/* El grito del narrador mientras vuela. */}

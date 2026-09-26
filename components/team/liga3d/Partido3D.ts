@@ -632,6 +632,8 @@ export class Partido3D {
         skin: f.piel,
         guantes: portero ? '#facc15' : undefined,
         mangaLarga: portero,
+        contorno: false,
+        capitan: f.capitan,
         dorsal,
       });
       const j = nuevo(m, f.id, true, f.line, f.x, f.y, i);
@@ -658,6 +660,7 @@ export class Partido3D {
         skin: rival.pieles[i] ?? '#e7b590',
         guantes: portero ? '#facc15' : undefined,
         mangaLarga: portero,
+        contorno: false,
       });
       const j = nuevo(m, `rival-${i}`, false, p.line, p.x, p.y, i + 11);
       if (i === ESTRELLA) j.etiqueta = this.letrero(`★ ${rival.estrella}`, null, { peligro: true });
