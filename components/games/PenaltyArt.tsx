@@ -308,6 +308,42 @@ export function CabezaAnime({
   );
 }
 
+/**
+ * La misma cabeza **vista por detrás**: la del que tira en el estadio en 3D,
+ * que la cámara lleva a su espalda. Es la silueta exacta de su peinado —la
+ * masa de detrás, el contorno de la cara y los mechones de delante, todo del
+ * color del pelo—, con las orejas asomando y la nuca.
+ */
+export function NucaAnime({ face, pelo, cinta }: { face: Face; pelo: PeloAnime; cinta?: string }) {
+  const hair = PELOS_ANIME[pelo];
+  const corto = pelo === 'rapado';
+  return (
+    <g>
+      <path d="M-8 13 H8 V36 H-8 Z" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+      {[-1, 1].map((s) => (
+        <ellipse key={s} cx={19.3 * s} cy="3" rx="3.2" ry="5" fill={face.skin} stroke={TINTA} strokeWidth="1.1" />
+      ))}
+      {hair.back && <path d={hair.back} fill={face.hair} stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round" />}
+      <path d={CARA_ANIME} fill={corto ? face.skin : face.hair} stroke={TINTA} strokeWidth="1.6" />
+      {corto && <path d={CARA_ANIME} fill={face.hair} opacity="0.55" />}
+      <path d={hair.front} fill={face.hair} stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round" />
+      {/* El remolino y un brillo, que sin ellos es una bola. */}
+      <g fill="none" stroke="#000" strokeLinecap="round" opacity="0.28">
+        <path d="M-2 -6 Q4 -10 3 -2 Q1 3 -4 0" strokeWidth="1.2" />
+        <path d="M-12 8 Q-4 14 0 22" strokeWidth="1" />
+        <path d="M12 8 Q4 14 0 22" strokeWidth="1" />
+      </g>
+      <path d="M-10 -22 Q-2 -27 6 -25" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" opacity="0.28" />
+      {cinta && (
+        <g stroke={TINTA} strokeWidth="1.3" strokeLinejoin="round">
+          <path d="M-21 -14 Q0 -21 21 -14 L21 -8 Q0 -15 -21 -8 Z" fill={cinta} />
+          <path d="M-3 -12 L-8 6 L-3 8 L0 -8 L3 8 L8 6 L3 -12 Z" fill={cinta} />
+        </g>
+      )}
+    </g>
+  );
+}
+
 /* -------------------------------------------------------------------------
  * Quién tira
  * ----------------------------------------------------------------------- */

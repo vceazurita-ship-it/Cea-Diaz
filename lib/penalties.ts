@@ -36,18 +36,19 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/ty
  *      la portería, no hay seis botones y ya. Cuanto más lejos del portero
  *      caiga el balón, mejor; pero pegarse al palo o al larguero se paga.
  *
- *   3. **Medir la fuerza.** Se mantiene pulsado y se suelta. Pasarse hace
+ *   3. **Medir la fuerza.** Se tira del balón hacia atrás, como de un
+ *      tirachinas, y se suelta: cuanto más se estira, más fuerte. Pasarse hace
  *      que el balón **se suba y se abra** —cuanto más pasado, más— y por eso
  *      un tiro a la escuadra reventado se va fuera y el mismo tiro medido
  *      entra. Quedarse corto le da tiempo al portero a llegar a casi media
  *      portería.
  *
- *   4. **Clavar la puntería.** Puesta la fuerza, una segunda barra corta y
- *      rápida cruza una diana: pararla en el centro manda el balón justo
- *      adonde se apuntó, y pararla a un lado lo abre a ese lado. Es el
- *      efecto, y es lo que hace que dos tiros al mismo sitio no sean el
- *      mismo tiro. La precisión de la carta del que tira estrecha el
- *      abanico, que es para lo que sirve elegir jugador.
+ *   4. **Clavar la puntería.** Con el balón estirado la mira tiembla —más
+ *      cuanta más fuerza—: soltar cuando pasa por el centro manda el balón
+ *      justo adonde se apuntó, y soltar con ella a un lado lo abre a ese
+ *      lado. Es el pulso, y es lo que hace que dos tiros al mismo sitio no
+ *      sean el mismo tiro. La precisión de la carta del que tira calma el
+ *      temblor, que es para lo que sirve elegir jugador.
  *
  *   5. **No repetir.** Benji **se acuerda**: los rincones por los que ya le
  *      han marcado son los que vigila en los tiros siguientes, y cuantos más
@@ -624,10 +625,10 @@ function overshoot(power: number, band: [number, number]): number {
  * que luego se resuelve el tiro.
  */
 /**
- * Cuánto se abre el balón cuando la segunda barra —la de la puntería— se
- * para en una punta en vez de en la diana, medido en tanto por ciento de
- * portería. Es medio ancho de portería en el peor caso, que es mucho: el
- * castigo tiene que verse, o la barra no serviría para nada.
+ * Cuánto se abre el balón cuando se suelta con la mira temblando del todo a
+ * un lado, medido en tanto por ciento de portería. Es medio ancho de
+ * portería en el peor caso, que es mucho: el castigo tiene que verse, o el
+ * pulso no serviría para nada.
  */
 export const ABANICO = 26;
 
@@ -670,7 +671,7 @@ function landingOf(
   const away = Math.abs(accuracy) > 0.06 ? Math.sign(accuracy) : seed % 2 === 0 ? 1 : -1;
 
   const at = {
-    // El efecto: lo que se desvía por no clavar la segunda barra.
+    // Lo que se desvía por soltar con la mira temblando hacia un lado.
     x: aim.x + accuracy * ABANICO * spread + drift * open * away,
     // Hacia arriba, que en esta portería es hacia el 0.
     y: aim.y - drift * up,
@@ -712,7 +713,7 @@ export function resolveShot(
   keeperId: PenaltyZoneId,
   seed = 0,
   kind: ShotKind = 'normal',
-  /** La segunda barra: 0 clavada, ±1 parada en una punta. */
+  /** El pulso al soltar: 0 con la mira en su sitio, ±1 temblando del todo a un lado. */
   accuracy = 0,
   /** Lo que abre el abanico este jugador: menos de 1, menos se le va. */
   spread = 1,
@@ -732,7 +733,7 @@ export function resolveShot(
       landing: at,
       drift,
       why: fallado
-        ? 'Se te ha ido fuera: fallaste la puntería y el balón se ha abierto hacia ese lado. Para la segunda barra en la diana.'
+        ? 'Se te ha ido fuera: fallaste la puntería y el balón se ha abierto hacia ese lado. Suelta cuando la mira pase por el centro.'
         : drift
         ? special
           ? `${type.article === 'la' ? 'La' : 'El'} ${type.name} se te ha ido fuera: te has pasado de fuerza. Suéltalo dentro de su franja.`
@@ -787,7 +788,7 @@ export function resolveShot(
       why: soft
         ? `Tiro blando: con esa fuerza le da tiempo a llegar hasta ${keeper.label}. Aunque el sitio sea bueno, hay que pegarle.`
         : fallado
-          ? `Fallaste la puntería y el balón se abrió justo adonde él volaba (${keeper.label}). Clava la segunda barra.`
+          ? `Fallaste la puntería y el balón se abrió justo adonde él volaba (${keeper.label}). Suelta cuando la mira esté quieta en el centro.`
           : special
           ? `Ni con ${type.article} ${type.name}: Benji voló ${keeper.label} y se lo has puesto en las manos. Al lado contrario.`
           : `Benji voló ${keeper.label} y lo has puesto a su alcance. La próxima, al otro lado.`,
@@ -814,7 +815,7 @@ export function resolveShot(
  * tanda se acababa siendo siempre la misma: metías los que metías y ya.
  *
  * Los puntos ponen ese motivo. Un gol suma, pero suma más lejos de los
- * guantes, suma más si cae en la diana, suma más si la segunda barra iba
+ * guantes, suma más si cae en la diana, suma más si la mira iba
  * clavada y suma más si el tiro era uno de los de la serie. Así hay un
  * número que subir, un récord que batir y una razón para arriesgar en el
  * quinto cuando ya llevas cuatro dentro.
@@ -830,7 +831,7 @@ export const PUNTOS = {
   colocacion: 2,
   /** Lo más que puede dar colocarla. */
   colocacionTope: 140,
-  /** Clavar la segunda barra, y quedarse cerca. */
+  /** Soltar con la mira en el centro, y quedarse cerca. */
   clavada: 80,
   cerca: 35,
   /** Por cada rayo que costaba el tiro especial. */
@@ -856,7 +857,7 @@ export interface ShotScore {
 export function scoreShot(opts: {
   shot: PenaltyShot;
   keeper: PenaltyZoneId;
-  /** La segunda barra, de -1 a 1. */
+  /** El pulso al soltar, de -1 a 1. */
   accuracy: number;
   kind: ShotKind;
   dianas: Diana[];
