@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import {
@@ -64,8 +64,46 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
   const notify = useToast();
   const [status, setStatus] = useState<FootbarStatus | null>(null);
   const [busy, setBusy] = useState<ProfileId | 'todos' | null>(null);
+  /** El último fallo, a la vista en la sección: el aviso flotante se va en tres segundos. */
+  const [problem, setProblem] = useState<{ message: string; retry?: string } | null>(null);
+  const leaving = useRef<number>();
 
   const reload = useCallback(async () => setStatus(await footbarStatus()), []);
+
+  // Al volver a la app sin pasar por la vuelta de Footbar —con «atrás», o
+  // desde la ventana en la que la abre la app instalada— el botón se quedaba
+  // en «Abriendo Footbar…», desactivado para siempre: se suelta y se relee
+  // quién está conectado, por si el permiso se dio en esa otra ventana.
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== 'visible' || leaving.current === undefined) return;
+      window.clearTimeout(leaving.current);
+      leaving.current = undefined;
+      setBusy(null);
+      void reload();
+    };
+    const restored = (event: PageTransitionEvent) => {
+      if (event.persisted) back();
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('focus', back);
+    window.addEventListener('pageshow', restored);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      window.removeEventListener('focus', back);
+      window.removeEventListener('pageshow', restored);
+      window.clearTimeout(leaving.current);
+    };
+  }, [reload]);
+
+  const fail = useCallback(
+    (error: unknown, retry?: string) => {
+      const message = error instanceof Error && error.message ? error.message : 'No ha podido ser.';
+      setProblem({ message, retry });
+      notify({ message, icon: '⚠️', tone: 'danger', duration: 7000 });
+    },
+    [notify],
+  );
 
   useEffect(() => {
     void reload();
@@ -83,8 +121,9 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
                 message: `Footbar de ${name} conectado${back.nuevas ? `: ${back.nuevas} sesiones traídas` : ''}.`,
                 icon: '🛰️',
               }
-            : { message: back.motivo ?? 'No se ha podido conectar Footbar.', icon: '⚠️', tone: 'danger' },
+            : { message: back.motivo ?? 'No se ha podido conectar Footbar.', icon: '⚠️', tone: 'danger', duration: 7000 },
         );
+        if (!back.ok) setProblem({ message: back.motivo ?? 'No se ha podido conectar Footbar.' });
         if (back.ok) void store.syncNow();
       }
     } catch {
@@ -94,24 +133,40 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
 
   const connect = async (profileId: ProfileId) => {
     setBusy(profileId);
+    setProblem(null);
+    let url: string;
     try {
-      window.location.href = await footbarConnectUrl(profileId);
-    } catch (problem) {
-      notify({ message: problem instanceof Error ? problem.message : 'No ha podido ser.', icon: '⚠️', tone: 'danger' });
+      url = await footbarConnectUrl(profileId);
+    } catch (error) {
+      fail(error);
       setBusy(null);
+      return;
     }
+
+    // Si a los ocho segundos seguimos aquí y a la vista, lo más seguro es que
+    // el navegador no haya salido hacia Footbar: se dice, y queda un enlace
+    // para abrirla a mano.
+    window.clearTimeout(leaving.current);
+    leaving.current = window.setTimeout(() => {
+      leaving.current = undefined;
+      if (document.visibilityState !== 'visible') return;
+      setBusy(null);
+      fail(new Error('Si no se ha abierto la página de Footbar, ábrela desde aquí.'), url);
+    }, 8000);
+    window.location.assign(url);
   };
 
   const update = async (profileId?: ProfileId) => {
     setBusy(profileId ?? 'todos');
+    setProblem(null);
     try {
       const results = await footbarUpdate(profileId);
       // Lo nuevo está ya en la nube: se baja para que se vea aquí.
       await store.syncNow();
       const failed = results.some((result) => result.error);
       notify({ message: summary(results), icon: failed ? '⚠️' : '🛰️', tone: failed ? 'danger' : 'neutral' });
-    } catch (problem) {
-      notify({ message: problem instanceof Error ? problem.message : 'No ha podido ser.', icon: '⚠️', tone: 'danger' });
+    } catch (error) {
+      fail(error);
     } finally {
       setBusy(null);
       void reload();
@@ -120,11 +175,12 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
 
   const disconnect = async (profileId: ProfileId, name: string) => {
     setBusy(profileId);
+    setProblem(null);
     try {
       await footbarDisconnect(profileId);
       notify({ message: `Footbar de ${name} desconectado. Sus sesiones siguen en la app.`, icon: '🔌' });
-    } catch (problem) {
-      notify({ message: problem instanceof Error ? problem.message : 'No ha podido ser.', icon: '⚠️', tone: 'danger' });
+    } catch (error) {
+      fail(error);
     } finally {
       setBusy(null);
       void reload();
@@ -145,6 +201,20 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
           con la foto.
         </p>
       </div>
+
+      {problem && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-400/50 bg-red-400/10 p-3 text-xs leading-relaxed t-2"
+        >
+          <p>⚠️ {problem.message}</p>
+          {problem.retry && (
+            <a href={problem.retry} className="mt-1 inline-block font-bold underline">
+              Abrir la página de Footbar
+            </a>
+          )}
+        </div>
+      )}
 
       {status === null ? (
         <p className="text-xs t-3">Mirando la conexión…</p>
