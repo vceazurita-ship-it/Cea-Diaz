@@ -6,6 +6,7 @@ import { MarksTracker } from '@/components/challenges/MarksTracker';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { DailyGameCard } from '@/components/games/DailyGameCard';
 import { Campograma } from '@/components/team/Campograma';
+import { LigaCromos } from '@/components/team/LigaCromos';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { NoteField } from '@/components/ui/NoteField';
@@ -455,6 +456,19 @@ export function ChallengesPanel({
           kid={kid}
           headingClass={headingClass}
           lineup={lineup}
+        />
+      )}
+
+      {/* Y con el once hecho, a jugar la liga. */}
+      {rewardKind === 'cromo' && (
+        <LigaCromos
+          profileId={profile.id}
+          name={profile.name}
+          date={date}
+          rewards={rewards}
+          lineup={lineup}
+          kid={kid}
+          headingClass={headingClass}
         />
       )}
 
