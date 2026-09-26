@@ -55,7 +55,7 @@ function inTime<T>(promise: Promise<T>, ms: number, message: string): Promise<T>
   });
 }
 
-async function request<T>(init?: RequestInit): Promise<T> {
+async function request<T>(init?: RequestInit, reintentar = true): Promise<T> {
   const client = supabase();
   // La sesión de Supabase a veces se queda esperando a renovarse: mejor un
   // aviso a los diez segundos que un botón que no hace nada.
@@ -69,29 +69,50 @@ async function request<T>(init?: RequestInit): Promise<T> {
   const token = session?.data.session?.access_token;
   if (!token) throw new Error('Hay que entrar en la cuenta de casa para conectar Footbar.');
 
-  const response = await inTime(
-    fetch('/api/footbar', {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    }),
-    WAIT_MS,
-    'El servidor no contesta. Mira la conexión a internet y prueba otra vez.',
-  ).catch((problem: unknown) => {
-    // `fetch` sólo falla así sin red: se dice en cristiano.
-    if (problem instanceof TypeError) throw new Error('Sin conexión con el servidor. Mira internet y prueba otra vez.');
-    throw problem;
-  });
+  const pedir = () =>
+    inTime(
+      fetch('/api/footbar', {
+        ...init,
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      }),
+      WAIT_MS,
+      'El servidor de la app no contesta. Prueba otra vez en un momento.',
+    );
+
+  // `fetch` falla sin respuesta no sólo sin red: el móvil, al volver a la app
+  // desde otra, tarda un instante en despertar la conexión y la primera
+  // petición se pierde. Así que se reintenta dos veces antes de rendirse, y
+  // sólo se habla de internet si el aparato dice de verdad que no lo tiene.
+  let response: Response | undefined;
+  let ultimo: unknown;
+  // «Actualizar» no se repite: si la primera sí llegó, gastaría dos veces el cupo de Footbar.
+  for (const espera of reintentar ? [0, 700, 1800] : [0]) {
+    if (espera) await new Promise((resolve) => window.setTimeout(resolve, espera));
+    try {
+      response = await pedir();
+      break;
+    } catch (problem) {
+      ultimo = problem;
+      if (!(problem instanceof TypeError)) throw problem;
+    }
+  }
+  if (!response) {
+    if (navigator.onLine === false) throw new Error('El móvil dice que no tiene internet. Conéctate y prueba otra vez.');
+    const detalle = ultimo instanceof Error && ultimo.message ? ` (${ultimo.message})` : '';
+    throw new Error(`No se ha podido llegar al servidor de la app${detalle}. Prueba otra vez en un momento.`);
+  }
   const payload = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!response.ok) throw new Error(payload?.error ?? 'No se ha podido hablar con Footbar.');
   if (!payload) throw new Error('El servidor no ha devuelto nada.');
   return payload;
 }
 
-const action = <T>(body: Record<string, unknown>) =>
-  request<T>({ method: 'POST', body: JSON.stringify(body) });
+const action = <T>(body: Record<string, unknown>, reintentar = true) =>
+  request<T>({ method: 'POST', body: JSON.stringify(body) }, reintentar);
 
 /** No lanza: sin nube, sin sesión o sin configurar, la respuesta es «no disponible». */
 export async function footbarStatus(): Promise<FootbarStatus> {
@@ -118,7 +139,7 @@ export async function footbarConnectUrl(profileId: ProfileId): Promise<string> {
 
 /** Revisa ya, sin esperar a las 21:00. Sin perfil, todos los conectados. */
 export async function footbarUpdate(profileId?: ProfileId): Promise<FootbarSyncResult[]> {
-  return (await action<{ results: FootbarSyncResult[] }>({ accion: 'actualizar', profileId })).results;
+  return (await action<{ results: FootbarSyncResult[] }>({ accion: 'actualizar', profileId }, false)).results;
 }
 
 export async function footbarDisconnect(profileId: ProfileId): Promise<void> {
