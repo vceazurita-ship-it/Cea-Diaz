@@ -31,6 +31,19 @@ function missingSetup(): string | null {
   return null;
 }
 
+/**
+ * Quién llama, con plazo: si Supabase no contesta, mejor decirlo a los ocho
+ * segundos que dejar al móvil esperando hasta que Vercel corte la función.
+ * Lo que tarda queda en el registro de Vercel, para saber dónde se atasca.
+ */
+async function ownerOf(request: Request, accion: string): Promise<string | null | 'lento'> {
+  const t0 = Date.now();
+  const lento = new Promise<'lento'>((resolve) => setTimeout(() => resolve('lento'), 8000));
+  const owner = await Promise.race([userFromRequest(request), lento]);
+  console.info(`[footbar] ${accion}: sesión en ${Date.now() - t0} ms${owner === 'lento' ? ' (sin respuesta de Supabase)' : ''}`);
+  return owner;
+}
+
 const isKid = (id: unknown): id is ProfileId =>
   typeof id === 'string' && id in PROFILES_BY_ID && PROFILES_BY_ID[id as ProfileId].kind === 'kid';
 
@@ -38,7 +51,8 @@ export async function GET(request: Request) {
   const setup = missingSetup();
   if (setup) return NextResponse.json({ configured: false, reason: setup, links: [] });
 
-  const owner = await userFromRequest(request);
+  const owner = await ownerOf(request, 'estado');
+  if (owner === 'lento') return bad('La cuenta de casa (Supabase) no responde ahora. Prueba en un momento.', 504);
   if (!owner) return bad('Hay que entrar en la cuenta de casa.', 401);
 
   try {
@@ -56,7 +70,8 @@ export async function POST(request: Request) {
   const setup = missingSetup();
   if (setup) return bad(setup, 503);
 
-  const owner = await userFromRequest(request);
+  const owner = await ownerOf(request, 'acción');
+  if (owner === 'lento') return bad('La cuenta de casa (Supabase) no responde ahora. Prueba en un momento.', 504);
   if (!owner) return bad('Hay que entrar en la cuenta de casa.', 401);
 
   const body = (await request.json().catch(() => ({}))) as { accion?: string; profileId?: string };

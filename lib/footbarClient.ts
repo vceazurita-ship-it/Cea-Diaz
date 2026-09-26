@@ -37,6 +37,11 @@ export const FOOTBAR_RETURN_KEY = 'habitos-familia:footbar-vuelta';
 
 /** Lo que se espera al servidor antes de decir que no contesta: la revisión puede tardar. */
 const WAIT_MS = 45_000;
+/** Lo que se espera en cada intento de lo que es rápido (conectar, consultar): responde en un segundo. */
+const INTENTO_MS = 12_000;
+
+/** Un intento que se ha quedado sin respuesta en su plazo. */
+class Plazo extends Error {}
 
 /** Una promesa con plazo: si no llega a tiempo, falla con ese mensaje en vez de quedarse colgada. */
 function inTime<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -69,39 +74,57 @@ async function request<T>(init?: RequestInit, reintentar = true): Promise<T> {
   const token = session?.data.session?.access_token;
   if (!token) throw new Error('Hay que entrar en la cuenta de casa para conectar Footbar.');
 
-  const pedir = () =>
-    inTime(
-      fetch('/api/footbar', {
+  /**
+   * Un intento, con su plazo. Al vencer se **corta** la petición (no sólo se
+   * deja de esperar): si el móvil la había mandado por una conexión que se
+   * quedó muerta al dormirse o al cambiar de wifi a datos, cortarla obliga a
+   * que el siguiente intento abra una nueva.
+   */
+  const pedir = async (plazo: number): Promise<Response> => {
+    const corte = new AbortController();
+    const timer = window.setTimeout(() => corte.abort(), plazo);
+    try {
+      return await fetch('/api/footbar', {
         ...init,
         cache: 'no-store',
+        signal: corte.signal,
         headers: {
           Authorization: `Bearer ${token}`,
           ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
         },
-      }),
-      WAIT_MS,
-      'El servidor de la app no contesta. Prueba otra vez en un momento.',
-    );
+      });
+    } catch (problem) {
+      throw corte.signal.aborted ? new Plazo() : problem;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  };
 
-  // `fetch` falla sin respuesta no sólo sin red: el móvil, al volver a la app
-  // desde otra, tarda un instante en despertar la conexión y la primera
-  // petición se pierde. Así que se reintenta dos veces antes de rendirse, y
-  // sólo se habla de internet si el aparato dice de verdad que no lo tiene.
+  // `fetch` falla —o se queda colgado— no sólo sin red: el móvil, al volver a
+  // la app desde otra, puede tardar en despertar la conexión o seguir con una
+  // que ya no sirve. Así que se reintenta dos veces antes de rendirse, y sólo
+  // se habla de internet si el aparato dice de verdad que no lo tiene.
+  // «Actualizar» no se repite: si la primera sí llegó, gastaría dos veces el
+  // cupo de Footbar; por eso también espera más, lo que puede tardar la revisión.
   let response: Response | undefined;
   let ultimo: unknown;
-  // «Actualizar» no se repite: si la primera sí llegó, gastaría dos veces el cupo de Footbar.
   for (const espera of reintentar ? [0, 700, 1800] : [0]) {
     if (espera) await new Promise((resolve) => window.setTimeout(resolve, espera));
     try {
-      response = await pedir();
+      response = await pedir(reintentar ? INTENTO_MS : WAIT_MS);
       break;
     } catch (problem) {
       ultimo = problem;
-      if (!(problem instanceof TypeError)) throw problem;
+      if (!(problem instanceof TypeError) && !(problem instanceof Plazo)) throw problem;
     }
   }
   if (!response) {
     if (navigator.onLine === false) throw new Error('El móvil dice que no tiene internet. Conéctate y prueba otra vez.');
+    if (ultimo instanceof Plazo) {
+      throw new Error(
+        'El servidor de la app no contesta desde este móvil. Prueba con la otra red (wifi o datos) o abre la app en el navegador en vez de la instalada.',
+      );
+    }
     const detalle = ultimo instanceof Error && ultimo.message ? ` (${ultimo.message})` : '';
     throw new Error(`No se ha podido llegar al servidor de la app${detalle}. Prueba otra vez en un momento.`);
   }
