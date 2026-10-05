@@ -3,12 +3,14 @@
 import { useId, useMemo, useState } from 'react';
 import { MetricControl } from '@/components/controls/MetricControl';
 import { PlanHint } from '@/components/controls/PlanHint';
+import { UsualHint } from '@/components/controls/UsualHint';
 import type { ControlVariant } from '@/components/controls/types';
 import { PriorityChip } from '@/components/experts/CriteriaSheet';
 import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
+import { isFolded, usualFills, type Habitual, type UsualFill } from '@/lib/habitual';
 import type { PlannedMetric } from '@/lib/planToday';
 import { computeCategoryScore, percent } from '@/lib/scoring';
 import type {
@@ -44,6 +46,10 @@ interface CategoryCardProps {
    * casilla vacía en una casilla que sabe lo que se esperaba de ella.
    */
   planned?: Record<string, PlannedMetric>;
+  /** Lo aprendido de lo ya rellenado: lo de siempre y lo que casi no se usa. */
+  habitual?: Habitual;
+  /** Poner de golpe lo de siempre; quien lo llama ofrece deshacerlo. */
+  onFillUsual?: (fills: UsualFill[], where: string) => void;
 }
 
 export function CategoryCard({
@@ -58,9 +64,12 @@ export function CategoryCard({
   onNoteChange,
   hints,
   planned,
+  habitual,
+  onFillUsual,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showWhy, setShowWhy] = useState(false);
+  const [showRare, setShowRare] = useState(false);
   const score = computeCategoryScore(category, values);
   const kid = variant === 'kid';
   /** El campo y el cuento: las dos secciones que hablan su propio idioma. */
@@ -86,6 +95,23 @@ export function CategoryCard({
   }, [category, profileId]);
 
   const pending = score.total - score.filled;
+
+  /* Lo que el historial sabe de esta tarjeta: qué se puede poner de golpe y
+     qué preguntas se contestan tan poco que mejor plegadas. Si todo lo que
+     queda en blanco es de lo poco usado, no se pliega nada: una tarjeta
+     abierta y vacía no ayuda a nadie. */
+  const fills = useMemo(
+    () => (habitual ? usualFills(category.metrics, habitual, values) : []),
+    [category.metrics, habitual, values],
+  );
+  const { shown, folded } = useMemo(() => {
+    if (!habitual || category.layout === 'sports') return { shown: category.metrics, folded: [] };
+    const rare = category.metrics.filter((metric) => isFolded(metric, habitual, values));
+    if (rare.length === 0 || rare.length === category.metrics.length) {
+      return { shown: category.metrics, folded: [] };
+    }
+    return { shown: category.metrics.filter((m) => !rare.includes(m)), folded: rare };
+  }, [category.metrics, category.layout, habitual, values]);
   const complete = score.total > 0 && pending === 0;
 
   /**
@@ -99,6 +125,39 @@ export function CategoryCard({
     if (ids.length === 0) return null;
     return { total: ids.length, done: ids.filter((id) => values[id] !== undefined).length };
   }, [category.metrics, planned, values]);
+
+  function renderMetric(metric: Metric) {
+    const plannedHere = planned?.[metric.id];
+    return (
+      <div key={metric.id}>
+        <MetricControl
+          metric={metric}
+          value={values[metric.id]}
+          onChange={(value) => onChange(metric.id, value)}
+          variant={variant}
+        />
+        {/* Y debajo, lo que la semana decía de esta casilla; si la semana no
+            dice nada, lo que se suele contestar. */}
+        {plannedHere && plannedHere.blocks.length > 0 ? (
+          <PlanHint
+            metric={metric}
+            planned={plannedHere}
+            value={values[metric.id]}
+            onFill={(value) => onChange(metric.id, value)}
+            kid={kid}
+          />
+        ) : (
+          <UsualHint
+            metric={metric}
+            stat={habitual?.stats[metric.id]}
+            value={values[metric.id]}
+            onFill={(value) => onChange(metric.id, value)}
+            kid={kid}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <section className={`relative ${kid ? 'card-kid overflow-hidden' : 'card overflow-hidden'}`}>
@@ -198,6 +257,21 @@ export function CategoryCard({
 
       {open && (
         <div id={panelId} className="animate-floatUp">
+          {/* Todo lo que en esta tarjeta se contesta siempre igual, de un toque. */}
+          {fills.length > 1 && onFillUsual && (
+            <div className="flex items-center gap-2 px-4 pt-3">
+              <button
+                type="button"
+                onClick={() => onFillUsual(fills, category.label)}
+                className="usual-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5
+                  text-xs font-semibold t-1"
+                title={fills.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+              >
+                <span aria-hidden>✨</span> Como siempre ({fills.length})
+              </button>
+              <span className="hidden text-[11px] t-3 sm:inline">lo que contestas igual casi todos los días</span>
+            </div>
+          )}
           <div className={`p-4 ${kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'}`}>
             {category.layout === 'sports' ? (
               <SportsPanel
@@ -210,24 +284,23 @@ export function CategoryCard({
                 planned={planned}
               />
             ) : (
-              category.metrics.map((metric) => (
-                <div key={metric.id}>
-                  <MetricControl
-                    metric={metric}
-                    value={values[metric.id]}
-                    onChange={(value) => onChange(metric.id, value)}
-                    variant={variant}
-                  />
-                  {/* Y debajo, lo que la semana decía de esta casilla. */}
-                  <PlanHint
-                    metric={metric}
-                    planned={planned?.[metric.id]}
-                    value={values[metric.id]}
-                    onFill={(value) => onChange(metric.id, value)}
-                    kid={kid}
-                  />
-                </div>
-              ))
+              <>
+                {(showRare ? [...shown, ...folded] : shown).map(renderMetric)}
+                {folded.length > 0 && (
+                  <div className={kid ? '' : 'pt-2'}>
+                    <button
+                      type="button"
+                      onClick={() => setShowRare((v) => !v)}
+                      aria-expanded={showRare}
+                      className="btn-ghost w-full justify-center px-3 py-1.5 text-xs t-3"
+                    >
+                      {showRare
+                        ? '▴ Ocultar las que casi no usas'
+                        : `＋ ${folded.length} ${folded.length === 1 ? 'pregunta' : 'preguntas'} que casi nunca contestas`}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

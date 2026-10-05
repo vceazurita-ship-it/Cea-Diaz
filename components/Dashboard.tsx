@@ -31,6 +31,7 @@ import {
 } from '@/lib/games';
 import { gpsEnabledFor } from '@/lib/gps';
 import { getCategories } from '@/lib/habits';
+import { learnHabits, usualFills, type UsualFill } from '@/lib/habitual';
 import { PENALTY_NOTE_KEY, encodePenaltyResult } from '@/lib/penalties';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
@@ -170,11 +171,35 @@ export function Dashboard({
     [profile.id, planned, values],
   );
 
+  /**
+   * Lo aprendido de lo ya rellenado: qué se contesta siempre igual y qué casi
+   * nunca. Sólo mira los días anteriores al que se ve, así que no cambia
+   * mientras se rellena: las sugerencias no bailan bajo el dedo.
+   */
+  const habitual = useMemo(
+    () => learnHabits(profile.id, date, store.entries),
+    [profile.id, date, store.entries],
+  );
+
+  /** Todo lo que hoy se puede poner «como siempre», en todas las tarjetas. */
+  const usualAll = useMemo(
+    () => usualFills(categories.flatMap((category) => category.metrics), habitual, values),
+    [categories, habitual, values],
+  );
+
   /** Cumplimiento por categoría, para saber cuáles quedan a medias. */
   const scoreById = useMemo(
     () => new Map(dayScore.categories.map((category) => [category.categoryId, category])),
     [dayScore],
   );
+
+  /** Tarjetas ya completas al abrir el día, y la primera con algo pendiente. */
+  const completeIds = new Set(
+    dayScore.categories
+      .filter((category) => category.total > 0 && category.filled >= category.total)
+      .map((category) => category.categoryId),
+  );
+  const firstPendingId = categories.find((category) => !completeIds.has(category.id))?.id;
 
   const visibleCategories = onlyPending
     ? categories.filter((category) => {
@@ -245,6 +270,25 @@ export function Dashboard({
           ? `«${fills[0].label}», registrado según la semana. Corrígelo si no fue así.`
           : `${fills.length} casillas puestas según la semana. Corrige las que no fueran así.`,
       icon: '🗓️',
+      action: { label: 'Deshacer', onClick: () => store.restore(before) },
+    });
+  };
+
+  /**
+   * Poner de golpe lo que se contesta siempre igual. Como lo de la semana: lo
+   * pide quien registra, se dice qué se ha puesto y se puede deshacer.
+   */
+  const fillUsual = (list: UsualFill[], where?: string) => {
+    if (list.length === 0) return;
+    const before = store.snapshot();
+    for (const fill of list) store.setValue(profile.id, date, fill.metricId, fill.value);
+
+    notify({
+      message:
+        list.length === 1
+          ? `«${list[0].label}», como siempre. Corrígelo si hoy no fue así.`
+          : `${list.length} respuestas puestas como siempre${where ? ` en ${where.toLowerCase()}` : ''}. Corrige las que hoy fueran distintas.`,
+      icon: '✨',
       action: { label: 'Deshacer', onClick: () => store.restore(before) },
     });
   };
@@ -431,6 +475,18 @@ export function Dashboard({
               </button>
             )}
 
+            {/* Lo que se contesta igual casi todos los días, de una vez. */}
+            {usualAll.length > 0 && (
+              <button
+                type="button"
+                onClick={() => fillUsual(usualAll)}
+                className="btn usual-chip border px-3 py-1.5 text-xs font-semibold t-1"
+                title={usualAll.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+              >
+                ✨ Como siempre ({usualAll.length})
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setOnlyPending((v) => !v)}
@@ -520,7 +576,7 @@ export function Dashboard({
               </button>
             </div>
           ) : (
-            visibleCategories.map((category, index) => (
+            visibleCategories.map((category) => (
               <CategoryCard
                 key={category.id}
                 category={category}
@@ -529,9 +585,16 @@ export function Dashboard({
                 onChange={handleChange}
                 variant={kid ? 'kid' : 'adult'}
                 skin={skin}
-                defaultOpen={kid ? index === 0 : true}
+                defaultOpen={
+                  // Las completas, plegadas: ya no piden nada. A los peques,
+                  // sólo la primera que aún tiene algo por contestar.
+                  !completeIds.has(category.id) &&
+                  (kid ? category.id === firstPendingId : true)
+                }
                 hints={marks}
                 planned={planned}
+                habitual={habitual}
+                onFillUsual={fillUsual}
                 note={notes[category.id] ?? ''}
                 onNoteChange={(text) => writeNote(category.id, text)}
               />

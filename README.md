@@ -1848,6 +1848,34 @@ En las tarjetas de deporte la pista es aún más directa: si hoy había entreno 
 la propia tarjeta lo dice antes de tocarla. Todo sale de `lib/planToday.ts`, que cruza la
 semana tipo con el día que se está mirando.
 
+### Lo de siempre: el registro aprende de lo ya rellenado
+
+Mirando lo apuntado salían dos cosas. Media lista se contesta igual casi todos los
+días —el desayuno, la proteína, la reunión con el cuerpo técnico, diez vasos de agua—
+y había que ir casilla a casilla a repetir lo de ayer. Y otra parte casi nunca se
+contesta, y estaba ahí cada día empujando hacia abajo lo que sí importa.
+
+`lib/habitual.ts` lo aprende perfil a perfil de las **seis semanas anteriores** al día
+que se mira (con menos de cinco días registrados no dice nada), y el registro lo usa
+así:
+
+- **Debajo de cada casilla en blanco**, `↺ Lo de siempre: 10 vasos`, que se pone de un
+  toque. Si la respuesta no se repite pero la cifra baila poco —7 h, 7¼, 7½— ofrece
+  `Lo normal`, la mediana. Cuando la semana ya dice algo de esa casilla, manda la
+  semana y esto no sale.
+- **`✨ Como siempre (N)`**, en la barra del día y arriba de cada tarjeta: pone de
+  una vez lo que se contesta igual en al menos ocho de cada diez respuestas y en la
+  mayoría de los días. Con su deshacer.
+- **Lo que casi nunca se contesta** (menos de un día de cada cuatro) va plegado al
+  final de su tarjeta, en `＋ N preguntas que casi nunca contestas`. Si se rellena,
+  vuelve a su sitio; y si en una tarjeta todo es de lo poco usado, no se pliega nada.
+- **Las tarjetas ya completas abren plegadas**, y a los peques se les abre la primera
+  que aún tiene algo pendiente, no siempre la primera.
+
+Lo mismo que con la semana: nada se apunta solo. Y quedan fuera del relleno de golpe
+los «no» habituales —apuntar fallos sin mirarlos no es un atajo—, lo que va por
+actividades —ir a natación depende del horario de ese día—, las marcas y los techos.
+
 ### Cada casa, la suya
 
 La mecánica es la misma para los seis; lo que cambia es el rótulo y el adorno.

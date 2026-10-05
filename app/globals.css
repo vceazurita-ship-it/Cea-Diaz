@@ -245,6 +245,19 @@ button:active:not(:disabled),
     box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 55%, transparent);
   }
 
+  /* «Lo de siempre»: una sugerencia, no una respuesta. Borde punteado de
+     acento para que se distinga a la primera de lo ya contestado. */
+  .usual-chip {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .usual-chip:hover,
+  .usual-chip:focus-visible {
+    border-style: solid;
+    background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
   /* Bordes */
   .hairline {
     border-color: var(--border);
