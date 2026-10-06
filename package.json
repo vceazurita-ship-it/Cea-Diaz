@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "comprobar:nube": "node scripts/comprobar-nube.mjs"
+    "comprobar:nube": "node scripts/comprobar-nube.mjs",
+    "footbar:bajar": "node scripts/footbar-bajar.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
