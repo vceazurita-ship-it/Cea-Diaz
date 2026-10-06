@@ -748,7 +748,9 @@ export class Estadio3D {
     }
 
     // La trayectoria prevista, con puntitos: de dónde sale y adónde va.
-    const muestra = this.curva({ landing: aim, kind: opts.kind ?? 'normal', curva: 0 });
+    // El meteorito sube al espacio antes de caer: de guía vale la caída del
+    // Halcón, que acaba igual y no se sale de la pantalla.
+    const muestra = this.curva({ landing: aim, kind: opts.kind === 'meteorito' ? 'halcon' : opts.kind ?? 'normal', curva: 0 });
     this.puntos.visible = opts.zona !== undefined && opts.zona !== null;
     this.puntos.children.forEach((s, i) => {
       const t = (i + 1) / (this.puntos.children.length + 1);
@@ -1599,7 +1601,8 @@ export class Estadio3D {
     // Se acumula en vez de restar al reloj porque los del cole frenan el
     // tiempo al llegar a la portería: la cámara lenta de los dibujos.
     const antes = clamp01((j.e - kick) / vuelo);
-    const lento = j.e >= kick && antes < 1 ? this.ritmo(plan, antes) : 1;
+    // En la repetición ya va todo a cámara lenta: no se frena dos veces.
+    const lento = j.cam === 'tele' && j.e >= kick && antes < 1 ? this.ritmo(plan, antes) : 1;
     j.e += dt * 1000 * j.speed * lento;
     this.penumbra += ((lento < 1 ? 1 : 0) - this.penumbra) * Math.min(1, dt * 6);
     const bruto = j.e;

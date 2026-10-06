@@ -207,8 +207,8 @@ function Angulo({ grados, resuelto }: { grados: number; resuelto: boolean }) {
   const cx = 110;
   const cy = 120;
   const rad = (grados * Math.PI) / 180;
-  const x2 = cx + Math.cos(rad) * r;
-  const y2 = cy - Math.sin(rad) * r;
+  const x2 = Math.round(cx + Math.cos(rad) * r);
+  const y2 = Math.round(cy - Math.sin(rad) * r);
   const tipo = grados < 90 ? 'agudo' : grados === 90 ? 'recto' : 'obtuso';
   const color = tipo === 'agudo' ? '#16a34a' : tipo === 'recto' ? '#2563eb' : '#dc2626';
   const arco = 34;
@@ -219,7 +219,7 @@ function Angulo({ grados, resuelto }: { grados: number; resuelto: boolean }) {
       {grados === 90 ? (
         <path d={`M${cx + 18} ${cy} V${cy - 18} H${cx}`} fill="none" stroke={color} strokeWidth="3" />
       ) : (
-        <path d={`M${cx + arco} ${cy} A${arco} ${arco} 0 0 0 ${cx + Math.cos(rad) * arco} ${cy - Math.sin(rad) * arco}`} fill={`${color}33`} stroke={color} strokeWidth="3" />
+        <path d={`M${cx + arco} ${cy} A${arco} ${arco} 0 0 0 ${Math.round(cx + Math.cos(rad) * arco)} ${Math.round(cy - Math.sin(rad) * arco)}`} fill={`${color}33`} stroke={color} strokeWidth="3" />
       )}
       <circle cx={cx} cy={cy} r="4" fill={TINTA} />
       <text x="250" y="60" textAnchor="middle" fontSize="26" fontWeight="900" fill={color}>
@@ -323,7 +323,7 @@ function Poligono({ lados, medida, clase, resuelto }: { lados: number; medida?: 
   else if (clase === 'rectangulo') puntos = [[cx - 45, cy - 50], [cx - 45, cy + 45], [cx + 55, cy + 45]];
   else puntos = Array.from({ length: lados }, (_, i) => {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / lados;
-    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+    return [Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r)];
   });
   return (
     <Tapete alto={140}>

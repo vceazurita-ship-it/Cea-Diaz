@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Question } from '@/components/games/DailyGameCard';
 import { Material } from '@/components/games/Material';
 import { FondoTiro } from '@/components/games/PenaltyArt';
@@ -95,8 +95,13 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
 
   const idea = IDEA[reto.temas[0].id];
 
+  // Un doble toque rápido llega antes de que el botón se desactive: sin este
+  // seguro, la misma pregunta se anotaría dos veces.
+  const anotada = useRef(-1);
+
   const answer = (optionId: string) => {
-    if (chosen) return;
+    if (chosen || anotada.current === answered) return;
+    anotada.current = answered;
     setChosen(optionId);
     const hit = optionId === reto.questions[index].answer;
     onResult({ reto: reto.reto, correct: correct + (hit ? 1 : 0), answered: answered + 1, total, at: new Date().toISOString() });

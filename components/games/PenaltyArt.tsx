@@ -1610,11 +1610,15 @@ export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal
           {'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ¿?¡!ÁÉ'.split('').map((l, i) => {
             const a = i * 0.7;
             const r = 40 + i * 6;
+            // Redondeado: el servidor y el navegador no escriben igual el
+            // último decimal de un coseno, y React lo da por distinto.
+            const lx = Math.round(200 + Math.cos(a) * r);
+            const ly = Math.round(150 + Math.sin(a) * r * 0.7);
             return (
               <text
                 key={i}
-                x={200 + Math.cos(a) * r}
-                y={150 + Math.sin(a) * r * 0.7}
+                x={lx}
+                y={ly}
                 fontSize={14 + i}
                 fontWeight="900"
                 fill={['#fde047', '#ffffff', '#fb923c', '#f472b6'][i % 4]}
@@ -1622,7 +1626,7 @@ export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal
                 strokeWidth="3"
                 paintOrder="stroke"
                 textAnchor="middle"
-                transform={`rotate(${(i * 37) % 60 - 30} ${200 + Math.cos(a) * r} ${150 + Math.sin(a) * r * 0.7})`}
+                transform={`rotate(${(i * 37) % 60 - 30} ${lx} ${ly})`}
               >
                 {l}
               </text>
@@ -1645,7 +1649,7 @@ export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal
           <g transform="translate(290 0) rotate(18 0 150)">
             {Array.from({ length: 22 }, (_, i) => {
               const y = i * 15;
-              const x = Math.sin(i * 0.55) * 55;
+              const x = Math.round(Math.sin(i * 0.55) * 55);
               return (
                 <g key={i}>
                   <path d={`M${x} ${y} L${-x} ${y}`} stroke="#bbf7d0" strokeWidth="4" opacity="0.7" />
