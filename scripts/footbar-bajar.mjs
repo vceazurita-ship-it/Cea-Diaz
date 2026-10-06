@@ -68,7 +68,8 @@ const verHistorial = (h) => (h ? `${h.tengo}${h.total ? ` de ${h.total}` : ''}${
 console.log(`Historial de ${peque}: ${verHistorial(antes.historial)} · consultas libres esta semana: ${antes.cupo?.libres ?? '¿?'}`);
 
 let bajadas = 0;
-for (let vuelta = 1; vuelta <= 8; vuelta += 1) {
+let lentas = 0;
+for (let vuelta = 1; vuelta <= 10; vuelta += 1) {
   const t0 = Date.now();
   const r = await fetch(API, { method: 'POST', headers: cabeceras, body: JSON.stringify({ accion: 'actualizar', profileId: peque, todo: true }) });
   const j = await r.json().catch(() => ({}));
@@ -79,6 +80,9 @@ for (let vuelta = 1; vuelta <= 8; vuelta += 1) {
   }
   bajadas += res.added + res.updated;
   console.log(`Vuelta ${vuelta} (${Math.round((Date.now() - t0) / 1000)} s): ${res.added} nuevas, ${res.updated} corregidas.${res.error ? ` ${res.error}` : ''}`);
+  // Footbar tarda a ratos: un «no contesta» suelto no para la descarga.
+  lentas = res.reintentable ? lentas + 1 : 0;
+  if (res.reintentable && lentas <= 2) continue;
   if (res.error || res.throttled || !res.pendiente) break;
 }
 

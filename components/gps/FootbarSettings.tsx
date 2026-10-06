@@ -185,12 +185,16 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
     setProblem(null);
     let bajadas = 0;
     let ultimo: FootbarSyncResult | undefined;
+    let lentas = 0;
     try {
-      for (let vuelta = 1; vuelta <= 8; vuelta += 1) {
+      for (let vuelta = 1; vuelta <= 10; vuelta += 1) {
         setProgreso({ profileId, vuelta, bajadas });
         [ultimo] = await footbarUpdate(profileId, true);
         if (!ultimo) break;
         bajadas += ultimo.added + ultimo.updated;
+        // Footbar tarda a ratos: un «no contesta» suelto no para la descarga.
+        lentas = ultimo.reintentable ? lentas + 1 : 0;
+        if (ultimo.reintentable && lentas <= 2) continue;
         if (ultimo.error || ultimo.throttled || !ultimo.pendiente) break;
         void reload();
       }

@@ -227,11 +227,12 @@ export interface FootbarSession {
 }
 
 /**
- * Lo que se espera a Footbar en cada petición. Sin plazo, una petición
+ * Lo que se espera a Footbar en cada petición: a veces tarda más de diez
+ * segundos en contestar, sobre todo la lista. Sin plazo, una petición
  * colgada dejaba la función esperando hasta que Vercel la mataba a los 60 s,
  * y con ella se perdía todo lo bajado en esa vuelta.
  */
-const PLAZO_MS = 12_000;
+const PLAZO_MS = 25_000;
 
 async function api<T>(path: string, access: string, cuenta?: Cuenta): Promise<T> {
   cuenta?.momentos.push(Date.now());

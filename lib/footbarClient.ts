@@ -36,6 +36,8 @@ export interface FootbarSyncResult {
   throttled?: boolean;
   /** Aún queda historial por bajar. */
   pendiente?: boolean;
+  /** Footbar no contestó a tiempo: vale otra vuelta. */
+  reintentable?: boolean;
 }
 
 /** Dónde deja la vuelta de Footbar su desenlace para que lo cuente la pantalla. */

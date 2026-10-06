@@ -226,6 +226,8 @@ export interface SyncOutcome {
   throttled?: boolean;
   /** Aún queda historial por bajar: «bajar todo» sigue con otra vuelta. */
   pendiente?: boolean;
+  /** Footbar no ha contestado a tiempo: se puede probar otra vuelta enseguida. */
+  reintentable?: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -258,11 +260,12 @@ const RESERVA = 30;
 const MAX_POR_VUELTA = 24;
 const SEMANA_MS = 7 * 24 * 3600 * 1000;
 /**
- * Lo que dura como mucho una vuelta pidiendo cosas a Footbar. Vercel corta la
- * función a los 60 s y entonces no se guarda nada: se para antes, con margen
- * para escribir lo bajado y lo gastado.
+ * Hasta cuándo se empiezan peticiones a Footbar en una vuelta. Cada una puede
+ * tardar hasta 25 s (`PLAZO_MS` en lib/footbar.ts) y Vercel corta la función a
+ * los 60 s, sin guardar nada: empezando la última antes de los 25 s, la vuelta
+ * acaba hacia los 50 como mucho y le da tiempo a escribir lo bajado.
  */
-const PRESUPUESTO_MS = 40_000;
+const PRESUPUESTO_MS = 25_000;
 
 interface Estado {
   /** Momentos (ms) de las consultas gastadas por este enlace en los últimos siete días. */
@@ -475,6 +478,8 @@ async function syncRow(
       error: problem instanceof Error ? problem.message : 'No se ha podido revisar Footbar.',
       needsReconnect: problem instanceof FootbarError && problem.revoked,
       throttled: problem instanceof FootbarError && problem.status === 429,
+      reintentable: problem instanceof FootbarError && problem.status === 504,
+      pendiente: !estado.completo,
     };
   }
 }
