@@ -415,10 +415,118 @@ export const SHOT_TYPES: Record<ShotKind, ShotType> = {
     blurb: 'La potencia pura de Mark Lenders: casi imparable, pero la franja es estrecha y arriba.',
     goal: 'ni lo ha visto pasar',
   },
+
+  /* ----------------------------------------------------- los del cole
+   * No cuestan energía: se pagan antes, en el reto de la asignatura del día
+   * (`lib/retoCole.ts`). Cada uno trae una regla suya, como los de la serie,
+   * y una puesta en escena que no tiene ninguno de los otros. */
+  multiplicador: {
+    id: 'multiplicador',
+    name: 'Tiro Multiplicador',
+    short: 'Multiplica',
+    article: 'el',
+    shout: '¡TIRO MULTIPLICADOR!',
+    icon: '✖️',
+    color: '#22d3ee',
+    cost: 0,
+    band: [48, 88],
+    sweep: 1100,
+    reach: 14,
+    flight: 860,
+    blurb: 'Reto de Mates: el balón se multiplica por tres y Benji no sabe cuál es el de verdad.',
+    goal: 'se ha multiplicado y Benji se ha tirado a por el falso',
+  },
+  letras: {
+    id: 'letras',
+    name: 'Tormenta de Letras',
+    short: 'Letras',
+    article: 'la',
+    shout: '¡TORMENTA DE LETRAS!',
+    icon: '🔠',
+    color: '#facc15',
+    cost: 0,
+    band: [45, 88],
+    sweep: 1150,
+    reach: 20,
+    flight: 900,
+    blurb: 'Reto de Lengua: las letras corrigen el tiro; aunque la mira tiemble, el balón se endereza.',
+    goal: 'ha escrito G-O-L en la red, sin una falta',
+  },
+  adn: {
+    id: 'adn',
+    name: 'Tiro Doble Hélice',
+    short: 'Hélice',
+    article: 'el',
+    shout: '¡TIRO DOBLE HÉLICE!',
+    icon: '🧬',
+    color: '#4ade80',
+    cost: 0,
+    band: [50, 90],
+    sweep: 1100,
+    reach: 16,
+    flight: 820,
+    blurb: 'Reto de Science: gira en espiral como el ADN; si te pasas de fuerza, la hélice lo baja a la mitad.',
+    goal: 'ha entrado girando en espiral, como un ser vivo',
+  },
+  thunder: {
+    id: 'thunder',
+    name: 'Thunder Shot',
+    short: 'Thunder',
+    article: 'el',
+    shout: 'THUNDER SHOT!',
+    icon: '⚡',
+    color: '#818cf8',
+    cost: 0,
+    band: [66, 93],
+    sweep: 900,
+    reach: 12,
+    flight: 430,
+    blurb: 'English challenge: caen rayos y el balón va en zigzag eléctrico. Franja alta y estrecha.',
+    goal: 'ha caído como un rayo: «What a goal!»',
+  },
+  meteorito: {
+    id: 'meteorito',
+    name: 'Meteorito',
+    short: 'Meteorito',
+    article: 'el',
+    shout: '¡IMPACTO DE METEORITO!',
+    icon: '☄️',
+    color: '#fb7185',
+    cost: 0,
+    band: [26, 64],
+    sweep: 1150,
+    reach: 14,
+    flight: 1150,
+    blurb: 'Reto de Sociales: sube al espacio y cae ardiendo. Se tira suave: la gravedad pone el resto.',
+    goal: 'ha caído del espacio y ha dejado un cráter en la red',
+  },
+  meridiano: {
+    id: 'meridiano',
+    name: 'Meridiano de Greenwich',
+    short: 'Greenwich',
+    article: 'el',
+    shout: '¡EL MERIDIANO DE GREENWICH!',
+    icon: '🌍',
+    color: '#fbbf24',
+    cost: 0,
+    band: [46, 90],
+    sweep: 1100,
+    reach: 8,
+    flight: 950,
+    blurb: 'El del finde, con el repaso de toda la semana: un rayo dorado parte el mundo en dos y el tiempo se para. No toca los palos.',
+    goal: 'ha partido la portería en dos con el tiempo parado',
+  },
 };
 
 /** En el orden en que se enseñan: el normal y luego de más barato a más caro. */
 export const SHOT_ORDER: ShotKind[] = ['normal', 'halcon', 'efecto', 'parabola', 'fuego', 'canon', 'catapulta', 'tigre'];
+
+/** Los tiros del cole, en el orden de la semana: lunes Mates… finde Greenwich. */
+export const COLE_ORDER: ShotKind[] = ['multiplicador', 'letras', 'adn', 'thunder', 'meteorito', 'meridiano'];
+
+export function isColeShot(kind: ShotKind): boolean {
+  return COLE_ORDER.includes(kind);
+}
 
 /** Energía con la que se empieza la tanda. */
 export const ENERGY_START = 2;
@@ -438,8 +546,11 @@ export function energyLeft(result: PenaltyResult | null): number {
 export function shotAvailability(
   kind: ShotKind,
   result: PenaltyResult | null,
-): { ok: boolean; reason?: 'usado' | 'energia' } {
+  /** Los tiros del cole ganados hoy: los demás del cole siguen cerrados. */
+  cole: ShotKind[] = [],
+): { ok: boolean; reason?: 'usado' | 'energia' | 'reto' } {
   if (kind === 'normal') return { ok: true };
+  if (isColeShot(kind) && !cole.includes(kind)) return { ok: false, reason: 'reto' };
   if (result?.specials?.includes(kind)) return { ok: false, reason: 'usado' };
   if (energyLeft(result) < SHOT_TYPES[kind].cost) return { ok: false, reason: 'energia' };
   return { ok: true };
@@ -638,9 +749,11 @@ export function overshootPreview(
 ): { drift: number; up: number; open: number } {
   const drift = overshoot(power, SHOT_TYPES[kind].band);
   // Los dos que bajan del cielo —el Halcón y la Catapulta— no se suben.
-  const fromAbove = kind === 'halcon' || kind === 'catapulta';
-  const up = fromAbove ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42;
-  const open = fromAbove ? 14 : kind === 'fuego' ? 36 : 26;
+  const fromAbove = kind === 'halcon' || kind === 'catapulta' || kind === 'meteorito';
+  // La doble hélice, si se le pega de más, se enrosca y se queda en la mitad.
+  const helice = kind === 'adn' ? 0.5 : 1;
+  const up = (fromAbove ? -4 : kind === 'fuego' ? 68 : kind === 'parabola' ? 56 : 42) * helice;
+  const open = (fromAbove ? 14 : kind === 'fuego' ? 36 : 26) * helice;
   return { drift, up, open };
 }
 
@@ -669,6 +782,8 @@ function landingOf(
   // Hacia dónde se abre al reventarla: hacia el lado por el que se falló la
   // puntería, y sólo si no se falló hacia ninguno, la semilla.
   const away = Math.abs(accuracy) > 0.06 ? Math.sign(accuracy) : seed % 2 === 0 ? 1 : -1;
+  // La Tormenta de Letras corrige la mitad del temblor: las letras enderezan.
+  if (kind === 'letras') accuracy *= 0.5;
 
   const at = {
     // Lo que se desvía por soltar con la mira temblando hacia un lado.
@@ -744,7 +859,7 @@ export function resolveShot(
     };
   }
 
-  const sidePost = kind !== 'efecto' && (at.x < MADERA || at.x > 100 - MADERA);
+  const sidePost = kind !== 'efecto' && kind !== 'meridiano' && (at.x < MADERA || at.x > 100 - MADERA);
   if (sidePost || at.y < MADERA) {
     return {
       outcome: 'poste',
@@ -875,7 +990,8 @@ export function scoreShot(opts: {
     : 0;
   const diana = hit ? hit.puntos : 0;
   const punteria = entro ? (tino <= 0.14 ? PUNTOS.clavada : tino <= 0.3 ? PUNTOS.cerca : 0) : 0;
-  const especial = entro ? SHOT_TYPES[kind].cost * PUNTOS.especial : 0;
+  // Los del cole valen como los de dos rayos: se han pagado estudiando.
+  const especial = entro ? (isColeShot(kind) ? 2 : SHOT_TYPES[kind].cost) * PUNTOS.especial : 0;
 
   const suma = gol + colocacion + diana + punteria + especial;
   return { gol, colocacion, diana, punteria, especial, hit, total: golden ? suma * 2 : suma };

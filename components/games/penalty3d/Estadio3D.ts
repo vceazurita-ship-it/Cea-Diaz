@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 import type { Diana, PenaltyAim, PenaltyOutcome } from '@/lib/penalties';
 import type { ShotKind } from '@/types';
@@ -99,6 +104,22 @@ export interface Jugada {
 
 type Camara = 'tele' | 'repeticion';
 
+/**
+ * Un efecto con vida propia —una onda que se abre, un rayo que parpadea, un
+ * haz que se enciende—: se le da un objeto y lo que hace en cada instante,
+ * de 0 (nace) a 1 (se apaga), y se retira solo.
+ */
+interface Efecto {
+  obj: THREE.Object3D;
+  vida: number;
+  edad: number;
+  tick: (k: number, dt: number) => void;
+  tirar: () => void;
+}
+
+/** Los tiros del cole, que tienen su puesta en escena propia. */
+const DEL_COLE: ShotKind[] = ['multiplicador', 'letras', 'adn', 'thunder', 'meteorito', 'meridiano'];
+
 /** Una partícula: chispa, llama, confeti o hierba. */
 interface Particula {
   sprite: THREE.Sprite | THREE.Mesh;
@@ -113,6 +134,9 @@ interface Particula {
 
 export class Estadio3D {
   private renderer: THREE.WebGLRenderer;
+  // El postprocesado: el brillo (bloom) de luces y efectos, y el viñeteado.
+  private composer?: EffectComposer;
+  private bloom?: UnrealBloomPass;
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private host: HTMLElement;
@@ -153,7 +177,28 @@ export class Estadio3D {
   private tell: -1 | 0 | 1 = 0;
   private carga = 0;
   private aura: THREE.Color | null = null;
-  private jugada: { plan: Jugada; t0: number; speed: number; cam: Camara; fin: () => void; impacto?: () => void; golpeo?: () => void; hecho: { golpeo: boolean; impacto: boolean; fin: boolean } } | null = null;
+  private jugada: {
+    plan: Jugada;
+    t0: number;
+    /** Los ms de jugada que lleva: se acumulan, para poder ir a cámara lenta. */
+    e: number;
+    speed: number;
+    cam: Camara;
+    fin: () => void;
+    impacto?: () => void;
+    golpeo?: () => void;
+    hecho: { golpeo: boolean; impacto: boolean; fin: boolean };
+  } | null = null;
+
+  // Los efectos de los tiros del cole: ondas, rayos, haces, letras, fantasmas.
+  private efectos: Efecto[] = [];
+  private glifos = new Map<string, THREE.Texture>();
+  private fantasmas: { malla: THREE.Mesh; aura: THREE.Sprite; landing: PenaltyAim; vivo: boolean }[] = [];
+  /** El golpe de zoom de la cámara, de 1 a 0. */
+  private punch = 0;
+  private fovBase = 0;
+  /** Lo que se oscurece la escena mientras el tiempo está parado. */
+  private penumbra = 0;
   private temblor = 0;
   private celebra = 0;
   private camPos = new THREE.Vector3();
@@ -175,6 +220,7 @@ export class Estadio3D {
     host.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 400);
+    this.montarPost();
     this.scene.fog = new THREE.Fog('#0b1426', 55, 140);
 
     this.brillo = this.propia(texturaBrillo());
@@ -202,6 +248,60 @@ export class Estadio3D {
   }
 
   /* ---------------------------------------------------------------- montaje */
+
+  /**
+   * El postprocesado, que es lo que separa una escena de un videojuego: el
+   * bloom hace que lo que brilla —los focos, las estelas, los rayos, el haz
+   * de Greenwich— sangre luz alrededor como en la tele; el viñeteado cierra
+   * los bordes y lleva la vista al centro; un punto de grano le quita el
+   * aspecto de plástico. Si el aparato no puede, se pinta sin él.
+   */
+  private montarPost() {
+    try {
+      const w = Math.max(1, this.host.clientWidth);
+      const h = Math.max(1, this.host.clientHeight);
+      const composer = new EffectComposer(this.renderer);
+      composer.addPass(new RenderPass(this.scene, this.camera));
+      // A media resolución: casi igual de bonito y la mitad de caro en un móvil.
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.9, 0.5, 1.05);
+      composer.addPass(this.bloom);
+      composer.addPass(
+        new ShaderPass({
+          uniforms: { tDiffuse: { value: null }, tiempo: { value: 0 }, fuerza: { value: 0.42 } },
+          vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+          fragmentShader: `
+            uniform sampler2D tDiffuse; uniform float tiempo; uniform float fuerza; varying vec2 vUv;
+            float azar(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + tiempo) * 43758.5453); }
+            void main() {
+              vec4 c = texture2D(tDiffuse, vUv);
+              vec2 d = vUv - 0.5;
+              float vin = smoothstep(0.85, 0.25, length(d * vec2(1.0, 1.2)));
+              c.rgb *= mix(1.0 - fuerza, 1.0, vin);
+              c.rgb += (azar(vUv * 400.0) - 0.5) * 0.025;
+              gl_FragColor = c;
+            }`,
+        }),
+      );
+      composer.addPass(new OutputPass());
+      composer.setPixelRatio(this.renderer.getPixelRatio());
+      composer.setSize(w, h);
+      this.composer = composer;
+    } catch {
+      this.composer = undefined;
+    }
+  }
+
+  private pintar() {
+    if (!this.composer) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+    const grano = this.composer.passes[2] as ShaderPass | undefined;
+    if (grano?.uniforms.tiempo) grano.uniforms.tiempo.value = this.tiempo % 10;
+    // Con el tiempo parado, el brillo sube: es lo que tiene que verse.
+    if (this.bloom) this.bloom.strength = 0.9 + this.penumbra * 0.5 + this.punch * 0.15;
+    this.composer.render();
+  }
 
   private propia<T extends THREE.Texture>(t: T): T {
     this.tirar.push(t);
@@ -727,6 +827,7 @@ export class Estadio3D {
   reiniciar() {
     this.jugada = null;
     this.celebra = 0;
+    this.limpiarEfectos();
     this.ponerBalon(new THREE.Vector3(0, RADIO_BALON, PUNTO_Z));
     this.balon.visible = true;
     this.colocarEnEspera();
@@ -746,6 +847,7 @@ export class Estadio3D {
     this.balon.visible = true;
     this.celebra = 0;
     this.particulas.forEach((p) => this.scene.remove(p.sprite));
+    this.limpiarEfectos();
     this.particulas = [];
     const cam = opts.camara ?? 'tele';
     // En la repetición, desde detrás de la red, las dianas y la mira sobran:
@@ -756,6 +858,7 @@ export class Estadio3D {
       this.jugada = {
         plan,
         t0: this.tiempo,
+        e: 0,
         speed: opts.speed ?? 1,
         cam,
         fin: resolve,
@@ -793,8 +896,29 @@ export class Estadio3D {
     const b = aMundo(p.landing, 0);
     const kind = p.kind;
     const apex =
-      kind === 'parabola' ? 4.2 : kind === 'halcon' ? 5.2 : kind === 'catapulta' ? 7.5 : kind === 'fuego' || kind === 'tigre' ? 0.25 : 0.8;
+      kind === 'parabola'
+        ? 4.2
+        : kind === 'halcon'
+          ? 5.2
+          : kind === 'catapulta'
+            ? 7.5
+            : kind === 'fuego' || kind === 'tigre' || kind === 'thunder'
+              ? 0.25
+              : kind === 'letras'
+                ? 1.3
+                : 0.8;
     const lado = kind === 'efecto' ? (b.x < 0 ? -1 : 1) * -2.4 : p.curva * 1.2;
+
+    // El meteorito sube al espacio, sale de cuadro y vuelve cayendo en picado.
+    if (kind === 'meteorito') {
+      const cima = new THREE.Vector3(b.x * 0.25, 30, 6.5);
+      return (t: number) => {
+        if (t < 0.36) return a.clone().lerp(cima, 1 - Math.pow(1 - t / 0.36, 2));
+        const k = Math.pow((t - 0.36) / 0.64, 1.7);
+        return cima.clone().lerp(b, k);
+      };
+    }
+
     return (t: number) => {
       const x = lerp(a.x, b.x, t) + Math.sin(Math.PI * t) * lado;
       // Altura: la recta entre salida y llegada más la joroba del tiro. El
@@ -807,6 +931,19 @@ export class Estadio3D {
         v.x += Math.sin(t * 27) * 0.16 * t;
         v.y += Math.cos(t * 23) * 0.12 * t;
       }
+      // La hélice: el balón gira en espiral alrededor de su camino.
+      if (kind === 'adn') {
+        const r = 0.42 * Math.sin(Math.PI * t);
+        v.x += Math.cos(t * 26) * r;
+        v.y += Math.sin(t * 26) * r;
+      }
+      // El rayo: zigzag de diente de sierra, como se dibuja un rayo.
+      if (kind === 'thunder') {
+        const diente = (2 / Math.PI) * Math.asin(Math.sin(t * Math.PI * 7));
+        v.x += diente * 0.55 * Math.sin(Math.PI * t);
+      }
+      // Las letras hacen una ese, como la de una firma.
+      if (kind === 'letras') v.x += Math.sin(Math.PI * 2 * t) * 0.7 * (1 - t);
       return v;
     };
   }
@@ -875,6 +1012,423 @@ export class Estadio3D {
     }
   }
 
+  /* ------------------------------------------- los efectos de los del cole */
+
+  private efecto(obj: THREE.Object3D, vida: number, tick: Efecto['tick'], tirar: () => void) {
+    this.scene.add(obj);
+    this.efectos.push({ obj, vida, edad: 0, tick, tirar });
+  }
+
+  private limpiarEfectos() {
+    this.efectos.forEach((f) => {
+      this.scene.remove(f.obj);
+      f.tirar();
+    });
+    this.efectos = [];
+    this.fantasmas.forEach((f) => {
+      this.scene.remove(f.malla, f.aura);
+      (f.malla.material as THREE.Material).dispose();
+      f.aura.material.dispose();
+    });
+    this.fantasmas = [];
+    this.penumbra = 0;
+  }
+
+  /**
+   * La onda expansiva: un anillo que se abre y se apaga. `plano` decide si
+   * va tumbado en el césped o de pie, mirando a la cámara.
+   */
+  private onda(at: THREE.Vector3, color: string, radio: number, vida = 0.6, plano: 'suelo' | 'pie' = 'pie') {
+    const geo = new THREE.RingGeometry(0.82, 1, 64);
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(at);
+    if (plano === 'suelo') m.rotation.x = -Math.PI / 2;
+    this.efecto(
+      m,
+      vida,
+      (k) => {
+        const s = 0.1 + radio * (1 - Math.pow(1 - k, 3));
+        m.scale.set(s, s, s);
+        mat.opacity = (1 - k) * 0.55;
+      },
+      () => {
+        geo.dispose();
+        mat.dispose();
+      },
+    );
+  }
+
+  /** Un rayo quebrado de `desde` a `hasta`, con su núcleo blanco y su halo. */
+  private rayo(desde: THREE.Vector3, hasta: THREE.Vector3, color: string, grosor = 0.035, vida = 0.32) {
+    const tramos = 14;
+    const largo = desde.distanceTo(hasta);
+    const puntos: THREE.Vector3[] = [];
+    for (let i = 0; i <= tramos; i += 1) {
+      const p = desde.clone().lerp(hasta, i / tramos);
+      if (i > 0 && i < tramos) {
+        const sacudida = (largo / tramos) * 0.9;
+        p.add(new THREE.Vector3((Math.random() - 0.5) * sacudida, (Math.random() - 0.5) * sacudida * 0.4, (Math.random() - 0.5) * sacudida));
+      }
+      puntos.push(p);
+    }
+    const camino = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 0; i < tramos; i += 1) camino.add(new THREE.LineCurve3(puntos[i], puntos[i + 1]));
+    const grupo = new THREE.Group();
+    const geos = [new THREE.TubeGeometry(camino, tramos * 2, grosor, 5), new THREE.TubeGeometry(camino, tramos * 2, grosor * 4, 6)];
+    const mats = [
+      new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }),
+    ];
+    grupo.add(new THREE.Mesh(geos[0], mats[0]), new THREE.Mesh(geos[1], mats[1]));
+    // Y una rama, que un rayo sin ramas parece un cable.
+    const rama = puntos[Math.floor(tramos * 0.45)];
+    const ramaFin = rama.clone().add(new THREE.Vector3((Math.random() - 0.5) * largo * 0.3, -largo * 0.15, (Math.random() - 0.5) * 1.5));
+    const geoRama = new THREE.TubeGeometry(new THREE.LineCurve3(rama, ramaFin), 4, grosor * 0.7, 4);
+    geos.push(geoRama);
+    grupo.add(new THREE.Mesh(geoRama, mats[0]));
+    this.efecto(
+      grupo,
+      vida,
+      (k) => {
+        // Parpadea, como los de verdad.
+        const vivo = Math.random() > 0.25 ? 1 : 0.25;
+        mats[0].opacity = (1 - k) * vivo;
+        mats[1].opacity = (1 - k) * 0.4 * vivo;
+      },
+      () => {
+        geos.forEach((g) => g.dispose());
+        mats.forEach((m) => m.dispose());
+      },
+    );
+    this.flash.position.copy(hasta);
+    this.flash.color.set(color);
+    this.flash.intensity = Math.max(this.flash.intensity, 45);
+  }
+
+  /** Un número o una letra hecha textura, para soltarla por el aire. */
+  private glifo(texto: string, color: string): THREE.Texture {
+    const clave = `${texto}|${color}`;
+    const hecha = this.glifos.get(clave);
+    if (hecha) return hecha;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = 256;
+    lienzo.height = 128;
+    const c = lienzo.getContext('2d')!;
+    c.font = `900 ${texto.length > 2 ? 64 : 96}px "Arial Black", Impact, sans-serif`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.lineWidth = 14;
+    c.strokeStyle = '#0b1220';
+    c.strokeText(texto, 128, 68);
+    c.fillStyle = color;
+    c.fillText(texto, 128, 68);
+    const t = new THREE.CanvasTexture(lienzo);
+    t.colorSpace = THREE.SRGBColorSpace;
+    this.glifos.set(clave, t);
+    return t;
+  }
+
+  /** Suelta un glifo que flota, crece y se apaga. */
+  private soltarGlifo(texto: string, at: THREE.Vector3, color: string, tam = 0.5, v = new THREE.Vector3(0, 0.8, 0), vida = 1.1) {
+    const mat = new THREE.SpriteMaterial({ map: this.glifo(texto, color), transparent: true, depthWrite: false, depthTest: false });
+    const s = new THREE.Sprite(mat);
+    s.position.copy(at);
+    s.renderOrder = 5;
+    const vel = v.clone();
+    this.efecto(
+      s,
+      vida,
+      (k, dt) => {
+        s.position.addScaledVector(vel, dt);
+        const pop = k < 0.15 ? k / 0.15 : 1 + (k - 0.15) * 0.25;
+        s.scale.set(tam * 2 * pop, tam * pop, 1);
+        mat.opacity = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+      },
+      () => mat.dispose(),
+    );
+  }
+
+  /**
+   * Un haz de luz vertical que baja del cielo: el meridiano de Greenwich
+   * partiendo la portería en dos.
+   */
+  private haz(x: number, z: number, color: string, vida: number) {
+    const grupo = new THREE.Group();
+    const geos = [
+      new THREE.CylinderGeometry(0.05, 0.05, 60, 10, 1, true),
+      new THREE.CylinderGeometry(0.35, 0.35, 60, 16, 1, true),
+      new THREE.PlaneGeometry(0.12, 60),
+    ];
+    const mats = [
+      new THREE.MeshBasicMaterial({ color: '#fffbea', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+    ];
+    const nucleo = new THREE.Mesh(geos[0], mats[0]);
+    const halo = new THREE.Mesh(geos[1], mats[1]);
+    nucleo.position.set(x, 30, z);
+    halo.position.set(x, 30, z);
+    // La línea del meridiano, pintada en el césped de punta a punta.
+    const linea = new THREE.Mesh(geos[2], mats[2]);
+    linea.rotation.x = -Math.PI / 2;
+    linea.position.set(x, 0.02, z + 10);
+    grupo.add(nucleo, halo, linea);
+    this.efecto(
+      grupo,
+      vida,
+      (k) => {
+        const encendido = Math.min(1, k / 0.08);
+        const apagado = k > 0.82 ? 1 - (k - 0.82) / 0.18 : 1;
+        const pulso = 0.8 + Math.sin(this.tiempo * 30) * 0.2;
+        mats[0].opacity = encendido * apagado;
+        mats[1].opacity = 0.28 * encendido * apagado * pulso;
+        mats[2].opacity = 0.9 * encendido * apagado;
+        halo.scale.set(1 + (1 - encendido) * 3, 1, 1 + (1 - encendido) * 3);
+      },
+      () => {
+        geos.forEach((g) => g.dispose());
+        mats.forEach((m) => m.dispose());
+      },
+    );
+  }
+
+  /** Los dos balones de mentira del Multiplicador. */
+  private soltarFantasmas(landing: PenaltyAim) {
+    const otros: PenaltyAim[] = [
+      { x: landing.x < 50 ? 84 : 16, y: landing.y < 50 ? 72 : 22 },
+      { x: landing.x < 50 ? 60 : 40, y: landing.y < 50 ? 30 : 75 },
+    ];
+    otros.forEach((at) => {
+      const mat = new THREE.MeshBasicMaterial({ color: '#67e8f9', transparent: true, opacity: 0.6, depthWrite: false });
+      const malla = new THREE.Mesh(this.balon.geometry, mat);
+      const aura = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: this.brillo, color: '#22d3ee', blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 }),
+      );
+      aura.scale.setScalar(0.9);
+      this.scene.add(malla, aura);
+      this.fantasmas.push({ malla, aura, landing: at, vivo: true });
+    });
+  }
+
+  private moverFantasmas(u: number) {
+    this.fantasmas.forEach((f, i) => {
+      if (!f.vivo) return;
+      if (u >= 0.9) {
+        // Se deshacen en números justo antes de llegar.
+        f.vivo = false;
+        const at = f.malla.position.clone();
+        this.chispas(at, '#22d3ee', 18, 3, 0.6, 0.16);
+        this.soltarGlifo(['×2', '×3', '÷'][i % 3], at, '#a5f3fc', 0.35, new THREE.Vector3(0, 1.2, 0.4), 0.9);
+        this.scene.remove(f.malla, f.aura);
+        return;
+      }
+      const p = this.curva({ landing: f.landing, kind: 'normal', curva: 0 })(u);
+      f.malla.position.copy(p);
+      f.aura.position.copy(p);
+      f.malla.rotation.x -= 0.5;
+      (f.malla.material as THREE.MeshBasicMaterial).opacity = 0.45 + Math.sin(this.tiempo * 40 + i) * 0.15;
+    });
+  }
+
+  /** La estela de cada tiro del cole, cada uno con la suya. */
+  private estelaCole(at: THREE.Vector3, kind: ShotKind, color: string) {
+    switch (kind) {
+      case 'multiplicador': {
+        this.estela(at, color, 'normal');
+        if (Math.random() < 0.18) {
+          const n = ['×', '2', '3', '7', '9', '=', '+', '×10'][Math.floor(Math.random() * 8)];
+          this.soltarGlifo(n, at, '#a5f3fc', 0.22, new THREE.Vector3((Math.random() - 0.5) * 1.6, 0.9, 0.6), 0.8);
+        }
+        break;
+      }
+      case 'letras': {
+        this.estela(at, color, 'normal');
+        if (Math.random() < 0.3) {
+          const l = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZÁÉÍÓÚ'[Math.floor(Math.random() * 32)];
+          const tono = ['#fde047', '#ffffff', '#fb923c', '#f472b6'][Math.floor(Math.random() * 4)];
+          this.soltarGlifo(l, at, tono, 0.24, new THREE.Vector3((Math.random() - 0.5) * 2.2, (Math.random() - 0.2) * 1.6, 0.5), 0.9);
+        }
+        break;
+      }
+      case 'adn': {
+        // Dos hebras que giran alrededor del balón y se quedan un rato en el
+        // aire: así se ve la doble hélice entera detrás de él.
+        const giro = this.tiempo * 22;
+        [0, Math.PI].forEach((fase, i) => {
+          const p = at.clone().add(new THREE.Vector3(Math.cos(giro + fase) * 0.32, Math.sin(giro + fase) * 0.32, 0));
+          const s = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: this.brillo, color: i ? '#22d3ee' : '#4ade80', blending: THREE.AdditiveBlending, depthWrite: false }),
+          );
+          s.position.copy(p);
+          s.scale.setScalar(0.22);
+          this.scene.add(s);
+          this.particulas.push({ sprite: s, v: new THREE.Vector3(), vida: 0.9, edad: 0, gravedad: 0, base: 0.22, crece: -0.4 });
+        });
+        if (Math.random() < 0.35) {
+          // Los peldaños entre las dos hebras.
+          const s = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: this.brillo, color: '#f0fdf4', blending: THREE.AdditiveBlending, depthWrite: false }),
+          );
+          s.position.copy(at);
+          s.scale.set(0.6, 0.06, 1);
+          this.scene.add(s);
+          this.particulas.push({ sprite: s, v: new THREE.Vector3(), vida: 0.7, edad: 0, gravedad: 0, base: 0.3, crece: -0.5 });
+        }
+        break;
+      }
+      case 'thunder': {
+        this.estela(at, '#c7d2fe', 'normal');
+        this.estela(at, color, 'normal');
+        if (Math.random() < 0.22) {
+          // Los rayos caen del cielo buscando el balón.
+          const cielo = at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 12, (Math.random() - 0.5) * 3));
+          this.rayo(cielo, at, '#818cf8', 0.03, 0.22);
+        }
+        if (Math.random() < 0.4) this.chispas(at, '#e0e7ff', 3, 2.5, 0.3, 0.08);
+        break;
+      }
+      case 'meteorito': {
+        // Fuego grande y humo negro detrás.
+        for (let i = 0; i < 3; i += 1) {
+          const s = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: this.brillo, color: ['#fde047', '#fb923c', '#e11d48'][i], blending: THREE.NormalBlending, depthWrite: false, opacity: 0.85 }),
+          );
+          s.position.copy(at).add(new THREE.Vector3((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3));
+          s.scale.setScalar(0.9);
+          this.scene.add(s);
+          this.particulas.push({ sprite: s, v: new THREE.Vector3((Math.random() - 0.5), 1.4, 0), vida: 0.5, edad: 0, gravedad: 0, base: 0.9, crece: 0.6 });
+        }
+        const humo = new THREE.Sprite(
+          new THREE.SpriteMaterial({ map: this.brillo, color: '#3f3f46', blending: THREE.NormalBlending, depthWrite: false, opacity: 0.6 }),
+        );
+        humo.position.copy(at);
+        humo.scale.setScalar(0.7);
+        this.scene.add(humo);
+        this.particulas.push({ sprite: humo, v: new THREE.Vector3((Math.random() - 0.5) * 0.6, 2, 0), vida: 1.4, edad: 0, gravedad: -0.4, base: 0.7, crece: 3 });
+        break;
+      }
+      case 'meridiano': {
+        this.estela(at, color, 'normal');
+        this.estela(at, '#fffbeb', 'normal');
+        if (Math.random() < 0.5) this.chispas(at, '#fde68a', 2, 1.5, 0.6, 0.1);
+        break;
+      }
+      default:
+        this.estela(at, color, kind);
+    }
+  }
+
+  /** El golpeo de un tiro del cole: la onda en los pies y lo que trae cada uno. */
+  private golpeoCole(plan: Jugada) {
+    const pie = new THREE.Vector3(0, 0.04, PUNTO_Z);
+    const color = plan.color ?? '#ffffff';
+    this.onda(pie, color, 3.2, 0.7, 'suelo');
+    this.onda(pie.clone().setY(0.6), '#ffffff', 1.6, 0.4);
+    this.chispas(pie.clone().setY(0.2), color, 30, 5, 0.7, 0.18);
+    this.punch = 1;
+    this.temblor = Math.max(this.temblor, 0.5);
+    switch (plan.kind) {
+      case 'multiplicador':
+        this.soltarFantasmas(plan.landing);
+        this.soltarGlifo('×3', pie.clone().setY(1.6), '#67e8f9', 0.8, new THREE.Vector3(0, 0.6, 0), 1.2);
+        break;
+      case 'letras':
+        'ABC'.split('').forEach((l, i) =>
+          this.soltarGlifo(l, pie.clone().add(new THREE.Vector3((i - 1) * 0.7, 1.4, 0)), '#fde047', 0.5, new THREE.Vector3((i - 1) * 0.6, 0.8, 0), 1),
+        );
+        break;
+      case 'thunder':
+        this.rayo(new THREE.Vector3(-1.5, 16, PUNTO_Z - 2), pie, '#818cf8', 0.06, 0.45);
+        this.rayo(new THREE.Vector3(2.5, 16, PUNTO_Z - 4), pie, '#a5b4fc', 0.04, 0.35);
+        break;
+      case 'meridiano': {
+        const x = aMundo(plan.landing, 0).x;
+        this.haz(x, 0, '#fbbf24', 3.6);
+        this.onda(new THREE.Vector3(x, 1.2, 0.05), '#fde68a', 5, 1.2);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  /** La llegada de un tiro del cole a la red: lo gordo de cada uno. */
+  private llegadaCole(plan: Jugada, at: THREE.Vector3) {
+    const gol = plan.outcome === 'gol';
+    const color = plan.color ?? '#ffffff';
+    const red = at.clone().setZ(-0.3);
+    this.onda(red, color, gol ? 3 : 2, 0.8);
+    if (gol) this.onda(red.clone().setZ(-0.1), color, 1.6, 0.4);
+    this.punch = gol ? 0.8 : 0.4;
+    // El fogonazo de la red, más corto: con el bloom encima, se quemaba a blanco.
+    this.flash.intensity = Math.min(this.flash.intensity, 30);
+    switch (plan.kind) {
+      case 'multiplicador':
+        if (gol) {
+          ['1', '0', '0', '+'].forEach((n, i) =>
+            this.soltarGlifo(n, red.clone().add(new THREE.Vector3((i - 1.5) * 0.6, 0.6, 0.4)), '#67e8f9', 0.5, new THREE.Vector3((i - 1.5) * 0.8, 1.6, 1), 1.4),
+          );
+        }
+        break;
+      case 'letras':
+        if (gol) {
+          'GOL'.split('').forEach((l, i) =>
+            this.soltarGlifo(l, new THREE.Vector3(at.x + (i - 1) * 1.1, at.y + 1.3, 0.6), '#fde047', 0.8, new THREE.Vector3(0, 0.3, 0.4), 2),
+          );
+        }
+        for (let i = 0; i < 12; i += 1) {
+          const l = 'ÁÉÍÓÚÑ¿?¡!'[i % 10];
+          this.soltarGlifo(l, red, '#fef08a', 0.3, new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 4, Math.random() * 3), 1.1);
+        }
+        break;
+      case 'adn':
+        this.onda(red, '#22d3ee', 3, 1);
+        this.chispas(red, '#4ade80', 50, 6, 1.2, 0.2);
+        break;
+      case 'thunder':
+        this.rayo(at.clone().setY(18).setX(at.x + 2), at, '#818cf8', 0.08, 0.6);
+        this.rayo(at.clone().setY(18).setX(at.x - 3), at, '#c7d2fe', 0.05, 0.5);
+        this.chispas(red, '#e0e7ff', 40, 7, 0.8, 0.16);
+        this.temblor = 1.4;
+        break;
+      case 'meteorito':
+        // El cráter: onda en el suelo, otra de pie y escombros por todas partes.
+        this.onda(new THREE.Vector3(at.x, 0.05, 0.4), '#fb923c', 7, 1.1, 'suelo');
+        this.onda(red, '#fde047', 5, 0.9);
+        this.chispas(red, '#fb923c', 70, 9, 1.3, 0.24);
+        this.chispas(red, '#44403c', 30, 5, 1.5, 0.3);
+        this.flash.color.set('#fb923c');
+        this.flash.intensity = 90;
+        this.temblor = 2.4;
+        break;
+      case 'meridiano':
+        this.onda(red, '#fde68a', 6, 1.3);
+        this.onda(red, '#fbbf24', 3.5, 1);
+        this.chispas(red, '#fde68a', 80, 8, 1.6, 0.22);
+        if (gol) this.confeti(['#fbbf24', '#fde68a', '#ffffff', '#1e3a8a']);
+        this.temblor = 1.6;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** Cuánto se frena el tiempo: los del cole van a cámara lenta al llegar. */
+  private ritmo(plan: Jugada, u: number): number {
+    if (!DEL_COLE.includes(plan.kind)) return 1;
+    if (plan.kind === 'meridiano') return u > 0.5 && u < 0.9 ? 0.28 : 1;
+    if (plan.kind === 'meteorito') return u > 0.72 && u < 0.94 ? 0.3 : 1;
+    return u > 0.66 && u < 0.92 ? 0.3 : 1;
+  }
+
   /* ----------------------------------------------------------- el reloj */
 
   private paso() {
@@ -939,6 +1493,25 @@ export class Estadio3D {
       }
     }
 
+    // Los efectos de los del cole.
+    for (let i = this.efectos.length - 1; i >= 0; i -= 1) {
+      const f = this.efectos[i];
+      f.edad += dt;
+      if (f.edad >= f.vida) {
+        this.scene.remove(f.obj);
+        f.tirar();
+        this.efectos.splice(i, 1);
+        continue;
+      }
+      f.tick(f.edad / f.vida, dt);
+    }
+
+    this.punch = Math.max(0, this.punch - dt * 2.2);
+
+    // El tiempo parado oscurece el estadio para que brille lo que importa.
+    const exposicion = 1.08 - this.penumbra * 0.45;
+    this.renderer.toneMappingExposure += (exposicion - this.renderer.toneMappingExposure) * Math.min(1, dt * 8);
+
     // El fogonazo se apaga.
     this.flash.intensity = Math.max(0, this.flash.intensity - dt * 60);
 
@@ -950,7 +1523,18 @@ export class Estadio3D {
     );
     this.camera.lookAt(this.camMira);
 
-    this.renderer.render(this.scene, this.camera);
+    // El golpe de zoom: la cámara se cierra de golpe y vuelve. Se aplica sólo
+    // para pintar, y así no se pelea con el encuadre ni con la repetición.
+    if (this.punch > 0) {
+      this.fovBase = this.camera.fov;
+      this.camera.fov = this.fovBase * (1 - 0.16 * Math.sin(Math.PI * this.punch) * this.punch);
+      this.camera.updateProjectionMatrix();
+      this.pintar();
+      this.camera.fov = this.fovBase;
+      this.camera.updateProjectionMatrix();
+    } else {
+      this.pintar();
+    }
   }
 
   private pasoEspera(t: number) {
@@ -1012,7 +1596,13 @@ export class Estadio3D {
     const tras = 1500;
     // Los ms de la jugada. Al acabar se queda congelada en su último
     // instante —Benji en el suelo, el balón en la red— hasta el siguiente.
-    const bruto = (this.tiempo - j.t0) * 1000 * j.speed;
+    // Se acumula en vez de restar al reloj porque los del cole frenan el
+    // tiempo al llegar a la portería: la cámara lenta de los dibujos.
+    const antes = clamp01((j.e - kick) / vuelo);
+    const lento = j.e >= kick && antes < 1 ? this.ritmo(plan, antes) : 1;
+    j.e += dt * 1000 * j.speed * lento;
+    this.penumbra += ((lento < 1 ? 1 : 0) - this.penumbra) * Math.min(1, dt * 6);
+    const bruto = j.e;
     const e = Math.min(bruto, kick + vuelo + tras);
     const t = this.tiempo;
 
@@ -1050,10 +1640,12 @@ export class Estadio3D {
       j.hecho.golpeo = true;
       j.golpeo?.();
       this.chispas(new THREE.Vector3(0, 0.1, PUNTO_Z), '#d9f99d', 10, 2.5, 0.5, 0.12);
+      if (DEL_COLE.includes(plan.kind)) this.golpeoCole(plan);
     }
     const u = clamp01((e - kick) / vuelo);
     const curva = this.curva(plan);
     const llegada = aMundo(plan.landing, 0);
+    const cole = DEL_COLE.includes(plan.kind);
 
     if (e < kick) {
       this.ponerBalon(new THREE.Vector3(0, RADIO_BALON, PUNTO_Z));
@@ -1062,16 +1654,24 @@ export class Estadio3D {
       this.ponerBalon(p);
       this.balon.rotation.x -= dt * 30 * j.speed;
       this.balon.rotation.z += dt * plan.curva * 20 * j.speed;
-      if (plan.color) this.estela(p, plan.color, plan.kind);
+      if (cole) {
+        this.estelaCole(p, plan.kind, plan.color ?? '#ffffff');
+        this.moverFantasmas(u);
+      } else if (plan.color) this.estela(p, plan.color, plan.kind);
       else if (Math.random() < 0.5) this.estela(p, '#ffffff', 'normal');
       const aura = this.auraBalon.material as THREE.SpriteMaterial;
       aura.opacity = plan.color ? 0.9 : 0;
+      this.auraBalon.scale.setScalar(cole ? 1.5 + Math.sin(this.tiempo * 30) * 0.2 : 0.9);
       if (plan.color) aura.color.set(plan.color);
     } else {
       // Después de llegar: según lo que haya pasado.
       if (!j.hecho.impacto) {
         j.hecho.impacto = true;
         this.alLlegar(plan, llegada);
+        if (cole) {
+          this.llegadaCole(plan, llegada);
+          this.moverFantasmas(1);
+        }
         j.impacto?.();
       }
       const d = (e - kick - vuelo) / 1000;
@@ -1108,8 +1708,26 @@ export class Estadio3D {
     // ---- la cámara
     if (j.cam === 'tele') {
       const va = suave(clamp01((e - kick) / (vuelo + 200)));
-      this.camPos.lerp(new THREE.Vector3(lerp(0.55, 0.3, va), lerp(2.1, 1.75, va), lerp(17.8, 15.2, va)), 0.12);
-      this.camMira.lerp(new THREE.Vector3(0, 0.95, 0), 0.1);
+      if (cole && e >= kick && !(plan.kind === 'meteorito' && u < 0.55)) {
+        // La cámara de persecución de los del cole: se pega al balón, de lado
+        // y un poco por detrás, para que se vea la estela entera; al llegar,
+        // se queda mirando la red.
+        const lado = llegada.x < 0 ? 1 : -1;
+        const bola = this.balon.position;
+        const destino =
+          u < 1
+            ? new THREE.Vector3(bola.x + lado * 2.1, Math.min(12, bola.y + 0.9), bola.z + 3.4)
+            : new THREE.Vector3(llegada.x + lado * 2.6, llegada.y + 0.9, 5.2);
+        this.camPos.lerp(destino, u < 1 ? 0.14 : 0.05);
+        this.camMira.lerp(u < 1 ? bola.clone().lerp(new THREE.Vector3(0, 1, 0), 0.25) : llegada, 0.18);
+      } else if (plan.kind === 'meteorito' && e >= kick && u < 0.55) {
+        // La cámara se va con él al cielo, y lo pierde entre las estrellas.
+        this.camPos.lerp(new THREE.Vector3(0.4, 1.2, 19.5), 0.08);
+        this.camMira.lerp(this.balon.position.clone().setY(Math.min(this.balon.position.y, 16)), 0.1);
+      } else {
+        this.camPos.lerp(new THREE.Vector3(lerp(0.55, 0.3, va), lerp(2.1, 1.75, va), lerp(17.8, 15.2, va)), 0.12);
+        this.camMira.lerp(new THREE.Vector3(0, 0.95, 0), plan.kind === 'meteorito' ? 0.06 : 0.1);
+      }
     } else {
       // La repetición: desde detrás de la portería, a un lado, mirando al punto.
       this.camPos.lerp(new THREE.Vector3(4.2, 1.9, -6.2), 0.2);
@@ -1201,6 +1819,8 @@ export class Estadio3D {
     const w = Math.max(1, this.host.clientWidth);
     const h = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(w, h, false);
+    this.composer?.setSize(w, h);
+    this.bloom?.resolution.set(w / 2, h / 2);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     if (!this.jugada) this.encuadre(true);
@@ -1215,9 +1835,13 @@ export class Estadio3D {
       if (p.sprite instanceof THREE.Sprite) p.sprite.material.dispose();
       else (p.sprite.material as THREE.Material).dispose();
     });
+    this.limpiarEfectos();
+    this.glifos.forEach((t) => t.dispose());
     this.tirar.forEach((t) => t.dispose());
     this.geometrias.forEach((g) => g.dispose());
     this.materiales.forEach((m) => m.dispose());
+    this.composer?.dispose();
+    this.bloom?.dispose();
     this.renderer.dispose();
     // Suelta el contexto de WebGL ya: el navegador sólo deja unos pocos.
     this.renderer.forceContextLoss();

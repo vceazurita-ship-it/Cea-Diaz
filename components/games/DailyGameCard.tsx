@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Material } from '@/components/games/Material';
 import { PenaltyShootout } from '@/components/games/PenaltyShootout';
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
@@ -22,6 +23,7 @@ import {
   type PenaltyGate,
 } from '@/lib/penalties';
 import { gameRewardId, rarityLabel } from '@/lib/rewards';
+import { nivelDe, retoDelDia, tirosDelCole, victorias } from '@/lib/retoCole';
 import { computeDayScore } from '@/lib/scoring';
 import { loadSettings, subscribeSettings } from '@/lib/settings';
 import { entryKey } from '@/lib/storage';
@@ -147,6 +149,11 @@ export function DailyGameCard({
   const replayed = (penalties?.round ?? 0) > 0;
   const gate = penaltyGate({ correct, total, dayRatio, granted: granted || replayed });
   const penaltiesDone = penalties ? isPenaltyDone(penalties) : false;
+
+  // Los tiros que se han ganado hoy en el reto del cole, y con qué nivel.
+  const coleShots = tirosDelCole(entries, profile.id, date);
+  const reto = retoDelDia(date);
+  const coleNivel = Math.max(1, nivelDe(victorias(entries, profile.id, reto, date)));
   const canShoot = Boolean(onPenalty) && gate.open && today;
 
   /** El cromo de esta partida, si cayó alguno. */
@@ -339,6 +346,8 @@ export function DailyGameCard({
             name={profile.name}
             date={date}
             result={penalties}
+            cole={coleShots}
+            coleNivel={coleNivel}
             onShot={onPenalty}
             onClose={() => setShooting(false)}
           />
@@ -423,7 +432,7 @@ interface QuestionProps {
   onNext: () => void;
 }
 
-function Question({ question, index, total, chosen, kid, onAnswer, onNext }: QuestionProps) {
+export function Question({ question, index, total, chosen, kid, onAnswer, onNext }: QuestionProps) {
   const hit = chosen === question.answer;
 
   return (
@@ -449,6 +458,9 @@ function Question({ question, index, total, chosen, kid, onAnswer, onNext }: Que
         </span>
         {question.prompt}
       </p>
+
+      {/* El material de la pregunta; al contestar se enseña resuelto. */}
+      {question.visual && <Material visual={question.visual} resuelto={Boolean(chosen)} />}
 
       <ul className="space-y-2">
         {question.options.map((option) => {

@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { MarksTracker } from '@/components/challenges/MarksTracker';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { DailyGameCard } from '@/components/games/DailyGameCard';
+import { RetoColeCard } from '@/components/games/RetoColeCard';
 import { Campograma } from '@/components/team/Campograma';
 import { LigaCromos } from '@/components/team/LigaCromos';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -15,6 +16,7 @@ import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
+import { cursoDe, type RetoResult } from '@/lib/retoCole';
 import { challengeLink } from '@/lib/planLink';
 import type { ChallengeLink } from '@/lib/planLink';
 import { DAY_SHORT } from '@/lib/planner';
@@ -55,6 +57,8 @@ interface ChallengesPanelProps {
   onGameResult?: (result: GameResult) => void;
   /** Anota la tanda de penaltis del día. */
   onPenaltyResult?: (result: PenaltyResult) => void;
+  /** Anota el reto del cole del día; sólo lo tienen los peques con curso. */
+  onColeResult?: (result: RetoResult) => void;
   /**
    * Apartarle un rato en la semana a lo que pide un reto. Sin esto, los retos
    * dicen adónde hay que llegar y nadie dice cuándo.
@@ -267,6 +271,7 @@ export function ChallengesPanel({
   onNoteChange,
   onGameResult,
   onPenaltyResult,
+  onColeResult,
   onReserve,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
@@ -342,6 +347,20 @@ export function ChallengesPanel({
     <div className="space-y-4">
       {/* El juego del día: la partida de hoy, antes que nada, porque es lo que
           se puede ganar hoy mismo. Los retos van a semana vista. */}
+      {/* El reto del cole va antes: es el que gana el tiro especial que
+          luego se tira en la tanda del juego del día. */}
+      {onColeResult && cursoDe(profile.id) && (
+        <RetoColeCard
+          profile={profile}
+          curso={cursoDe(profile.id)!}
+          date={date}
+          entries={entries}
+          kid={kid}
+          headingClass={headingClass}
+          onResult={onColeResult}
+        />
+      )}
+
       {onGameResult && gameEnabledFor(profile) && (
         <DailyGameCard
           profile={profile}

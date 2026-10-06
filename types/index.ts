@@ -578,7 +578,43 @@ export interface GameQuestion {
   /** Por qué esa es la buena; se enseña al contestar, se acierte o no. */
   explain: string;
   icon: string;
+  /**
+   * El material con el que se ve la pregunta, a lo Montessori: de lo
+   * concreto a lo abstracto. Lo dibuja `components/games/Material.tsx`, y al
+   * contestar se enseña resuelto: es el control del error.
+   */
+  visual?: Visual;
 }
+
+/** Un material para ver una pregunta en vez de sólo leerla. */
+export type Visual =
+  /** Perlas doradas: millares, centenas, decenas y unidades con sus colores. */
+  | { tipo: 'perlas'; n: number }
+  /** El tablero de multiplicar: filas por columnas de cuentas. */
+  | { tipo: 'matriz'; filas: number; columnas: number }
+  /** Una operación en columnas, con cada orden de su color (juego de sellos). */
+  | { tipo: 'columnas'; a: number; b: number; op: '+' | '−' | '×'; resultado: number }
+  | { tipo: 'angulo'; grados: number }
+  | { tipo: 'rectas'; clase: 'paralelas' | 'perpendiculares' | 'secantes' | 'semirrecta' | 'segmento' | 'simetria' | 'vertice' | 'reloj' }
+  | { tipo: 'poligono'; lados: number; medida?: number; clase?: 'equilatero' | 'isosceles' | 'escaleno' | 'rectangulo' }
+  /** Un rectángulo en cuadrícula: para el área y el perímetro. */
+  | { tipo: 'rect'; a: number; b: number; unidad?: string; ver: 'area' | 'perimetro' }
+  /** Los símbolos de gramática Montessori sobre cada palabra. */
+  | { tipo: 'gramatica'; palabras: { p: string; clase: 'articulo' | 'nombre' | 'adjetivo' | 'verbo' | 'otra' }[] }
+  /** Fichas de sílabas; la tónica se enciende al resolver. */
+  | { tipo: 'silabas'; silabas: string[]; tonica: number; juntas?: boolean }
+  /** Alfabeto móvil: vocales en azul y consonantes en rojo. */
+  | { tipo: 'letras'; palabras: string[]; orden?: boolean }
+  /**
+   * Una lámina grande: un dibujo y, si acaso, su rótulo. Con `control` es la
+   * tarjeta de control: sólo sale al contestar, porque el dibujo diría la
+   * respuesta.
+   */
+  | { tipo: 'lamina'; emoji: string; rotulo?: string; control?: boolean }
+  /** Una palabra en alfabeto móvil con un hueco; al resolver, se rellena. */
+  | { tipo: 'hueco'; antes: string; hueco: string; despues: string; dibujo?: string }
+  | { tipo: 'planetas' }
+  | { tipo: 'rosa' };
 
 /** La partida de un día: las mismas preguntas siempre para ese día y perfil. */
 export interface GameRound {
@@ -618,7 +654,22 @@ export interface GameResult {
  * volver a tirar los penaltis que ya se tiraron.
  */
 /** Los tiros de la tanda: el normal y los siete especiales. */
-export type ShotKind = 'normal' | 'halcon' | 'tigre' | 'fuego' | 'efecto' | 'canon' | 'parabola' | 'catapulta';
+export type ShotKind =
+  | 'normal'
+  | 'halcon'
+  | 'tigre'
+  | 'fuego'
+  | 'efecto'
+  | 'canon'
+  | 'parabola'
+  | 'catapulta'
+  // Los del cole: se ganan con el reto de cada asignatura (`lib/retoCole.ts`).
+  | 'multiplicador'
+  | 'letras'
+  | 'adn'
+  | 'thunder'
+  | 'meteorito'
+  | 'meridiano';
 
 export interface PenaltyResult {
   /** Goles marcados. */

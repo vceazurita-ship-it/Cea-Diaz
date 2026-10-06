@@ -20,10 +20,12 @@ import { ROPA_FAMILIA, type Casero } from '@/lib/cromoArt';
 import {
   ABANICO,
   PENALTY_SHOTS,
+  COLE_ORDER,
   SHOT_ORDER,
   SHOT_TYPES,
   dianasDe,
   energyLeft,
+  isColeShot,
   keeperStretch,
   keeperTell,
   keeperZone,
@@ -40,6 +42,7 @@ import {
   type PenaltyShot,
   type ShotScore,
 } from '@/lib/penalties';
+import { NIVEL_ALCANCE } from '@/lib/retoCole';
 import { playCue } from '@/lib/sound';
 import type { DateKey, PenaltyResult, ProfileId, ShotKind } from '@/types';
 
@@ -72,6 +75,8 @@ import type { DateKey, PenaltyResult, ProfileId, ShotKind } from '@/types';
 type Step = 'apuntar' | 'fuerza' | 'corte' | 'vuelo' | 'visto';
 
 const CORTE_MS = 1000;
+/** El corte de los del cole dura más: tiene dos tiempos, la asignatura y el grito. */
+const CORTE_COLE_MS = 1900;
 const REFLEJO_MS = 110;
 const CAMARA_LENTA = 1 / 2.6;
 
@@ -96,6 +101,9 @@ export interface Tiro3DProps {
   golden: boolean;
   /** Lo que se abre el balón con este tirador: su precisión, en tanto por uno. */
   spread: number;
+  /** Los tiros del cole ganados hoy, y su nivel: cada nivel le quita alcance a Benji. */
+  cole?: ShotKind[];
+  coleNivel?: number;
   onShot: (result: PenaltyResult, outcome: PenaltyOutcome, score: ShotScore, golden: boolean) => void;
   onNext: () => void;
 }
@@ -133,6 +141,8 @@ export function Tiro3D({
   record,
   golden,
   spread,
+  cole = [],
+  coleNivel = 1,
   onShot,
   onNext,
 }: Tiro3DProps) {
@@ -322,7 +332,9 @@ export function Tiro3D({
     const accuracy = Math.max(-1, Math.min(1, w.x / (ABANICO * spread)));
     const apuntado = { x: aim.x, y: Math.max(1, Math.min(99, aim.y + w.y)) };
     const seed = hashSeed(`${profileId}:desvio:${date}:${taken}${golden ? ':oro' : ''}${round ? `:r${round}` : ''}`);
-    const shot = resolveShot(apuntado, pow, keeper, seed, kind, accuracy, spread, stretch);
+    // Cada nivel del tiro del cole le quita alcance a Benji.
+    const alcance = isColeShot(kind) ? stretch - (coleNivel - 1) * NIVEL_ALCANCE : stretch;
+    const shot = resolveShot(apuntado, pow, keeper, seed, kind, accuracy, spread, alcance);
     const score = scoreShot({ shot, keeper, accuracy, kind, dianas, golden });
     const special = kind !== 'normal';
     const plan: Jugada = {
@@ -359,7 +371,7 @@ export function Tiro3D({
     };
     if (special) {
       setStep('corte');
-      timers.current.push(window.setTimeout(lanzar, CORTE_MS));
+      timers.current.push(window.setTimeout(lanzar, isColeShot(kind) ? CORTE_COLE_MS : CORTE_MS));
     } else {
       lanzar();
     }
@@ -379,7 +391,7 @@ export function Tiro3D({
       score,
       golden,
     );
-  }, [aim, date, dianas, golden, keeper, kind, onShot, profileId, result, round, scored, spread, stretch, taken]);
+  }, [aim, coleNivel, date, dianas, golden, keeper, kind, onShot, profileId, result, round, scored, spread, stretch, taken]);
 
   const replay = () => {
     if (!fired || replaying) return;
@@ -708,6 +720,41 @@ export function Tiro3D({
                       </button>
                     );
                   })}
+                  {/* Los del cole: se ganan con el reto de la asignatura del día. */}
+                  <p className="col-span-4 mt-1 flex items-center gap-1 border-t border-white/10 px-1 pt-1.5 text-[9px] font-black uppercase tracking-widest text-amber-300">
+                    🎒 Tiros del cole
+                  </p>
+                  <div className="col-span-4 grid grid-cols-6 gap-1">
+                    {COLE_ORDER.map((id) => {
+                      const t = SHOT_TYPES[id];
+                      const ok = shotAvailability(id, result, cole);
+                      const ganado = cole.includes(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          disabled={!ok.ok}
+                          onClick={() => {
+                            setKind(id);
+                            setTray(false);
+                          }}
+                          title={ganado ? t.name : `${t.name}: gana el reto del cole`}
+                          className={`relative flex flex-col items-center rounded-xl px-0.5 py-1.5 text-center text-[8px] font-black leading-tight text-white ring-2 transition
+                            ${kind === id ? 'bg-white/25 ring-amber-300' : ganado ? 'ring-transparent' : 'bg-white/5 ring-transparent'} disabled:opacity-40`}
+                          style={ganado ? { background: `radial-gradient(circle at 50% 30%, ${t.color}aa, #0b1220)`, boxShadow: `0 0 16px ${t.color}88` } : undefined}
+                        >
+                          <span className={`text-lg leading-none ${ganado ? 'animate-latido' : 'grayscale'}`}>{ganado ? t.icon : '🔒'}</span>
+                          <span className="mt-0.5">{t.short}</span>
+                          {ok.reason === 'usado' && <span className="text-[7px] text-white/60">usado</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {cole.length > 0 && coleNivel > 1 && (
+                    <p className="col-span-4 px-1 text-[9px] font-bold text-amber-200/90">
+                      {'★'.repeat(coleNivel)} Nivel {coleNivel}: Benji llega menos.
+                    </p>
+                  )}
                   <p className="col-span-4 px-1 pt-1 text-[11px] leading-snug text-white/80">
                     <b style={{ color: SHOT_TYPES[kind].color === '#f4f4f2' ? '#fde68a' : SHOT_TYPES[kind].color }}>
                       {SHOT_TYPES[kind].name}:
@@ -745,7 +792,48 @@ export function Tiro3D({
         )}
 
         {/* ----------------------------------------------- el corte especial */}
-        {step === 'corte' && fired && fired.kind !== 'normal' && (
+        {/* El de los del cole, en dos tiempos: la banda de la asignatura y,
+            debajo, la viñeta con el grito entrando desde la cámara. */}
+        {step === 'corte' && fired && isColeShot(fired.kind) && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden bg-[#241a14] animate-temblor">
+            <FondoTiro kind={fired.kind as Exclude<ShotKind, 'normal'>} className="absolute inset-0 h-full w-full animate-acerca" />
+            <div className="absolute inset-y-[14%] left-[4%] w-[50%] animate-entra" style={{ animationDelay: '650ms' }}>
+              <Vineta who={shooter} className="h-full w-full border-4 border-[#241a14] shadow-[5px_5px_0_#241a14]" />
+            </div>
+            <p
+              className="absolute inset-x-[4%] bottom-[9%] animate-acerca text-right font-manga text-[clamp(30px,10vw,58px)] leading-[0.95] tracking-wide text-white [paint-order:stroke] [-webkit-text-stroke:7px_#241a14]"
+              style={{ animationDelay: '800ms' }}
+            >
+              {SHOT_TYPES[fired.kind].shout}
+            </p>
+            {coleNivel > 1 && (
+              <p className="absolute right-[4%] top-[6%] animate-rotulo font-manga text-2xl text-amber-300 [-webkit-text-stroke:4px_#241a14] [paint-order:stroke]" style={{ animationDelay: '900ms' }}>
+                {'★'.repeat(coleNivel)}
+              </p>
+            )}
+            {/* La banda: «¡Reto de Mates superado!». */}
+            <div className="absolute inset-x-0 top-[38%] flex animate-banda items-center justify-center py-3 shadow-[0_8px_0_#241a14]" style={{ background: SHOT_TYPES[fired.kind].color }}>
+              <p className="font-manga text-[clamp(22px,7vw,40px)] uppercase leading-none text-[#241a14]">
+                {SHOT_TYPES[fired.kind].icon} ¡Reto del cole superado!
+              </p>
+            </div>
+            <div className="absolute inset-0 animate-fogonazo bg-white" />
+          </div>
+        )}
+
+        {/* El fogonazo de color cuando un tiro del cole llega a la red. */}
+        {landed && fired && !replaying && isColeShot(fired.kind) && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-20">
+            <div className="absolute inset-0 animate-fogonazo" style={{ background: `radial-gradient(circle at 50% 40%, #ffffff, ${SHOT_TYPES[fired.kind].color} 45%, transparent 80%)` }} />
+            {fired.shot.outcome === 'gol' && (
+              <p className="absolute inset-x-0 top-[22%] animate-acerca text-center font-manga text-[clamp(34px,12vw,72px)] leading-none text-white [paint-order:stroke] [-webkit-text-stroke:8px_#241a14]" style={{ color: SHOT_TYPES[fired.kind].color }}>
+                {fired.kind === 'thunder' ? 'WHAT A GOAL!' : fired.kind === 'letras' ? '¡G-O-L!' : fired.kind === 'multiplicador' ? '¡GOL ×3!' : fired.kind === 'meteorito' ? '¡IMPACTO!' : fired.kind === 'meridiano' ? '¡GOL 0°!' : '¡GOLAZO!'}
+              </p>
+            )}
+          </div>
+        )}
+
+        {step === 'corte' && fired && fired.kind !== 'normal' && !isColeShot(fired.kind) && (
           <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden bg-[#241a14]">
             <FondoTiro kind={fired.kind} className="absolute inset-0 h-full w-full animate-pop" />
             <div className="absolute inset-y-[14%] left-[5%] w-[52%] animate-entra">

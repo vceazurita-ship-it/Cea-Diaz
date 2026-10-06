@@ -106,8 +106,23 @@ const config: Config = {
           '60%': { opacity: '1', transform: 'translateX(4%) skewX(-6deg)' },
           '100%': { opacity: '1', transform: 'translateX(0) skewX(0deg)' },
         },
+        // La banda de la asignatura del tiro del cole: cruza de lado a lado.
+        banda: {
+          '0%': { transform: 'translateX(-115%) skewX(-14deg)' },
+          '18%': { transform: 'translateX(0) skewX(-8deg)' },
+          '78%': { transform: 'translateX(2%) skewX(-8deg)' },
+          '100%': { transform: 'translateX(115%) skewX(-14deg)' },
+        },
+        // Lo que entra desde la cámara: grande, temblando, y se asienta.
+        acerca: {
+          '0%': { opacity: '0', transform: 'scale(1.9) rotate(-4deg)' },
+          '55%': { opacity: '1', transform: 'scale(0.96) rotate(1deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)' },
+        },
       },
       animation: {
+        banda: 'banda 820ms cubic-bezier(0.3, 0.9, 0.4, 1) both',
+        acerca: 'acerca 480ms cubic-bezier(0.2, 1.3, 0.4, 1) both',
         pop: 'pop 320ms ease-out',
         floatUp: 'floatUp 360ms ease-out both',
         shimmer: 'shimmer 2.4s linear infinite',

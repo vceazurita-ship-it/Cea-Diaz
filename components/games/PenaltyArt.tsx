@@ -1563,6 +1563,168 @@ export function FondoTiro({ kind, className }: { kind: Exclude<ShotKind, 'normal
           <path d="M60 280 Q200 -60 340 240" fill="none" stroke="#fff" strokeWidth="5" strokeDasharray="3 12" strokeLinecap="round" />
         </g>
       )}
+
+      {/* ------------------------------------------------ los del cole */}
+
+      {kind === 'multiplicador' && (
+        <g>
+          <rect width="400" height="300" fill="#083344" />
+          {/* La cuadrícula del cuaderno de mates. */}
+          <g stroke="#22d3ee" strokeWidth="1" opacity="0.25">
+            {Array.from({ length: 21 }, (_, i) => (
+              <path key={`v${i}`} d={`M${i * 20} 0 V300`} />
+            ))}
+            {Array.from({ length: 16 }, (_, i) => (
+              <path key={`h${i}`} d={`M0 ${i * 20} H400`} />
+            ))}
+          </g>
+          <Rayos color="#67e8f9" opacity={0.22} n={32} />
+          <text x="300" y="215" fontSize="230" fontWeight="900" fill="#22d3ee" opacity="0.9" textAnchor="middle" stroke="#ecfeff" strokeWidth="6" paintOrder="stroke">
+            ×3
+          </text>
+          {/* Tres balones: uno de verdad y dos de mentira. */}
+          {[
+            [70, 70, 1],
+            [150, 40, 0.45],
+            [110, 130, 0.45],
+          ].map(([x, y, o]) => (
+            <g key={`${x}`} opacity={o}>
+              <circle cx={x} cy={y} r="24" fill="#fff" stroke="#083344" strokeWidth="4" />
+              <path d={`M${x} ${y - 11} L${x + 10} ${y - 4} L${x + 6} ${y + 9} L${x - 6} ${y + 9} L${x - 10} ${y - 4} Z`} fill="#083344" />
+            </g>
+          ))}
+          <g fill="#a5f3fc" fontWeight="900" fontSize="26" opacity="0.8">
+            <text x="30" y="270">7×8=56</text>
+            <text x="210" y="40">9×6</text>
+            <text x="20" y="200">÷</text>
+            <text x="360" y="280">+</text>
+          </g>
+        </g>
+      )}
+
+      {kind === 'letras' && (
+        <g>
+          <rect width="400" height="300" fill="#713f12" />
+          <Rayos color="#fde047" opacity={0.3} n={30} />
+          {/* Letras volando hacia fuera, como en un remolino. */}
+          {'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ¿?¡!ÁÉ'.split('').map((l, i) => {
+            const a = i * 0.7;
+            const r = 40 + i * 6;
+            return (
+              <text
+                key={i}
+                x={200 + Math.cos(a) * r}
+                y={150 + Math.sin(a) * r * 0.7}
+                fontSize={14 + i}
+                fontWeight="900"
+                fill={['#fde047', '#ffffff', '#fb923c', '#f472b6'][i % 4]}
+                stroke="#241a14"
+                strokeWidth="3"
+                paintOrder="stroke"
+                textAnchor="middle"
+                transform={`rotate(${(i * 37) % 60 - 30} ${200 + Math.cos(a) * r} ${150 + Math.sin(a) * r * 0.7})`}
+              >
+                {l}
+              </text>
+            );
+          })}
+          <text x="300" y="180" fontSize="120" fontWeight="900" fill="#fde047" stroke="#241a14" strokeWidth="8" paintOrder="stroke" textAnchor="middle">
+            GOL
+          </text>
+          <text x="318" y="92" fontSize="70" fontWeight="900" fill="#fff" stroke="#241a14" strokeWidth="6" paintOrder="stroke">
+            ´
+          </text>
+        </g>
+      )}
+
+      {kind === 'adn' && (
+        <g>
+          <rect width="400" height="300" fill="#052e16" />
+          <Rayos color="#86efac" opacity={0.2} />
+          {/* La doble hélice, de punta a punta. */}
+          <g transform="translate(290 0) rotate(18 0 150)">
+            {Array.from({ length: 22 }, (_, i) => {
+              const y = i * 15;
+              const x = Math.sin(i * 0.55) * 55;
+              return (
+                <g key={i}>
+                  <path d={`M${x} ${y} L${-x} ${y}`} stroke="#bbf7d0" strokeWidth="4" opacity="0.7" />
+                  <circle cx={x} cy={y} r="9" fill="#4ade80" stroke="#052e16" strokeWidth="2" />
+                  <circle cx={-x} cy={y} r="9" fill="#22d3ee" stroke="#052e16" strokeWidth="2" />
+                </g>
+              );
+            })}
+          </g>
+          {/* Hojas, que es una cosa de seres vivos. */}
+          {[
+            [40, 60, 20],
+            [120, 250, -30],
+            [60, 180, 60],
+            [180, 40, -10],
+          ].map(([x, y, r]) => (
+            <path key={`${x}`} d="M0 0 C 18 -22 46 -18 56 0 C 46 18 18 22 0 0 Z M0 0 L56 0" fill="#16a34a" stroke="#bbf7d0" strokeWidth="2.5" transform={`translate(${x} ${y}) rotate(${r})`} />
+          ))}
+        </g>
+      )}
+
+      {kind === 'thunder' && (
+        <g>
+          <rect width="400" height="300" fill="#1e1b4b" />
+          {/* Nubes de tormenta. */}
+          <g fill="#312e81">
+            <ellipse cx="80" cy="20" rx="110" ry="45" />
+            <ellipse cx="240" cy="10" rx="130" ry="45" />
+            <ellipse cx="380" cy="30" rx="90" ry="45" />
+          </g>
+          {/* Los rayos: uno gordo y dos de acompañamiento. */}
+          <path d="M260 10 L215 130 L255 128 L205 290 L320 110 L272 112 L310 10 Z" fill="#e0e7ff" stroke="#818cf8" strokeWidth="8" strokeLinejoin="round" />
+          <path d="M90 30 L70 110 L95 108 L60 200" fill="none" stroke="#c7d2fe" strokeWidth="6" strokeLinejoin="round" />
+          <path d="M370 40 L350 100 L372 98 L340 170" fill="none" stroke="#c7d2fe" strokeWidth="5" strokeLinejoin="round" />
+          <text x="20" y="285" fontSize="44" fontWeight="900" fontStyle="italic" fill="#a5b4fc" opacity="0.6">
+            BOOM!
+          </text>
+        </g>
+      )}
+
+      {kind === 'meteorito' && (
+        <g>
+          <rect width="400" height="300" fill="#020617" />
+          {Array.from({ length: 40 }, (_, i) => (
+            <circle key={i} cx={(i * 97) % 400} cy={(i * 61) % 300} r={i % 5 ? 1.2 : 2.4} fill="#e2e8f0" opacity="0.8" />
+          ))}
+          {/* La Tierra asomando abajo. */}
+          <circle cx="90" cy="400" r="200" fill="#1d4ed8" />
+          <path d="M-40 260 Q20 220 70 240 T160 230 Q200 250 230 300 L-40 300 Z" fill="#16a34a" />
+          {/* El meteorito en llamas, en diagonal. */}
+          <path d="M360 20 L220 150 L250 170 Z" fill="#f97316" opacity="0.8" />
+          <path d="M380 0 L215 140 L235 165 Z" fill="#fde047" opacity="0.7" />
+          <circle cx="225" cy="155" r="30" fill="#fff" stroke="#fb7185" strokeWidth="8" />
+          <path d="M225 143 L236 151 L232 165 L218 165 L214 151 Z" fill="#0f172a" />
+        </g>
+      )}
+
+      {kind === 'meridiano' && (
+        <g>
+          <rect width="400" height="300" fill="#172554" />
+          <Rayos color="#fde68a" opacity={0.3} n={36} />
+          {/* El mundo, con sus paralelos y meridianos. */}
+          <g transform="translate(200 150)">
+            <circle r="105" fill="#1d4ed8" stroke="#fde68a" strokeWidth="5" />
+            <path d="M-60 -60 Q-20 -80 10 -50 T60 -20 Q40 20 0 10 T-70 20 Z" fill="#16a34a" />
+            <path d="M20 30 Q60 30 70 60 T30 90 Q10 70 20 30 Z" fill="#16a34a" />
+            {[-60, -30, 0, 30, 60].map((y) => (
+              <ellipse key={y} cx="0" cy={y} rx={Math.sqrt(105 * 105 - y * y)} ry="6" fill="none" stroke="#bfdbfe" strokeWidth="1.5" opacity="0.6" />
+            ))}
+            {[30, 60, 90].map((rx) => (
+              <ellipse key={rx} cx="0" cy="0" rx={rx} ry="105" fill="none" stroke="#bfdbfe" strokeWidth="1.5" opacity="0.6" />
+            ))}
+          </g>
+          {/* El meridiano cero: el rayo dorado que lo parte en dos. */}
+          <rect x="193" y="0" width="14" height="300" fill="#fde68a" />
+          <rect x="198" y="0" width="4" height="300" fill="#fff" />
+          <text x="214" y="30" fontSize="22" fontWeight="900" fill="#fde68a">0°</text>
+        </g>
+      )}
     </svg>
   );
 }
