@@ -173,6 +173,46 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
     }
   };
 
+  /**
+   * «Bajar todo lo que se pueda»: vueltas seguidas, cada una de unos 40 s
+   * como mucho, hasta que el historial está entero, Footbar corta o se acaba
+   * el cupo de la semana. Cada vuelta guarda lo suyo, así que cerrar la app a
+   * mitad no pierde nada: sólo deja de pedir.
+   */
+  const [progreso, setProgreso] = useState<{ profileId: ProfileId; vuelta: number; bajadas: number } | null>(null);
+  const bajarTodo = async (profileId: ProfileId, name: string) => {
+    setBusy(profileId);
+    setProblem(null);
+    let bajadas = 0;
+    let ultimo: FootbarSyncResult | undefined;
+    try {
+      for (let vuelta = 1; vuelta <= 8; vuelta += 1) {
+        setProgreso({ profileId, vuelta, bajadas });
+        [ultimo] = await footbarUpdate(profileId, true);
+        if (!ultimo) break;
+        bajadas += ultimo.added + ultimo.updated;
+        if (ultimo.error || ultimo.throttled || !ultimo.pendiente) break;
+        void reload();
+      }
+      await store.syncNow();
+      const fin = !ultimo
+        ? 'no está conectado.'
+        : ultimo.error
+          ? `${bajadas} bajadas. ${ultimo.error}`
+          : ultimo.pendiente
+            ? `${bajadas} bajadas. Por hoy no se puede más: el resto entra solo cuando se libere el cupo.`
+            : `${bajadas} bajadas. ¡Historial completo!`;
+      notify({ message: `${name}: ${fin}`, icon: ultimo?.error ? '⚠️' : '📥', tone: ultimo?.error && !ultimo.throttled ? 'danger' : 'neutral', duration: 9000 });
+    } catch (error) {
+      if (bajadas > 0) await store.syncNow().catch(() => undefined);
+      fail(error);
+    } finally {
+      setBusy(null);
+      setProgreso(null);
+      void reload();
+    }
+  };
+
   const disconnect = async (profileId: ProfileId, name: string) => {
     setBusy(profileId);
     setProblem(null);
@@ -251,6 +291,24 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
                         : `Última revisión: ${when(link.lastSync)}.`}
                   </p>
                   {link?.historial && !link.needsReconnect && <Historial {...link.historial} />}
+                  {progreso?.profileId === kid.id && (
+                    <p className="mt-1 animate-pulse text-[11px] font-bold t-1" aria-live="polite">
+                      📥 Bajando… vuelta {progreso.vuelta} · {progreso.bajadas} sesiones hasta ahora. No cierres la app.
+                    </p>
+                  )}
+                  {link && !link.needsReconnect && !link.historial?.completo && busy === null && (
+                    <button
+                      type="button"
+                      onClick={() => bajarTodo(kid.id, kid.name)}
+                      className="mt-1.5 w-full rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1.5 text-left text-[11px] font-bold leading-snug t-1"
+                    >
+                      📥 Bajar todo lo que se pueda ahora
+                      <span className="block font-normal t-3">
+                        Usa también las 30 consultas guardadas para lo nuevo: los entrenos de esta semana entrarán
+                        cuando se libere el cupo.
+                      </span>
+                    </button>
+                  )}
                 </div>
                 {link && !link.needsReconnect ? (
                   <>

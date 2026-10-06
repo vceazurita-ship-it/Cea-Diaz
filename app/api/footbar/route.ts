@@ -11,7 +11,8 @@ import type { ProfileId } from '@/types';
  *
  *  GET   dice si la integración está disponible y quién está conectado.
  *  POST  `conectar` devuelve la pantalla de permiso de Footbar;
- *        `actualizar` revisa ya, sin esperar a las 21:00 (uno o todos);
+ *        `actualizar` revisa ya, sin esperar a las 21:00 (uno o todos); con
+ *        `todo`, el historial puede gastar también la reserva de la semana;
  *        `desconectar` borra el permiso guardado.
  *
  *  Todo pasa por la sesión de Supabase de la casa, como el calendario.
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   if (owner === 'lento') return bad('La cuenta de casa (Supabase) no responde ahora. Prueba en un momento.', 504);
   if (!owner) return bad('Hay que entrar en la cuenta de casa.', 401);
 
-  const body = (await request.json().catch(() => ({}))) as { accion?: string; profileId?: string };
+  const body = (await request.json().catch(() => ({}))) as { accion?: string; profileId?: string; todo?: boolean };
 
   try {
     switch (body.accion) {
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
       case 'actualizar': {
         const one = body.profileId === undefined ? undefined : body.profileId;
         if (one !== undefined && !isKid(one)) return bad('Ese perfil no lleva rastreador.', 400);
-        return NextResponse.json({ results: await syncOwner(owner, one) });
+        return NextResponse.json({ results: await syncOwner(owner, one, { todo: body.todo === true }) });
       }
 
       case 'desconectar': {

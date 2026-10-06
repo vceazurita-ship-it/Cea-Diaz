@@ -224,6 +224,8 @@ export interface SyncOutcome {
   needsReconnect?: boolean;
   /** Footbar ha dicho que basta por esta semana. */
   throttled?: boolean;
+  /** Aún queda historial por bajar: «bajar todo» sigue con otra vuelta. */
+  pendiente?: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -255,6 +257,12 @@ const RESERVA = 30;
 /** Consultas como mucho en una revisión de un peque: que la función acabe antes de que Vercel la corte. */
 const MAX_POR_VUELTA = 24;
 const SEMANA_MS = 7 * 24 * 3600 * 1000;
+/**
+ * Lo que dura como mucho una vuelta pidiendo cosas a Footbar. Vercel corta la
+ * función a los 60 s y entonces no se guarda nada: se para antes, con margen
+ * para escribir lo bajado y lo gastado.
+ */
+const PRESUPUESTO_MS = 40_000;
 
 interface Estado {
   /** Momentos (ms) de las consultas gastadas por este enlace en los últimos siete días. */
@@ -305,10 +313,21 @@ export async function cupoFootbar(): Promise<{ usadas: number; libres: number; c
   return { usadas, libres: Math.max(0, CUPO_SEMANA - MARGEN - usadas), cortadoHasta };
 }
 
+export interface SyncOpciones {
+  /**
+   * «Bajar todo lo que se pueda», pedido a mano: el historial puede gastar
+   * también la reserva de la semana para los entrenos nuevos.
+   */
+  todo?: boolean;
+}
+
 async function syncRow(
   row: LinkRow,
   only?: { sessionId: number; destroy?: boolean },
+  opciones: SyncOpciones = {},
 ): Promise<SyncOutcome> {
+  const limite = Date.now() + PRESUPUESTO_MS;
+  const reservaHistorial = opciones.todo ? 0 : RESERVA;
   const profileId = profileOf(row);
   const outcome: SyncOutcome = { profileId, added: 0, updated: 0 };
   if (!(profileId in PROFILES_BY_ID)) return { ...outcome, error: 'Perfil desconocido.' };
@@ -330,7 +349,7 @@ async function syncRow(
     }
     /** Si aún se puede gastar una consulta, dejando `reserva` sin tocar. */
     const puede = (reserva: number) =>
-      cuenta.momentos.length < MAX_POR_VUELTA && cupo.libres - cuenta.momentos.length > reserva;
+      cuenta.momentos.length < MAX_POR_VUELTA && Date.now() < limite && cupo.libres - cuenta.momentos.length > reserva;
 
     const book = await readBook(row.owner, profileId);
     let { sessions } = book;
@@ -411,14 +430,14 @@ async function syncRow(
             estado.completo = false;
             estado.pagina = 1;
           }
-          while (!halted && !estado.completo && puede(RESERVA)) {
+          while (!halted && !estado.completo && puede(reservaHistorial)) {
             const pagina = await sessionPage(access, estado.pagina, cuenta);
             if (pagina.total !== undefined) estado.total = pagina.total;
             const falta = tengo();
             let acabada = true;
             for (const { id } of pagina.sesiones) {
               if (falta.has(id)) continue;
-              if (!puede(RESERVA) || !(await traer(access, id))) {
+              if (!puede(reservaHistorial) || !(await traer(access, id))) {
                 acabada = false;
                 break;
               }
@@ -447,7 +466,7 @@ async function syncRow(
     if (halted instanceof FootbarError && halted.hasta) estado.cortadoHasta = halted.hasta;
     await guardarEstado(halted ? {} : { checked_at: now, broken: false });
     if (halted) throw halted;
-    return outcome;
+    return { ...outcome, pendiente: !estado.completo };
   } catch (problem) {
     if (problem instanceof FootbarError && problem.hasta) estado.cortadoHasta = problem.hasta;
     await guardarEstado().catch(() => undefined);
@@ -461,19 +480,19 @@ async function syncRow(
 }
 
 /** Revisa uno de casa, o todos los conectados de esa cuenta si no se dice cuál. */
-export async function syncOwner(owner: string, profileId?: ProfileId): Promise<SyncOutcome[]> {
+export async function syncOwner(owner: string, profileId?: ProfileId, opciones: SyncOpciones = {}): Promise<SyncOutcome[]> {
   if (profileId) {
     const row = await findRow(owner, profileId);
-    return row ? [await syncRow(row)] : [];
+    return row ? [await syncRow(row, undefined, opciones)] : [];
   }
-  return syncRows((await allRows()).filter((row) => row.owner === owner));
+  return syncRows((await allRows()).filter((row) => row.owner === owner), opciones);
 }
 
 /**
  * Uno detrás de otro. Si Footbar corta con el primero, el segundo ni se
  * intenta: el cupo es de la app entera y con él tampoco entraría.
  */
-async function syncRows(rows: LinkRow[]): Promise<SyncOutcome[]> {
+async function syncRows(rows: LinkRow[], opciones: SyncOpciones = {}): Promise<SyncOutcome[]> {
   const out: SyncOutcome[] = [];
   let cut: SyncOutcome | undefined;
   // Se turnan: primero el que menos consultas ha gastado esta semana, para
@@ -485,7 +504,7 @@ async function syncRows(rows: LinkRow[]): Promise<SyncOutcome[]> {
       out.push({ profileId: profileOf(row), added: 0, updated: 0, error: cut.error, throttled: true });
       continue;
     }
-    const outcome = await syncRow(row);
+    const outcome = await syncRow(row, undefined, opciones);
     if (outcome.throttled) cut = outcome;
     out.push(outcome);
   }

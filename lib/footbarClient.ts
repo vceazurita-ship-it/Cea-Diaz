@@ -34,13 +34,19 @@ export interface FootbarSyncResult {
   error?: string;
   needsReconnect?: boolean;
   throttled?: boolean;
+  /** Aún queda historial por bajar. */
+  pendiente?: boolean;
 }
 
 /** Dónde deja la vuelta de Footbar su desenlace para que lo cuente la pantalla. */
 export const FOOTBAR_RETURN_KEY = 'habitos-familia:footbar-vuelta';
 
-/** Lo que se espera al servidor antes de decir que no contesta: la revisión puede tardar. */
-const WAIT_MS = 45_000;
+/**
+ * Lo que se espera al servidor antes de decir que no contesta. El servidor se
+ * para a los 40 s de pedir cosas a Footbar y Vercel lo corta a los 60: hay que
+ * esperar más que eso, o el móvil daba por perdida una revisión que sí acababa.
+ */
+const WAIT_MS = 62_000;
 /** Lo que se espera en cada intento de lo que es rápido (conectar, consultar): responde en un segundo. */
 const INTENTO_MS = 12_000;
 
@@ -164,9 +170,12 @@ export async function footbarConnectUrl(profileId: ProfileId): Promise<string> {
   return url;
 }
 
-/** Revisa ya, sin esperar a las 21:00. Sin perfil, todos los conectados. */
-export async function footbarUpdate(profileId?: ProfileId): Promise<FootbarSyncResult[]> {
-  return (await action<{ results: FootbarSyncResult[] }>({ accion: 'actualizar', profileId }, false)).results;
+/**
+ * Revisa ya, sin esperar a las 21:00. Sin perfil, todos los conectados. Con
+ * `todo`, el historial puede gastar también la reserva de la semana.
+ */
+export async function footbarUpdate(profileId?: ProfileId, todo = false): Promise<FootbarSyncResult[]> {
+  return (await action<{ results: FootbarSyncResult[] }>({ accion: 'actualizar', profileId, todo }, false)).results;
 }
 
 export async function footbarDisconnect(profileId: ProfileId): Promise<void> {

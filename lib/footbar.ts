@@ -226,12 +226,28 @@ export interface FootbarSession {
   hsr_plus?: number | null;
 }
 
+/**
+ * Lo que se espera a Footbar en cada petición. Sin plazo, una petición
+ * colgada dejaba la función esperando hasta que Vercel la mataba a los 60 s,
+ * y con ella se perdía todo lo bajado en esa vuelta.
+ */
+const PLAZO_MS = 12_000;
+
 async function api<T>(path: string, access: string, cuenta?: Cuenta): Promise<T> {
   cuenta?.momentos.push(Date.now());
-  const response = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${access}` },
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      headers: { Authorization: `Bearer ${access}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(PLAZO_MS),
+    });
+  } catch (problem) {
+    if (problem instanceof Error && (problem.name === 'TimeoutError' || problem.name === 'AbortError')) {
+      throw new FootbarError('Footbar no contesta ahora. Lo ya bajado queda guardado; prueba en un rato.', 504);
+    }
+    throw problem;
+  }
   if (response.status === 401) throw new FootbarError('Footbar no reconoce el permiso.', 401, true);
   if (response.status === 429) {
     // El cupo es de la aplicación, no de cada peque: Leo y Hugo tiran del
