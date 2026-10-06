@@ -282,6 +282,12 @@ interface Estado {
   vacias: number[];
   /** Cuántas sesiones dice Footbar que tiene. */
   total?: number;
+  /** Las sesiones de la página en curso que aún faltan: la página no se vuelve a pedir. */
+  cola?: number[];
+  /** Si después de la página en curso hay más. */
+  hayMas?: boolean;
+  /** Cuándo se miró por última vez la lista de lo reciente (ms). */
+  recienteEn?: number;
 }
 
 function leerEstado(row: LinkRow): Estado {
@@ -296,6 +302,9 @@ function leerEstado(row: LinkRow): Estado {
       repasadoEn: typeof data.repasadoEn === 'number' ? data.repasadoEn : undefined,
       vacias: Array.isArray(data.vacias) ? data.vacias.filter((n) => typeof n === 'number') : [],
       total: typeof data.total === 'number' ? data.total : undefined,
+      cola: Array.isArray(data.cola) ? data.cola.filter((n) => typeof n === 'number') : undefined,
+      hayMas: typeof data.hayMas === 'boolean' ? data.hayMas : undefined,
+      recienteEn: typeof data.recienteEn === 'number' ? data.recienteEn : undefined,
     };
   } catch {
     // Las filas de antes llevan aquí «Footbar»: se empieza de cero.
@@ -416,37 +425,55 @@ async function syncRow(
       } else {
         // 1. Lo nuevo, de lo más reciente hacia atrás: sólo lo de estas dos
         // semanas, que es lo que tira de la reserva. Lo anterior es historial.
-        const have = tengo();
-        const desde = Date.now() - 14 * 24 * 3600 * 1000;
-        const nuevas = (await recentSessions(access, cuenta))
-          .filter((item) => (Date.parse(item.start_date ?? '') || 0) >= desde)
-          .map((item) => item.id)
-          .filter((id) => !have.has(id));
-        for (const id of nuevas) {
-          if (!puede(0) || !(await traer(access, id))) break;
+        // En «bajar todo» las vueltas van seguidas: mirar lo reciente en cada
+        // una gastaba una o dos consultas para nada, así que basta con una
+        // vez cada media hora.
+        const recienMirado = opciones.todo && estado.recienteEn !== undefined && Date.now() - estado.recienteEn < 30 * 60_000;
+        if (!recienMirado) {
+          const have = tengo();
+          const desde = Date.now() - 14 * 24 * 3600 * 1000;
+          const nuevas = (await recentSessions(access, cuenta))
+            .filter((item) => (Date.parse(item.start_date ?? '') || 0) >= desde)
+            .map((item) => item.id)
+            .filter((id) => !have.has(id));
+          estado.recienteEn = Date.now();
+          for (const id of nuevas) {
+            if (!puede(0) || !(await traer(access, id))) break;
+          }
         }
 
         // 2. El historial, página a página, sin tocar la reserva de lo nuevo.
+        // Lo que falta de la página en curso se apunta en `cola`: así una
+        // vuelta que se queda a medias no vuelve a pedir la misma página.
         if (!estado.completo || !estado.repasadoEn || Date.now() - estado.repasadoEn > SEMANA_MS) {
           if (estado.completo) {
             // Una vez a la semana se repasa entero, por si se escapó alguna.
             estado.completo = false;
             estado.pagina = 1;
+            estado.cola = undefined;
           }
           while (!halted && !estado.completo && puede(reservaHistorial)) {
-            const pagina = await sessionPage(access, estado.pagina, cuenta);
-            if (pagina.total !== undefined) estado.total = pagina.total;
-            const falta = tengo();
+            if (!estado.cola || estado.hayMas === undefined) {
+              const pagina = await sessionPage(access, estado.pagina, cuenta);
+              if (pagina.total !== undefined) estado.total = pagina.total;
+              const falta = tengo();
+              estado.cola = pagina.sesiones.map((item) => item.id).filter((id) => !falta.has(id));
+              estado.hayMas = pagina.hayMas;
+            }
             let acabada = true;
-            for (const { id } of pagina.sesiones) {
-              if (falta.has(id)) continue;
-              if (!puede(reservaHistorial) || !(await traer(access, id))) {
-                acabada = false;
-                break;
+            while (estado.cola.length > 0) {
+              const id = estado.cola[0];
+              if (!tengo().has(id)) {
+                if (!puede(reservaHistorial) || !(await traer(access, id))) {
+                  acabada = false;
+                  break;
+                }
               }
+              estado.cola.shift();
             }
             if (!acabada) break;
-            if (!pagina.hayMas) {
+            estado.cola = undefined;
+            if (!estado.hayMas) {
               estado.completo = true;
               estado.repasadoEn = Date.now();
               estado.pagina = 1;
