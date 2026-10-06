@@ -3,18 +3,22 @@ import type { DateKey, Visual } from '@/types';
 /* =========================================================================
  *  El temario del primer trimestre, para los retos del cole.
  *
- *  Sale de los libros del curso 26-27 y, donde no hay libro, del currículo
- *  de la Comunidad de Madrid (Decreto 61/2022):
+ *  Sale de los libros del curso 26-27, con el corte de trimestre que marca
+ *  cada índice:
  *
- *   - **Matemáticas**: Santillana, *Construyendo Mundos* 3 y 4. El índice de
- *     3º marca el fin del primer trimestre tras la unidad 4; en 4º se supone
- *     el mismo corte (12 unidades, 4 por trimestre).
+ *   - **Matemáticas 4**: Santillana, *Construyendo Mundos* 4 (verificado en
+ *     la lista del curso). Se supone el corte de 4 unidades por trimestre.
+ *   - **Matemáticas 3**: Anaya, *Operación Mundo* 3: U1-4 hasta el «Repaso
+ *     trimestre 1».
+ *   - **Lengua 3 y 4**: Anaya, *Operación Mundo*: U1-4.
+ *   - **Natural y Social Science 3 y 4**: Anaya, *Global Thinkers* (la serie
+ *     en inglés de Anaya): U1-2 hasta el «Term review».
  *   - **English**: *Oxford Discover* 3 y 4, dos unidades por «Big Question»;
  *     en el primer trimestre caen las tres primeras preguntas (U1-6).
- *   - **Lengua**: no hay libro de texto, sólo lecturas y cuadernillos de
- *     ortografía; los bloques siguen el orden habitual del ciclo.
- *   - **Natural y Social Science**: no tienen libro en la lista; los bloques
- *     son los del currículo, en el orden en que suelen darse.
+ *
+ *  Lo de Anaya es lo que se supone que usan donde no hay lista publicada:
+ *  los índices son los de las muestras oficiales, pero que el cole use estos
+ *  libros y no otros está por confirmar (mirar la portada del libro).
  *
  *  Lo supuesto es fácil de corregir: cada tema dice desde qué día se da, y
  *  basta con mover esa fecha o el contenido cuando se sepa lo que llevan de
@@ -276,13 +280,6 @@ const restaLlevando = (cifras: number) => (rand: Rand): Pregunta => {
   return numerica('➖', `${num(a)} − ${num(b)} = ?`, r, cercanos(rand, r, [10, -10, 100, -100, 1, -1, 1000]), `Comprobación: ${num(r)} + ${num(b)} = ${num(a)}.`, { tipo: 'columnas', a, b, op: '−', resultado: r });
 };
 
-const restaHueco = (rand: Rand): Pregunta => {
-  const a = entre(rand, 2000, 9000);
-  const r = entre(rand, 300, a - 500);
-  const b = a - r;
-  return numerica('🧩', `${num(a)} − ▢ = ${num(r)}. ¿Qué número falta?`, b, cercanos(rand, b, [10, -10, 100, -100, 1000]), `El que falta es ${num(a)} − ${num(r)} = ${num(b)}.`);
-};
-
 const problemaDos = (rand: Rand): Pregunta => {
   const tenia = entre(rand, 120, 480);
   const gana = entre(rand, 30, 150);
@@ -308,12 +305,6 @@ const estimarSuma = (rand: Rand): Pregunta => {
   const b = entre(rand, 210, 880);
   const bueno = Math.round(a / 100) * 100 + Math.round(b / 100) * 100;
   return numerica('🤔', `Sin hacer la cuenta exacta: ¿cuánto da más o menos ${a} + ${b}?`, bueno, [bueno + 300, bueno - 300, bueno + 1000], `Se redondea cada uno a las centenas y se suman: ${Math.round(a / 100) * 100} + ${Math.round(b / 100) * 100} = ${bueno}.`);
-};
-
-const tabla = (rand: Rand): Pregunta => {
-  const a = entre(rand, 3, 9);
-  const b = entre(rand, 3, 9);
-  return numerica('✖️', `${a} × ${b} = ?`, a * b, cercanos(rand, a * b, [a, -a, b, -b, 1, -1]), `La tabla del ${a}: ${a} × ${b} = ${a * b}.`, { tipo: 'matriz', filas: a, columnas: b });
 };
 
 const dobleTriple = (rand: Rand): Pregunta => {
@@ -418,17 +409,6 @@ const anguloGrados = (rand: Rand): Pregunta => {
   const tipo = g < 90 ? 'Agudo' : g === 90 ? 'Recto' : 'Obtuso';
   return { icon: '📐', prompt: `Un ángulo de ${g}° es…`, ok: tipo, no: ['Agudo', 'Recto', 'Obtuso', 'Llano'].filter((t) => t !== tipo), why: 'Agudo: menos de 90°. Recto: 90° justos (como una esquina). Obtuso: más de 90°.', visual: { tipo: 'angulo', grados: g } };
 };
-
-const RECTAS: Pregunta[] = [
-  p('🛤️', 'Dos rectas que nunca se cortan, como las vías del tren, son…', 'Paralelas', ['Secantes', 'Perpendiculares', 'Curvas'], 'Paralelas: siempre a la misma distancia, nunca se tocan.', { tipo: 'rectas', clase: 'paralelas' }),
-  p('✝️', 'Dos rectas que se cortan formando cuatro ángulos rectos son…', 'Perpendiculares', ['Paralelas', 'Curvas', 'Semirrectas'], 'Perpendiculares: se cortan en ángulo recto, como una cruz.', { tipo: 'rectas', clase: 'perpendiculares' }),
-  p('✂️', 'Dos rectas que se cortan en un punto son…', 'Secantes', ['Paralelas', 'Iguales', 'Curvas'], 'Secantes: se cortan. Si además forman ángulos rectos, son perpendiculares.', { tipo: 'rectas', clase: 'secantes' }),
-  p('➡️', 'Una línea que tiene principio pero no tiene fin es una…', 'Semirrecta', ['Recta', 'Segmento', 'Curva'], 'Semirrecta: un origen y sigue para siempre por un lado.', { tipo: 'rectas', clase: 'semirrecta' }),
-  p('📏', 'Un trozo de recta con dos extremos es un…', 'Segmento', ['Semirrecta', 'Ángulo', 'Vértice'], 'Segmento: empieza y acaba; se puede medir con la regla.', { tipo: 'rectas', clase: 'segmento' }),
-  p('🕒', 'Las agujas del reloj a las 3 en punto forman un ángulo…', 'Recto', ['Agudo', 'Obtuso', 'Llano'], 'A las 3 en punto forman 90°: un ángulo recto.', { tipo: 'rectas', clase: 'reloj' }),
-  p('🦋', 'Si doblas una mariposa por la mitad y las dos partes coinciden, la línea del doblez es un…', 'Eje de simetría', ['Segmento', 'Ángulo', 'Perímetro'], 'El eje de simetría divide la figura en dos mitades iguales, como un espejo.', { tipo: 'rectas', clase: 'simetria' }),
-  p('📐', 'El punto donde se juntan los dos lados de un ángulo se llama…', 'Vértice', ['Lado', 'Eje', 'Arco'], 'El vértice es la punta del ángulo.', { tipo: 'rectas', clase: 'vertice' }),
-];
 
 const TRIANGULOS: Pregunta[] = [
   p('🔺', 'Un triángulo con los tres lados iguales es…', 'Equilátero', ['Isósceles', 'Escaleno', 'Rectángulo'], 'Equilátero: tres lados iguales.', { tipo: 'poligono', lados: 3, clase: 'equilatero' }),
@@ -545,10 +525,10 @@ const FRASES: [string, string, string, string][] = [
   ['las', 'flores', 'amarillas', 'crecen'], ['el', 'tigre', 'rápido', 'corre'], ['la', 'profesora', 'simpática', 'explica'],
 ];
 
-const nombreAdjetivo = (rand: Rand): Pregunta => {
+const nombreAdjetivo = (fijo?: 'nombre' | 'adjetivo' | 'verbo') => (rand: Rand): Pregunta => {
   const [art, nombre, adj, verbo] = uno(rand, FRASES);
   const frase = `${art[0].toUpperCase()}${art.slice(1)} ${nombre} ${adj} ${verbo}.`;
-  const pide = uno(rand, ['nombre', 'adjetivo', 'verbo'] as const);
+  const pide = fijo ?? uno(rand, ['nombre', 'adjetivo', 'verbo'] as const);
   const ok = pide === 'nombre' ? nombre : pide === 'adjetivo' ? adj : verbo;
   const explica = {
     nombre: `«${nombre}» es el nombre (sustantivo): nombra a un ser o cosa.`,
@@ -586,39 +566,190 @@ const COMUN_PROPIO: Pregunta[] = [
   p('🏷️', '¿Cuál es un nombre COMÚN?', 'balón', ['Benji', 'Alcobendas', 'Tajo'], '«balón» vale para cualquier balón: es común.'),
 ];
 
-/** Huecos de ortografía: la palabra, el trozo bueno y los otros. */
-const HUECOS: [string, string, string[]][] = [
-  ['pingüino', 'gü', ['gu', 'g']], ['cigüeña', 'gü', ['gu', 'g']], ['guitarra', 'gu', ['gü', 'g']], ['guerra', 'gu', ['gü', 'g']],
-  ['hoguera', 'gu', ['gü', 'g']], ['paraguas', 'gu', ['gü', 'g']], ['vergüenza', 'gü', ['gu', 'g']],
-  ['queso', 'qu', ['c', 'k']], ['mosquito', 'qu', ['c', 'k']], ['paquete', 'qu', ['c', 'k']], ['cometa', 'c', ['qu', 'k']], ['cuento', 'c', ['qu', 'k']],
-  ['perro', 'rr', ['r']], ['torre', 'rr', ['r']], ['carretera', 'rr', ['r']], ['ratón', 'r', ['rr']], ['Enrique', 'r', ['rr']], ['alrededor', 'r', ['rr']], ['pera', 'r', ['rr']],
-  ['campo', 'm', ['n']], ['tiempo', 'm', ['n']], ['hombro', 'm', ['n']], ['sombra', 'm', ['n']], ['bombero', 'm', ['n']], ['trompeta', 'm', ['n']], ['cambio', 'm', ['n']],
+/* ---- Lengua · Operación Mundo (Anaya) ---- */
+
+const LETRA_ORACION: Pregunta[] = [
+  p('🔤', '¿Cuántas letras tiene «balón»?', '5', ['4', '6', '2'], 'b - a - l - ó - n: cinco letras.', { tipo: 'letras', palabras: ['balón'] }),
+  p('🔤', '¿Cuántas letras tiene «portero»?', '7', ['6', '8', '3'], 'p - o - r - t - e - r - o: siete letras.', { tipo: 'letras', palabras: ['portero'] }),
+  p('💬', '¿Cuál es una ORACIÓN?', 'Benji para el balón.', ['para el balón', 'Benji balón', 'el portero'], 'Una oración tiene sentido completo y un verbo. Empieza con mayúscula y acaba en punto.'),
+  p('💬', '¿Cuál es una ORACIÓN?', 'Mi hermano juega al fútbol.', ['mi hermano', 'al fútbol juega mi', 'jugar fútbol'], 'Tiene sentido completo y un verbo (juega).'),
+  p('🧩', 'Las letras forman sílabas, y las sílabas forman…', 'Palabras', ['Letras', 'Números', 'Puntos'], 'Letra → sílaba → palabra → oración.'),
+  p('🔤', '¿Cuántas palabras tiene «El gato duerme mucho»?', '4', ['3', '5', '6'], 'El / gato / duerme / mucho: cuatro palabras.'),
+  p('📖', '¿Cuántas letras tiene el abecedario español?', '27', ['26', '25', '30'], 'Son 27, contando la ñ.'),
+  p('🔤', '¿Cuál de estas letras es una VOCAL?', 'e', ['m', 't', 'r'], 'Las vocales son a, e, i, o, u; las demás son consonantes.'),
 ];
 
-const DIBUJO_PALABRA: Record<string, string> = {
-  pingüino: '🐧', cigüeña: '🪶', guitarra: '🎸', guerra: '⚔️', hoguera: '🔥', paraguas: '☂️', vergüenza: '😳',
-  queso: '🧀', mosquito: '🦟', paquete: '📦', cometa: '🪁', cuento: '📖',
-  perro: '🐶', torre: '🗼', carretera: '🛣️', ratón: '🐭', Enrique: '👦', alrededor: '🔄', pera: '🍐',
-  campo: '🌾', tiempo: '⏰', hombro: '💪', sombra: '🌳', bombero: '🚒', trompeta: '🎺', cambio: '🔁',
+const SIGLAS: Pregunta[] = [
+  p('🪪', '¿Qué es una sigla?', 'Una palabra hecha con las primeras letras de otras', ['Una palabra muy larga', 'Un tipo de punto', 'Un nombre de persona'], 'DNI = Documento Nacional de Identidad: cada letra es el principio de una palabra.'),
+  p('🪪', '¿Qué significa DNI?', 'Documento Nacional de Identidad', ['Día Nacional Infantil', 'Dibujo Nuevo Inventado', 'Dirección Norte Izquierda'], 'D-N-I: Documento Nacional de Identidad.'),
+  p('🇪🇺', '¿Qué significa UE?', 'Unión Europea', ['Universidad Española', 'Uno y Español', 'Unidad Escolar'], 'La Unión Europea: España es uno de sus países.'),
+  p('🌍', '¿Qué significa ONU?', 'Organización de las Naciones Unidas', ['Oficina de Niños Unidos', 'Orden de los Números Usados', 'Olimpiada Nacional Universal'], 'La ONU reúne a casi todos los países del mundo.'),
+  p('🔠', 'Las siglas se escriben…', 'En mayúsculas', ['En minúsculas', 'Con tilde', 'Al revés'], 'DNI, ONU, UE: en mayúsculas y sin puntos.'),
+];
+
+const POLISEMICAS: [string, string, string][] = [
+  ['banco', 'sentarse en el parque', 'guardar el dinero'],
+  ['hoja', 'un árbol', 'un cuaderno'],
+  ['ratón', 'un animal', 'el ordenador'],
+  ['sierra', 'cortar madera', 'muchas montañas juntas'],
+  ['planta', 'un vegetal', 'un piso de un edificio'],
+  ['cola', 'un perro', 'una fila para esperar'],
+];
+
+const polisemica = (rand: Rand): Pregunta => {
+  const [w, a, b] = uno(rand, POLISEMICAS);
+  return {
+    icon: '🔀',
+    prompt: `¿Qué palabra sirve para «${a}» y también para «${b}»?`,
+    ok: w,
+    no: barajar(POLISEMICAS.filter(([x]) => x !== w), rand).slice(0, 3).map(([x]) => x),
+    why: `«${w}» es polisémica: una palabra con varios significados. Se sabe cuál es por la frase.`,
+  };
 };
 
-const hueco = (rand: Rand): Pregunta => {
-  const [w, ok, otros] = uno(rand, HUECOS);
-  const i = w.indexOf(ok);
-  const conHueco = w.slice(0, i) + '__' + w.slice(i + ok.length);
-  const reglas: Record<string, string> = {
-    'gü': 'Con diéresis (gü) la u suena: pin-GÜI-no.',
-    gu: 'Delante de e, i se escribe gu para que suene «g» suave y la u no suene.',
-    qu: 'El sonido «k» delante de e, i se escribe qu.',
-    c: 'El sonido «k» delante de a, o, u se escribe c.',
-    rr: 'Entre vocales, el sonido fuerte se escribe rr.',
-    r: 'Al principio de palabra y después de n, l o s, el sonido fuerte se escribe con una r.',
-    m: 'Antes de p y b siempre se escribe m.',
-  };
-  const malos = otros.map((o) => o).concat(ok === 'm' ? ['ñ'] : ok === 'r' || ok === 'rr' ? ['l'] : []);
-  const visual: Visual = { tipo: 'hueco', antes: w.slice(0, i), hueco: ok, despues: w.slice(i + ok.length), dibujo: DIBUJO_PALABRA[w] };
-  return { icon: '🖊️', prompt: `¿Qué va en el hueco? «${conHueco}»`, ok, no: malos.slice(0, 3), why: `${w}. ${reglas[ok] ?? ''}`, visual };
+const COMA_DOSPUNTOS: Pregunta[] = [
+  p('✍️', '¿Cuál tiene bien las comas?', 'Compré peras, manzanas y uvas.', ['Compré, peras manzanas, y uvas.', 'Compré peras manzanas, y, uvas.', 'Compré peras manzanas y uvas,'], 'La coma separa las cosas de una lista; delante de «y» no se pone.'),
+  p('✍️', 'En una carta, después de «Querida abuela» va…', 'Dos puntos (:)', ['Coma', 'Punto y coma', 'Nada'], 'Después del saludo de una carta van dos puntos.'),
+  p('✍️', '«Tengo tres mascotas___ un perro, un gato y un pez.» ¿Qué va en el hueco?', 'Dos puntos (:)', ['Coma', 'Punto', 'Interrogación'], 'Antes de enumerar, dos puntos.'),
+  p('✍️', '«Leo, ven aquí.» ¿Para qué sirve esa coma?', 'Para separar el nombre de a quien se habla', ['Para acabar la frase', 'Para hacer una pregunta', 'Para nada'], 'Cuando se llama a alguien por su nombre, se separa con coma.'),
+];
+
+const SIGNOS: Pregunta[] = [
+  p('❓', '¿Cuál está bien escrita?', '¿Vienes al partido?', ['Vienes al partido?', '¿Vienes al partido¿', '?Vienes al partido?'], 'En español la pregunta se abre (¿) y se cierra (?).'),
+  p('❗', '¿Cuál está bien escrita?', '¡Qué golazo!', ['Qué golazo!', '¡Qué golazo¡', '!Qué golazo!'], 'La exclamación se abre (¡) y se cierra (!).'),
+  p('❗', '«¡Qué golazo!» es una oración…', 'Exclamativa', ['Interrogativa', 'Enunciativa', 'Sin sentido'], 'Expresa emoción: exclamativa, entre ¡!'),
+  p('❓', '«¿Dónde está Benji?» es una oración…', 'Interrogativa', ['Exclamativa', 'Enunciativa', 'Sin sentido'], 'Pregunta algo: interrogativa, entre ¿?'),
+];
+
+const DIM_AUM: [string, string, string][] = [
+  ['casa', 'casita', 'casona'], ['perro', 'perrito', 'perrazo'], ['coche', 'cochecito', 'cochazo'], ['libro', 'librito', 'librote'],
+  ['gato', 'gatito', 'gatazo'], ['balón', 'baloncito', 'balonazo'], ['mesa', 'mesita', 'mesota'], ['zapato', 'zapatito', 'zapatón'],
+];
+
+const dimAum = (rand: Rand): Pregunta => {
+  const [base, dim, aum] = uno(rand, DIM_AUM);
+  if (rand() < 0.5) {
+    return { icon: '🔍', prompt: `¿Cuál es el DIMINUTIVO de «${base}»?`, ok: dim, no: [aum, base, `${base}s`], why: `Diminutivo = más pequeño, con -ito, -ita, -ico: ${dim}.` };
+  }
+  const w = rand() < 0.5 ? dim : aum;
+  const ok = w === dim ? 'Diminutivo' : 'Aumentativo';
+  return { icon: '🔍', prompt: `«${w}» es un…`, ok, no: ['Diminutivo', 'Aumentativo', 'Palabra compuesta'].filter((x) => x !== ok), why: `${w} viene de ${base}: ${ok === 'Diminutivo' ? 'más pequeño (-ito, -ita)' : 'más grande (-azo, -ón, -ote)'}.` };
 };
+
+const COMPUESTAS: [string, string][] = [
+  ['sacapuntas', 'saca + puntas'], ['paraguas', 'para + aguas'], ['abrelatas', 'abre + latas'], ['girasol', 'gira + sol'],
+  ['cumpleaños', 'cumple + años'], ['rompecabezas', 'rompe + cabezas'], ['mediodía', 'medio + día'], ['pasatiempo', 'pasa + tiempo'], ['cortaúñas', 'corta + uñas'],
+];
+const SIMPLES = ['pelota', 'panadero', 'mesita', 'florero', 'ventana', 'zapatería', 'portero', 'librito'];
+
+const compuesta = (rand: Rand): Pregunta => {
+  const [w, partes] = uno(rand, COMPUESTAS);
+  return { icon: '🧩', prompt: '¿Cuál es una palabra COMPUESTA?', ok: w, no: barajar(SIMPLES, rand).slice(0, 3), why: `${w} = ${partes}: dos palabras juntas forman una nueva.` };
+};
+
+const DERIVADAS: [string, string, string[]][] = [
+  ['flor', 'florero', ['flaco', 'flan', 'flota']], ['pan', 'panadería', ['pantalón', 'pantera', 'panda']], ['libro', 'librería', ['libre', 'litro', 'liebre']],
+  ['mar', 'marinero', ['marco', 'martes', 'mármol']], ['papel', 'papelera', ['papilla', 'papaya', 'papá']], ['pelo', 'peluquería', ['pelota', 'película', 'pelear']],
+  ['jardín', 'jardinero', ['jarra', 'jarabe', 'jamón']], ['zapato', 'zapatería', ['zanahoria', 'zarza', 'zafiro']], ['leche', 'lechero', ['lechuga', 'letra', 'lento']],
+  ['fruta', 'frutería', ['frente', 'fresa', 'frío']],
+];
+
+const derivada = (rand: Rand): Pregunta => {
+  const [base, d, otras] = uno(rand, DERIVADAS);
+  return { icon: '🌱', prompt: `¿Qué palabra DERIVA de «${base}»?`, ok: d, no: otras, why: `${d} nace de ${base} añadiéndole un trozo. Las demás se parecen, pero no tienen que ver con «${base}».` };
+};
+
+const FAMILIAS: [string, string[], string][] = [
+  ['mar', ['marinero', 'marino', 'submarino'], 'martillo'], ['pan', ['panadero', 'panecillo', 'empanada'], 'pantalla'],
+  ['flor', ['florero', 'floristería', 'florecer'], 'flotar'], ['libro', ['librería', 'librero', 'librito'], 'libre'],
+  ['zapato', ['zapatero', 'zapatilla', 'zapatería'], 'zarpa'], ['tierra', ['terreno', 'terrestre', 'enterrar'], 'tienda'],
+  ['casa', ['casita', 'caserío', 'casero'], 'cascada'],
+];
+
+const familia = (rand: Rand): Pregunta => {
+  const [base, fam, intruso] = uno(rand, FAMILIAS);
+  return { icon: '👨‍👩‍👧', prompt: `¿Cuál NO es de la familia de «${base}»?`, ok: intruso, no: fam, why: `«${intruso}» se parece, pero no viene de «${base}». La familia: ${fam.join(', ')}.` };
+};
+
+const SINONIMOS: [string, string][] = [
+  ['contento', 'alegre'], ['rápido', 'veloz'], ['bonito', 'precioso'], ['empezar', 'comenzar'], ['miedo', 'temor'],
+  ['cara', 'rostro'], ['enfadado', 'enojado'], ['listo', 'inteligente'], ['grande', 'enorme'], ['hablar', 'charlar'],
+];
+
+const sinonimo = (rand: Rand): Pregunta => {
+  const [a, b] = uno(rand, SINONIMOS);
+  return { icon: '🤝', prompt: `¿Cuál es un SINÓNIMO de «${a}»?`, ok: b, no: barajar(SINONIMOS.filter(([x]) => x !== a), rand).slice(0, 3).map(([, y]) => y), why: `Sinónimos: palabras que significan casi lo mismo. ${a} = ${b}.` };
+};
+
+const CLASES_NOMBRE: Pregunta[] = [
+  p('🐑', '«rebaño» es un nombre…', 'Colectivo', ['Individual', 'Propio', 'Abstracto'], 'Colectivo: en singular nombra a muchos (muchas ovejas).'),
+  p('🐝', '«enjambre» es un nombre…', 'Colectivo', ['Individual', 'Propio', 'Abstracto'], 'Un enjambre son muchas abejas.'),
+  p('😊', '«alegría» es un nombre…', 'Abstracto', ['Concreto', 'Colectivo', 'Propio'], 'No se puede ver ni tocar: abstracto.'),
+  p('🤝', '«amistad» es un nombre…', 'Abstracto', ['Concreto', 'Colectivo', 'Propio'], 'Se siente, pero no se toca: abstracto.'),
+  p('🪑', '«mesa» es un nombre…', 'Concreto', ['Abstracto', 'Colectivo', 'Propio'], 'Se ve y se toca: concreto.'),
+  p('🏔️', '«Teide» es un nombre…', 'Propio', ['Común', 'Colectivo', 'Abstracto'], 'Nombra una montaña en concreto: propio, con mayúscula.'),
+  p('🌳', '¿Cuál es el colectivo de «árbol»?', 'bosque', ['hoja', 'rama', 'arbusto'], 'Muchos árboles juntos: un bosque.'),
+  p('⚽', '¿Cuál es el colectivo de «jugador»?', 'equipo', ['balón', 'árbitro', 'portería'], 'Muchos jugadores: un equipo.'),
+];
+
+const DIPTONGOS: [string[], 'Diptongo' | 'Hiato' | 'Ni diptongo ni hiato'][] = [
+  [['cie', 'lo'], 'Diptongo'], [['puer', 'ta'], 'Diptongo'], [['ai', 're'], 'Diptongo'], [['hie', 'lo'], 'Diptongo'], [['cau', 'sa'], 'Diptongo'],
+  [['nie', 've'], 'Diptongo'], [['a', 'gua'], 'Diptongo'], [['ciu', 'dad'], 'Diptongo'], [['pei', 'ne'], 'Diptongo'],
+  [['le', 'ón'], 'Hiato'], [['po', 'e', 'ta'], 'Hiato'], [['dí', 'a'], 'Hiato'], [['rí', 'o'], 'Hiato'], [['ma', 'íz'], 'Hiato'], [['pa', 'ís'], 'Hiato'], [['bú', 'ho'], 'Hiato'],
+  [['me', 'sa'], 'Ni diptongo ni hiato'], [['li', 'bro'], 'Ni diptongo ni hiato'], [['pe', 'rro'], 'Ni diptongo ni hiato'],
+];
+
+const diptongoHiato = (rand: Rand): Pregunta => {
+  const [silabas, ok] = uno(rand, DIPTONGOS);
+  const w = silabas.join('');
+  const por = ok === 'Diptongo' ? 'las dos vocales van juntas en la misma sílaba' : ok === 'Hiato' ? 'las dos vocales van en sílabas distintas' : 'no tiene dos vocales seguidas';
+  return {
+    icon: '🔡',
+    prompt: `«${w}» tiene…`,
+    ok,
+    no: ['Diptongo', 'Hiato', 'Ni diptongo ni hiato'].filter((x) => x !== ok),
+    why: `${silabas.join(' - ')}: ${por}.`,
+    visual: { tipo: 'silabas', silabas, tonica: -1, juntas: true },
+  };
+};
+
+const DETERMINANTES: [string, 'Artículo' | 'Demostrativo', 'ms' | 'fs' | 'mp' | 'fp'][] = [
+  ['el', 'Artículo', 'ms'], ['la', 'Artículo', 'fs'], ['los', 'Artículo', 'mp'], ['las', 'Artículo', 'fp'], ['un', 'Artículo', 'ms'], ['una', 'Artículo', 'fs'],
+  ['este', 'Demostrativo', 'ms'], ['esta', 'Demostrativo', 'fs'], ['ese', 'Demostrativo', 'ms'], ['esa', 'Demostrativo', 'fs'],
+  ['aquel', 'Demostrativo', 'ms'], ['aquella', 'Demostrativo', 'fs'], ['estos', 'Demostrativo', 'mp'], ['esas', 'Demostrativo', 'fp'],
+];
+const NOMBRE_DE: Record<string, [string, string]> = { ms: ['balón', 'nuevo'], fs: ['portería', 'nueva'], mp: ['guantes', 'nuevos'], fp: ['botas', 'nuevas'] };
+
+const determinante = (rand: Rand): Pregunta => {
+  const [det, ok, gn] = uno(rand, DETERMINANTES);
+  const [nombre, adj] = NOMBRE_DE[gn];
+  const verbo = gn.endsWith('p') ? 'son' : 'es';
+  return {
+    icon: '👉',
+    prompt: `En «${det[0].toUpperCase()}${det.slice(1)} ${nombre} ${verbo} ${adj}», ¿qué es «${det}»?`,
+    ok,
+    no: ['Artículo', 'Demostrativo', 'Nombre', 'Adjetivo'].filter((x) => x !== ok),
+    why: ok === 'Artículo' ? 'Artículos: el, la, los, las, un, una, unos, unas.' : 'Demostrativos: este (aquí), ese (ahí), aquel (allí). Señalan lo cerca o lejos que está.',
+    visual: { tipo: 'gramatica', palabras: [{ p: det, clase: ok === 'Artículo' ? 'articulo' : 'otra' }, { p: nombre, clase: 'nombre' }, { p: verbo, clase: 'verbo' }, { p: adj, clase: 'adjetivo' }] },
+  };
+};
+
+const RECURSOS: Pregunta[] = [
+  p('🎭', '«Tus ojos son dos luceros» es…', 'Una metáfora', ['Una comparación', 'Una personificación', 'Una hipérbole'], 'Metáfora: dice que una cosa ES otra, sin «como».'),
+  p('🎭', '«Corre rápido como un rayo» es…', 'Una comparación', ['Una metáfora', 'Una personificación', 'Una hipérbole'], 'Comparación: une dos cosas con «como».'),
+  p('🎭', '«El sol sonreía en el cielo» es…', 'Una personificación', ['Una comparación', 'Una metáfora', 'Una hipérbole'], 'Personificación: algo que no es persona hace cosas de persona.'),
+  p('🎭', '«Te lo he dicho un millón de veces» es…', 'Una hipérbole', ['Una comparación', 'Una metáfora', 'Una personificación'], 'Hipérbole: exagerar muchísimo.'),
+  p('🎭', '«Las estrellas bailaban en la noche» es…', 'Una personificación', ['Una comparación', 'Una metáfora', 'Una hipérbole'], 'Las estrellas no bailan: se les da algo de persona.'),
+  p('🎭', '«Tengo tanta hambre que me comería un elefante» es…', 'Una hipérbole', ['Una comparación', 'Una metáfora', 'Una personificación'], 'Es una exageración.'),
+];
+
+const PUNTUACION: Pregunta[] = [
+  p('✍️', '¿Qué signo es más fuerte que la coma pero más suave que el punto?', 'Punto y coma (;)', ['Dos puntos', 'Punto final', 'Interrogación'], 'El punto y coma separa partes que están relacionadas.'),
+  p('✍️', 'Al final de un texto se pone…', 'Punto final', ['Punto y seguido', 'Punto y aparte', 'Coma'], 'Punto final: se acabó.'),
+  p('✍️', 'Para empezar un párrafo nuevo se pone…', 'Punto y aparte', ['Punto y seguido', 'Punto final', 'Coma'], 'Punto y aparte: se sigue en otra línea.'),
+  p('✍️', '«Unos juegan al fútbol___ otros, al baloncesto.» ¿Qué va en el hueco?', 'Punto y coma (;)', ['Dos puntos', 'Interrogación', 'Nada'], 'Separa dos partes que se parecen.'),
+  p('✍️', '¿Cuál tiene bien las comas?', 'Compré peras, manzanas y uvas.', ['Compré, peras manzanas, y uvas.', 'Compré peras manzanas, y, uvas.', 'Compré peras manzanas y uvas,'], 'La coma separa las cosas de una lista; delante de «y» no se pone.'),
+];
 
 const MAYUSCULAS: Pregunta[] = [
   p('🔠', '¿Cuál está bien escrita?', 'Leo vive en Madrid.', ['leo vive en Madrid.', 'Leo vive en madrid.', 'leo Vive en madrid.'], 'Mayúscula al empezar y en los nombres propios (Leo, Madrid).'),
@@ -629,19 +760,6 @@ const MAYUSCULAS: Pregunta[] = [
 /* ---------------------------------------------------------------------------
  * NATURAL SCIENCE (en inglés, como en clase)
  * ------------------------------------------------------------------------- */
-
-const VIDA: Pregunta[] = [
-  p('🦠', 'What is the smallest part of a living thing?', 'A cell', ['An organ', 'A bone', 'A tissue'], 'All living things are made of cells (células).'),
-  p('🫀', 'A group of similar cells working together is a…', 'Tissue', ['Organ', 'System', 'Skeleton'], 'Cells → tissues (tejidos) → organs → systems.'),
-  p('🫁', 'The heart, the lungs and the stomach are…', 'Organs', ['Cells', 'Tissues', 'Bones only'], 'Organs (órganos) are made of different tissues.'),
-  p('🌱', 'What are the three life functions?', 'Nutrition, interaction, reproduction', ['Eating, sleeping, playing', 'Running, jumping, swimming', 'Breathing, seeing, reading'], 'Las tres funciones vitales: nutrición, relación y reproducción.'),
-  p('🐣', 'Which life function is about having babies?', 'Reproduction', ['Nutrition', 'Interaction', 'Digestion'], 'Reproduction = reproducción.'),
-  p('👀', 'Seeing a ball and running to kick it is the life function of…', 'Interaction', ['Nutrition', 'Reproduction', 'Respiration'], 'Interaction (relación): we notice things and react.'),
-  p('🍎', 'Getting energy from food is the life function of…', 'Nutrition', ['Interaction', 'Reproduction', 'Vision'], 'Nutrition (nutrición) gives us energy and materials to grow.'),
-  p('🔬', 'We use this to see cells:', 'A microscope', ['A telescope', 'A ruler', 'Glasses'], 'Cells are tiny: we need a microscope.'),
-  p('🧪', 'The first step of the scientific method is to…', 'Ask a question', ['Write the conclusion', 'Draw the result', 'Go home'], 'Question → hypothesis → experiment → results → conclusion.'),
-  p('🪨', 'Which one is NOT a living thing?', 'A rock', ['A tree', 'A mushroom', 'A worm'], 'A rock does not eat, grow or reproduce.'),
-];
 
 const NUTRICION: Pregunta[] = [
   p('🍽️', 'Food goes from the mouth to the stomach through the…', 'Oesophagus', ['Lungs', 'Heart', 'Kidneys'], 'Mouth → oesophagus (esófago) → stomach → intestines.'),
@@ -724,6 +842,168 @@ const RELIEVE: Pregunta[] = [
   p('↘️', 'Where a river ends, in the sea, is called the…', 'Mouth', ['Source', 'Bed', 'Bank'], 'Mouth = desembocadura. Source = nacimiento.'),
 ];
 
+/* ---- Matemáticas 3 · Operación Mundo (Anaya) ---- */
+
+const tablaDe = (tablas: number[]) => (rand: Rand): Pregunta => {
+  const a = uno(rand, tablas);
+  const b = entre(rand, 2, 10);
+  return numerica('✖️', `${a} × ${b} = ?`, a * b, cercanos(rand, a * b, [a, -a, b, -b, 1, -1]), `La tabla del ${a}: ${b} grupos de ${a} son ${a * b}.`, { tipo: 'matriz', filas: b, columnas: a });
+};
+
+const grupos = (tablas: number[]) => (rand: Rand): Pregunta => {
+  const cada = uno(rand, tablas);
+  const n = entre(rand, 3, 9);
+  const cosa = uno(rand, [['equipos', 'jugadores', '👥'], ['cajas', 'balones', '⚽'], ['sobres', 'cromos', '🃏'], ['platos', 'galletas', '🍪']]);
+  return numerica('📦', `Hay ${n} ${cosa[0]} con ${cada} ${cosa[1]} cada uno. ¿Cuántos ${cosa[1]} hay?`, n * cada, [n + cada, n * cada + cada, n * cada - 1], `Grupos iguales: se multiplica. ${n} × ${cada} = ${n * cada}.`, { tipo: 'matriz', filas: n, columnas: cada });
+};
+
+const porDiezCienMil = (rand: Rand): Pregunta => {
+  const a = entre(rand, 3, 99);
+  const k = uno(rand, [10, 100, 1000]);
+  const r = a * k;
+  return numerica('0️⃣', `${a} × ${num(k)} = ?`, r, [r * 10, k === 10 ? a : r / 10, r + k], `Multiplicar por ${num(k)} es añadir ${String(k).length - 1} cero${k === 10 ? '' : 's'} al final: ${num(r)}.`, { tipo: 'columnas', a, b: k, op: '×', resultado: r });
+};
+
+const patron = (rand: Rand): Pregunta => {
+  const paso = uno(rand, [2, 3, 4, 5, 10, 25, 50, 100]);
+  const sube = rand() < 0.7;
+  const ini = sube ? entre(rand, 1, 60) : entre(rand, 6, 60) + paso * 6;
+  const serie = Array.from({ length: 5 }, (_, i) => (sube ? ini + i * paso : ini - i * paso));
+  const sig = sube ? ini + 5 * paso : ini - 5 * paso;
+  return numerica('🔁', `¿Qué número sigue? ${serie.join(', ')}, …`, sig, cercanos(rand, sig, [paso, -paso, 1, -1, 10]), `Va ${sube ? 'sumando' : 'restando'} ${paso} cada vez: ${serie[4]} ${sube ? '+' : '−'} ${paso} = ${sig}.`);
+};
+
+const euros = (c: number) => `${Math.floor(c / 100)},${String(c % 100).padStart(2, '0')} €`;
+
+const monedas = (rand: Rand): Pregunta => {
+  const piezas: [number, string, number][] = [[500, '💶 billete de 5 €', entre(rand, 0, 2)], [200, '🪙 moneda de 2 €', entre(rand, 0, 3)], [100, '🪙 moneda de 1 €', entre(rand, 1, 3)], [50, '🟡 moneda de 50 cts', entre(rand, 0, 2)], [20, '🟡 moneda de 20 cts', entre(rand, 0, 2)]];
+  const hay = piezas.filter(([, , n]) => n > 0);
+  const total = hay.reduce((s, [v, , n]) => s + v * n, 0);
+  const texto = hay.map(([, nombre, n]) => `${n} × ${nombre}`).join(' · ');
+  return {
+    icon: '💶',
+    prompt: '¿Cuánto dinero hay en total?',
+    ok: euros(total),
+    no: [total + 50, total + 100, Math.max(20, total - 20)].map(euros),
+    why: `Se suman primero los euros y luego los céntimos: ${euros(total)}. 100 céntimos = 1 €.`,
+    visual: { tipo: 'lamina', emoji: '👛', rotulo: texto },
+  };
+};
+
+const vuelta = (rand: Rand): Pregunta => {
+  const precio = entre(rand, 2, 18) * 50 + 100;
+  const pago = precio < 1000 ? 1000 : 2000;
+  return {
+    icon: '🛒',
+    prompt: `Algo cuesta ${euros(precio)} y pagas con un billete de ${pago / 100} €. ¿Cuánto te devuelven?`,
+    ok: euros(pago - precio),
+    no: [pago - precio + 50, pago - precio + 100, Math.max(50, pago - precio - 50)].map(euros),
+    why: `${pago / 100} € − ${euros(precio)} = ${euros(pago - precio)}. Comprueba: lo que cuesta + la vuelta = lo que pagas.`,
+    visual: { tipo: 'lamina', emoji: '🛒', rotulo: `💶 ${pago / 100} € − 🏷️ ${euros(precio)}` },
+  };
+};
+
+const propiedadesSuma = (rand: Rand): Pregunta => {
+  const a = entre(rand, 12, 60);
+  const b = entre(rand, 12, 60);
+  const c = entre(rand, 12, 60);
+  return uno(rand, [
+    p('🔄', `${a} + ${b} = ${b} + ${a}. ¿Qué propiedad es?`, 'Conmutativa', ['Asociativa', 'Elemento neutro', 'Ninguna'], 'Conmutativa: el orden de los sumandos no cambia el resultado.'),
+    p('🧷', `(${a} + ${b}) + ${c} = ${a} + (${b} + ${c}). ¿Qué propiedad es?`, 'Asociativa', ['Conmutativa', 'Elemento neutro', 'Ninguna'], 'Asociativa: da igual cómo agrupes los sumandos.'),
+    p('0️⃣', `${a} + 0 = ${a}. ¿Qué es el 0 en la suma?`, 'El elemento neutro', ['La propiedad conmutativa', 'Un error', 'El resultado'], 'Sumar 0 no cambia nada: es el elemento neutro.'),
+  ]);
+};
+
+/* ---- Natural Science · Global Thinkers (Anaya) ---- */
+
+const METODO: Pregunta[] = [
+  p('❓', 'What is the first step of the scientific method?', 'Ask a question', ['Write the conclusion', 'Draw the result', 'Go home'], 'Question → hypothesis → experiment → data → conclusion.'),
+  p('💡', 'A hypothesis is…', 'A possible answer we want to test', ['The final result', 'A type of microscope', 'A drawing'], 'Hipótesis: lo que creemos que va a pasar, antes de comprobarlo.'),
+  p('📊', 'The numbers and observations we collect in an experiment are…', 'Data', ['Hypotheses', 'Questions', 'Tools'], 'Data = datos.'),
+  p('📚', 'Where can we find reliable scientific information?', 'Encyclopedias and trusted websites', ['Any comment on the internet', 'Rumours', 'Video game chats'], 'Información fiable: libros, enciclopedias y webs de confianza.'),
+  p('🧩', 'Breaking a big problem into small steps is…', 'Computational thinking', ['Photosynthesis', 'Gravity', 'Digestion'], 'Pensamiento computacional: dividir el problema en pasos.'),
+  p('📝', 'At the end of an experiment we write the…', 'Conclusion', ['Hypothesis', 'Question', 'Title'], 'La conclusión dice si la hipótesis era correcta.'),
+  p('🧪', 'Scientists check if an idea is true by doing an…', 'Experiment', ['Excuse', 'Exam', 'Exercise'], 'Experiment = experimento.'),
+  p('📏', 'Which one is an observation?', 'The plant grew 3 cm in a week', ['Plants are boring', 'I think plants are pretty', 'Maybe it will rain'], 'An observation is something we can see or measure.'),
+  p('💻', 'Tools and machines that help us solve problems are…', 'Technology', ['Nature', 'Weather', 'Habits'], 'Technology = tecnología.'),
+];
+
+const SERES_VIVOS: Pregunta[] = [
+  p('🌱', 'What are the three vital functions?', 'Nutrition, interaction, reproduction', ['Eating, sleeping, playing', 'Running, jumping, swimming', 'Breathing, seeing, reading'], 'Funciones vitales: nutrición, relación y reproducción.'),
+  p('🦴', 'Animals with a backbone are…', 'Vertebrates', ['Invertebrates', 'Plants', 'Fungi'], 'Backbone = columna vertebral.'),
+  p('🕷️', 'Which animal is an invertebrate?', 'Spider', ['Dog', 'Eagle', 'Frog'], 'Invertebrates have no backbone: insects, spiders, worms, snails…'),
+  p('🦅', 'Animals with feathers and a beak are…', 'Birds', ['Mammals', 'Reptiles', 'Fish'], 'Birds = aves.'),
+  p('🍼', 'Mammals feed their babies with…', 'Milk', ['Seeds', 'Insects', 'Leaves'], 'Mamíferos: maman leche.'),
+  p('🐸', 'A frog lives in water and on land: it is an…', 'Amphibian', ['Reptile', 'Mammal', 'Bird'], 'Amphibian = anfibio.'),
+  p('🦎', 'Snakes and lizards have scales: they are…', 'Reptiles', ['Amphibians', 'Birds', 'Mammals'], 'Reptiles: escamas y huevos con cáscara.'),
+  p('🐜', 'How many legs do insects have?', '6', ['8', '4', '10'], 'Insects: 6 legs. Spiders: 8.'),
+  p('🌿', 'Which part of a plant takes water from the soil?', 'The roots', ['The leaves', 'The flower', 'The stem'], 'Roots = raíces.'),
+  p('🍃', 'Plants make their own food in the…', 'Leaves', ['Roots', 'Seeds', 'Flowers'], 'Las hojas usan la luz del sol para fabricar alimento.'),
+  p('🌻', 'Many plants reproduce with flowers and…', 'Seeds', ['Eggs', 'Milk', 'Feathers'], 'La flor da el fruto, y el fruto guarda las semillas.'),
+  p('🌳', 'A plant with one thick, woody trunk is a…', 'Tree', ['Shrub', 'Grass', 'Moss'], 'Tree: one thick trunk. Shrub: several thin woody stems. Grass: soft green stem.'),
+];
+
+const CELULAS: Pregunta[] = [
+  p('🦠', 'The control centre of the cell is the…', 'Nucleus', ['Membrane', 'Cytoplasm', 'Leaf'], 'Nucleus = núcleo.'),
+  p('🫧', 'The thin layer around the cell is the…', 'Membrane', ['Nucleus', 'Cytoplasm', 'Shell'], 'Membrane = membrana.'),
+  p('💧', 'The jelly-like substance inside the cell is the…', 'Cytoplasm', ['Nucleus', 'Membrane', 'Blood'], 'Cytoplasm = citoplasma.'),
+  p('🔬', 'A living thing made of only one cell is…', 'Unicellular', ['Multicellular', 'A vertebrate', 'A mineral'], 'Uni = uno: unicelular.'),
+  p('🐕', 'Humans, dogs and trees are…', 'Multicellular', ['Unicellular', 'Minerals', 'Bacteria'], 'Multi = muchos: millones de células.'),
+  p('🍄', 'Mushrooms belong to the kingdom of…', 'Fungi', ['Plants', 'Animals', 'Minerals'], 'Fungi = hongos: no son plantas.'),
+  p('☀️', 'Plants make their own food. Their nutrition is…', 'Autotrophic', ['Heterotrophic', 'Carnivorous', 'Omnivorous'], 'Autótrofa: fabrican su alimento con la luz (fotosíntesis).'),
+  p('🌬️', 'Plants release a gas that we need to breathe:', 'Oxygen', ['Carbon dioxide', 'Smoke', 'Helium'], 'En la fotosíntesis las plantas sueltan oxígeno.'),
+  p('🌸', 'Reproduction with flowers and seeds is…', 'Sexual reproduction', ['Asexual reproduction', 'Digestion', 'Respiration'], 'Con flores y semillas: sexual. Con un trozo de la planta: asexual.'),
+  p('🪴', 'A new plant growing from a piece of stem is…', 'Asexual reproduction', ['Sexual reproduction', 'Photosynthesis', 'Interaction'], 'Asexual: sale de un trozo de la planta, sin semillas.'),
+  p('🌞', 'A plant turning towards the light is an example of…', 'Interaction', ['Nutrition', 'Reproduction', 'Excretion'], 'Interaction (relación): la planta nota la luz y responde.'),
+];
+
+const ANIMALES: Pregunta[] = [
+  p('🐄', 'An animal that eats only plants is a…', 'Herbivore', ['Carnivore', 'Omnivore', 'Producer'], 'Herbívoro: sólo plantas.'),
+  p('🦁', 'A lion eats other animals: it is a…', 'Carnivore', ['Herbivore', 'Omnivore', 'Producer'], 'Carnívoro: come otros animales.'),
+  p('🐻', 'A bear eats fruit, fish and honey: it is an…', 'Omnivore', ['Herbivore', 'Carnivore', 'Producer'], 'Omnívoro: come de todo.'),
+  p('🥚', 'Animals that hatch from eggs are…', 'Oviparous', ['Viviparous', 'Herbivores', 'Invertebrates'], 'Ovíparos: nacen de huevos.'),
+  p('🐶', "Animals born from their mother's body are…", 'Viviparous', ['Oviparous', 'Carnivores', 'Insects'], 'Vivíparos: se desarrollan dentro de la madre.'),
+  p('🐟', 'Fish breathe through their…', 'Gills', ['Lungs', 'Skin', 'Nose'], 'Gills = branquias.'),
+  p('🍖', 'Animals take their food from other living things. Their nutrition is…', 'Heterotrophic', ['Autotrophic', 'Photosynthetic', 'Mineral'], 'Heterótrofa: no fabrican su alimento.'),
+  p('💬', 'Which helps your emotional well-being?', 'Talking about how you feel', ['Keeping everything inside', 'Never playing', 'Sleeping 4 hours'], 'Bienestar emocional: hablar de lo que sientes.'),
+  p('😴', 'How many hours should a child of 9 sleep?', '9 to 11 hours', ['4 hours', '6 hours', '15 hours'], 'Dormir bien es parte del bienestar físico.'),
+];
+
+/* ---- Social Science · Global Thinkers (Anaya) ---- */
+
+const PAISAJES: Pregunta[] = [
+  p('🏙️', 'A landscape changed by people, with roads and buildings, is…', 'Humanised', ['Natural', 'A desert', 'An ocean'], 'Paisaje humanizado: lo han cambiado las personas.'),
+  p('🏞️', 'A landscape without human changes is…', 'Natural', ['Humanised', 'Urban', 'Industrial'], 'Natural: como lo hizo la naturaleza.'),
+  p('🌾', 'A large flat area of land is a…', 'Plain', ['Mountain', 'Valley', 'Cliff'], 'Plain = llanura.'),
+  p('⛰️', 'Low land between mountains, often with a river, is a…', 'Valley', ['Plain', 'Cape', 'Island'], 'Valley = valle.'),
+  p('🪨', 'A rocky, high coast that falls straight into the sea is a…', 'Cliff', ['Beach', 'Gulf', 'Plain'], 'Cliff = acantilado.'),
+  p('📍', 'Land that goes into the sea is a…', 'Cape', ['Gulf', 'Beach', 'Valley'], 'Cape = cabo. Gulf (golfo) es al revés: el mar entra en la tierra.'),
+  p('🌊', 'Sea that goes into the land is a…', 'Gulf', ['Cape', 'Island', 'Plain'], 'Gulf = golfo.'),
+  p('🧭', "Spain's northern coast is on the…", 'Cantabrian Sea', ['Mediterranean Sea', 'Red Sea', 'Indian Ocean'], 'Norte: mar Cantábrico. Este: Mediterráneo. Oeste y sur: Atlántico.'),
+  p('🏖️', 'Which sea is on the east coast of Spain?', 'Mediterranean Sea', ['Cantabrian Sea', 'North Sea', 'Pacific Ocean'], 'El Mediterráneo baña Cataluña, Valencia, Murcia, Andalucía y Baleares.'),
+  p('🗺️', 'Land surrounded by water except on one side is a…', 'Peninsula', ['Island', 'Gulf', 'Valley'], 'España y Portugal están en la península ibérica.'),
+];
+
+const TIERRA4: Pregunta[] = [
+  p('🌐', 'The innermost layer of the Earth is the…', 'Core', ['Crust', 'Mantle', 'Atmosphere'], 'Crust (corteza) → mantle (manto) → core (núcleo).'),
+  p('🏠', 'We live on the Earth\'s…', 'Crust', ['Core', 'Mantle', 'Moon'], 'La corteza es la capa de fuera.'),
+  p('🌠', 'A shooting star is…', 'A meteor burning in the atmosphere', ['A star falling', 'A planet', 'A satellite'], 'Una estrella fugaz es una roca que arde al entrar en la atmósfera.'),
+  p('🪐', 'Pluto is a…', 'Dwarf planet', ['Star', 'Moon', 'Comet'], 'Plutón es un planeta enano.'),
+  p('❄️', 'In the Northern Hemisphere, December is in…', 'Winter', ['Summer', 'Spring', 'Autumn'], 'Hemisferio norte: invierno de diciembre a marzo.'),
+  p('🌍', 'Why are there seasons?', 'The Earth is tilted as it goes around the Sun', ['The Moon moves', 'Clouds cover the Sun', 'The Earth spins every day'], 'La inclinación del eje + la traslación = estaciones.'),
+];
+
+const CLIMA4: Pregunta[] = [
+  p('📈', 'A graph with the temperature and rainfall of a place is a…', 'Climograph', ['Map', 'Compass', 'Thermometer'], 'Climograma: barras de lluvia y línea de temperatura.'),
+  p('🧊', 'The further from the Equator, the climate is usually…', 'Colder', ['Hotter', 'The same', 'Rainier always'], 'La latitud es un factor del clima.'),
+  p('🏔️', 'Higher places, like mountains, are usually…', 'Colder', ['Hotter', 'Drier always', 'The same'], 'La altitud: cuanto más alto, más frío.'),
+  p('🌊', 'Places near the sea usually have…', 'Milder temperatures', ['Extreme temperatures', 'No rain', 'Snow all year'], 'El mar suaviza las temperaturas.'),
+  p('🌡️', 'The three climate zones of the Earth are…', 'Hot, temperate and cold', ['Wet, dry and windy', 'North, south and east', 'Day, night and evening'], 'Zonas cálida, templada y fría.'),
+  p('🏙️', 'Madrid has a… climate', 'Continental Mediterranean', ['Oceanic', 'Subtropical', 'Polar'], 'Inviernos fríos y veranos calurosos y secos.'),
+  p('🌧️', 'Galicia and the Cantabrian coast have an… climate, with lots of rain', 'Oceanic', ['Mediterranean', 'Subtropical', 'Desert'], 'Clima oceánico: llueve mucho y las temperaturas son suaves.'),
+  p('🌴', 'The Canary Islands have a… climate', 'Subtropical', ['Polar', 'Oceanic', 'Mountain'], 'Clima subtropical: templado todo el año.'),
+];
+
 /* ---------------------------------------------------------------------------
  * ENGLISH (Oxford Discover)
  * ------------------------------------------------------------------------- */
@@ -803,18 +1083,20 @@ const FOOD_G: Pregunta[] = [
  * El calendario: qué tema toca cada semana
  * ------------------------------------------------------------------------- */
 
-const CM3 = 'Matemáticas 3 · Construyendo Mundos (Santillana)';
+const OM3 = 'Matemáticas 3 · Operación Mundo (Anaya)';
+const LOM3 = 'Lengua 3 · Operación Mundo (Anaya)';
+const LOM4 = 'Lengua 4 · Operación Mundo (Anaya)';
+const GT = (n: string) => `${n} · Global Thinkers (Anaya)`;
 const CM4 = 'Matemáticas 4 · Construyendo Mundos (Santillana)';
 const OD3 = 'Oxford Discover 3';
 const OD4 = 'Oxford Discover 4';
-const CURR = 'Currículo de la Comunidad de Madrid, 2.º ciclo';
 
 export const TEMARIO: Tema[] = [
-  /* ------------------------------------------------ Mates 3º */
-  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Números de cuatro cifras', fuente: CM3, puntos: ['Leer y escribir hasta 9.999', 'UM, C, D y U', 'Comparar y ordenar', 'Ordinales'], hacer: [leerNumero(1000, 9999), valorCifra(10000), mayor(1000, 9999), ordinal] },
-  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · Sumas y restas', fuente: CM3, puntos: ['Sumas y restas llevando', 'Aproximar a las centenas', 'Estimar', 'Problemas de dos operaciones'], hacer: [sumaLlevando(4), restaLlevando(4), aproximar(100, 120, 9800), estimarSuma, problemaDos, restaHueco] },
-  { id: 'm3-3', asignatura: 'mates', curso: 3, desde: '2026-10-26', titulo: 'U3 · Rectas y ángulos', fuente: CM3, puntos: ['Paralelas, secantes y perpendiculares', 'Semirrecta y segmento', 'Ángulos recto, agudo y obtuso', 'Simetría'], hacer: [delBanco(RECTAS), delBanco(RECTAS), anguloGrados] },
-  { id: 'm3-4', asignatura: 'mates', curso: 3, desde: '2026-11-19', titulo: 'U4 · La multiplicación', fuente: CM3, puntos: ['Suma repetida', 'Tablas', 'Doble y triple', 'Multiplicar por una cifra', 'Problemas'], hacer: [tabla, dobleTriple, porUnaCifra(99), problemaMulti] },
+  /* ------------------------------------------------ Mates 3º (Anaya: U1-4) */
+  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Los números', fuente: OM3, puntos: ['Números de 3 y 4 cifras', 'Valor de posición', 'Comparar y la recta numérica', 'Aproximar', 'Ordinales'], hacer: [leerNumero(100, 9999), valorCifra(10000), mayor(1000, 9999), aproximar(10, 100, 9999), ordinal] },
+  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · La suma y la resta', fuente: OM3, puntos: ['Sumar y restar en vertical', 'Propiedades de la suma', 'Monedas y billetes', 'Problemas', 'Estimar'], hacer: [sumaLlevando(4), restaLlevando(4), propiedadesSuma, monedas, vuelta, estimarSuma, problemaDos] },
+  { id: 'm3-3', asignatura: 'mates', curso: 3, desde: '2026-10-26', titulo: 'U3 · La multiplicación. Las tablas', fuente: OM3, puntos: ['Suma de sumandos iguales', 'Tablas del 2, 5, 10, 4 y 8', 'El doble', 'Grupos iguales'], hacer: [tablaDe([2, 5, 10, 4, 8]), tablaDe([2, 5, 10, 4, 8]), dobleTriple, grupos([2, 5, 10, 4, 8])] },
+  { id: 'm3-4', asignatura: 'mates', curso: 3, desde: '2026-11-19', titulo: 'U4 · Las tablas. Practico la multiplicación', fuente: OM3, puntos: ['Tablas del 3, 6, 9 y 7', 'Por 10, 100 y 1.000', 'Multiplicar en vertical', 'Patrones'], hacer: [tablaDe([3, 6, 9, 7]), tablaDe([3, 6, 9, 7]), porDiezCienMil, porUnaCifra(99), patron, grupos([3, 6, 9, 7])] },
 
   /* ------------------------------------------------ Mates 4º */
   { id: 'm4-1', asignatura: 'mates', curso: 4, desde: '2026-09-07', titulo: 'U1 · Números de cinco cifras', fuente: CM4, puntos: ['Leer y descomponer hasta 99.999', 'Aproximar a decenas y centenas', 'Ordinales', 'Números romanos'], hacer: [leerNumero(10000, 99999), valorCifra(100000), aproximar(10, 1000, 99999), aproximar(100, 1000, 99999), romanos] },
@@ -822,29 +1104,29 @@ export const TEMARIO: Tema[] = [
   { id: 'm4-3', asignatura: 'mates', curso: 4, desde: '2026-10-26', titulo: 'U3 · La multiplicación', fuente: CM4, puntos: ['Por una y dos cifras', 'Factores acabados en ceros', 'Propiedades', 'Estimar productos'], hacer: [porUnaCifra(9999), porDosCifras, porCeros, estimarProducto, propiedades, problemaMulti] },
   { id: 'm4-4', asignatura: 'mates', curso: 4, desde: '2026-11-19', titulo: 'U4 · Ángulos y polígonos', fuente: CM4, puntos: ['Medir ángulos', 'Polígonos regulares', 'Perímetro', 'Área con cuadraditos', 'Triángulos y cuadriláteros'], hacer: [anguloGrados, poligono, perimetro, area, delBanco(TRIANGULOS)] },
 
-  /* ------------------------------------------------ Lengua (3º y 4º) */
-  ...([3, 4] as Curso[]).flatMap((curso): Tema[] => [
-    { id: `l${curso}-1`, asignatura: 'lengua', curso, desde: '2026-09-07', titulo: 'El diccionario y las sílabas', fuente: CURR, puntos: ['Orden alfabético', 'Buscar en el diccionario', 'Contar sílabas'], hacer: [ordenAlfabetico, ordenAlfabetico, contarSilabas] },
-    { id: `l${curso}-2`, asignatura: 'lengua', curso, desde: '2026-10-05', titulo: curso === 3 ? 'Sílaba tónica: agudas, llanas y esdrújulas' : 'Agudas, llanas, esdrújulas y la tilde', fuente: CURR, puntos: curso === 3 ? ['Sílaba tónica y átona', 'Agudas, llanas y esdrújulas'] : ['Sílaba tónica', 'Agudas, llanas y esdrújulas', 'Reglas de la tilde'], hacer: curso === 3 ? [silabaTonica, agudaLlana, agudaLlana] : [silabaTonica, agudaLlana, tilde, tilde] },
-    { id: `l${curso}-3`, asignatura: 'lengua', curso, desde: '2026-11-02', titulo: 'El nombre y el adjetivo', fuente: CURR, puntos: ['Nombres comunes y propios', 'Género y número', 'El adjetivo', 'Concordancia'], hacer: [nombreAdjetivo, concordancia, generoNumero, delBanco(COMUN_PROPIO)] },
-    { id: `l${curso}-4`, asignatura: 'lengua', curso, desde: '2026-11-30', titulo: 'Ortografía', fuente: 'Cuadernillo de Ortografía (Anaya)', puntos: ['c / qu', 'g / gu / gü', 'r / rr', 'm antes de p y b', 'Mayúsculas'], hacer: [hueco, hueco, hueco, delBanco(MAYUSCULAS)] },
-  ]),
+  /* ------------------------------------------------ Lengua 3º (Anaya: U1-4) */
+  { id: 'l3-1', asignatura: 'lengua', curso: 3, desde: '2026-09-07', titulo: 'U1 · Letra, sílaba, palabra y oración', fuente: LOM3, puntos: ['La letra, la sílaba, la palabra y la oración', 'Abecedario y diccionario', 'La sílaba tónica'], hacer: [delBanco(LETRA_ORACION), ordenAlfabetico, contarSilabas, silabaTonica] },
+  { id: 'l3-2', asignatura: 'lengua', curso: 3, desde: '2026-10-05', titulo: 'U2 · Palabras derivadas', fuente: LOM3, puntos: ['Palabras derivadas', 'Las siglas', 'El punto y la mayúscula'], hacer: [derivada, derivada, delBanco(SIGLAS), delBanco(MAYUSCULAS)] },
+  { id: 'l3-3', asignatura: 'lengua', curso: 3, desde: '2026-11-02', titulo: 'U3 · Diminutivos, aumentativos y compuestas', fuente: LOM3, puntos: ['Diminutivos y aumentativos', 'Palabras compuestas', 'Palabras polisémicas', 'La coma y los dos puntos'], hacer: [dimAum, compuesta, polisemica, delBanco(COMA_DOSPUNTOS)] },
+  { id: 'l3-4', asignatura: 'lengua', curso: 3, desde: '2026-11-30', titulo: 'U4 · El nombre', fuente: LOM3, puntos: ['El nombre: común y propio', 'Género y número', 'Sinónimos', 'Signos de interrogación y exclamación'], hacer: [nombreAdjetivo('nombre'), generoNumero, delBanco(COMUN_PROPIO), sinonimo, delBanco(SIGNOS)] },
 
-  /* ------------------------------------------------ Natural Science */
-  ...([3, 4] as Curso[]).flatMap((curso): Tema[] => [
-    { id: `n${curso}-1`, asignatura: 'science', curso, desde: '2026-09-07', titulo: 'Living things & the human body', fuente: CURR, puntos: ['Cells, tissues, organs, systems', 'Life functions', 'Scientific method'], hacer: [delBanco(VIDA)] },
-    { id: `n${curso}-2`, asignatura: 'science', curso, desde: '2026-10-19', titulo: 'Nutrition', fuente: CURR, puntos: ['Digestive system', 'Respiratory system', 'Circulatory system', 'Excretory system'], hacer: [delBanco(NUTRICION)] },
-    { id: `n${curso}-3`, asignatura: 'science', curso, desde: '2026-11-23', titulo: 'Interaction & healthy habits', fuente: CURR, puntos: ['The senses', 'Skeleton & muscles', 'Nervous system', 'Healthy habits'], hacer: [delBanco(RELACION)] },
-  ]),
+  /* ------------------------------------------------ Lengua 4º (Anaya: U1-4) */
+  { id: 'l4-1', asignatura: 'lengua', curso: 4, desde: '2026-09-07', titulo: 'U1 · Formación de palabras', fuente: LOM4, puntos: ['Derivadas y compuestas', 'El diccionario', 'Agudas, llanas y esdrújulas'], hacer: [derivada, compuesta, ordenAlfabetico, agudaLlana, silabaTonica] },
+  { id: 'l4-2', asignatura: 'lengua', curso: 4, desde: '2026-10-05', titulo: 'U2 · El nombre y sus clases', fuente: LOM4, puntos: ['Común y propio, individual y colectivo', 'Concreto y abstracto', 'Familia de palabras', 'La tilde'], hacer: [delBanco(CLASES_NOMBRE), delBanco(CLASES_NOMBRE), familia, tilde, tilde] },
+  { id: 'l4-3', asignatura: 'lengua', curso: 4, desde: '2026-11-02', titulo: 'U3 · El adjetivo', fuente: LOM4, puntos: ['El adjetivo', 'Concordancia', 'Sinónimos', 'Diptongos e hiatos'], hacer: [nombreAdjetivo('adjetivo'), concordancia, sinonimo, diptongoHiato, diptongoHiato] },
+  { id: 'l4-4', asignatura: 'lengua', curso: 4, desde: '2026-11-30', titulo: 'U4 · Los determinantes', fuente: LOM4, puntos: ['Artículos y demostrativos', 'Recursos literarios', 'Punto, coma y punto y coma'], hacer: [determinante, determinante, delBanco(RECURSOS), delBanco(PUNTUACION)] },
 
-  /* ------------------------------------------------ Social Science */
-  ...([3, 4] as Curso[]).flatMap((curso): Tema[] => [
-    { id: `s${curso}-1`, asignatura: 'social', curso, desde: '2026-09-07', titulo: 'The Universe & the Earth', fuente: CURR, puntos: ['The Solar System', 'Rotation and revolution', 'The Moon', 'Layers of the Earth'], hacer: [delBanco(UNIVERSO)] },
-    { id: `s${curso}-2`, asignatura: 'social', curso, desde: '2026-10-19', titulo: 'Maps & orientation', fuente: CURR, puntos: ['Cardinal points', 'Globe, maps and plans', 'Equator and Greenwich Meridian', 'Key and scale'], hacer: [delBanco(MAPAS)] },
-    curso === 3
-      ? { id: 's3-3', asignatura: 'social', curso, desde: '2026-11-23', titulo: 'Weather & climate', fuente: CURR, puntos: ['Weather instruments', 'Weather vs climate', 'The water cycle'], hacer: [delBanco(TIEMPO)] }
-      : { id: 's4-3', asignatura: 'social', curso, desde: '2026-11-23', titulo: 'Landscapes of Spain', fuente: CURR, puntos: ['Mountains and the Meseta', 'Rivers and seas', 'Islands'], hacer: [delBanco(RELIEVE)] },
-  ]),
+  /* ------------------------------------------------ Natural Science (Anaya: U1-2) */
+  { id: 'n3-1', asignatura: 'science', curso: 3, desde: '2026-09-07', titulo: 'U1 · Science', fuente: GT('Natural Science 3'), puntos: ['Scientific questions', 'Hypothesis and data', 'Scientific information', 'Technology and computational thinking'], hacer: [delBanco(METODO)] },
+  { id: 'n3-2', asignatura: 'science', curso: 3, desde: '2026-10-26', titulo: 'U2 · Living organisms', fuente: GT('Natural Science 3'), puntos: ['Vital functions', 'Vertebrates and invertebrates', 'Plants and their reproduction', 'Types of plants'], hacer: [delBanco(SERES_VIVOS)] },
+  { id: 'n4-1', asignatura: 'science', curso: 4, desde: '2026-09-07', titulo: 'U1 · Living organisms', fuente: GT('Natural Science 4'), puntos: ['Cells: membrane, cytoplasm, nucleus', 'Unicellular and multicellular', 'Classifying living things', 'Plants: nutrition, interaction, reproduction'], hacer: [delBanco(CELULAS)] },
+  { id: 'n4-2', asignatura: 'science', curso: 4, desde: '2026-10-26', titulo: 'U2 · Animals and human beings', fuente: GT('Natural Science 4'), puntos: ['Types of animals', 'Vital functions in animals', 'Human beings', 'Physical and emotional well-being'], hacer: [delBanco(ANIMALES), delBanco(ANIMALES), delBanco(NUTRICION), delBanco(RELACION)] },
+
+  /* ------------------------------------------------ Social Science (Anaya: U1-2) */
+  { id: 's3-1', asignatura: 'social', curso: 3, desde: '2026-09-07', titulo: 'U1 · Maps and plans', fuente: GT('Social Science 3'), puntos: ['Plans and maps', 'Key, scale and symbols', 'Cardinal points', 'The globe: equator, meridians'], hacer: [delBanco(MAPAS)] },
+  { id: 's3-2', asignatura: 'social', curso: 3, desde: '2026-10-26', titulo: 'U2 · Landscapes', fuente: GT('Social Science 3'), puntos: ['Natural and humanised', 'Inland landscapes of Spain', 'Coastal landscapes', "Spain's coastline"], hacer: [delBanco(PAISAJES), delBanco(PAISAJES), delBanco(RELIEVE)] },
+  { id: 's4-1', asignatura: 'social', curso: 4, desde: '2026-09-07', titulo: 'U1 · The Earth', fuente: GT('Social Science 4'), puntos: ['The Universe and the Solar System', 'Layers of the Earth', 'The Moon', 'Rotation, revolution and seasons'], hacer: [delBanco(UNIVERSO), delBanco(UNIVERSO), delBanco(TIERRA4)] },
+  { id: 's4-2', asignatura: 'social', curso: 4, desde: '2026-10-26', titulo: 'U2 · The atmosphere and climate', fuente: GT('Social Science 4'), puntos: ['The atmosphere', 'Weather and climate', 'Climographs', 'Climates of Spain'], hacer: [delBanco(CLIMA4), delBanco(CLIMA4), delBanco(TIEMPO)] },
 
   /* ------------------------------------------------ English */
   { id: 'e3-1', asignatura: 'english', curso: 3, desde: '2026-09-07', titulo: 'U1-2 · How do people have fun?', fuente: OD3, puntos: ['Festivals, games and sports', '-ed / -ing adjectives', 'Gerunds'], hacer: [vocabulario(FUN_V), vocabulario(FUN_V), delBanco(FUN_G)] },
@@ -861,34 +1143,30 @@ export const TEMARIO: Tema[] = [
  * estantería. Se enseña antes del reto.
  */
 export const IDEA: Record<string, { texto: string; visual?: Visual }> = {
-  'm3-1': { texto: 'Cada cifra vale según dónde está: la de la izquierda del todo son millares, como cubos de mil perlas.', visual: { tipo: 'perlas', n: 2345 } },
-  'm3-2': { texto: 'Se suma y se resta por columnas, de las unidades hacia la izquierda. Si una columna pasa de 9, diez unidades se cambian por una decena.', visual: { tipo: 'columnas', a: 1468, b: 2357, op: '+', resultado: 3825 } },
-  'm3-3': { texto: 'Un ángulo recto es una esquina, como la de un folio. Más cerrado es agudo; más abierto, obtuso.', visual: { tipo: 'angulo', grados: 90 } },
-  'm3-4': { texto: 'Multiplicar es sumar el mismo número muchas veces: 4 filas de 6 cuentas son 4 × 6 = 24.', visual: { tipo: 'matriz', filas: 4, columnas: 6 } },
+  'm3-1': { texto: 'Cada cifra vale según dónde está: unidades, decenas, centenas y, a la izquierda del todo, millares, como cubos de mil perlas.', visual: { tipo: 'perlas', n: 2345 } },
+  'm3-2': { texto: 'Se suma y se resta en vertical, de las unidades hacia la izquierda. Si una columna pasa de 9, diez unidades se cambian por una decena. Y 100 céntimos son 1 €.', visual: { tipo: 'columnas', a: 1468, b: 2357, op: '+', resultado: 3825 } },
+  'm3-3': { texto: 'Multiplicar es sumar el mismo número muchas veces: 5 filas de 4 cuentas son 5 × 4 = 20. La tabla del 2 es el doble.', visual: { tipo: 'matriz', filas: 5, columnas: 4 } },
+  'm3-4': { texto: 'La tabla del 6 es el doble de la del 3, y la del 9 es la del 3 tres veces. Multiplicar por 10, 100 o 1.000 es añadir ceros.', visual: { tipo: 'matriz', filas: 3, columnas: 6 } },
   'm4-1': { texto: 'Con cinco cifras aparecen las decenas de millar: diez cubos de mil. Y los romanos escribían con letras: I, V, X, L, C, D, M.', visual: { tipo: 'perlas', n: 23405 } },
   'm4-2': { texto: 'Da igual el orden de los sumandos (conmutativa) y cómo los agrupes (asociativa): el resultado no cambia.', visual: { tipo: 'columnas', a: 12458, b: 31377, op: '+', resultado: 43835 } },
   'm4-3': { texto: 'Para multiplicar por 20, 300 o 4.000: multiplica sin los ceros y añádelos al final.', visual: { tipo: 'columnas', a: 34, b: 200, op: '×', resultado: 6800 } },
   'm4-4': { texto: 'Perímetro: el borde, sumando lados. Área: lo de dentro, contando cuadraditos.', visual: { tipo: 'rect', a: 5, b: 3, ver: 'area' } },
-  'l3-1': { texto: 'El diccionario va en orden alfabético. Si dos palabras empiezan igual, manda la segunda letra.', visual: { tipo: 'letras', palabras: ['casa', 'cama', 'campo'], orden: true } },
-  'l4-1': { texto: 'El diccionario va en orden alfabético. Si dos palabras empiezan igual, manda la segunda letra.', visual: { tipo: 'letras', palabras: ['casa', 'cama', 'campo'], orden: true } },
-  'l3-2': { texto: 'Cada palabra tiene una sílaba que suena más fuerte: la tónica. Si es la última, aguda; la penúltima, llana; la antepenúltima, esdrújula.', visual: { tipo: 'silabas', silabas: ['ma', 'ri', 'po', 'sa'], tonica: 2 } },
-  'l4-2': { texto: 'Agudas con tilde si acaban en vocal, n o s (camión). Llanas con tilde si NO (lápiz). Esdrújulas, siempre (música).', visual: { tipo: 'silabas', silabas: ['mú', 'si', 'ca'], tonica: 0 } },
-  'l3-3': { texto: 'El nombre dice quién (▲ negro), el adjetivo cómo es (▲ azul) y el verbo qué hace (● rojo).', visual: { tipo: 'gramatica', palabras: [{ p: 'el', clase: 'articulo' }, { p: 'tigre', clase: 'nombre' }, { p: 'rápido', clase: 'adjetivo' }, { p: 'corre', clase: 'verbo' }] } },
-  'l4-3': { texto: 'El nombre dice quién (▲ negro), el adjetivo cómo es (▲ azul) y el verbo qué hace (● rojo). Nombre y adjetivo van siempre a juego.', visual: { tipo: 'gramatica', palabras: [{ p: 'las', clase: 'articulo' }, { p: 'botas', clase: 'nombre' }, { p: 'negras', clase: 'adjetivo' }, { p: 'brillan', clase: 'verbo' }] } },
-  'l3-4': { texto: 'Antes de p y b, siempre m. Entre vocales, el sonido fuerte es rr. Con diéresis (gü) la u suena.', visual: { tipo: 'letras', palabras: ['campo', 'perro', 'pingüino'] } },
-  'l4-4': { texto: 'Antes de p y b, siempre m. Entre vocales, el sonido fuerte es rr. Con diéresis (gü) la u suena.', visual: { tipo: 'letras', palabras: ['campo', 'perro', 'pingüino'] } },
-  'n3-1': { texto: 'Cells make tissues, tissues make organs, organs make systems. Every living thing does three things: nutrition, interaction, reproduction.', visual: { tipo: 'lamina', emoji: '🦠', rotulo: 'cell → tissue → organ → system' } },
-  'n4-1': { texto: 'Cells make tissues, tissues make organs, organs make systems. Every living thing does three things: nutrition, interaction, reproduction.', visual: { tipo: 'lamina', emoji: '🦠', rotulo: 'cell → tissue → organ → system' } },
-  'n3-2': { texto: 'Four systems work together to feed you: digestive, respiratory, circulatory and excretory.', visual: { tipo: 'lamina', emoji: '🫁', rotulo: 'food + air → blood → whole body' } },
-  'n4-2': { texto: 'Four systems work together to feed you: digestive, respiratory, circulatory and excretory.', visual: { tipo: 'lamina', emoji: '🫁', rotulo: 'food + air → blood → whole body' } },
-  'n3-3': { texto: 'Senses notice, nerves carry the message, the brain decides, muscles move the bones.', visual: { tipo: 'lamina', emoji: '🧠', rotulo: 'senses → nerves → brain → muscles' } },
-  'n4-3': { texto: 'Senses notice, nerves carry the message, the brain decides, muscles move the bones.', visual: { tipo: 'lamina', emoji: '🧠', rotulo: 'senses → nerves → brain → muscles' } },
-  's3-1': { texto: 'The Earth spins (rotation: day and night) and travels around the Sun (revolution: one year).', visual: { tipo: 'planetas' } },
-  's4-1': { texto: 'The Earth spins (rotation: day and night) and travels around the Sun (revolution: one year).', visual: { tipo: 'planetas' } },
-  's3-2': { texto: 'North, south, east, west. The Sun rises in the east. The Equator splits north and south; the Greenwich Meridian, east and west.', visual: { tipo: 'rosa' } },
-  's4-2': { texto: 'North, south, east, west. The Sun rises in the east. The Equator splits north and south; the Greenwich Meridian, east and west.', visual: { tipo: 'rosa' } },
-  's3-3': { texto: 'Weather is today; climate is what usually happens over many years.', visual: { tipo: 'lamina', emoji: '🌦️', rotulo: 'thermometer · rain gauge · weather vane' } },
-  's4-3': { texto: 'Spain has a big high plain in the middle (the Meseta), mountains around it and rivers that run to the sea.', visual: { tipo: 'lamina', emoji: '🏔️', rotulo: 'Meseta · Sistema Central · Tajo · Ebro' } },
+  'l3-1': { texto: 'Las letras forman sílabas; las sílabas, palabras; las palabras, oraciones. Y en cada palabra hay una sílaba que suena más fuerte: la tónica.', visual: { tipo: 'silabas', silabas: ['ma', 'ri', 'po', 'sa'], tonica: 2 } },
+  'l4-1': { texto: 'Primitiva: flor. Derivada: florero (añade un trozo). Compuesta: girasol (gira + sol). Y cada palabra es aguda, llana o esdrújula según su sílaba tónica.', visual: { tipo: 'silabas', silabas: ['mú', 'si', 'ca'], tonica: 0 } },
+  'l3-2': { texto: 'Una palabra derivada nace de otra añadiéndole un trozo: flor → florero. Y después de punto, siempre mayúscula.', visual: { tipo: 'letras', palabras: ['flor', 'florero', 'florista'] } },
+  'l4-2': { texto: 'Los nombres son comunes o propios, individuales (oveja) o colectivos (rebaño), concretos (mesa) o abstractos (alegría).', visual: { tipo: 'lamina', emoji: '🐑', rotulo: 'oveja → rebaño · mesa · alegría' } },
+  'l3-3': { texto: 'Diminutivo: más pequeño (casita). Aumentativo: más grande (casona). Compuesta: dos palabras en una (saca + puntas).', visual: { tipo: 'letras', palabras: ['casita', 'casona', 'sacapuntas'] } },
+  'l4-3': { texto: 'El adjetivo dice cómo es el nombre y va a juego con él. Diptongo: dos vocales en la misma sílaba (cie-lo). Hiato: separadas (rí-o).', visual: { tipo: 'gramatica', palabras: [{ p: 'las', clase: 'articulo' }, { p: 'botas', clase: 'nombre' }, { p: 'negras', clase: 'adjetivo' }, { p: 'brillan', clase: 'verbo' }] } },
+  'l3-4': { texto: 'El nombre dice quién o qué (▲ negro). Las preguntas van entre ¿? y las exclamaciones entre ¡!', visual: { tipo: 'gramatica', palabras: [{ p: 'el', clase: 'articulo' }, { p: 'tigre', clase: 'nombre' }, { p: 'rápido', clase: 'adjetivo' }, { p: 'corre', clase: 'verbo' }] } },
+  'l4-4': { texto: 'Los determinantes van delante del nombre: artículos (el, una) y demostrativos, que señalan lo cerca que está (este, ese, aquel).', visual: { tipo: 'lamina', emoji: '👉', rotulo: 'este (aquí) · ese (ahí) · aquel (allí)' } },
+  'n3-1': { texto: 'Scientists ask a question, make a hypothesis, do an experiment, collect data and write a conclusion.', visual: { tipo: 'lamina', emoji: '🔬', rotulo: 'question → hypothesis → experiment → data → conclusion' } },
+  'n4-1': { texto: 'All living things are made of cells: membrane, cytoplasm and nucleus. Plants make their own food with sunlight.', visual: { tipo: 'lamina', emoji: '🦠', rotulo: 'membrane · cytoplasm · nucleus' } },
+  'n3-2': { texto: 'Living things feed, interact and reproduce. Vertebrates have a backbone; invertebrates do not. Plants make their food in their leaves.', visual: { tipo: 'lamina', emoji: '🐸', rotulo: 'mammals · birds · fish · reptiles · amphibians' } },
+  'n4-2': { texto: 'Animals are herbivores, carnivores or omnivores, and oviparous or viviparous. Humans do the three vital functions too.', visual: { tipo: 'lamina', emoji: '🦁', rotulo: 'herbivore · carnivore · omnivore' } },
+  's3-1': { texto: 'A plan shows a small place from above; a map, a big one. North, south, east, west: the Sun rises in the east.', visual: { tipo: 'rosa' } },
+  's4-1': { texto: 'The Earth spins (rotation: day and night) and travels around the Sun (revolution: one year). Its tilt makes the seasons.', visual: { tipo: 'planetas' } },
+  's3-2': { texto: 'Landscapes can be natural or humanised. Inland: mountains, valleys, plains. On the coast: beaches, cliffs, capes and gulfs.', visual: { tipo: 'lamina', emoji: '🏞️', rotulo: 'plain · valley · mountain · cliff · cape · gulf' } },
+  's4-2': { texto: 'Weather is today; climate is what usually happens. Latitude, altitude and the sea change the climate.', visual: { tipo: 'lamina', emoji: '🌦️', rotulo: 'weather · climate · climograph' } },
   'e3-1': { texto: 'An -ing adjective says how a thing is (boring); an -ed adjective says how you feel (bored).', visual: { tipo: 'lamina', emoji: '🎡', rotulo: 'It was exciting! I was excited!' } },
   'e3-2': { texto: '«Could» is «can» in the past: When I was five, I could swim.', visual: { tipo: 'lamina', emoji: '🚚', rotulo: 'city · suburb · country' } },
   'e3-3': { texto: 'Past continuous: I was reading when the phone rang.', visual: { tipo: 'lamina', emoji: '🦋', rotulo: 'noun · verb · adjective · rhyme' } },
