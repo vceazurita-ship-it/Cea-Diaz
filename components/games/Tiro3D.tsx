@@ -104,6 +104,8 @@ export interface Tiro3DProps {
   /** Los tiros del cole ganados hoy, y su nivel: cada nivel le quita alcance a Benji. */
   cole?: ShotKind[];
   coleNivel?: number;
+  /** Energía de más ganada con el reto de fútbol del día. */
+  energiaExtra?: number;
   onShot: (result: PenaltyResult, outcome: PenaltyOutcome, score: ShotScore, golden: boolean) => void;
   onNext: () => void;
 }
@@ -143,6 +145,7 @@ export function Tiro3D({
   spread,
   cole = [],
   coleNivel = 1,
+  energiaExtra = 0,
   onShot,
   onNext,
 }: Tiro3DProps) {
@@ -699,7 +702,7 @@ export function Tiro3D({
                 <div className="absolute bottom-full left-0 mb-2 grid w-[min(86vw,330px)] animate-pop grid-cols-4 gap-1.5 rounded-2xl bg-[#0b1220]/92 p-2 shadow-2xl ring-1 ring-white/15 backdrop-blur">
                   {SHOT_ORDER.map((id) => {
                     const t = SHOT_TYPES[id];
-                    const ok = shotAvailability(id, result);
+                    const ok = shotAvailability(id, result, [], energiaExtra);
                     return (
                       <button
                         key={id}
@@ -727,7 +730,7 @@ export function Tiro3D({
                   <div className="col-span-4 grid grid-cols-6 gap-1">
                     {COLE_ORDER.map((id) => {
                       const t = SHOT_TYPES[id];
-                      const ok = shotAvailability(id, result, cole);
+                      const ok = shotAvailability(id, result, cole, energiaExtra);
                       const ganado = cole.includes(id);
                       return (
                         <button
@@ -779,8 +782,8 @@ export function Tiro3D({
                 <span className="mt-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
                   {step === 'apuntar' ? 'Cambiar tiro' : SHOT_TYPES[kind].short}
                 </span>
-                <span className="mt-0.5 flex gap-0.5" aria-label={`Energía: ${energyLeft(result)}`}>
-                  {Array.from({ length: Math.max(0, Math.min(8, energyLeft(result))) }, (_, i) => (
+                <span className="mt-0.5 flex gap-0.5" aria-label={`Energía: ${energyLeft(result, energiaExtra)}`}>
+                  {Array.from({ length: Math.max(0, Math.min(8, energyLeft(result, energiaExtra))) }, (_, i) => (
                     <span key={i} className="text-[12px] drop-shadow">⚡</span>
                   ))}
                 </span>

@@ -613,6 +613,8 @@ export type Visual =
   | { tipo: 'lamina'; emoji: string; rotulo?: string; control?: boolean }
   /** Una palabra en alfabeto móvil con un hueco; al resolver, se rellena. */
   | { tipo: 'hueco'; antes: string; hueco: string; despues: string; dibujo?: string }
+  /** Una jugada en la pizarra: pase al pie, al espacio, recepción perfilada, conducción o giro. */
+  | { tipo: 'campo'; jugada: 'pie' | 'espacio' | 'perfil' | 'conduccion' | 'giro' | 'proteger' }
   | { tipo: 'planetas' }
   | { tipo: 'rosa' };
 

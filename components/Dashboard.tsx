@@ -34,6 +34,7 @@ import { getCategories } from '@/lib/habits';
 import { learnHabits, usualFills, type UsualFill } from '@/lib/habitual';
 import { PENALTY_NOTE_KEY, encodePenaltyResult } from '@/lib/penalties';
 import { COLE_NOTE_KEY, encodeRetoResult } from '@/lib/retoCole';
+import { FUTBOL_NOTE_KEY, encodeFutbolResult } from '@/lib/retoFutbol';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
 import { clockNow, planFills, plannedToday, planProgress } from '@/lib/planToday';
@@ -642,6 +643,9 @@ export function Dashboard({
             }
             onColeResult={(result) =>
               store.setEntryNote(profile.id, date, COLE_NOTE_KEY, encodeRetoResult(result))
+            }
+            onFutbolResult={(result) =>
+              store.setEntryNote(profile.id, date, FUTBOL_NOTE_KEY, encodeFutbolResult(result))
             }
             onReserve={reserveForMetric}
           />

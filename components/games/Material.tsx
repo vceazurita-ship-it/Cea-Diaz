@@ -537,6 +537,118 @@ function Hueco({ antes, hueco, despues, dibujo, resuelto }: { antes: string; hue
   );
 }
 
+/* ---------------------------------------------------------- la pizarra */
+
+/**
+ * Una jugada vista desde arriba, como en la pizarra del entrenador: el que
+ * pasa (A), el que recibe (B) y, si hace falta, un defensor. Línea continua,
+ * el balón; discontinua, la carrera del jugador. Al resolver aparece el
+ * rótulo de lo que se está viendo.
+ */
+function Campo({ jugada, resuelto }: { jugada: Extract<Visual, { tipo: 'campo' }>['jugada']; resuelto: boolean }) {
+  const jugador = (x: number, y: number, letra: string, color: string) => (
+    <g>
+      <circle cx={x} cy={y} r="11" fill={color} stroke="#fff" strokeWidth="2.5" />
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fontWeight="900" fill="#fff">
+        {letra}
+      </text>
+    </g>
+  );
+  const flecha = (d: string, discontinua = false, color = '#fff') => (
+    <path d={d} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeDasharray={discontinua ? '7 6' : undefined} markerEnd={`url(#punta-${color.slice(1)})`} />
+  );
+  const rotulo: Record<typeof jugada, string> = {
+    pie: 'Pase al pie',
+    espacio: 'Pase al espacio',
+    perfil: 'Recepción perfilada',
+    conduccion: 'Conducción',
+    giro: 'Desmarque en V',
+    proteger: 'Recibe con la pierna alejada',
+  };
+  return (
+    <svg viewBox="0 0 320 170" className="block h-auto w-full max-h-48 rounded-2xl" aria-hidden>
+      <defs>
+        {['fff', 'facc15'].map((c) => (
+          <marker key={c} id={`punta-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 Z" fill={`#${c}`} />
+          </marker>
+        ))}
+      </defs>
+      <rect width="320" height="170" rx="14" fill="#15803d" />
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <rect key={i} x={i * 40} y="0" width="20" height="170" fill="#166534" opacity="0.45" />
+      ))}
+      {/* La portería, arriba. */}
+      <rect x="130" y="4" width="60" height="10" fill="none" stroke="#fff" strokeWidth="3" />
+      <path d="M96 4 V40 H224 V4" fill="none" stroke="#fff" strokeWidth="2" opacity="0.7" />
+      {jugada === 'pie' && (
+        <>
+          {flecha('M80 140 L208 92')}
+          {jugador(70, 146, 'A', '#2563eb')}
+          {jugador(218, 88, 'B', '#2563eb')}
+        </>
+      )}
+      {jugada === 'espacio' && (
+        <>
+          {flecha('M200 110 L200 52', true, '#facc15')}
+          {flecha('M80 140 L192 48')}
+          {jugador(70, 146, 'A', '#2563eb')}
+          {jugador(200, 120, 'B', '#2563eb')}
+          {jugador(240, 80, 'D', '#dc2626')}
+        </>
+      )}
+      {jugada === 'perfil' && (
+        <>
+          {flecha('M80 140 L186 104')}
+          {/* El cuerpo abierto hacia la portería: ya mira adonde va. */}
+          <path d="M196 100 L226 70" stroke="#facc15" strokeWidth="5" strokeLinecap="round" opacity="0.8" />
+          {flecha('M206 92 L250 48', true, '#facc15')}
+          {jugador(70, 146, 'A', '#2563eb')}
+          {jugador(196, 100, 'B', '#2563eb')}
+          {jugador(150, 70, 'D', '#dc2626')}
+        </>
+      )}
+      {jugada === 'conduccion' && (
+        <>
+          {flecha('M160 132 C 150 110, 172 92, 160 70 S 168 46, 162 40', false, '#facc15')}
+          {[118, 98, 78, 58].map((y, i) => (
+            <circle key={y} cx={160 + (i % 2 ? 6 : -6)} cy={y} r="3.5" fill="#fff" />
+          ))}
+          {jugador(160, 142, 'B', '#2563eb')}
+        </>
+      )}
+      {jugada === 'giro' && (
+        <>
+          {/* Va hacia el defensor y sale de golpe al otro lado: una V. */}
+          {flecha('M200 130 L168 92 L230 66', true, '#facc15')}
+          {flecha('M70 140 L222 70')}
+          {jugador(60, 146, 'A', '#2563eb')}
+          {jugador(200, 140, 'B', '#2563eb')}
+          {jugador(160, 82, 'D', '#dc2626')}
+        </>
+      )}
+      {jugada === 'proteger' && (
+        <>
+          {flecha('M70 140 L196 112')}
+          {jugador(60, 146, 'A', '#2563eb')}
+          {jugador(206, 104, 'B', '#2563eb')}
+          {jugador(186, 70, 'D', '#dc2626')}
+          {/* La pierna lejos del defensor, marcada. */}
+          <circle cx="216" cy="118" r="6" fill="#facc15" stroke="#fff" strokeWidth="2" />
+        </>
+      )}
+      {resuelto && (
+        <g>
+          <rect x="8" y="8" width={rotulo[jugada].length * 7.2 + 16} height="24" rx="12" fill="#0b1220" opacity="0.85" />
+          <text x="16" y="24" fontSize="12" fontWeight="900" fill="#facc15">
+            {rotulo[jugada]}
+          </text>
+        </g>
+      )}
+    </svg>
+  );
+}
+
 /* -------------------------------------------------------------- láminas */
 
 function Lamina({ emoji, rotulo }: { emoji: string; rotulo?: string }) {
@@ -641,6 +753,8 @@ export function Material({ visual, resuelto }: { visual: Visual; resuelto: boole
       return visual.control && !resuelto ? null : <Lamina emoji={visual.emoji} rotulo={visual.rotulo} />;
     case 'hueco':
       return <Hueco antes={visual.antes} hueco={visual.hueco} despues={visual.despues} dibujo={visual.dibujo} resuelto={resuelto} />;
+    case 'campo':
+      return <Campo jugada={visual.jugada} resuelto={resuelto} />;
     case 'planetas':
       return <Planetas />;
     case 'rosa':

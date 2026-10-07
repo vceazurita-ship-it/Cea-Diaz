@@ -24,6 +24,7 @@ import {
 } from '@/lib/penalties';
 import { gameRewardId, rarityLabel } from '@/lib/rewards';
 import { nivelDe, retoDelDia, tirosDelCole, victorias } from '@/lib/retoCole';
+import { energiaDelFutbol } from '@/lib/retoFutbol';
 import { computeDayScore } from '@/lib/scoring';
 import { loadSettings, subscribeSettings } from '@/lib/settings';
 import { entryKey } from '@/lib/storage';
@@ -152,8 +153,10 @@ export function DailyGameCard({
 
   // Los tiros que se han ganado hoy en el reto del cole, y con qué nivel.
   const coleShots = tirosDelCole(entries, profile.id, date);
-  const reto = retoDelDia(date);
+  const reto = retoDelDia(date, profile.id);
   const coleNivel = Math.max(1, nivelDe(victorias(entries, profile.id, reto, date)));
+  // Y el rayo de energía de más que da el reto de fútbol superado.
+  const energiaExtra = energiaDelFutbol(entries, profile.id, date);
   const canShoot = Boolean(onPenalty) && gate.open && today;
 
   /** El cromo de esta partida, si cayó alguno. */
@@ -348,6 +351,7 @@ export function DailyGameCard({
             result={penalties}
             cole={coleShots}
             coleNivel={coleNivel}
+            energiaExtra={energiaExtra}
             onShot={onPenalty}
             onClose={() => setShooting(false)}
           />

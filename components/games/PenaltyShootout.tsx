@@ -87,6 +87,8 @@ interface PenaltyShootoutProps {
   /** Los tiros del cole ganados hoy en su reto, y su nivel. */
   cole?: ShotKind[];
   coleNivel?: number;
+  /** Energía de más ganada con el reto de fútbol del día. */
+  energiaExtra?: number;
   onShot: (result: PenaltyResult) => void;
   onClose: () => void;
 }
@@ -141,7 +143,7 @@ function fichaDe(id: TiradorId): Ficha {
  * un tiro: pasa cuando el crío pulsa seguir, para que le dé tiempo a ver cómo
  * acabó.
  */
-export function PenaltyShootout({ profileId, name, date, result, cole = [], coleNivel = 1, onShot, onClose }: PenaltyShootoutProps) {
+export function PenaltyShootout({ profileId, name, date, result, cole = [], coleNivel = 1, energiaExtra = 0, onShot, onClose }: PenaltyShootoutProps) {
   const who = profileId as Casero;
 
   /**
@@ -276,6 +278,7 @@ export function PenaltyShootout({ profileId, name, date, result, cole = [], cole
       key={`tiro-${turno}`}
       cole={cole}
       coleNivel={coleNivel}
+      energiaExtra={energiaExtra}
       spread={Math.max(0.68, Math.min(1.2, 1 - (fichaDe(shooter).pre - 80) / 70))}
       profileId={profileId}
       name={name}

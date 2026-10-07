@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { MarksTracker } from '@/components/challenges/MarksTracker';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { DailyGameCard } from '@/components/games/DailyGameCard';
+import { FutbolRetoCard } from '@/components/games/FutbolRetoCard';
 import { RetoColeCard } from '@/components/games/RetoColeCard';
 import { Campograma } from '@/components/team/Campograma';
 import { LigaCromos } from '@/components/team/LigaCromos';
@@ -17,6 +18,7 @@ import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
 import { cursoDe, type RetoResult } from '@/lib/retoCole';
+import type { FutbolResult } from '@/lib/retoFutbol';
 import { challengeLink } from '@/lib/planLink';
 import type { ChallengeLink } from '@/lib/planLink';
 import { DAY_SHORT } from '@/lib/planner';
@@ -59,6 +61,8 @@ interface ChallengesPanelProps {
   onPenaltyResult?: (result: PenaltyResult) => void;
   /** Anota el reto del cole del día; sólo lo tienen los peques con curso. */
   onColeResult?: (result: RetoResult) => void;
+  /** Anota el reto de fútbol (la tecnificación) del día. */
+  onFutbolResult?: (result: FutbolResult) => void;
   /**
    * Apartarle un rato en la semana a lo que pide un reto. Sin esto, los retos
    * dicen adónde hay que llegar y nadie dice cuándo.
@@ -272,6 +276,7 @@ export function ChallengesPanel({
   onGameResult,
   onPenaltyResult,
   onColeResult,
+  onFutbolResult,
   onReserve,
 }: ChallengesPanelProps) {
   const kid = profile.kind === 'kid';
@@ -358,6 +363,18 @@ export function ChallengesPanel({
           kid={kid}
           headingClass={headingClass}
           onResult={onColeResult}
+        />
+      )}
+
+      {/* El de fútbol, todos los días: lo de la última tecnificación. */}
+      {onFutbolResult && cursoDe(profile.id) && (
+        <FutbolRetoCard
+          profile={profile}
+          date={date}
+          entries={entries}
+          kid={kid}
+          headingClass={headingClass}
+          onResult={onFutbolResult}
         />
       )}
 

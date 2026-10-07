@@ -536,10 +536,13 @@ export function powerBand(kind: ShotKind = 'normal'): [number, number] {
   return SHOT_TYPES[kind].band;
 }
 
-/** La energía que queda: la de salida, más un punto por gol, menos lo gastado. */
-export function energyLeft(result: PenaltyResult | null): number {
+/**
+ * La energía que queda: la de salida, más un punto por gol, menos lo gastado.
+ * `extra` es la que se gana fuera de la tanda: el reto de fútbol del día.
+ */
+export function energyLeft(result: PenaltyResult | null, extra = 0): number {
   const spent = (result?.specials ?? []).reduce((sum, kind) => sum + (SHOT_TYPES[kind]?.cost ?? 0), 0);
-  return ENERGY_START + (result?.scored ?? 0) - spent;
+  return ENERGY_START + extra + (result?.scored ?? 0) - spent;
 }
 
 /** Si se puede tirar ése ahora, y si no, por qué. */
@@ -548,11 +551,13 @@ export function shotAvailability(
   result: PenaltyResult | null,
   /** Los tiros del cole ganados hoy: los demás del cole siguen cerrados. */
   cole: ShotKind[] = [],
+  /** Energía ganada fuera de la tanda (el reto de fútbol). */
+  extra = 0,
 ): { ok: boolean; reason?: 'usado' | 'energia' | 'reto' } {
   if (kind === 'normal') return { ok: true };
   if (isColeShot(kind) && !cole.includes(kind)) return { ok: false, reason: 'reto' };
   if (result?.specials?.includes(kind)) return { ok: false, reason: 'usado' };
-  if (energyLeft(result) < SHOT_TYPES[kind].cost) return { ok: false, reason: 'energia' };
+  if (energyLeft(result, extra) < SHOT_TYPES[kind].cost) return { ok: false, reason: 'energia' };
   return { ok: true };
 }
 

@@ -427,7 +427,8 @@ const TRIANGULOS: Pregunta[] = [
 const PALABRAS = [
   'ca-MIÓN', 're-LOJ', 'pa-PEL', 'can-CIÓN', 'so-FÁ', 'ra-TÓN', 'ma-RRÓN', 'ca-FÉ', 'jar-DÍN', 'a-ZUL', 'bal-CÓN', 'tam-BOR',
   'ÁR-bol', 'LÁ-piz', 'ME-sa', 'VEN-ta-na', 'FÚT-bol', 'CÉS-ped', 'a-ZÚ-car', 'ma-ri-PO-sa', 'pe-LO-ta', 'por-TE-ro', 'ÁN-gel', 'CÁR-cel',
-  'MÚ-si-ca', 'PÁ-ja-ro', 'LÁM-pa-ra', 'MÉ-di-co', 'CÁ-ma-ra', 'SÁ-ba-do', 'NÚ-me-ro', 'PLÁ-ta-no', 'te-LÉ-fo-no', 'MÁ-gi-co', 'BRÚ-ju-la', 'pi-RÁ-mi-de',
+  'me-lo-co-TÓN', 'a-de-MÁS', 'ja-ba-LÍ', 'co-li-BRÍ', 'ca-ra-COL', 'a-je-DREZ', 'te-le-vi-SIÓN', 'CRÁ-ter', 'TÚ-nel', 'LÍ-der', 'HÁ-bil', 'au-to-MÓ-vil', 'NÉC-tar',
+  'cien-TÍ-fi-ca', 'fan-TÁS-ti-co', 're-LÁM-pa-go', 'se-MÁ-fo-ro', 'es-TÓ-ma-go', 'MÚ-si-ca', 'PÁ-ja-ro', 'LÁM-pa-ra', 'MÉ-di-co', 'CÁ-ma-ra', 'SÁ-ba-do', 'NÚ-me-ro', 'PLÁ-ta-no', 'te-LÉ-fo-no', 'MÁ-gi-co', 'BRÚ-ju-la', 'pi-RÁ-mi-de',
 ];
 
 interface Palabra {
@@ -638,7 +639,8 @@ const dimAum = (rand: Rand): Pregunta => {
 
 const COMPUESTAS: [string, string][] = [
   ['sacapuntas', 'saca + puntas'], ['paraguas', 'para + aguas'], ['abrelatas', 'abre + latas'], ['girasol', 'gira + sol'],
-  ['cumpleaños', 'cumple + años'], ['rompecabezas', 'rompe + cabezas'], ['mediodía', 'medio + día'], ['pasatiempo', 'pasa + tiempo'], ['cortaúñas', 'corta + uñas'],
+  ['cumpleaños', 'cumple + años'], ['rompecabezas', 'rompe + cabezas'], ['sacacorchos', 'saca + corchos'], ['limpiabotas', 'limpia + botas'],
+  ['cascanueces', 'casca + nueces'], ['guardacostas', 'guarda + costas'], ['telaraña', 'tela + araña'], ['videojuego', 'video + juego'], ['balompié', 'balón + pie'], ['mediodía', 'medio + día'], ['pasatiempo', 'pasa + tiempo'], ['cortaúñas', 'corta + uñas'],
 ];
 const SIMPLES = ['pelota', 'panadero', 'mesita', 'florero', 'ventana', 'zapatería', 'portero', 'librito'];
 
@@ -841,6 +843,125 @@ const RELIEVE: Pregunta[] = [
   p('🗻', 'The mountains between Spain and France are the…', 'Pyrenees', ['Alps', 'Andes', 'Sistema Ibérico'], 'Los Pirineos.'),
   p('↘️', 'Where a river ends, in the sea, is called the…', 'Mouth', ['Source', 'Bed', 'Bank'], 'Mouth = desembocadura. Source = nacimiento.'),
 ];
+
+/* ---- Lengua 4 · lo de los resúmenes y las fichas de refuerzo de la profe ---- */
+
+const COMUNICACION: Pregunta[] = [
+  p('📣', 'La persona que transmite el mensaje es el…', 'Emisor', ['Receptor', 'Canal', 'Código'], 'Emisor: quien manda el mensaje.'),
+  p('👂', 'La persona que recibe el mensaje es el…', 'Receptor', ['Emisor', 'Contexto', 'Mensaje'], 'Receptor: quien lo recibe.'),
+  p('📡', 'El medio por el que viaja el mensaje (el aire, el papel…) es el…', 'Canal', ['Código', 'Emisor', 'Contexto'], 'Canal: por dónde va el mensaje.'),
+  p('🔣', 'El sistema de signos y reglas que comparten emisor y receptor (el idioma, la escritura…) es el…', 'Código', ['Canal', 'Mensaje', 'Contexto'], 'Código: el «idioma» del mensaje. Si no lo conoces, no lo entiendes.'),
+  p('🎬', 'La situación en la que se comunica (en el cine, en clase…) es el…', 'Contexto', ['Código', 'Canal', 'Receptor'], 'Contexto: dónde y cuándo pasa la comunicación.'),
+  p('📻', '«Un padre oye por la radio que mañana nevará en Madrid.» ¿Quién es el receptor?', 'El padre', ['La radio', 'La nieve', 'Madrid'], 'Recibe el mensaje el padre; la radio es el canal.'),
+  p('📻', '«Un padre oye por la radio que mañana nevará en Madrid.» ¿Cuál es el mensaje?', 'Que mañana nevará en Madrid', ['La radio', 'El padre', 'El locutor'], 'El mensaje es la información que se transmite.'),
+  p('📻', 'Una radio suena en una habitación vacía. ¿Qué elemento falta?', 'El receptor', ['El emisor', 'El canal', 'El mensaje'], 'No hay nadie que lo reciba: falta el receptor.'),
+  p('✉️', 'Recibes una carta en un idioma que no conoces. ¿Qué falla?', 'El código', ['El canal', 'El emisor', 'El contexto'], 'No compartís el código: no la puedes entender.'),
+  p('🌊', 'Intentas hablar debajo del agua y no se te entiende. ¿Qué falla?', 'El canal', ['El código', 'El receptor', 'El mensaje'], 'El agua no deja viajar bien la voz: falla el canal.'),
+  p('🤚', 'Un gesto con la mano es lenguaje…', 'No verbal', ['Verbal', 'Escrito', 'Oral'], 'No verbal: gestos, posturas, ruidos, el volumen de la voz.'),
+  p('💬', 'Una conversación es lenguaje…', 'Verbal', ['No verbal', 'De signos', 'Corporal'], 'Verbal: con palabras, habladas (oral) o escritas.'),
+  p('😂', 'Las risas y los silbidos son comunicación…', 'No verbal', ['Verbal', 'Escrita', 'Formal'], 'No llevan palabras: no verbal.'),
+  p('📄', '¿Qué es un texto?', 'Una oración o varias que comunican algo', ['Una sola letra', 'Un dibujo', 'Una lista de números'], 'Texto: oraciones que juntas comunican algo.'),
+  p('🧩', 'Que los párrafos estén bien ordenados y tengan sentido es la…', 'Coherencia', ['Cohesión', 'Acepción', 'Entrada'], 'Coherencia: el orden y el sentido del texto.'),
+  p('🔗', 'Usar pronombres, sinónimos y conectores para unir las ideas es la…', 'Cohesión', ['Coherencia', 'Entrada', 'Sílaba'], 'Cohesión: que las partes estén bien unidas.'),
+  p('🔗', '¿Cuál de estas palabras es un conector?', 'además', ['mesa', 'rápido', 'cantar'], 'Conectores: después, además, también, es decir, por ejemplo, pero…'),
+];
+
+const DICCIONARIO_TERMS: Pregunta[] = [
+  p('📖', 'Cada palabra que explica el diccionario se llama…', 'Entrada', ['Acepción', 'Palabra guía', 'Sílaba'], 'La entrada es la palabra que se busca, en negrita.'),
+  p('📖', 'Cada uno de los significados de una palabra es una…', 'Acepción', ['Entrada', 'Palabra guía', 'Familia'], 'Una palabra puede tener varias acepciones, numeradas.'),
+  p('📖', 'Las palabras de arriba de cada página, que dicen la primera y la última que hay en ella, son…', 'Palabras guía', ['Entradas', 'Acepciones', 'Sinónimos'], 'Las palabras guía te dicen si lo que buscas está en esa página.'),
+];
+
+const POR_SILABAS: string[][] = [
+  ['sed'], ['tres'], ['flor'], ['paz'], ['tren'], ['voz'], ['luz'],
+  ['glo', 'bo'], ['pla', 'za'], ['bro', 'ma'], ['pul', 'so'], ['me', 'sa'], ['del', 'fín'],
+  ['clí', 'ni', 'ca'], ['se', 'cre', 'to'], ['me', 'da', 'lla'], ['ji', 'ra', 'fa'], ['ce', 'bo', 'lla'], ['es', 'tu', 'che'],
+  ['lo', 'ca', 'li', 'dad'], ['be', 'ren', 'je', 'nas'], ['en', 'tre', 'te', 'ner'], ['res', 'ba', 'la', 'di', 'zo'], ['can', 'di', 'da', 'tu', 'ra'],
+];
+
+const porSilabas = (rand: Rand): Pregunta => {
+  const silabas = uno(rand, POR_SILABAS);
+  const n = silabas.length;
+  const ok = n === 1 ? 'Monosílaba' : n === 2 ? 'Bisílaba' : n === 3 ? 'Trisílaba' : 'Polisílaba';
+  return {
+    icon: '👏',
+    prompt: `«${silabas.join('')}» es una palabra…`,
+    ok,
+    no: ['Monosílaba', 'Bisílaba', 'Trisílaba', 'Polisílaba'].filter((x) => x !== ok),
+    why: `${silabas.join(' - ')}: ${n} sílaba${n === 1 ? '' : 's'}. Mono = 1, bi = 2, tri = 3, poli = más de 3.`,
+    visual: { tipo: 'silabas', silabas, tonica: -1, juntas: true },
+  };
+};
+
+const AFIJOS: Pregunta[] = [
+  p('🧱', 'Los prefijos se ponen…', 'Delante del lexema', ['Detrás del lexema', 'En medio de la palabra', 'Al final de la oración'], 'Prefijo: delante (des-hacer). Sufijo: detrás (pan-adero).'),
+  p('🧱', 'Los sufijos se ponen…', 'Detrás del lexema', ['Delante del lexema', 'Encima de la palabra', 'En otra palabra'], 'Sufijo: detrás (flor-ero).'),
+  p('🚫', '¿Qué indica el prefijo «des-» en «deshacer»?', 'Lo contrario', ['Antes de', 'Otra vez', 'La mitad'], 'in-, im-, i-, des-: oposición (imposible, despreocupado).'),
+  p('⏪', '¿Qué indica el prefijo «pre-» en «preescolar»?', 'Antes de', ['Otra vez', 'Lo contrario', 'La mitad'], 'Pre- = antes de.'),
+  p('🔁', '¿Qué indica el prefijo «re-» en «releer»?', 'Otra vez', ['Antes de', 'Lo contrario', 'La mitad'], 'Re- = repetición.'),
+  p('🌗', '¿Qué indica el prefijo «semi-» en «semifinal»?', 'La mitad', ['Otra vez', 'Lo contrario', 'Antes de'], 'Semi- = mitad.'),
+  p('🧑‍🍳', 'El sufijo «-ero» en «panadero» indica…', 'Una profesión', ['Un lugar', 'Algo pequeño', 'Lo contrario'], '-ero, -era: profesión (panadero, panadera).'),
+  p('🏪', 'El sufijo «-ería» en «panadería» indica…', 'Un lugar', ['Una profesión', 'Algo grande', 'Lo contrario'], '-ería: lugar (panadería, frutería).'),
+  p('🧺', 'El sufijo «-able» en «lavable» quiere decir…', 'Que se puede', ['Que es pequeño', 'Que es un lugar', 'Lo contrario'], '-able: que se puede (lavable, bailable).'),
+  p('⚠️', 'El sufijo «-oso» en «peligroso» quiere decir…', 'Que tiene mucho', ['Que es pequeño', 'Una profesión', 'Lo contrario'], '-oso, -osa: que tiene mucho (peligroso, sudoroso).'),
+  p('🔤', '¿Cuál es el lexema de «panadero»?', 'pan', ['panad', 'ero', 'dero'], 'El lexema es la parte que no cambia: pan-adero, pan-adería, pan-ecillo.'),
+  p('🔤', '¿Cuál es el lexema de «marinero»?', 'mar', ['marin', 'ero', 'nero'], 'mar-inero, mar-ino, mar-ea.'),
+  p('🚫', '¿Cuál de estas palabras lleva prefijo?', 'imposible', ['posible', 'posibilidad', 'pasear'], 'im- + posible = imposible.'),
+];
+
+const PRIMITIVAS: [string, string, string[]][] = [
+  ['sudoroso', 'sudor', ['suda', 'sudario', 'sur']], ['rosaleda', 'rosa', ['rosal', 'roseta', 'rozar']], ['peligroso', 'peligro', ['pelo', 'pelirrojo', 'pelea']],
+  ['encadenado', 'cadena', ['encadenar', 'canela', 'nado']], ['martillazo', 'martillo', ['martes', 'mar', 'mantilla']], ['blancuzco', 'blanco', ['blando', 'banco', 'blusa']],
+  ['secador', 'secar', ['seco', 'sector', 'cedro']], ['fijador', 'fijar', ['fijo', 'figura', 'dorar']], ['asturiano', 'Asturias', ['astro', 'Austria', 'asturiana']],
+];
+
+const primitiva = (rand: Rand): Pregunta => {
+  const [w, ok, no] = uno(rand, PRIMITIVAS);
+  return { icon: '🌱', prompt: `¿De qué palabra primitiva viene «${w}»?`, ok, no, why: `${w} se forma desde ${ok} añadiéndole un trozo.` };
+};
+
+const TEXTOS_UTILES: Pregunta[] = [
+  p('📏', 'Las reglas que dicen cómo comportarse en un lugar (el comedor, la biblioteca) son…', 'Normas', ['Instrucciones', 'Formularios', 'Acepciones'], 'Normas: para convivir bien en un sitio.'),
+  p('🧱', 'Los pasos ordenados para hacer bien una tarea (montar un lego) son…', 'Instrucciones', ['Normas', 'Formularios', 'Cuentos'], 'Instrucciones: pasos en orden.'),
+  p('📝', 'Un documento con espacios para rellenar y pedir algo es un…', 'Formulario', ['Cuento', 'Poema', 'Diccionario'], 'Formulario: impreso o digital, con huecos para tus datos.'),
+  p('✋', '¿Cuál es una buena norma de clase?', 'Levanto la mano para hablar', ['No presto nada nunca', 'Tiro papeles al suelo', 'Hablo cuando quiero'], 'Las normas ayudan a convivir: esperar el turno, escuchar, pedir perdón.'),
+  p('📧', 'En un correo electrónico, ¿para qué sirve el «asunto»?', 'Para decir de qué trata el mensaje', ['Para poner la firma', 'Para adjuntar fotos', 'Para nada'], 'El asunto resume en pocas palabras de qué va el correo.'),
+  p('📧', '¿Qué símbolo lleva siempre una dirección de correo electrónico?', '@', ['#', '%', '&'], 'nombre@servidor: la arroba separa el usuario del servidor.'),
+];
+
+const FEMENINOS: [string, string, string[]][] = [
+  ['alcalde', 'alcaldesa', ['alcalda', 'alcaldina']], ['héroe', 'heroína', ['heroa', 'heroesa']], ['actor', 'actriz', ['actora', 'actoresa']],
+  ['príncipe', 'princesa', ['príncipa', 'principina']], ['caballo', 'yegua', ['caballa', 'caballesa']], ['gallo', 'gallina', ['galla', 'gallesa']],
+  ['emperador', 'emperatriz', ['emperadora', 'emperesa']], ['padrino', 'madrina', ['padrina', 'padresa']], ['tigre', 'tigresa', ['tigra', 'tigrina']],
+];
+
+const femenino = (rand: Rand): Pregunta => {
+  const [m, f, no] = uno(rand, FEMENINOS);
+  return { icon: '👑', prompt: `¿Cuál es el femenino de «${m}»?`, ok: f, no, why: `${m} → ${f}. Algunos nombres de personas y animales cambian de forma, no sólo de terminación.` };
+};
+
+const NUMERO_INV: Pregunta[] = [
+  p('☂️', 'El plural de «paraguas» es…', 'paraguas', ['paraguases', 'paragua', 'paraguasos'], 'No cambia: el paraguas, los paraguas.'),
+  p('📅', 'El plural de «lunes» es…', 'lunes', ['luneses', 'lune', 'lunesos'], 'El lunes, los lunes: no cambia.'),
+  p('🏝️', 'El plural de «oasis» es…', 'oasis', ['oasises', 'oasi', 'oasos'], 'Como crisis o análisis: igual en singular y en plural.'),
+  p('🌿', 'El plural de «césped» es…', 'céspedes', ['césped', 'céspeds', 'cespedes'], 'Céspedes: al añadir sílaba pasa a esdrújula y conserva la tilde.'),
+];
+
+const COLECTIVOS: [string, string][] = [
+  ['aves', 'bandada'], ['cerdos', 'piara'], ['ovejas', 'rebaño'], ['abejas', 'enjambre'], ['perros', 'jauría'],
+  ['pinos', 'pinar'], ['cubiertos', 'cubertería'], ['islas', 'archipiélago'], ['estrellas', 'constelación'], ['soldados', 'ejército'], ['árboles', 'bosque'],
+];
+
+const colectivo = (rand: Rand): Pregunta => {
+  const [ind, col] = uno(rand, COLECTIVOS);
+  return {
+    icon: '🐑',
+    prompt: `¿Cómo se llama un grupo de ${ind}?`,
+    ok: col,
+    no: barajar(COLECTIVOS.filter(([x]) => x !== ind), rand).slice(0, 3).map(([, c]) => c),
+    why: `${col}: un nombre colectivo, que en singular nombra a muchos (${ind}).`,
+  };
+};
 
 /* ---- Matemáticas 3 · Operación Mundo (Anaya) ---- */
 
@@ -1111,8 +1232,8 @@ export const TEMARIO: Tema[] = [
   { id: 'l3-4', asignatura: 'lengua', curso: 3, desde: '2026-11-30', titulo: 'U4 · El nombre', fuente: LOM3, puntos: ['El nombre: común y propio', 'Género y número', 'Sinónimos', 'Signos de interrogación y exclamación'], hacer: [nombreAdjetivo('nombre'), generoNumero, delBanco(COMUN_PROPIO), sinonimo, delBanco(SIGNOS)] },
 
   /* ------------------------------------------------ Lengua 4º (Anaya: U1-4) */
-  { id: 'l4-1', asignatura: 'lengua', curso: 4, desde: '2026-09-07', titulo: 'U1 · Formación de palabras', fuente: LOM4, puntos: ['Derivadas y compuestas', 'El diccionario', 'Agudas, llanas y esdrújulas'], hacer: [derivada, compuesta, ordenAlfabetico, agudaLlana, silabaTonica] },
-  { id: 'l4-2', asignatura: 'lengua', curso: 4, desde: '2026-10-05', titulo: 'U2 · El nombre y sus clases', fuente: LOM4, puntos: ['Común y propio, individual y colectivo', 'Concreto y abstracto', 'Familia de palabras', 'La tilde'], hacer: [delBanco(CLASES_NOMBRE), delBanco(CLASES_NOMBRE), familia, tilde, tilde] },
+  { id: 'l4-1', asignatura: 'lengua', curso: 4, desde: '2026-09-07', titulo: 'U1 · Comunicación y formación de palabras', fuente: `${LOM4} + resumen y ficha de la profe`, puntos: ['Elementos de la comunicación', 'Lenguaje verbal y no verbal', 'El texto: coherencia y cohesión', 'El diccionario: entrada, acepción, palabras guía', 'Mono, bi, tri y polisílabas', 'Prefijos y sufijos, derivadas y compuestas', 'Diminutivos y aumentativos', 'Agudas, llanas y esdrújulas'], hacer: [delBanco(COMUNICACION), delBanco(COMUNICACION), delBanco(DICCIONARIO_TERMS), porSilabas, derivada, primitiva, delBanco(AFIJOS), delBanco(AFIJOS), compuesta, dimAum, agudaLlana, silabaTonica] },
+  { id: 'l4-2', asignatura: 'lengua', curso: 4, desde: '2026-10-05', titulo: 'U2 · Normas, el nombre y la tilde', fuente: `${LOM4} + resumen y ficha de la profe`, puntos: ['Normas, instrucciones, formulario y correo', 'Familia de palabras', 'El nombre: género y número', 'Propio y común, individual y colectivo', 'La tilde en agudas, llanas y esdrújulas'], hacer: [delBanco(TEXTOS_UTILES), familia, delBanco(CLASES_NOMBRE), colectivo, femenino, delBanco(NUMERO_INV), generoNumero, tilde, tilde] },
   { id: 'l4-3', asignatura: 'lengua', curso: 4, desde: '2026-11-02', titulo: 'U3 · El adjetivo', fuente: LOM4, puntos: ['El adjetivo', 'Concordancia', 'Sinónimos', 'Diptongos e hiatos'], hacer: [nombreAdjetivo('adjetivo'), concordancia, sinonimo, diptongoHiato, diptongoHiato] },
   { id: 'l4-4', asignatura: 'lengua', curso: 4, desde: '2026-11-30', titulo: 'U4 · Los determinantes', fuente: LOM4, puntos: ['Artículos y demostrativos', 'Recursos literarios', 'Punto, coma y punto y coma'], hacer: [determinante, determinante, delBanco(RECURSOS), delBanco(PUNTUACION)] },
 
@@ -1120,13 +1241,13 @@ export const TEMARIO: Tema[] = [
   { id: 'n3-1', asignatura: 'science', curso: 3, desde: '2026-09-07', titulo: 'U1 · Science', fuente: GT('Natural Science 3'), puntos: ['Scientific questions', 'Hypothesis and data', 'Scientific information', 'Technology and computational thinking'], hacer: [delBanco(METODO)] },
   { id: 'n3-2', asignatura: 'science', curso: 3, desde: '2026-10-26', titulo: 'U2 · Living organisms', fuente: GT('Natural Science 3'), puntos: ['Vital functions', 'Vertebrates and invertebrates', 'Plants and their reproduction', 'Types of plants'], hacer: [delBanco(SERES_VIVOS)] },
   { id: 'n4-1', asignatura: 'science', curso: 4, desde: '2026-09-07', titulo: 'U1 · Living organisms', fuente: GT('Natural Science 4'), puntos: ['Cells: membrane, cytoplasm, nucleus', 'Unicellular and multicellular', 'Classifying living things', 'Plants: nutrition, interaction, reproduction'], hacer: [delBanco(CELULAS)] },
-  { id: 'n4-2', asignatura: 'science', curso: 4, desde: '2026-10-26', titulo: 'U2 · Animals and human beings', fuente: GT('Natural Science 4'), puntos: ['Types of animals', 'Vital functions in animals', 'Human beings', 'Physical and emotional well-being'], hacer: [delBanco(ANIMALES), delBanco(ANIMALES), delBanco(NUTRICION), delBanco(RELACION)] },
+  { id: 'n4-2', asignatura: 'science', curso: 4, desde: '2026-11-02', titulo: 'U2 · Animals and human beings', fuente: GT('Natural Science 4'), puntos: ['Types of animals', 'Vital functions in animals', 'Human beings', 'Physical and emotional well-being'], hacer: [delBanco(ANIMALES), delBanco(ANIMALES), delBanco(NUTRICION), delBanco(RELACION)] },
 
   /* ------------------------------------------------ Social Science (Anaya: U1-2) */
   { id: 's3-1', asignatura: 'social', curso: 3, desde: '2026-09-07', titulo: 'U1 · Maps and plans', fuente: GT('Social Science 3'), puntos: ['Plans and maps', 'Key, scale and symbols', 'Cardinal points', 'The globe: equator, meridians'], hacer: [delBanco(MAPAS)] },
   { id: 's3-2', asignatura: 'social', curso: 3, desde: '2026-10-26', titulo: 'U2 · Landscapes', fuente: GT('Social Science 3'), puntos: ['Natural and humanised', 'Inland landscapes of Spain', 'Coastal landscapes', "Spain's coastline"], hacer: [delBanco(PAISAJES), delBanco(PAISAJES), delBanco(RELIEVE)] },
   { id: 's4-1', asignatura: 'social', curso: 4, desde: '2026-09-07', titulo: 'U1 · The Earth', fuente: GT('Social Science 4'), puntos: ['The Universe and the Solar System', 'Layers of the Earth', 'The Moon', 'Rotation, revolution and seasons'], hacer: [delBanco(UNIVERSO), delBanco(UNIVERSO), delBanco(TIERRA4)] },
-  { id: 's4-2', asignatura: 'social', curso: 4, desde: '2026-10-26', titulo: 'U2 · The atmosphere and climate', fuente: GT('Social Science 4'), puntos: ['The atmosphere', 'Weather and climate', 'Climographs', 'Climates of Spain'], hacer: [delBanco(CLIMA4), delBanco(CLIMA4), delBanco(TIEMPO)] },
+  { id: 's4-2', asignatura: 'social', curso: 4, desde: '2026-11-02', titulo: 'U2 · The atmosphere and climate', fuente: GT('Social Science 4'), puntos: ['The atmosphere', 'Weather and climate', 'Climographs', 'Climates of Spain'], hacer: [delBanco(CLIMA4), delBanco(CLIMA4), delBanco(TIEMPO)] },
 
   /* ------------------------------------------------ English */
   { id: 'e3-1', asignatura: 'english', curso: 3, desde: '2026-09-07', titulo: 'U1-2 · How do people have fun?', fuente: OD3, puntos: ['Festivals, games and sports', '-ed / -ing adjectives', 'Gerunds'], hacer: [vocabulario(FUN_V), vocabulario(FUN_V), delBanco(FUN_G)] },

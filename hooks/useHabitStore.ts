@@ -36,6 +36,7 @@ import {
 import { GAME_NOTE_KEY } from '@/lib/games';
 import { PENALTY_NOTE_KEY } from '@/lib/penalties';
 import { COLE_NOTE_KEY } from '@/lib/retoCole';
+import { FUTBOL_NOTE_KEY } from '@/lib/retoFutbol';
 import {
   applyRemoteGps,
   loadGps,
@@ -1630,7 +1631,7 @@ export function useHabitStore(): HabitStore {
 
   /**
    * Borra el día entero. Con tres excepciones: la partida del juego del día,
-   * la tanda de penaltis y el reto del cole. Son lo único del registro que no
+   * la tanda de penaltis y los retos del cole y de fútbol. Son lo único del registro que no
    * se puede volver a hacer, y borrar el día sería la manera fácil de jugar
    * dos veces; en ese caso, en vez de quitar la fila, se deja con lo jugado y
    * nada más.
@@ -1642,7 +1643,7 @@ export function useHabitStore(): HabitStore {
       const before = prev.entries[key]?.notes;
 
       const played: Record<string, string> = {};
-      for (const noteKey of [GAME_NOTE_KEY, PENALTY_NOTE_KEY, COLE_NOTE_KEY]) {
+      for (const noteKey of [GAME_NOTE_KEY, PENALTY_NOTE_KEY, COLE_NOTE_KEY, FUTBOL_NOTE_KEY]) {
         const value = before?.[noteKey];
         if (value) played[noteKey] = value;
       }

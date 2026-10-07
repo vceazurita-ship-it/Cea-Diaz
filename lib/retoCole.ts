@@ -1,7 +1,8 @@
 import { hashSeed } from '@/lib/challenges';
 import { addDays, parseDateKey } from '@/lib/dates';
 import { entryKey } from '@/lib/storage';
-import { barajar, makeRand, temaDe, temasHasta, type Asignatura, type Curso, type Pregunta, type Tema } from '@/lib/temario';
+import { planDelDia, type PlanDelDia } from '@/lib/examenes';
+import { TEMARIO, barajar, makeRand, temaDe, temasHasta, type Asignatura, type Curso, type Pregunta, type Tema } from '@/lib/temario';
 import type { DateKey, DayEntry, GameQuestion, ProfileId, ShotKind } from '@/types';
 
 /* =========================================================================
@@ -40,8 +41,13 @@ export const RETO_META: Record<RetoId, { nombre: string; icon: string; tiro: Sho
 
 const SEMANA: RetoId[] = ['repaso', 'mates', 'lengua', 'science', 'english', 'social', 'repaso'];
 
-export function retoDelDia(date: DateKey): RetoId {
-  return SEMANA[parseDateKey(date).getDay()];
+/**
+ * La asignatura del día. Con exámenes a la vista manda el plan de
+ * `lib/examenes.ts`; si no, la rotación de la semana.
+ */
+export function retoDelDia(date: DateKey, profileId?: ProfileId): RetoId {
+  const plan = profileId ? planDelDia(profileId, date) : null;
+  return plan ? plan.reto : SEMANA[parseDateKey(date).getDay()];
 }
 
 export function cursoDe(profileId: ProfileId): Curso | null {
@@ -54,6 +60,8 @@ export interface RetoCole {
   curso: Curso;
   /** Los temas de los que salen las preguntas (uno, o varios en el repaso). */
   temas: Tema[];
+  /** Si el reto prepara exámenes: qué, y en qué modo. */
+  plan: PlanDelDia | null;
   questions: GameQuestion[];
 }
 
@@ -82,21 +90,31 @@ function aQuestion(id: string, q: Pregunta, seed: number): GameQuestion {
  * dan las mismas, en el mismo orden, se recargue lo que se recargue.
  */
 export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey, vuelta = 0): RetoCole {
-  const reto = retoDelDia(date);
+  const plan = planDelDia(profileId, date);
+  const reto = retoDelDia(date, profileId);
   // La vuelta 0 es el reto que puntúa; las demás, la práctica libre.
   const seed = hashSeed(`${profileId}:cole:${date}${vuelta ? `:practica${vuelta}` : ''}`);
   const rand = makeRand(seed);
 
-  // El repaso: una pregunta de cada asignatura, del tema de esta semana.
-  const temas =
+  // Los grupos de los que se va sacando por turnos: cada asignatura, sus
+  // temas. Preparando exámenes, todos los temas que entran en cada uno; si
+  // no, el tema de la semana. El repaso, una pregunta de cada asignatura.
+  const temasDe = (a: Asignatura): Tema[] => {
+    const examen = plan?.pendientes.find((e) => e.asignatura === a);
+    const delExamen = examen ? TEMARIO.filter((t) => examen.temas.includes(t.id)) : [];
+    return delExamen.length > 0 ? delExamen : [temaDe(a, curso, date)];
+  };
+  const grupos: Tema[][] =
     reto === 'repaso'
-      ? (['mates', 'lengua', 'science', 'english', 'social'] as Asignatura[]).map((a) => temaDe(a, curso, date))
-      : [temaDe(reto, curso, date)];
+      ? (plan ? plan.pendientes.map((e) => e.asignatura) : (['mates', 'lengua', 'science', 'english', 'social'] as Asignatura[])).map(temasDe)
+      : [temasDe(reto)];
+  const temas = grupos.flat();
 
   const preguntas: Pregunta[] = [];
   const vistas = new Set<string>();
   for (let i = 0; preguntas.length < COLE_QUESTIONS && i < 60; i += 1) {
-    const tema = temas[preguntas.length % temas.length];
+    const grupo = grupos[preguntas.length % grupos.length];
+    const tema = grupo[Math.floor(rand() * grupo.length)];
     const hacer = tema.hacer[Math.floor(rand() * tema.hacer.length)];
     const q = hacer(rand);
     // Sin repetir enunciado en la misma partida.
@@ -110,6 +128,7 @@ export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey,
     date,
     curso,
     temas,
+    plan,
     questions: preguntas.map((q, i) => aQuestion(`cole-${date}-${i}`, q, seed + i * 7919)),
   };
 }
@@ -141,7 +160,7 @@ export function parseRetoResult(text: string | undefined | null): RetoResult | n
 
 export function retoResultFor(entries: Record<string, DayEntry>, profileId: ProfileId, date: DateKey): RetoResult | null {
   const r = parseRetoResult(entries[entryKey(profileId, date)]?.notes?.[COLE_NOTE_KEY]);
-  return r && r.reto === retoDelDia(date) ? r : null;
+  return r && r.reto === retoDelDia(date, profileId) ? r : null;
 }
 
 export function retoSuperado(r: RetoResult | null): boolean {
@@ -164,7 +183,7 @@ export const TRIMESTRE_DESDE: DateKey = '2026-09-07';
 export function victorias(entries: Record<string, DayEntry>, profileId: ProfileId, reto: RetoId, hasta: DateKey): number {
   let n = 0;
   for (let d = TRIMESTRE_DESDE; d <= hasta; d = addDays(d, 1)) {
-    if (retoDelDia(d) !== reto) continue;
+    if (retoDelDia(d, profileId) !== reto) continue;
     if (retoSuperado(retoResultFor(entries, profileId, d))) n += 1;
   }
   return n;

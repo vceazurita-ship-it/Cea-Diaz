@@ -18,6 +18,7 @@ import {
   victorias,
   type RetoResult,
 } from '@/lib/retoCole';
+import { cuandoEs, diasHasta, type PlanDelDia } from '@/lib/examenes';
 import { IDEA, type Curso } from '@/lib/temario';
 import type { DateKey, DayEntry, Profile, Visual } from '@/types';
 
@@ -67,7 +68,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
     const lunes = addDays(date, -dow);
     return Array.from({ length: 7 }, (_, i) => {
       const d = addDays(lunes, i);
-      const r = RETO_META[retoDelDia(d)];
+      const r = RETO_META[retoDelDia(d, profile.id)];
       return { d, r, ok: retoSuperado(retoResultFor(entries, profile.id, d)), hoy: d === date };
     });
   }, [date, entries, profile.id]);
@@ -136,12 +137,13 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
 
         <div className="p-4">
           <h3 className={headingClass}>Reto del cole</h3>
+          {reto.plan && <AvisoExamen plan={reto.plan} date={date} />}
           <p className="font-display text-sm font-black t-1">
-            {reto.reto === 'repaso' ? 'Una de cada asignatura de esta semana' : reto.temas[0].titulo}
+            {reto.reto === 'repaso' ? (reto.plan ? 'Una de cada examen que viene' : 'Una de cada asignatura de esta semana') : reto.temas.length > 1 ? reto.temas.map((t) => t.titulo).join(' + ') : reto.temas[0].titulo}
           </p>
           {reto.reto !== 'repaso' && (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {reto.temas[0].puntos.map((x) => (
+              {[...new Set(reto.temas.flatMap((t) => t.puntos))].slice(0, 10).map((x) => (
                 <span key={x} className="chip-soft text-[10px]">{x}</span>
               ))}
             </div>
@@ -166,7 +168,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
               <p className={`mt-2 rounded-xl border p-2 text-[12px] font-bold leading-snug ${won ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'}`}>
                 {won
                   ? `🔥 ${correct}/${total}: ${tiro.article === 'la' ? 'La' : 'El'} ${tiro.name} te espera en la tanda de penaltis. Búscalo en «Cambiar tiro».`
-                  : `💪 ${correct}/${total}: hacían falta ${COLE_PASS}. Mañana toca ${RETO_META[retoDelDia(addDays(date, 1))].nombre}.`}
+                  : `💪 ${correct}/${total}: hacían falta ${COLE_PASS}. Mañana toca ${RETO_META[retoDelDia(addDays(date, 1), profile.id)].nombre}.`}
               </p>
               <button
                 type="button"
@@ -261,6 +263,34 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * El aviso de exámenes: qué se prepara hoy y cuándo es, y la fila de los que
+ * quedan. En la semana de exámenes, el de mañana en grande.
+ */
+function AvisoExamen({ plan, date }: { plan: PlanDelDia; date: DateKey }) {
+  const nombre = (a: string) => RETO_META[a as keyof typeof RETO_META]?.nombre ?? a;
+  const e = plan.examen;
+  const dias = e ? diasHasta(e.fecha, date) : 0;
+  return (
+    <div className={`mb-2 rounded-xl border p-2.5 text-[12px] leading-snug ${plan.modo === 'repasa' ? 'border-rose-400/60 bg-rose-400/10' : 'border-sky-400/50 bg-sky-400/10'}`}>
+      <p className="font-black t-1">
+        {plan.modo === 'repasa' && e
+          ? `🔥 Repaso: ${dias <= 1 ? 'mañana' : cuandoEs(e.fecha)} es el examen de ${nombre(e.asignatura)}`
+          : e
+            ? `📝 Preparando el examen de ${nombre(e.asignatura)}: ${cuandoEs(e.fecha)} (faltan ${dias} días)`
+            : '📝 Repaso de todos los exámenes que vienen'}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {plan.pendientes.map((x) => (
+          <span key={x.asignatura} className={`chip-soft text-[10px] ${x === e ? 'ring-2 ring-accent' : ''}`}>
+            {RETO_META[x.asignatura].icon} {nombre(x.asignatura)} · {cuandoEs(x.fecha)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
