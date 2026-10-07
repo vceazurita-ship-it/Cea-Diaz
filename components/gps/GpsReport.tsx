@@ -40,15 +40,6 @@ const fmt = (id: GpsFieldId, v: number | undefined) => (v === undefined ? '—' 
 const mid = ([lo, hi]: [number, number]) => Math.round((lo + hi) / 2);
 const oneDecimal = (v: number) => v.toFixed(1).replace('.', ',');
 
-/** «Mejor que el X % de sus sesiones». */
-function ownRank(sessions: GpsSession[], id: GpsFieldId, value: number): number {
-  const list = values(sessions, id);
-  if (list.length < 2) return 50;
-  const below = list.filter((v) => v < value).length;
-  const same = list.filter((v) => v === value).length;
-  return Math.round(((below + (same - 1) / 2) / (list.length - 1)) * 100);
-}
-
 /* ------------------------------------------------------------ percentiles */
 
 /**
@@ -69,16 +60,6 @@ const TIER_STYLE: Record<Tier, string> = {
   elite: 'border-amber-500/50 text-amber-500',
 };
 
-function PercentileChip({ p, prefix = 'P' }: { p: number; prefix?: string }) {
-  const b = band(p);
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${b.soft} ${b.text}`}>
-      {prefix}
-      {p}
-    </span>
-  );
-}
-
 /** La pista de 0 a 100 con sus cuatro franjas pintadas de fondo. */
 function Zones() {
   return (
@@ -88,21 +69,6 @@ function Zones() {
       <span className="absolute inset-y-0 left-3/4 w-[15%] bg-sky-500/15" />
       <span className="absolute inset-y-0 right-0 w-[10%] rounded-r-full bg-emerald-500/20" />
     </>
-  );
-}
-
-/** Barra de un percentil propio, con la marca en su sitio. */
-function RankBar({ p, label }: { p: number; label: string }) {
-  const b = band(p);
-  return (
-    <div className="relative mt-2 h-2 rounded-full" role="img" aria-label={label}>
-      <Zones />
-      <span className={`absolute inset-y-0 left-0 rounded-full opacity-70 ${b.bg}`} style={{ width: `${Math.max(p, 2)}%` }} />
-      <span
-        className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ${b.bg}`}
-        style={{ left: `${p}%` }}
-      />
-    </div>
   );
 }
 
@@ -277,7 +243,6 @@ function MonthChart({ rows }: { rows: MonthRow[] }) {
 
 const NAV = [
   ['resumen', 'Resumen'],
-  ['ultima', 'Última'],
   ['semana', 'Semana'],
   ['estudios', 'Frente a su edad'],
   ['puestos', 'Por puesto'],
@@ -293,7 +258,24 @@ function Heading({ id, title, hint }: { id: string; title: string; hint?: string
   );
 }
 
-export function GpsReport({ profile, sessions: raw, kid }: { profile: Profile; sessions: GpsSession[]; kid: boolean }) {
+export function GpsReport({
+  profile,
+  sessions: raw,
+  kid,
+  titulo,
+  cerrado = false,
+}: {
+  profile: Profile;
+  sessions: GpsSession[];
+  kid: boolean;
+  /** El periodo que se mira: «Temporada 26-27». */
+  titulo?: string;
+  /**
+   * Un periodo ya cerrado: sin «los últimos 7 días», que ahí no dicen nada.
+   * Abierto, el mes a mes lo enseña la tarjeta de la temporada.
+   */
+  cerrado?: boolean;
+}) {
   const report = useMemo(() => {
     const sessions = usable(raw).sort((a, b) => a.date.localeCompare(b.date) || a.updatedAt.localeCompare(b.updatedAt));
     if (sessions.length < 4) return null;
@@ -392,7 +374,6 @@ export function GpsReport({ profile, sessions: raw, kid }: { profile: Profile; s
   }
 
   const { latest, speeds, shots, record, now, usual, groups, months, placed } = report;
-  const latestFields = FIELDS.filter((id) => (latest[id] ?? 0) > 0);
   // El titular: su velocidad frente a la población general de su edad, que es
   // la comparación más sólida (10.000 niños); si no hay, la primera que haya.
   const headline =
@@ -410,13 +391,13 @@ export function GpsReport({ profile, sessions: raw, kid }: { profile: Profile; s
     <section className={`${card} space-y-6`}>
       <header className="space-y-3">
         <div>
-          <h3 className="text-base font-black tracking-tight t-1">📊 Informe de {profile.name}</h3>
+          <h3 className="text-base font-black tracking-tight t-1">📊 Informe · {titulo ?? profile.name}</h3>
           <p className="text-[11px] t-3">
             {report.sessions.length} sesiones · {report.goalkeeper} de portero · se recalcula solo con cada sesión nueva
           </p>
         </div>
         <nav aria-label="Apartados del informe" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {NAV.filter(([id]) => id !== 'estudios' || placed.length > 0).map(([id, label]) => (
+          {NAV.filter(([id]) => (id !== 'estudios' || placed.length > 0) && (id !== 'semana' || !cerrado) && (id !== 'meses' || cerrado)).map(([id, label]) => (
             <a
               key={id}
               href={`#informe-${id}`}
@@ -462,93 +443,55 @@ export function GpsReport({ profile, sessions: raw, kid }: { profile: Profile; s
         </div>
       </div>
 
-      {/* --------------------------------------------------- última sesión */}
-      <div className="space-y-3">
-        <Heading
-          id="informe-ultima"
-          title={`La última sesión frente a todas`}
-          hint={`${formatShort(latest.date)} · ${
-            latest.kind === 'partido' ? (latest.goalkeeper ? 'partido de portero' : 'partido') : 'entreno'
-          } · la barra dice a cuántas de sus sesiones supera`}
-        />
-        <div className="grid gap-2 sm:grid-cols-2">
-          {latestFields.map((id) => {
-            const list = values(report.sessions, id);
-            const mean = list.reduce((a, b) => a + b, 0) / list.length;
-            const value = latest[id] as number;
-            const rank = ownRank(report.sessions, id, value);
-            const diff = mean ? Math.round(((value - mean) / mean) * 100) : 0;
-            return (
-              <div key={id} className="rounded-2xl border p-3 hairline surf-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-[12px] font-bold t-2">
-                    {fieldOf(id).icon} {fieldOf(id).short}
-                  </p>
-                  <PercentileChip p={rank} prefix="mejor que el " />
-                </div>
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-xl font-black tabular-nums t-1">{fmt(id, value)}</span>
-                  <span className="text-[11px] tabular-nums t-3">media {fmt(id, mean)}</span>
-                  {Math.abs(diff) >= 3 && (
-                    <span className={`text-[11px] font-black tabular-nums ${diff > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                      {diff > 0 ? '▲' : '▼'} {Math.abs(diff)} %
-                    </span>
-                  )}
-                </div>
-                <RankBar p={rank} label={`${fieldOf(id).short}: mejor que el ${rank} % de sus sesiones`} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* ------------------------------------------------------------ semana */}
-      <div className="space-y-3">
-        <Heading id="informe-semana" title="Los últimos 7 días frente a una semana normal" />
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {(
-            [
-              ['Sesiones', now.count, usual?.count, (v: number) => String(Math.round(v))],
-              ['Kilómetros', now.km, usual?.km, (v: number) => formatValue('distance', v)],
-              ['Punta', now.top, usual?.top, (v: number) => (v ? formatValue('topSpeed', v) : '—')],
-              ['Tiros', now.shots, usual?.shots, (v: number) => String(Math.round(v))],
-            ] as [string, number, number | undefined, (v: number) => string][]
-          ).map(([label, value, normal, show]) => {
-            // Sin sesiones esta semana no hay comparación: «−100 %» sólo asusta.
-            const diff =
-              normal && report.week.length > 0 ? Math.round(((value - normal) / normal) * 100) : undefined;
-            const scale = Math.max(value, normal ?? 0, 1e-9);
-            return (
-              <div key={label} className="rounded-2xl border p-3 hairline surf-1">
-                <div className="flex items-center justify-between gap-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wide t-3">{label}</p>
-                  {diff !== undefined && Math.abs(diff) >= 5 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums ${
-                        diff > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
-                      }`}
-                    >
-                      {diff > 0 ? '+' : ''}
-                      {diff} %
-                    </span>
-                  )}
-                </div>
-                <p className="text-xl font-black tabular-nums t-1">{show(value)}</p>
-                <div className="mt-2 space-y-1" aria-hidden>
-                  <div className="h-1.5 rounded-full surf-2">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${(value / scale) * 100}%` }} />
+      {!cerrado && (
+        <div className="space-y-3">
+          <Heading id="informe-semana" title="Los últimos 7 días frente a una semana normal" />
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {(
+              [
+                ['Sesiones', now.count, usual?.count, (v: number) => String(Math.round(v))],
+                ['Kilómetros', now.km, usual?.km, (v: number) => formatValue('distance', v)],
+                ['Punta', now.top, usual?.top, (v: number) => (v ? formatValue('topSpeed', v) : '—')],
+                ['Tiros', now.shots, usual?.shots, (v: number) => String(Math.round(v))],
+              ] as [string, number, number | undefined, (v: number) => string][]
+            ).map(([label, value, normal, show]) => {
+              // Sin sesiones esta semana no hay comparación: «−100 %» sólo asusta.
+              const diff =
+                normal && report.week.length > 0 ? Math.round(((value - normal) / normal) * 100) : undefined;
+              const scale = Math.max(value, normal ?? 0, 1e-9);
+              return (
+                <div key={label} className="rounded-2xl border p-3 hairline surf-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wide t-3">{label}</p>
+                    {diff !== undefined && Math.abs(diff) >= 5 && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums ${
+                          diff > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
+                        }`}
+                      >
+                        {diff > 0 ? '+' : ''}
+                        {diff} %
+                      </span>
+                    )}
                   </div>
-                  <div className="h-1.5 rounded-full surf-2">
-                    <div className="h-full rounded-full bg-current opacity-25 t-1" style={{ width: `${((normal ?? 0) / scale) * 100}%` }} />
+                  <p className="text-xl font-black tabular-nums t-1">{show(value)}</p>
+                  <div className="mt-2 space-y-1" aria-hidden>
+                    <div className="h-1.5 rounded-full surf-2">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${(value / scale) * 100}%` }} />
+                    </div>
+                    <div className="h-1.5 rounded-full surf-2">
+                      <div className="h-full rounded-full bg-current opacity-25 t-1" style={{ width: `${((normal ?? 0) / scale) * 100}%` }} />
+                    </div>
                   </div>
+                  <p className="mt-1 text-[11px] t-3">normal: {normal === undefined ? '—' : show(normal)}</p>
                 </div>
-                <p className="mt-1 text-[11px] t-3">normal: {normal === undefined ? '—' : show(normal)}</p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          {report.week.length === 0 && <p className="text-[11px] t-3">Esta semana todavía no hay sesiones.</p>}
         </div>
-        {report.week.length === 0 && <p className="text-[11px] t-3">Esta semana todavía no hay sesiones.</p>}
-      </div>
+      )}
 
       {/* ---------------------------------------------------------- estudios */}
       {placed.length > 0 && (
@@ -656,45 +599,47 @@ export function GpsReport({ profile, sessions: raw, kid }: { profile: Profile; s
       )}
 
       {/* ------------------------------------------------------------- meses */}
-      <div className="space-y-3">
-        <Heading
-          id="informe-meses"
-          title="Mes a mes"
-          hint="Barras: sesiones del mes. Línea: velocidad punta de sus mejores sesiones (P90), en km/h."
-        />
-        <div className="rounded-2xl border p-3 hairline surf-1">
-          <MonthChart rows={months} />
-        </div>
-        <details className="rounded-2xl border p-3 hairline surf-1">
-          <summary className="cursor-pointer text-[13px] font-bold t-1">Ver la tabla</summary>
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[320px] text-[13px] tabular-nums">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wide t-3">
-                  <th className="py-1 text-left font-bold">Mes</th>
-                  <th className="py-1 text-right font-bold">Sesiones</th>
-                  <th className="py-1 text-right font-bold">Punta P90</th>
-                  <th className="py-1 text-right font-bold">Mejor tiro</th>
-                  <th className="py-1 text-right font-bold">Km/sesión</th>
-                </tr>
-              </thead>
-              <tbody>
-                {months.map((m) => (
-                  <tr key={m.key} className="border-t hairline">
-                    <td className="py-1.5 t-2">
-                      {new Date(`${m.key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: '2-digit' })}
-                    </td>
-                    <td className="py-1.5 text-right t-1">{m.count}</td>
-                    <td className="py-1.5 text-right t-1">{m.top === undefined ? '—' : formatValue('topSpeed', m.top)}</td>
-                    <td className="py-1.5 text-right t-1">{m.shot === undefined ? '—' : formatValue('shotPower', m.shot)}</td>
-                    <td className="py-1.5 text-right t-1">{formatValue('distance', m.km)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {cerrado && (
+        <div className="space-y-3">
+          <Heading
+            id="informe-meses"
+            title="Mes a mes"
+            hint="Barras: sesiones del mes. Línea: velocidad punta de sus mejores sesiones (P90), en km/h."
+          />
+          <div className="rounded-2xl border p-3 hairline surf-1">
+            <MonthChart rows={months} />
           </div>
-        </details>
-      </div>
+          <details className="rounded-2xl border p-3 hairline surf-1">
+            <summary className="cursor-pointer text-[13px] font-bold t-1">Ver la tabla</summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[320px] text-[13px] tabular-nums">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wide t-3">
+                    <th className="py-1 text-left font-bold">Mes</th>
+                    <th className="py-1 text-right font-bold">Sesiones</th>
+                    <th className="py-1 text-right font-bold">Punta P90</th>
+                    <th className="py-1 text-right font-bold">Mejor tiro</th>
+                    <th className="py-1 text-right font-bold">Km/sesión</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {months.map((m) => (
+                    <tr key={m.key} className="border-t hairline">
+                      <td className="py-1.5 t-2">
+                        {new Date(`${m.key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: '2-digit' })}
+                      </td>
+                      <td className="py-1.5 text-right t-1">{m.count}</td>
+                      <td className="py-1.5 text-right t-1">{m.top === undefined ? '—' : formatValue('topSpeed', m.top)}</td>
+                      <td className="py-1.5 text-right t-1">{m.shot === undefined ? '—' : formatValue('shotPower', m.shot)}</td>
+                      <td className="py-1.5 text-right t-1">{formatValue('distance', m.km)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      )}
 
       {/* --------------------------------------------------------- el fondo */}
       <div className="grid gap-2 lg:grid-cols-3">

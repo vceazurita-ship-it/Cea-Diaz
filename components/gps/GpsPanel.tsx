@@ -4,11 +4,12 @@ import { useMemo, useState } from 'react';
 
 import { GpsEntry } from '@/components/gps/GpsEntry';
 import { GpsReport } from '@/components/gps/GpsReport';
+import { ComentarioSesion, GpsSeason } from '@/components/gps/GpsSeason';
 import { GpsTrend } from '@/components/gps/GpsTrend';
 import { useToast } from '@/components/ui/Toast';
 import { useGpsSessions } from '@/hooks/useGps';
 import type { HabitStore } from '@/hooks/useHabitStore';
-import { formatShort, friendlyDateLabel } from '@/lib/dates';
+import { formatShort, friendlyDateLabel, todayKey } from '@/lib/dates';
 import {
   GPS_FIELDS,
   KIND_META,
@@ -26,6 +27,7 @@ import {
   statsOf,
   valueOf,
 } from '@/lib/gps';
+import { comentarSesion, enPeriodo, periodosDe, type Comentario, type PeriodoId } from '@/lib/gpsSeason';
 import { findMetric } from '@/lib/habits';
 import { headingFont } from '@/lib/profiles';
 import type { GpsDigest } from '@/lib/gps';
@@ -75,10 +77,35 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
    */
   const [batch, setBatch] = useState<string[]>([]);
 
-  const shown = useMemo(
-    () => (filter === 'todo' ? sessions : sessions.filter((item) => item.kind === filter)),
-    [sessions, filter],
+  /**
+   * Qué temporada se mira. Por defecto la que está en marcha —de septiembre a
+   * junio—, que es donde se ve la progresión; lo de antes queda cerrado,
+   * como un archivo que se abre cuando se quiere.
+   */
+  const periodos = useMemo(() => periodosDe(todayKey()), []);
+  const [periodoId, setPeriodoId] = useState<PeriodoId>('temporada');
+  const periodo = periodos[periodoId];
+  const delPeriodo = useMemo(() => enPeriodo(sessions, periodo), [sessions, periodo]);
+  const cuantas = useMemo(
+    () => ({ temporada: enPeriodo(sessions, periodos.temporada).length, anterior: enPeriodo(sessions, periodos.anterior).length }),
+    [sessions, periodos],
   );
+
+  const shown = useMemo(
+    () => (filter === 'todo' ? delPeriodo : delPeriodo.filter((item) => item.kind === filter)),
+    [delPeriodo, filter],
+  );
+
+  /** El comentario de cada sesión, frente a su temporada. */
+  const comentarios = useMemo(() => {
+    const out = new Map<string, Comentario>();
+    const ambito = periodoId === 'temporada' ? 'temporada' : 'historia';
+    for (const session of delPeriodo) out.set(session.id, comentarSesion(session, delPeriodo, ambito));
+    return out;
+  }, [delPeriodo, periodoId]);
+
+  /** La sesión abierta en la lista, para ver todas sus cifras. */
+  const [abierta, setAbierta] = useState<string | null>(null);
 
   const stats = useMemo(() => statsOf(shown), [shown]);
   const notes = useMemo(() => notesOf(shown), [shown]);
@@ -185,105 +212,165 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
 
   /* ---------------------------------------------------------- pintura */
 
+  const card = `${kid ? 'card-kid' : 'card'} p-4`;
+
+  // La lista va por meses, de lo más reciente a lo más antiguo: en un móvil,
+  // ochenta sesiones seguidas son una pared; con su mes delante se encuentran.
+  const porMes: [string, GpsSession[]][] = [];
+  for (const session of shown) {
+    const key = session.date.slice(0, 7);
+    const grupo = porMes.find(([k]) => k === key);
+    if (grupo) grupo[1].push(session);
+    else porMes.push([key, [session]]);
+  }
+  const masVieja = shown[shown.length - 1];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className={`text-lg font-bold t-1 ${heading}`}>
-          🛰️ {pitch ? `Los datos de ${profile.name}` : `GPS de ${profile.name}`}
-        </h2>
-        <span className="text-xs t-3">
-          {sessions.length === 0
-            ? `sin sesiones todavía · ${TRACKER}`
-            : `${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'} · ${TRACKER}`}
-        </span>
+      <header className="space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className={`min-w-0 text-lg font-bold t-1 ${heading}`}>
+            🛰️ {pitch ? `Los datos de ${profile.name}` : `GPS de ${profile.name}`}
+          </h2>
+          <span className="shrink-0 text-[11px] t-3">
+            {sessions.length === 0 ? `sin sesiones · ${TRACKER}` : `${sessions.length} en total · ${TRACKER}`}
+          </span>
+        </div>
 
         {sessions.length > 0 && (
-          <div className="ml-auto flex rounded-xl border p-0.5 hairline surf-1">
-            {(['todo', 'entreno', 'partido'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setFilter(option)}
-                aria-pressed={filter === option}
-                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors
-                  ${filter === option ? 'bg-accent t-on-accent' : 't-3 hover-soft'}`}
-              >
-                {option === 'todo' ? 'Todo' : KIND_META[option].label + 's'}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          <>
+            {/* La temporada en marcha o el archivo de lo anterior. */}
+            <div role="tablist" aria-label="Qué temporada mirar" className="grid grid-cols-2 gap-1 rounded-2xl border p-1 hairline surf-1">
+              {(['temporada', 'anterior'] as const).map((id) => {
+                const activo = periodoId === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activo}
+                    onClick={() => {
+                      setPeriodoId(id);
+                      setAbierta(null);
+                    }}
+                    className={`min-w-0 rounded-xl px-2.5 py-2 text-left transition-colors ${activo ? 'bg-accent t-on-accent shadow' : 't-2 hover-soft'}`}
+                  >
+                    <span className="block truncate text-[12px] font-black leading-tight">
+                      {id === 'temporada' ? `🏆 ${periodos.temporada.label}` : `🗄️ ${periodos.anterior.label}`}
+                    </span>
+                    <span className={`block truncate text-[10px] leading-tight ${activo ? 'opacity-90' : 't-3'}`}>
+                      {id === 'temporada' ? 'progresión' : 'cerrado'} · {cuantas[id]} {cuantas[id] === 1 ? 'sesión' : 'sesiones'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-      {digest && (
-        <ImportDigest
-          digest={digest}
-          kid={kid}
-          onClose={() => setBatch([])}
-        />
-      )}
+            <div className="flex gap-1.5">
+              {(['todo', 'entreno', 'partido'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setFilter(option)}
+                  aria-pressed={filter === option}
+                  className={`flex-1 rounded-full border py-1.5 text-[11px] font-bold transition-colors ${
+                    filter === option ? 'border-accent bg-accent-soft t-1' : 'hairline surf-1 t-3 hover-soft'
+                  }`}
+                >
+                  {option === 'todo' ? 'Todo' : `${KIND_META[option].icon} ${KIND_META[option].label}s`}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </header>
+
+      {digest && <ImportDigest digest={digest} kid={kid} onClose={() => setBatch([])} />}
 
       {sessions.length === 0 ? (
-        <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
+        <section className={card}>
           <h3 className="mb-2 text-sm font-bold t-1">Todavía no hay ninguna sesión</h3>
           <p className="text-sm leading-relaxed t-3">
             El rastreador de {profile.name} deja las cifras en la aplicación de {TRACKER} y allí se
-            quedan: una sesión por pantalla, sin manera de compararlas ni de exportarlas con la
-            cuenta gratuita. Apuntando aquí lo que enseña —lo que corrió, los cambios de ritmo, la punta
-            velocidad— se puede empezar a ver lo que allí no se ve: si va a más, cuáles fueron sus
-            mejores días y cuánto cambia un partido respecto a un entreno.
+            quedan: una sesión por pantalla, sin manera de compararlas. Aquí se ve lo que allí no:
+            si va a más a lo largo de la temporada, cuáles fueron sus mejores días y qué tal fue
+            cada sesión frente a las suyas.
           </p>
-          <p className="mt-2 text-sm leading-relaxed t-3">
-            Con cuatro sesiones ya sale la primera tendencia.
+          <p className="mt-2 text-sm leading-relaxed t-3">Con cuatro sesiones ya sale la primera tendencia.</p>
+        </section>
+      ) : shown.length === 0 ? (
+        <section className={card}>
+          <h3 className="mb-1 text-sm font-bold t-1">
+            {periodoId === 'temporada' ? `🌱 La ${periodo.label.toLowerCase()} está por estrenar` : 'No hay sesiones de antes'}
+          </h3>
+          <p className="text-sm leading-relaxed t-3">
+            {periodoId === 'temporada'
+              ? `Todavía no hay ${filter === 'todo' ? 'sesiones' : KIND_META[filter].label.toLowerCase() + 's'} desde el 1 de septiembre. En cuanto entre la primera, aquí empieza su progresión.`
+              : 'Todo lo que hay es de esta temporada.'}
           </p>
+          {periodoId === 'temporada' && cuantas.anterior > 0 && (
+            <button type="button" onClick={() => setPeriodoId('anterior')} className="btn-ghost mt-3 px-3 py-1.5 text-xs">
+              🗄️ Ver lo de antes ({cuantas.anterior})
+            </button>
+          )}
         </section>
       ) : (
         <>
-          {last && <LastSession session={last} marks={marks} kid={kid} pitch={pitch} />}
+          {periodoId === 'temporada' ? (
+            <GpsSeason periodo={periodo} sessions={shown} kid={kid} />
+          ) : (
+            <section className={`${card} border-dashed`}>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] t-3">Archivo · cerrado</p>
+              <h3 className="text-base font-black t-1">🗄️ {periodo.label}</h3>
+              <p className="mt-1 text-xs leading-snug t-3">
+                {shown.length} {shown.length === 1 ? 'sesión' : 'sesiones'}
+                {masVieja ? `, del ${formatShort(masVieja.date)} al ${formatShort(shown[0].date)}` : ''}. Se queda como
+                estaba, para consultarlo: lo nuevo cuenta en la {periodos.temporada.label.toLowerCase()}.
+              </p>
+            </section>
+          )}
+
+          {last && <LastSession session={last} marks={marks} comentario={comentarios.get(last.id)} kid={kid} pitch={pitch} />}
 
           {stats.length > 0 && (
-            <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
-              <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="text-sm font-bold t-1">🏅 Sus marcas</h3>
-                <span className="text-[11px] t-3">
-                  lo mejor de {shown.length} {shown.length === 1 ? 'sesión' : 'sesiones'}, con el
-                  día en que lo hizo
-                </span>
-              </header>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <details key={periodoId} className={`${card} group`} open={periodoId === 'anterior'}>
+              <summary className="flex cursor-pointer list-none items-center gap-2">
+                <h3 className="text-sm font-bold t-1">🏅 Sus marcas {periodoId === 'temporada' ? 'de la temporada' : ''}</h3>
+                <span className="ml-auto text-[11px] font-bold t-accent group-open:hidden">Ver</span>
+                <span className="ml-auto hidden text-[11px] font-bold t-3 group-open:inline">Ocultar</span>
+              </summary>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {stats
                   .filter((stat) => fieldOf(stat.id).record !== false)
                   .map((stat) => (
-                    <div key={stat.id} className="rounded-2xl border p-3 hairline surf-1">
-                      <p className="truncate text-[11px] font-bold uppercase tracking-wide t-3">
+                    <div key={stat.id} className="min-w-0 rounded-2xl border p-3 hairline surf-1">
+                      <p className="truncate text-[10px] font-bold uppercase tracking-wide t-3">
                         {fieldOf(stat.id).icon} {fieldOf(stat.id).short}
                       </p>
-                      <p className="text-lg font-black tabular-nums t-accent">
-                        {formatValue(stat.id, stat.best)}
-                      </p>
-                      <p className="text-[11px] t-3">
+                      <p className="truncate text-lg font-black tabular-nums t-accent">{formatValue(stat.id, stat.best)}</p>
+                      <p className="truncate text-[11px] t-3">
                         {formatShort(stat.bestOn)} · media {formatValue(stat.id, stat.average)}
                       </p>
-                      {stat.perHour !== undefined && (
-                        <p className="text-[11px] t-3">
-                          {formatValue(stat.id, stat.perHour)} por hora
-                        </p>
-                      )}
                     </div>
                   ))}
               </div>
-            </section>
+            </details>
           )}
 
           <GpsTrend sessions={shown} kid={kid} />
 
-          {/* El informe va con todas sus sesiones, no con el filtro: separa él
-              los puestos, y la comparación con los estudios necesita todo. */}
-          <GpsReport profile={profile} sessions={sessions} kid={kid} />
+          {/* El informe va con todas las del periodo, no con el filtro: separa
+              él los puestos, y la comparación con los estudios necesita todo. */}
+          <GpsReport
+            profile={profile}
+            sessions={delPeriodo}
+            kid={kid}
+            titulo={periodo.label}
+            cerrado={periodoId === 'anterior'}
+          />
 
           {notes.length > 0 && (
-            <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
+            <section className={card}>
               <h3 className="mb-2 text-sm font-bold t-1">🔎 Lo que se ve mirándolas juntas</h3>
               <ul className="space-y-2">
                 {notes.map((note) => (
@@ -298,74 +385,152 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
             </section>
           )}
 
-          <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
-            <h3 className="mb-3 text-sm font-bold t-1">
-              📜 Todas las sesiones ({shown.length})
-            </h3>
-
-            <ul className="space-y-2">
-              {shown.map((session) => (
-                <li key={session.id} className="rounded-2xl border p-3 hairline surf-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span className="text-sm font-bold t-1">
-                      {KIND_META[session.kind].icon} {formatShort(session.date)}
-                    </span>
-                    <span className="text-[11px] uppercase tracking-wide t-3">
-                      {KIND_META[session.kind].label}
-                    </span>
-
-                    <span className="ml-auto flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => toDay(session)}
-                        className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
-                        title="Marcar la asistencia y los minutos de movimiento de ese día"
-                      >
-                        ✅ Al registro
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void copyLine(session)}
-                        className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
-                        title="Copiarla en el formato de pegar"
-                      >
-                        📋
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => drop(session)}
-                        className="btn-ghost min-h-0 px-2 py-1 text-[11px]"
-                        aria-label={`Borrar la sesión del ${formatShort(session.date)}`}
-                      >
-                        🗑️
-                      </button>
-                    </span>
-                  </div>
-
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                    {GPS_FIELDS.map((field) => {
-                      const value = valueOf(session, field.id);
-                      if (value === undefined) return null;
-                      return (
-                        <span key={field.id} className="text-xs tabular-nums t-2">
-                          <span aria-hidden>{field.icon}</span> {formatValue(field.id, value)}
-                        </span>
-                      );
-                    })}
-                  </div>
-
-                  {session.note && (
-                    <p className="mt-1 text-[11px] leading-relaxed t-3">{session.note}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
+          <section className={card}>
+            <h3 className="text-sm font-bold t-1">📜 Las sesiones ({shown.length})</h3>
+            <p className="mb-1 text-[11px] t-3">Cada una con su comentario frente a su temporada. Tócala para ver todas sus cifras.</p>
+            {porMes.map(([key, list]) => (
+              <div key={key}>
+                <p className="mb-1.5 mt-3 text-[11px] font-black uppercase tracking-wide t-3">
+                  {new Date(`${key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} · {list.length}
+                </p>
+                <ul className="space-y-1.5">
+                  {list.map((session) => (
+                    <SesionFila
+                      key={session.id}
+                      session={session}
+                      comentario={comentarios.get(session.id)}
+                      abierta={abierta === session.id}
+                      onToggle={() => setAbierta((id) => (id === session.id ? null : session.id))}
+                      onToDay={() => toDay(session)}
+                      onCopy={() => void copyLine(session)}
+                      onDrop={() => drop(session)}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
           </section>
         </>
       )}
 
       <GpsEntry profileId={profile.id} name={profile.name} kid={kid} onSave={add} />
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Una sesión de la lista: cerrada, la fecha, dos cifras y su comentario;
+ * abierta, todas sus cifras y lo que se puede hacer con ella.
+ * ------------------------------------------------------------------------- */
+
+const TONO_TEXTO: Record<Comentario['tono'], string> = {
+  record: 'text-amber-500 font-bold',
+  sube: 'text-emerald-500 font-semibold',
+  normal: 't-2',
+  baja: 't-3',
+  inicio: 'text-sky-500',
+};
+
+function SesionFila({
+  session,
+  comentario,
+  abierta,
+  onToggle,
+  onToDay,
+  onCopy,
+  onDrop,
+}: {
+  session: GpsSession;
+  comentario?: Comentario;
+  abierta: boolean;
+  onToggle: () => void;
+  onToDay: () => void;
+  onCopy: () => void;
+  onDrop: () => void;
+}) {
+  const distancia = valueOf(session, 'distance');
+  const punta = valueOf(session, 'topSpeed');
+  const dia = new Date(`${session.date}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  return (
+    <li className={`overflow-hidden rounded-2xl border ${comentario?.tono === 'record' ? 'border-amber-400/50' : 'hairline'} surf-1`}>
+      <button type="button" onClick={onToggle} aria-expanded={abierta} className="block w-full px-3 py-2.5 text-left">
+        <div className="flex items-center gap-2.5">
+          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-xl surf-2 text-lg">
+            {KIND_META[session.kind].icon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold capitalize leading-tight t-1">{dia}</p>
+            <p className="truncate text-[11px] t-3">
+              {KIND_META[session.kind].label}
+              {session.goalkeeper ? ' · portero' : ''}
+              {valueOf(session, 'minutes') !== undefined ? ` · ${formatValue('minutes', valueOf(session, 'minutes')!)}` : ''}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            {distancia !== undefined && <p className="text-[13px] font-black tabular-nums leading-tight t-1">{formatValue('distance', distancia)}</p>}
+            {punta !== undefined && <p className="text-[11px] tabular-nums t-3">⚡ {formatValue('topSpeed', punta)}</p>}
+          </div>
+          <span aria-hidden className={`shrink-0 text-xs t-3 transition-transform ${abierta ? 'rotate-180' : ''}`}>
+            ▾
+          </span>
+        </div>
+        {comentario && <p className={`mt-1.5 text-[12px] leading-snug ${TONO_TEXTO[comentario.tono]}`}>{comentario.titular}</p>}
+      </button>
+
+      {abierta && (
+        <div className="space-y-2.5 border-t px-3 pb-3 pt-2.5 hairline">
+          {comentario && comentario.detalles.length > 0 && (
+            <ul className="space-y-1">
+              {comentario.detalles.map((d) => (
+                <li key={d} className="text-[12px] leading-snug t-2">
+                  {d}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="grid grid-cols-3 gap-1.5">
+            {GPS_FIELDS.map((field) => {
+              const value = valueOf(session, field.id);
+              if (value === undefined) return null;
+              return (
+                <div key={field.id} className="min-w-0 rounded-xl px-2 py-1.5 surf-2">
+                  <p className="truncate text-[9px] font-bold uppercase tracking-wide t-3">
+                    {field.icon} {field.short}
+                  </p>
+                  <p className="truncate text-[13px] font-black tabular-nums t-1">{formatValue(field.id, value)}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {session.note && <p className="text-[11px] leading-relaxed t-3">📝 {session.note}</p>}
+
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={onToDay}
+              className="btn-ghost min-h-0 flex-1 px-2 py-1.5 text-[11px]"
+              title="Marcar la asistencia y los minutos de movimiento de ese día"
+            >
+              ✅ Al registro
+            </button>
+            <button type="button" onClick={onCopy} className="btn-ghost min-h-0 px-3 py-1.5 text-[11px]" title="Copiarla en el formato de pegar">
+              📋 Copiar
+            </button>
+            <button
+              type="button"
+              onClick={onDrop}
+              className="btn-ghost min-h-0 px-3 py-1.5 text-[11px]"
+              aria-label={`Borrar la sesión del ${formatShort(session.date)}`}
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -523,55 +688,56 @@ function Tile({ label, value, hint }: { label: string; value: string; hint: stri
 function LastSession({
   session,
   marks,
+  comentario,
   kid,
   pitch,
 }: {
   session: GpsSession;
   marks: ReturnType<typeof marksOf>;
+  comentario?: Comentario;
   kid: boolean;
   pitch: boolean;
 }) {
   const records = marks.filter((mark) => mark.record).length;
 
   return (
-    <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
-      <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-bold t-1">
+    <section className={`${kid ? 'card-kid' : 'card'} space-y-3 p-4`}>
+      <header className="flex items-baseline justify-between gap-2">
+        <h3 className="min-w-0 text-sm font-bold t-1">
           {KIND_META[session.kind].icon} La última: {friendlyDateLabel(session.date).toLowerCase()}
         </h3>
-        <span className="text-[11px] t-3">
+        <span className="shrink-0 text-[11px] t-3">
           {KIND_META[session.kind].label}
-          {records > 0 &&
-            ` · ${records} ${records === 1 ? 'récord' : 'récords'} ${pitch ? '¡a lo grande!' : ''}`}
+          {records > 0 && ` · 🏅 ${records}${pitch ? ' ¡a lo grande!' : ''}`}
         </span>
       </header>
+
+      {comentario && <ComentarioSesion comentario={comentario} />}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {marks.map((mark) => {
           const field = fieldOf(mark.id);
           const up = mark.change !== null && mark.change > 0;
+          const pct = mark.change === null ? null : Math.round(mark.change * 100);
 
           return (
             <div
               key={mark.id}
-              className={`rounded-2xl border p-3 ${
-                mark.record ? 'border-accent bg-accent-faint' : 'hairline surf-1'
-              }`}
+              className={`min-w-0 rounded-2xl border px-3 py-2.5 ${mark.record ? 'border-accent bg-accent-faint' : 'hairline surf-1'}`}
             >
-              <p className="truncate text-[11px] font-bold uppercase tracking-wide t-3">
+              <p className="truncate text-[10px] font-bold uppercase tracking-wide t-3">
                 {field.icon} {field.short}
               </p>
-              <p className="text-lg font-black tabular-nums t-1">
-                {formatValue(mark.id, mark.value)}
-              </p>
-
+              <p className="truncate text-lg font-black tabular-nums leading-tight t-1">{formatValue(mark.id, mark.value)}</p>
               {mark.record ? (
                 <p className="text-[11px] font-bold t-accent">🏅 Récord</p>
-              ) : mark.change === null ? (
+              ) : pct === null ? (
                 <p className="text-[11px] t-3">primera vez</p>
+              ) : Math.abs(pct) < 3 ? (
+                <p className="text-[11px] t-3">= en su media</p>
               ) : (
-                <p className={`text-[11px] tabular-nums ${up ? 't-accent' : 't-3'}`}>
-                  {up ? '▲' : '▼'} {Math.abs(Math.round(mark.change * 100))} % que su media
+                <p className={`text-[11px] tabular-nums ${up ? 'text-emerald-500' : 't-3'}`}>
+                  {up ? '▲' : '▼'} {Math.abs(pct)} % que su media
                 </p>
               )}
             </div>
@@ -579,7 +745,7 @@ function LastSession({
         })}
       </div>
 
-      {session.note && <p className="mt-2 text-xs leading-relaxed t-3">📝 {session.note}</p>}
+      {session.note && <p className="text-xs leading-relaxed t-3">📝 {session.note}</p>}
     </section>
   );
 }

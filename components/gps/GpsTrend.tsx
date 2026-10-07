@@ -93,15 +93,16 @@ export function GpsTrend({ sessions, kid }: GpsTrendProps) {
         </span>
       </header>
 
-      {/* Qué cifra se mira. Sólo salen las que hay. */}
-      <div className="mb-3 flex flex-wrap gap-1.5">
+      {/* Qué cifra se mira. Sólo salen las que hay, en una fila que se desliza:
+          en el móvil, envueltas, ocupaban tres renglones antes de la gráfica. */}
+      <div className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1">
         {available.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setField(item.id)}
             aria-pressed={item.id === chosen.id}
-            className={`btn min-h-[2rem] border px-2.5 py-1 text-[11px] font-semibold
+            className={`btn min-h-[2rem] shrink-0 border px-2.5 py-1 text-[11px] font-semibold
               ${
                 item.id === chosen.id
                   ? 'bg-accent-soft border-accent t-1'
