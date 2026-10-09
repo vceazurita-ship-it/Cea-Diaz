@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { ColegioPanel } from '@/components/rendimiento/ColegioPanel';
+import { ExportarPdf } from '@/components/rendimiento/ExportarPdf';
 import { FisicoPanel } from '@/components/rendimiento/FisicoPanel';
 import { Inventario } from '@/components/rendimiento/Inventario';
 import { SubirInforme } from '@/components/rendimiento/SubirInforme';
@@ -41,6 +42,7 @@ type Area = 'partidos' | 'fisico' | 'colegio';
 export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanelProps) {
   const [area, setArea] = useState<Area>('partidos');
   const [subiendo, setSubiendo] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const sessions = useGpsSessions(profile.id);
 
   const tests = useMemo(() => testsFor(store.entries, profile.id), [store.entries, profile.id]);
@@ -94,6 +96,11 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
         onSubir={() => setSubiendo(true)}
       />
 
+      {/* Todo lo de los dos —hábitos, entrenos, pruebas, colegio— en papel. */}
+      <button type="button" onClick={() => setExportando(true)} className="btn-ghost w-full text-sm">
+        📄 Exportar a PDF
+      </button>
+
       {area === 'partidos' && <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />}
       {area === 'fisico' && (
         <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
@@ -105,6 +112,17 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
       {subiendo && (
         <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
           <SubirInforme profile={profile} onSave={guardar} onClose={() => setSubiendo(false)} />
+        </Modal>
+      )}
+
+      {exportando && (
+        <Modal title="Exportar a PDF" onClose={() => setExportando(false)}>
+          <ExportarPdf
+            entries={store.entries}
+            profileId={profile.id}
+            accent={profile.accentDeep ?? profile.accent}
+            onClose={() => setExportando(false)}
+          />
         </Modal>
       )}
     </div>
