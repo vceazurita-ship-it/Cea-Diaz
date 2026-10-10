@@ -6,7 +6,11 @@ import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
 import {
   EMPUJE_TECNICA,
+  RACHA_EXTRA,
+  RACHA_MAX,
   RIVALES,
+  TACTICAS,
+  anchoVentana,
   apuntarJornada,
   clasificacion,
   guardarLiga,
@@ -20,7 +24,9 @@ import {
   rivalDe,
   semillaPartido,
   tecnicasDe,
+  ventanaDe,
   type Desenlace,
+  type Tactica,
   type Fila,
   type FinTemporada,
   type Jugada,
@@ -573,7 +579,7 @@ function Ficha({ j, brilla, apagada }: { j: Jugador; brilla?: boolean; apagada?:
  * plano de siempre.
  * ----------------------------------------------------------------------- */
 
-type Fase = 'previa' | 'jugada' | 'accion' | 'desenlace' | 'final';
+type Fase = 'previa' | 'jugada' | 'pulso' | 'accion' | 'desenlace' | 'final';
 
 interface PartidoProps {
   profileId: ProfileId;
@@ -608,8 +614,12 @@ function sigla(nombre: string): string {
 }
 
 function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, onFin, onClose }: PartidoProps) {
-  const jugadas = useMemo(() => jugadasDe(once, rival, semilla), [once, rival, semilla]);
+  const [tactica, setTactica] = useState<Tactica>('equilibrio');
+  const jugadas = useMemo(() => jugadasDe(once, rival, semilla, tactica), [once, rival, semilla, tactica]);
   const [fase, setFase] = useState<Fase>('previa');
+  /** Aciertos seguidos: cada uno ensancha la zona verde del pulso. */
+  const [racha, setRacha] = useState(0);
+  const [pulso, setPulso] = useState<{ ini: number; ancho: number } | null>(null);
   const [n, setN] = useState(0);
   const [gf, setGf] = useState(0);
   const [gc, setGc] = useState(0);
@@ -692,12 +702,23 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
 
   const cantada = useRef(false);
 
+  /** Elegida la jugada, toca el pulso: parar en la zona verde. */
   const elegir = (o: Opcion) => {
     if (fase !== 'jugada' || !jugada) return;
     setElegida(o);
     setFoco(null);
+    const ancho = anchoVentana(prob(o), racha);
+    setPulso({ ini: ventanaDe(semilla, jugada.n, ancho), ancho });
+    setFase('pulso');
+  };
+
+  /** Parado el pulso, la jugada se ejecuta con lo que ha salido de la mano. */
+  const ejecutar = (o: Opcion, bien: boolean) => {
+    if (fase !== 'pulso' || !jugada) return;
+    setPulso(null);
+    setRacha((r) => (bien ? r + 1 : 0));
     setFase('accion');
-    const res = resolver(jugada, o, semilla, Boolean(tecnica), rival);
+    const res = resolver(jugada, o, semilla, Boolean(tecnica), rival, bien);
     if (tecnica) setGastadas((g) => [...g, tecnica]);
     setTecnica(null);
     cantada.current = false;
@@ -894,13 +915,17 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
         )}
 
         {/* Quién ataca, abajo: el narrador. */}
-        {(fase === 'jugada' || fase === 'accion') && jugada && (
+        {(fase === 'jugada' || fase === 'pulso' || fase === 'accion') && jugada && (
           <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center sm:inset-x-3 sm:bottom-3">
             <p className="max-w-full animate-floatUp rounded-xl bg-[#0b1220]/85 px-3 py-1.5 text-center text-[12px] font-bold leading-snug text-white shadow-lg ring-1 ring-white/10 backdrop-blur sm:text-[13px]">
               <span className={`mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${jugada.tipo === 'ataque' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
                 {jugada.tipo === 'ataque' ? 'Atacas' : 'Defiendes'}
               </span>
-              {fase === 'accion' && elegida ? `${elegida.icono} ${elegida.accion} de ${elegida.de.cromo.name}…` : jugada.texto}
+              {fase === 'pulso' && elegida
+                ? `${elegida.icono} ${elegida.accion} de ${elegida.de.cromo.name}: ¡para el pulso en verde!`
+                : fase === 'accion' && elegida
+                  ? `${elegida.icono} ${elegida.accion} de ${elegida.de.cromo.name}…`
+                  : jugada.texto}
             </p>
           </div>
         )}
@@ -950,12 +975,31 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
           </div>
           <p className="text-center text-[12px] t-2">{rival.lema}</p>
           <Comparar once={once} rival={rival} />
+          {/* La táctica: cómo salir al campo. */}
+          <div>
+            <p className="mb-1 text-[10px] font-black uppercase tracking-wider t-3">🧠 Táctica</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TACTICAS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTactica(t.id)}
+                  aria-pressed={tactica === t.id}
+                  className={`rounded-2xl p-2 text-center ring-2 transition ${tactica === t.id ? 'bg-amber-300 text-[#241a14] ring-amber-500 shadow-[0_0_12px_#fbbf24]' : 'surf-2 ring-black/10'}`}
+                >
+                  <span className="block text-2xl leading-none">{t.icono}</span>
+                  <span className="mt-1 block text-[12px] font-black leading-tight">{t.nombre}</span>
+                  <span className={`mt-0.5 block text-[10px] leading-tight ${tactica === t.id ? 'text-[#241a14]/80' : 't-3'}`}>{t.texto}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <ul className="grid grid-cols-1 gap-1 rounded-2xl surf-2 p-3 text-[12px] leading-snug sm:grid-cols-2">
             <li>⚽ Seis jugadas: eliges <b>quién</b> hace <b>qué</b>.</li>
-            <li>👆 Toca la tarjeta o al jugador del aro en el campo.</li>
-            <li>📊 El % dice lo fácil que es, según las medias.</li>
-            <li>🟢 Un pase entre dos con química sale mejor.</li>
-            {tecnicas.length > 0 && <li className="sm:col-span-2">✨ Tus técnicas: una vez por partido, +{Math.round(EMPUJE_TECNICA * 100)}% a la jugada.</li>}
+            <li>⏱️ Luego, <b>para el pulso en la zona verde</b>: ahí se decide.</li>
+            <li>📊 Cuanto mejor la jugada (medias, química), más ancha la zona.</li>
+            <li>🔥 Cada acierto seguido la ensancha un poco más.</li>
+            {tecnicas.length > 0 && <li className="sm:col-span-2">✨ Tus técnicas: una vez por partido, +{Math.round(EMPUJE_TECNICA * 100)}% de zona verde.</li>}
           </ul>
           <button
             type="button"
@@ -970,8 +1014,24 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
         </div>
       )}
 
+      {fase === 'pulso' && elegida && pulso && (
+        <Pulso
+          key={`${n}-${elegida.id}`}
+          ventana={pulso}
+          color={colorDe(prob(elegida))}
+          opcion={elegida}
+          racha={racha}
+          onParar={(bien) => ejecutar(elegida, bien)}
+        />
+      )}
+
       {fase === 'jugada' && jugada && (
         <div className="space-y-2 animate-floatUp">
+          {racha > 1 && (
+            <p className="text-center text-[11px] font-black text-amber-600">
+              🔥 Racha de {racha}: la zona verde es {Math.round(Math.min(RACHA_MAX, racha) * RACHA_EXTRA * 100)}% más ancha
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
             {jugada.opciones.map((o, i) => {
               const p = prob(o);
@@ -1147,6 +1207,124 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * El pulso
+ *
+ * Una aguja va y viene por la barra; hay que pararla dentro de la zona
+ * verde tocando el botón, la barra o la barra espaciadora. La aguja se mueve
+ * sin pasar por React —el estilo se toca a mano en cada fotograma— y sólo
+ * al parar se pinta el resultado.
+ * ----------------------------------------------------------------------- */
+
+const PERIODO_PULSO = 1250;
+
+function Pulso({
+  ventana,
+  color,
+  opcion,
+  racha,
+  onParar,
+}: {
+  ventana: { ini: number; ancho: number };
+  color: string;
+  opcion: Opcion;
+  racha: number;
+  onParar: (bien: boolean) => void;
+}) {
+  const aguja = useRef<HTMLDivElement>(null);
+  const pos = useRef(0);
+  const parado = useRef<{ pos: number; bien: boolean } | null>(null);
+  const [resultado, setResultado] = useState<{ pos: number; bien: boolean } | null>(null);
+
+  useEffect(() => {
+    const t0 = performance.now();
+    let raf = 0;
+    const bucle = (t: number) => {
+      if (parado.current) return;
+      const k = ((t - t0) / PERIODO_PULSO) % 2;
+      pos.current = k < 1 ? k : 2 - k;
+      if (aguja.current) aguja.current.style.left = `${pos.current * 100}%`;
+      raf = requestAnimationFrame(bucle);
+    };
+    raf = requestAnimationFrame(bucle);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const parar = () => {
+    if (parado.current) return;
+    const p = pos.current;
+    const bien = p >= ventana.ini && p <= ventana.ini + ventana.ancho;
+    parado.current = { pos: p, bien };
+    setResultado(parado.current);
+    try {
+      navigator.vibrate?.(bien ? 30 : [20, 40, 20]);
+    } catch {
+      // Hay navegadores que tienen la función y la prohíben.
+    }
+    window.setTimeout(() => onParar(bien), 650);
+  };
+
+  // La barra espaciadora y el intro también paran.
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        parar();
+      }
+    };
+    window.addEventListener('keydown', down);
+    return () => window.removeEventListener('keydown', down);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="space-y-2 animate-floatUp">
+      <div className="flex items-center gap-2 text-[12px] font-black">
+        <span className="text-xl">{opcion.icono}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {opcion.accion} · {opcion.de.cromo.name}
+          {opcion.a ? ` → ${opcion.a.cromo.name}` : ''}
+        </span>
+        {racha > 1 && <span className="shrink-0 text-amber-600">🔥 ×{racha}</span>}
+      </div>
+      <div
+        role="button"
+        tabIndex={0}
+        onPointerDown={parar}
+        className="relative h-12 w-full cursor-pointer select-none overflow-hidden rounded-2xl bg-[#0b1220] ring-2 ring-black/30"
+        aria-label="Parar el pulso"
+      >
+        {/* La zona verde. */}
+        <div
+          className="absolute inset-y-0 rounded-lg"
+          style={{ left: `${ventana.ini * 100}%`, width: `${ventana.ancho * 100}%`, background: color, boxShadow: `0 0 18px ${color}` }}
+        />
+        <div className="absolute inset-y-2 left-0 right-0 border-y border-dashed border-white/15" />
+        {/* La aguja. */}
+        <div
+          ref={aguja}
+          className={`absolute top-0 h-full w-1.5 -translate-x-1/2 rounded-full ${resultado ? (resultado.bien ? 'bg-white shadow-[0_0_14px_#fff]' : 'bg-rose-300 shadow-[0_0_14px_#fb7185]') : 'bg-white shadow-[0_0_10px_#fff]'}`}
+          style={resultado ? { left: `${resultado.pos * 100}%` } : undefined}
+        />
+        {resultado && (
+          <p className={`absolute inset-0 grid place-items-center font-manga text-2xl ${resultado.bien ? 'text-white' : 'text-rose-300'} [-webkit-text-stroke:4px_#0b1220] [paint-order:stroke]`}>
+            {resultado.bien ? '¡PERFECTO!' : '¡Fuera!'}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onPointerDown={parar}
+        disabled={Boolean(resultado)}
+        className="flex min-h-[3.5rem] w-full items-center justify-center rounded-2xl bg-gradient-to-b from-amber-300 to-orange-500 text-xl font-black uppercase tracking-wide text-[#241a14] shadow-[0_5px_0_rgba(0,0,0,0.35)] active:translate-y-[3px] disabled:opacity-70"
+      >
+        ⏱️ ¡AHORA!
+      </button>
+      <p className="text-center text-[11px] t-3">Para la aguja dentro de la zona de color. Cuanto mejor la jugada, más ancha.</p>
     </div>
   );
 }

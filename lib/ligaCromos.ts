@@ -503,12 +503,50 @@ function uno<T>(xs: T[], semilla: string, usados: Set<T> = new Set()): T | undef
   return de[hashSeed(semilla) % de.length];
 }
 
+/* ---------------------------------------------------------------------------
+ * La táctica y el pulso: lo que hace que jugar sea jugar
+ *
+ * Antes del partido se elige cómo salir: al ataque (más jugadas arriba y más
+ * fáciles, pero atrás se sufre), equilibrado o con el cerrojo echado. Y en
+ * cada jugada, elegir no es todo: hay que **parar el pulso** en la zona
+ * verde. Lo ancha que es la zona sale de la probabilidad de la jugada —las
+ * medias, la química, la técnica— y de la racha de aciertos; dónde cae, de
+ * la semilla. Así el partido es de habilidad, no de tirar un dado.
+ * ------------------------------------------------------------------------- */
+
+export type Tactica = 'ataque' | 'equilibrio' | 'defensa';
+
+export const TACTICAS: { id: Tactica; nombre: string; icono: string; texto: string }[] = [
+  { id: 'ataque', nombre: 'Al ataque', icono: '⚔️', texto: 'Más jugadas arriba y más fáciles; atrás, a sufrir.' },
+  { id: 'equilibrio', nombre: 'Equilibrado', icono: '⚖️', texto: 'Lo que mande el medio campo.' },
+  { id: 'defensa', nombre: 'Cerrojo', icono: '🛡️', texto: 'Más fácil defender, menos ocasiones.' },
+];
+
+/** Lo que ensancha la zona verde cada acierto seguido, y hasta cuántos cuentan. */
+export const RACHA_EXTRA = 0.05;
+export const RACHA_MAX = 3;
+
+/** Dónde empieza la zona verde del pulso (de 0 a 1), según la jugada. */
+export function ventanaDe(semilla: string, n: number, ancho: number): number {
+  return azar(`${semilla}:j${n}:ventana`) * (1 - ancho);
+}
+
+/** Lo ancha que es la zona verde: la probabilidad, más la racha, entre límites. */
+export function anchoVentana(p: number, racha: number): number {
+  return Math.max(0.12, Math.min(0.9, p + Math.min(RACHA_MAX, racha) * RACHA_EXTRA));
+}
+
 /**
  * Las seis jugadas del partido. Cuántas son de ataque sale del medio campo:
  * quien manda en el medio tiene más el balón. Siempre al menos dos de cada.
+ * La táctica inclina la balanza: al ataque, más jugadas arriba y más
+ * fáciles; con el cerrojo, al revés.
  */
-export function jugadasDe(once: Once, rival: Rival, semilla: string): Jugada[] {
-  const ventaja = (once.med - rival.med) / 40;
+export function jugadasDe(once: Once, rival: Rival, semilla: string, tactica: Tactica = 'equilibrio'): Jugada[] {
+  const sesgo = tactica === 'ataque' ? 0.16 : tactica === 'defensa' ? -0.16 : 0;
+  const enAtaque = tactica === 'ataque' ? 0.05 : tactica === 'defensa' ? -0.04 : 0;
+  const enDefensa = tactica === 'defensa' ? 0.06 : tactica === 'ataque' ? -0.05 : 0;
+  const ventaja = (once.med - rival.med) / 40 + sesgo;
   const tipos: TipoJugada[] = [];
   for (let i = 0; i < 6; i += 1) tipos.push(azar(`${semilla}:tipo:${i}`) < 0.5 + ventaja ? 'ataque' : 'defensa');
   // Al menos dos de cada, que un partido sin defender no es un partido.
@@ -549,7 +587,7 @@ export function jugadasDe(once: Once, rival: Rival, semilla: string): Jugada[] {
           p: acotar(0.36 + (((pasador.media + receptor.media) / 2 - d) / 100) * 1.5 + (enlazados ? 0.12 : 0)),
         },
         { id: 'regate', accion: 'Regate', icono: '🌀', de: regateador, p: acotar(0.27 + ((regateador.media - d) / 100) * 1.9) },
-      ];
+      ].map((o) => ({ ...o, p: acotar(o.p + enAtaque) }));
       const texto = [
         `Recuperáis en el medio y ${pasador.cromo.name} levanta la cabeza…`,
         `Contraataque: ${tirador.cromo.name} arranca por el centro…`,
@@ -569,7 +607,7 @@ export function jugadasDe(once: Once, rival: Rival, semilla: string): Jugada[] {
       { id: 'entrada', accion: 'Entrada', icono: '🦵', de: central, p: acotar(0.44 + ((central.media - a) / 100) * 1.6) },
       { id: 'presion', accion: 'Presión arriba', icono: '🏃', de: medio, p: acotar(0.4 + ((medio.media - rival.med) / 100) * 1.6) },
       { id: 'portero', accion: 'Parada', icono: '🧤', de: por, p: acotar(0.37 + ((por.media - a) / 100) * 1.7) },
-    ];
+    ].map((o) => ({ ...o, p: acotar(o.p + enDefensa) }));
     const texto = [
       `¡Ataca el ${rival.nombre}! ${rival.estrella[0].toUpperCase()}${rival.estrella.slice(1)} encara a vuestra defensa…`,
       `Pérdida en el medio y ${rival.estrella} sale lanzado…`,
@@ -594,10 +632,11 @@ export interface Desenlace {
  * mal el rival remata, y aun así puede irse fuera: perder un duelo no es
  * siempre encajar.
  */
-export function resolver(j: Jugada, o: Opcion, semilla: string, tecnica: boolean, rival: Rival): Desenlace {
+export function resolver(j: Jugada, o: Opcion, semilla: string, tecnica: boolean, rival: Rival, forzado?: boolean): Desenlace {
   const p = acotar(o.p + (tecnica ? EMPUJE_TECNICA : 0));
   const tirada = azar(`${semilla}:j${j.n}:${o.id}:${tecnica ? 't' : ''}`);
-  const bien = tirada < p;
+  // Con el pulso, si salió bien o mal ya viene decidido por la mano del que juega.
+  const bien = forzado ?? tirada < p;
   const nombre = o.de.cromo.name;
   if (j.tipo === 'ataque') {
     if (bien) {
