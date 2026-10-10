@@ -47,6 +47,32 @@ export const CONVOCATORIAS: Convocatoria[] = [
       { asignatura: 'social', fecha: '2026-10-28', temas: ['s4-1'] },
     ],
   },
+  {
+    // Calendario de evaluaciones de 3.º: la 1.ª evaluación (octubre de 2026).
+    profileId: 'leo',
+    preparaDesde: '2026-10-10',
+    examenes: [
+      { asignatura: 'mates', fecha: '2026-10-22', temas: ['m3-1', 'm3-2'] },
+      { asignatura: 'english', fecha: '2026-10-23', temas: ['e3-1'] },
+      { asignatura: 'science', fecha: '2026-10-26', temas: ['n3-1'] },
+      { asignatura: 'lengua', fecha: '2026-10-27', temas: ['l3-1', 'l3-2'] },
+      { asignatura: 'social', fecha: '2026-10-28', temas: ['s3-1'] },
+    ],
+  },
+  {
+    // La 2.ª evaluación de 3.º (diciembre de 2026). Las fechas son las del
+    // calendario del cole; lo que entra es lo que se supone que se dará
+    // después de la 1.ª. Cambiarlo cuando lleguen los resúmenes.
+    profileId: 'leo',
+    preparaDesde: '2026-12-01',
+    examenes: [
+      { asignatura: 'lengua', fecha: '2026-12-15', temas: ['l3-3', 'l3-4'] },
+      { asignatura: 'social', fecha: '2026-12-16', temas: ['s3-2'] },
+      { asignatura: 'mates', fecha: '2026-12-17', temas: ['m3-3', 'm3-4'] },
+      { asignatura: 'english', fecha: '2026-12-18', temas: ['e3-2'] },
+      { asignatura: 'science', fecha: '2026-12-21', temas: ['n3-2'] },
+    ],
+  },
 ];
 
 export type ModoPlan = 'prepara' | 'repasa';

@@ -103,7 +103,7 @@ export interface Tiro3DProps {
   spread: number;
   /** Los tiros del cole ganados hoy, y su nivel: cada nivel le quita alcance a Benji. */
   cole?: ShotKind[];
-  coleNivel?: number;
+  coleNiveles?: Partial<Record<ShotKind, number>>;
   /** Energía de más ganada con el reto de fútbol del día. */
   energiaExtra?: number;
   onShot: (result: PenaltyResult, outcome: PenaltyOutcome, score: ShotScore, golden: boolean) => void;
@@ -144,7 +144,7 @@ export function Tiro3D({
   golden,
   spread,
   cole = [],
-  coleNivel = 1,
+  coleNiveles = {},
   energiaExtra = 0,
   onShot,
   onNext,
@@ -175,6 +175,9 @@ export function Tiro3D({
   const [power, setPower] = useState(0);
   const [wobble, setWobble] = useState({ x: 0, y: 0 });
   const [kind, setKind] = useState<ShotKind>('normal');
+  /** El nivel del tiro del cole elegido: cada asignatura lleva el suyo. */
+  const nivelDe = (k: ShotKind) => coleNiveles[k] ?? 1;
+  const coleNivel = nivelDe(kind);
   const [tray, setTray] = useState(false);
   const [fired, setFired] = useState<Fired | null>(null);
   const [landed, setLanded] = useState(false);
@@ -809,9 +812,9 @@ export function Tiro3D({
             >
               {SHOT_TYPES[fired.kind].shout}
             </p>
-            {coleNivel > 1 && (
+            {nivelDe(fired.kind) > 1 && (
               <p className="absolute right-[4%] top-[6%] animate-rotulo font-manga text-2xl text-amber-300 [-webkit-text-stroke:4px_#241a14] [paint-order:stroke]" style={{ animationDelay: '900ms' }}>
-                {'★'.repeat(coleNivel)}
+                {'★'.repeat(nivelDe(fired.kind))}
               </p>
             )}
             {/* La banda: «¡Reto de Mates superado!». */}

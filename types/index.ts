@@ -584,7 +584,32 @@ export interface GameQuestion {
    * contestar se enseña resuelto: es el control del error.
    */
   visual?: Visual;
+  /**
+   * Cómo se contesta. Sin nada, eligiendo entre las opciones (tipo test);
+   * con un juego, lo que diga el juego: escribir la respuesta, ordenar,
+   * emparejar, clasificar o decir si es verdad. Lo pinta
+   * `components/games/Juegos.tsx`.
+   */
+  juego?: Juego;
 }
+
+/**
+ * Las otras maneras de contestar una pregunta, además del test. En todas,
+ * `options[0]` es la respuesta buena escrita, y `answer` su `id`: se
+ * contesta con ese `id` si se acierta y con otro si no, y así quien anota el
+ * resultado no tiene que saber de qué juego era.
+ */
+export type Juego =
+  /** Se escribe la respuesta: con un teclado de números o con el alfabeto móvil. */
+  | { tipo: 'escribe'; teclado: 'numeros' | 'letras' }
+  /** Se ponen en orden; `items` va en el orden bueno. */
+  | { tipo: 'ordena'; items: string[]; pista?: string }
+  /** Cada cosa de la izquierda con la suya de la derecha. */
+  | { tipo: 'empareja'; pares: [string, string][] }
+  /** Cada cosa en su caja. */
+  | { tipo: 'clasifica'; cajas: { nombre: string; items: string[] }[] }
+  /** Verdadero o falso: se afirma algo y hay que decir si es verdad. */
+  | { tipo: 'vf'; afirmacion: string; verdadero: boolean; en?: boolean };
 
 /** Un material para ver una pregunta en vez de sólo leerla. */
 export type Visual =

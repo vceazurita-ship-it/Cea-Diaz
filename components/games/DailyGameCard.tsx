@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { JuegoDe } from '@/components/games/Juegos';
 import { Material } from '@/components/games/Material';
 import { PenaltyShootout } from '@/components/games/PenaltyShootout';
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
@@ -23,7 +24,7 @@ import {
   type PenaltyGate,
 } from '@/lib/penalties';
 import { gameRewardId, rarityLabel } from '@/lib/rewards';
-import { nivelDe, retoDelDia, tirosDelCole, victorias } from '@/lib/retoCole';
+import { nivelesDelCole, tirosDelCole } from '@/lib/retoCole';
 import { energiaDelFutbol } from '@/lib/retoFutbol';
 import { computeDayScore } from '@/lib/scoring';
 import { loadSettings, subscribeSettings } from '@/lib/settings';
@@ -153,8 +154,7 @@ export function DailyGameCard({
 
   // Los tiros que se han ganado hoy en el reto del cole, y con qué nivel.
   const coleShots = tirosDelCole(entries, profile.id, date);
-  const reto = retoDelDia(date, profile.id);
-  const coleNivel = Math.max(1, nivelDe(victorias(entries, profile.id, reto, date)));
+  const coleNiveles = nivelesDelCole(entries, profile.id, date);
   // Y el rayo de energía de más que da el reto de fútbol superado.
   const energiaExtra = energiaDelFutbol(entries, profile.id, date);
   const canShoot = Boolean(onPenalty) && gate.open && today;
@@ -350,7 +350,7 @@ export function DailyGameCard({
             date={date}
             result={penalties}
             cole={coleShots}
-            coleNivel={coleNivel}
+            coleNiveles={coleNiveles}
             energiaExtra={energiaExtra}
             onShot={onPenalty}
             onClose={() => setShooting(false)}
@@ -466,6 +466,10 @@ export function Question({ question, index, total, chosen, kid, onAnswer, onNext
       {/* El material de la pregunta; al contestar se enseña resuelto. */}
       {question.visual && <Material visual={question.visual} resuelto={Boolean(chosen)} />}
 
+      {/* Si no es de elegir, el juego que sea: escribir, ordenar, emparejar… */}
+      {question.juego ? (
+        <JuegoDe question={question} chosen={chosen} kid={kid} onAnswer={(hit) => onAnswer(hit ? question.answer : 'x')} />
+      ) : (
       <ul className="space-y-2">
         {question.options.map((option) => {
           const picked = chosen === option.id;
@@ -504,6 +508,7 @@ export function Question({ question, index, total, chosen, kid, onAnswer, onNext
           );
         })}
       </ul>
+      )}
 
       {chosen && (
         <div className="animate-floatUp space-y-3">
