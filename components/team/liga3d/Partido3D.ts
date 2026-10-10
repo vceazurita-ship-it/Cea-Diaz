@@ -213,15 +213,22 @@ export class Partido3D {
   private sigueBalon = false;
   private temblor = 0;
   private finalDe: 'gana' | 'empata' | 'pierde' | null = null;
+  /** De escaparate: la cámara gira cerca de los de casa, que son lo que se enseña. */
+  private escaparate = false;
 
-  constructor(host: HTMLElement, private reparto: Reparto3D) {
+  /**
+   * `ligera`: para el escaparate de la tarjeta, que vive mientras se mira
+   * la pantalla: menos píxeles y sin sombras, que en un móvil se nota.
+   */
+  constructor(host: HTMLElement, private reparto: Reparto3D, opts: { ligera?: boolean; escaparate?: boolean } = {}) {
     this.host = host;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.escaparate = Boolean(opts.escaparate);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: opts.ligera ? 'default' : 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.ligera ? 1.5 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = !opts.ligera;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const lienzo = this.renderer.domElement;
     lienzo.style.display = 'block';
@@ -1459,12 +1466,15 @@ export class Partido3D {
     const aspect = this.camera.aspect || 1;
     const estrecha = aspect < 1.1 ? 1.35 / Math.max(0.6, aspect) : 1;
     if (this.escena === 'previa' && !this.guion.length) {
-      this.cam.orbita += dt * (this.finalDe ? 0.18 : 0.07);
-      const R = (this.finalDe ? 34 : 64) * Math.min(1.6, estrecha);
-      const alto = this.finalDe ? 14 : 30;
+      this.cam.orbita += dt * (this.finalDe ? 0.18 : this.escaparate ? 0.12 : 0.07);
+      const cerca = this.escaparate && !this.finalDe;
+      const R = (this.finalDe ? 34 : cerca ? 40 : 64) * Math.min(1.6, estrecha);
+      const alto = this.finalDe ? 14 : cerca ? 19 : 30;
       const a = Math.sin(this.cam.orbita) * 0.9;
-      this.camera.position.set(Math.sin(a) * R, alto, Math.cos(a) * R);
-      this.cam.foco.set(0, 0, 0);
+      // En el escaparate se mira a los de casa, que están en su mitad.
+      const fx = cerca ? -24 : 0;
+      this.camera.position.set(fx + Math.sin(a) * R, alto, Math.cos(a) * R);
+      this.cam.foco.set(fx, 0, 0);
       this.camera.lookAt(this.cam.foco);
       return;
     }

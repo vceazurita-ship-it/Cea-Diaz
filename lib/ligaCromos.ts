@@ -9,7 +9,9 @@ import type { CromoLine, CromoReward, DateKey, FormationSlot, Lineup, ProfileId 
  *  se quedaban. Con el once completo ya hay equipo, y un equipo lo que quiere
  *  es jugar. Esto es la liga: ocho jornadas contra los equipos de la serie
  *  —del Otomo al Nankatsu de Oliver y, al final, la selección de Japón—, una
- *  jornada oficial al día y amistosos sin límite.
+ *  jornada oficial al día y amistosos sin límite. Los demás también juegan
+ *  entre ellos cada jornada, y de ahí sale una clasificación de nueve con
+ *  puntos, goles y diferencia: campeón es el que acaba primero.
  *
  *  **Lo que hace que el campograma importe.** El once tiene una media, y la
  *  media sale de tres cosas que el crío controla:
@@ -213,6 +215,16 @@ export interface Resultado {
   fecha: DateKey;
 }
 
+/** Un partido entre dos rivales de la serie, de los que se juegan sin nosotros. */
+export interface PartidoAjeno {
+  /** Jornada, de 0 a 7. */
+  j: number;
+  a: string;
+  b: string;
+  ga: number;
+  gb: number;
+}
+
 export interface Liga {
   temporada: number;
   /** Jornada que toca, de 0 a 7. */
@@ -223,27 +235,173 @@ export interface Liga {
   ultima?: DateKey;
   /** Ligas ganadas. */
   titulos: number;
+  /** Los partidos de los demás esta temporada: con ellos sale la clasificación. */
+  otros: PartidoAjeno[];
+  /** Goles de cada cromo, en todas las temporadas: el pichichi del equipo. */
+  goleadores: Record<string, number>;
+  /** El puesto en el que se acabó cada temporada anterior. */
+  palmares: number[];
 }
 
 const ligaKey = (profileId: ProfileId) => `cromos:liga:${profileId}`;
 
 export function nuevaLiga(temporada = 1, titulos = 0): Liga {
-  return { temporada, jornada: 0, puntos: 0, resultados: [], titulos };
+  return { temporada, jornada: 0, puntos: 0, resultados: [], titulos, otros: [], goleadores: {}, palmares: [] };
 }
+
+/* ---------------------------------------------------------------------------
+ * La clasificación: nueve equipos, y una tabla de verdad
+ *
+ * Cada jornada jugamos contra uno, y los otros siete juegan entre ellos
+ * (tres partidos; uno descansa). Esos partidos salen de las medias de cada
+ * uno con una semilla —el perfil, la temporada y la jornada—, así que son
+ * los mismos se mire cuando se mire. Con todo eso hay una tabla con puntos,
+ * goles y diferencia, y ser campeón es acabar primero: no basta con sumar.
+ * ------------------------------------------------------------------------- */
+
+export const YO = 'yo';
+
+/** Goles de un equipo contra otro: una Poisson con semilla, como en los simuladores. */
+function golesDe(atq: number, def: number, semilla: string): number {
+  const lambda = Math.max(0.25, Math.min(3.2, 1.35 + (atq - def) / 14));
+  const p = azar(semilla);
+  let k = 0;
+  let pk = Math.exp(-lambda);
+  let acumulada = pk;
+  while (p > acumulada && k < 7) {
+    k += 1;
+    pk *= lambda / k;
+    acumulada += pk;
+  }
+  return k;
+}
+
+/** Los partidos de los demás en una jornada: siempre los mismos para ese perfil y temporada. */
+export function partidosAjenos(profileId: ProfileId, temporada: number, jornada: number): PartidoAjeno[] {
+  // Siete sin nosotros: descansa uno distinto cada jornada (nunca el que
+  // juega contra nosotros), y así cada rival acaba con siete partidos.
+  const descansa = RIVALES[(jornada + RIVALES.length / 2) % RIVALES.length].id;
+  const otros = RIVALES.map((r, i) => ({ r: rivalDe(i, temporada), i })).filter(({ r, i }) => i !== jornada && r.id !== descansa);
+  // Los seis que quedan, emparejados con semilla.
+  const orden = otros
+    .map((x) => ({ x, k: hashSeed(`${profileId}:liga:${temporada}:${jornada}:${x.r.id}`) }))
+    .sort((p, q) => p.k - q.k)
+    .map(({ x }) => x.r);
+  const out: PartidoAjeno[] = [];
+  for (let i = 0; i + 1 < orden.length; i += 2) {
+    const a = orden[i];
+    const b = orden[i + 1];
+    const s = `${profileId}:liga:${temporada}:${jornada}:${a.id}-${b.id}`;
+    out.push({ j: jornada, a: a.id, b: b.id, ga: golesDe(a.atq, b.def, `${s}:a`), gb: golesDe(b.atq, a.def, `${s}:b`) });
+  }
+  return out;
+}
+
+export interface Fila {
+  id: string;
+  nombre: string;
+  escudo: string;
+  color: string;
+  tinta: string;
+  pj: number;
+  g: number;
+  e: number;
+  p: number;
+  gf: number;
+  gc: number;
+  dg: number;
+  pts: number;
+  /** Los últimos resultados, del más viejo al más nuevo: G, E o P. */
+  forma: ('G' | 'E' | 'P')[];
+  /** Puesto, empezando en 1. */
+  puesto: number;
+  yo: boolean;
+}
+
+/** Los resultados nuestros de esta temporada: los últimos `jornada` del registro. */
+export function resultadosTemporada(liga: Liga): Resultado[] {
+  return liga.jornada > 0 ? liga.resultados.slice(-liga.jornada) : [];
+}
+
+/**
+ * La tabla de la temporada: nosotros y los ocho de la serie, por puntos,
+ * diferencia de goles y goles a favor.
+ */
+export function clasificacion(liga: Liga, equipo: string, escudo = '⚽', color = '#16a34a', tinta = '#fff'): Fila[] {
+  const filas = new Map<string, Fila>();
+  const fila = (id: string, nombre: string, esc: string, col: string, tin: string, yo = false): Fila => ({
+    id, nombre, escudo: esc, color: col, tinta: tin, pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, dg: 0, pts: 0, forma: [], puesto: 0, yo,
+  });
+  filas.set(YO, fila(YO, equipo, escudo, color, tinta, true));
+  for (const r of RIVALES) filas.set(r.id, fila(r.id, r.nombre, r.escudo, r.color, r.tinta));
+
+  const anotar = (id: string, gf: number, gc: number) => {
+    const f = filas.get(id);
+    if (!f) return;
+    f.pj += 1;
+    f.gf += gf;
+    f.gc += gc;
+    f.dg = f.gf - f.gc;
+    const letra: 'G' | 'E' | 'P' = gf > gc ? 'G' : gf === gc ? 'E' : 'P';
+    if (letra === 'G') f.g += 1;
+    else if (letra === 'E') f.e += 1;
+    else f.p += 1;
+    f.pts = f.g * 3 + f.e;
+    f.forma = [...f.forma, letra].slice(-5);
+  };
+
+  // Jornada a jornada, para que la forma salga en orden.
+  const mios = resultadosTemporada(liga);
+  for (let j = 0; j < liga.jornada; j += 1) {
+    const r = mios[j];
+    if (r) {
+      anotar(YO, r.gf, r.gc);
+      anotar(r.rival, r.gc, r.gf);
+    }
+    for (const o of liga.otros.filter((x) => x.j === j)) {
+      anotar(o.a, o.ga, o.gb);
+      anotar(o.b, o.gb, o.ga);
+    }
+  }
+
+  const orden = [...filas.values()].sort(
+    (a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf || (a.yo ? -1 : b.yo ? 1 : 0) || a.nombre.localeCompare(b.nombre, 'es'),
+  );
+  orden.forEach((f, i) => (f.puesto = i + 1));
+  return orden;
+}
+
+export function puestoDe(filas: Fila[]): number {
+  return filas.find((f) => f.yo)?.puesto ?? filas.length;
+}
+
+/** «1.º», «2.º»… */
+export const ordinal = (n: number) => `${n}.º`;
 
 export function leerLiga(profileId: ProfileId): Liga {
   try {
     const raw = window.localStorage.getItem(ligaKey(profileId));
     if (!raw) return nuevaLiga();
     const data = JSON.parse(raw) as Partial<Liga>;
-    return {
-      temporada: Math.max(1, Number(data.temporada) || 1),
-      jornada: Math.max(0, Math.min(RIVALES.length, Number(data.jornada) || 0)),
+    const temporada = Math.max(1, Number(data.temporada) || 1);
+    const jornada = Math.max(0, Math.min(RIVALES.length, Number(data.jornada) || 0));
+    const liga: Liga = {
+      temporada,
+      jornada,
       puntos: Math.max(0, Number(data.puntos) || 0),
       resultados: Array.isArray(data.resultados) ? data.resultados.slice(-40) : [],
       ultima: typeof data.ultima === 'string' ? (data.ultima as DateKey) : undefined,
       titulos: Math.max(0, Number(data.titulos) || 0),
+      otros: Array.isArray(data.otros) ? data.otros : [],
+      goleadores: data.goleadores && typeof data.goleadores === 'object' ? data.goleadores : {},
+      palmares: Array.isArray(data.palmares) ? data.palmares : [],
     };
+    // Una liga guardada antes de que hubiera tabla: los partidos de los
+    // demás se reconstruyen, que son los mismos siempre.
+    for (let j = 0; j < jornada; j += 1) {
+      if (!liga.otros.some((o) => o.j === j)) liga.otros.push(...partidosAjenos(profileId, temporada, j));
+    }
+    return liga;
   } catch {
     return nuevaLiga();
   }
@@ -257,25 +415,48 @@ export function guardarLiga(profileId: ProfileId, liga: Liga): void {
   }
 }
 
-/** Los puntos para ser campeón: más de dos tercios de los que hay en juego. */
-export const PUNTOS_CAMPEON = 16;
+export interface FinTemporada {
+  campeon: boolean;
+  puesto: number;
+  puntos: number;
+  /** La tabla final, para enseñarla. */
+  tabla: Fila[];
+}
 
-/** Apunta una jornada oficial. Al acabar las ocho, empieza otra temporada. */
-export function apuntarJornada(liga: Liga, res: Resultado): { liga: Liga; fin?: { campeon: boolean; puntos: number } } {
+/**
+ * Apunta una jornada oficial: nuestro partido, los de los demás y los
+ * goleadores. Al acabar las ocho, se mira la tabla: campeón si se acaba
+ * primero. Y empieza otra temporada, con los rivales algo más fuertes.
+ */
+export function apuntarJornada(
+  liga: Liga,
+  res: Resultado,
+  profileId: ProfileId,
+  goles: string[] = [],
+  equipo = 'Mi equipo',
+): { liga: Liga; fin?: FinTemporada } {
   const pts = res.gf > res.gc ? 3 : res.gf === res.gc ? 1 : 0;
+  const goleadores = { ...liga.goleadores };
+  for (const id of goles) goleadores[id] = (goleadores[id] ?? 0) + 1;
   const siguiente: Liga = {
     ...liga,
     jornada: liga.jornada + 1,
     puntos: liga.puntos + pts,
     resultados: [...liga.resultados, res].slice(-40),
     ultima: res.fecha,
+    otros: [...liga.otros.filter((o) => o.j !== liga.jornada), ...partidosAjenos(profileId, liga.temporada, liga.jornada)],
+    goleadores,
   };
   if (siguiente.jornada < RIVALES.length) return { liga: siguiente };
-  const campeon = siguiente.puntos >= PUNTOS_CAMPEON;
+  const tabla = clasificacion(siguiente, equipo);
+  const puesto = puestoDe(tabla);
+  const campeon = puesto === 1;
   const otra = nuevaLiga(liga.temporada + 1, liga.titulos + (campeon ? 1 : 0));
   otra.ultima = res.fecha;
   otra.resultados = siguiente.resultados;
-  return { liga: otra, fin: { campeon, puntos: siguiente.puntos } };
+  otra.goleadores = goleadores;
+  otra.palmares = [...liga.palmares, puesto];
+  return { liga: otra, fin: { campeon, puesto, puntos: siguiente.puntos, tabla } };
 }
 
 /* ---------------------------------------------------------------------------

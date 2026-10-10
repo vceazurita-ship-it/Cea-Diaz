@@ -6,19 +6,23 @@ import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
 import {
   EMPUJE_TECNICA,
-  PUNTOS_CAMPEON,
   RIVALES,
   apuntarJornada,
+  clasificacion,
   guardarLiga,
   jugadasDe,
   leerLiga,
   nuevaLiga,
   onceDe,
+  ordinal,
+  puestoDe,
   resolver,
   rivalDe,
   semillaPartido,
   tecnicasDe,
   type Desenlace,
+  type Fila,
+  type FinTemporada,
   type Jugada,
   type Jugador,
   type Liga,
@@ -74,6 +78,11 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
   const rival = rivalDe(liga.jornada, liga.temporada);
   const oficialHoy = liga.ultima !== date;
   const equipo = lineup.teamName?.trim() || `${name} F.C.`;
+  const colores = useMemo(() => kitDeCasa(profileId, rival), [profileId, rival]);
+  const tabla = useMemo(() => clasificacion(liga, equipo, '⚽', colores.kit, colores.tinta), [liga, equipo, colores]);
+  const puesto = puestoDe(tabla);
+  const [verTabla, setVerTabla] = useState(false);
+  const [vista, setVista] = useState<'3d' | 'quimica'>('3d');
 
   const empezar = (oficial: boolean) => {
     setJugando({ oficial, rival, semilla: semillaPartido(profileId, date, oficial, amistosos), jornada: liga.jornada + 1 });
@@ -116,9 +125,33 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
             );
           })}
         </ol>
-        <p className="relative mt-1.5 text-[11px] font-bold text-white/80">
-          {liga.puntos} puntos · para ser campeón hacen falta {PUNTOS_CAMPEON} en las ocho jornadas
-        </p>
+        <div className="relative mt-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-bold text-white/80">
+            {liga.jornada === 0 ? (
+              'Nueve equipos, ocho jornadas: campeón el que acabe primero.'
+            ) : (
+              <>
+                Vas <b className={puesto === 1 ? 'text-amber-300' : 'text-white'}>{ordinal(puesto)}</b> con {liga.puntos}{' '}
+                {liga.puntos === 1 ? 'punto' : 'puntos'}
+                {puesto === 1 ? ' · ¡líder!' : puesto <= 3 ? ' · en el podio' : ''}
+              </>
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => setVerTabla((v) => !v)}
+            aria-expanded={verTabla}
+            className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 ring-1 ring-white/20"
+          >
+            📊 {verTabla ? 'Cerrar' : 'Clasificación'}
+          </button>
+        </div>
+        {verTabla && (
+          <div className="relative mt-2 animate-floatUp">
+            <Clasificacion filas={tabla} oscura />
+            <Pichichi liga={liga} plantilla={plantilla} oscura />
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 p-4">
@@ -130,7 +163,27 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
           </div>
         ) : (
           <>
-            <MiniCampo once={once} />
+            {/* El once en el estadio, en 3D; o el campo plano con la química. */}
+            <div className="relative">
+              {vista === '3d' ? (
+                <Escaparate once={once} rival={rival} profileId={profileId} equipo={equipo} activo={!jugando} sinTres={() => setVista('quimica')} />
+              ) : (
+                <MiniCampo once={once} />
+              )}
+              <div className="absolute right-2 top-2 flex overflow-hidden rounded-full bg-black/60 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/20">
+                {(['3d', 'quimica'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVista(v)}
+                    aria-pressed={vista === v}
+                    className={`px-2.5 py-1 ${vista === v ? 'bg-amber-300 text-[#241a14]' : ''}`}
+                  >
+                    {v === '3d' ? '🏟️ 3D' : '🟢 Química'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="grid grid-cols-4 gap-1.5 text-center">
               <Dato titulo="Media" valor={once.media} grande />
@@ -197,17 +250,187 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
             equipo={equipo}
             tecnicas={tecnicas}
             oficial={jugando.oficial}
-            onFin={(gf, gc) => {
+            onFin={(gf, gc, goles) => {
               if (!jugando.oficial) return null;
-              const { liga: nueva, fin } = apuntarJornada(liga, { rival: jugando.rival.id, gf, gc, fecha: date });
+              const { liga: nueva, fin } = apuntarJornada(liga, { rival: jugando.rival.id, gf, gc, fecha: date }, profileId, goles, equipo);
               setLiga(nueva);
               guardarLiga(profileId, nueva);
-              return fin ?? null;
+              const tras = fin ? fin.tabla : clasificacion(nueva, equipo, '⚽', colores.kit, colores.tinta);
+              return { fin: fin ?? null, tabla: tras, antes: puesto, despues: puestoDe(tras) };
             }}
             onClose={() => setJugando(null)}
           />
         </Modal>
       )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * El escaparate: el once en su estadio, en 3D, girando despacio
+ *
+ * Es la misma escena del partido (`liga3d/Partido3D`) en su presentación,
+ * montada en ligero —sin sombras, menos píxeles— y sólo mientras la tarjeta
+ * está a la vista: fuera de pantalla se desmonta, y también mientras se
+ * juega el partido, que entonces el estadio es el del diálogo. Sin WebGL,
+ * se pasa al campo plano con la química.
+ * ----------------------------------------------------------------------- */
+
+function Escaparate({
+  once,
+  rival,
+  profileId,
+  equipo,
+  activo,
+  sinTres,
+}: {
+  once: Once;
+  rival: Rival;
+  profileId: ProfileId;
+  equipo: string;
+  activo: boolean;
+  sinTres: () => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [listo, setListo] = useState(false);
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting), { rootMargin: '80px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !activo || !host.current) return;
+    let vivo = true;
+    let s: Partido3D | null = null;
+    setListo(false);
+    Promise.all([import('@/components/team/liga3d/Partido3D'), import('@/components/team/liga3d/reparto')])
+      .then(([{ Partido3D: Clase }, { repartoDe }]) => {
+        if (!vivo || !host.current) return;
+        try {
+          s = new Clase(host.current, repartoDe(once, rival, profileId, equipo), { ligera: true, escaparate: true });
+          setListo(true);
+        } catch {
+          sinTres();
+        }
+      })
+      .catch(() => vivo && sinTres());
+    return () => {
+      vivo = false;
+      s?.dispose();
+    };
+    // `sinTres` sólo cambia la vista; no hace falta remontar por él.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, activo, once, rival, profileId, equipo]);
+
+  return (
+    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-[#0b1220] ring-1 ring-black/20">
+      <div ref={host} className="absolute inset-0" role="img" aria-label={`Tu once en el estadio: ${equipo}`} />
+      {!listo && (
+        <div className="absolute inset-0 grid place-items-center">
+          <p className="animate-pulse text-[11px] font-black uppercase tracking-[0.2em] text-white/60">Saltan al campo…</p>
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-10 text-white">
+        <div className="min-w-0">
+          <p className="truncate text-[12px] font-black">{equipo}</p>
+          <p className="text-[10px] text-white/75">
+            <span className="text-emerald-300">━</span> química entre vecinos del mismo club
+          </p>
+        </div>
+        <p className="font-manga text-3xl leading-none text-amber-300 [-webkit-text-stroke:4px_#0b1220] [paint-order:stroke]">{once.media}</p>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * La clasificación y los goleadores
+ * ----------------------------------------------------------------------- */
+
+const FORMA: Record<'G' | 'E' | 'P', string> = { G: 'bg-emerald-500', E: 'bg-slate-400', P: 'bg-rose-500' };
+
+function Clasificacion({ filas, oscura, antes }: { filas: Fila[]; oscura?: boolean; antes?: number }) {
+  const texto = oscura ? 'text-white' : 't-1';
+  const suave = oscura ? 'text-white/60' : 't-3';
+  return (
+    <table className={`w-full border-collapse text-[11px] ${texto}`}>
+      <thead>
+        <tr className={`text-[9px] font-black uppercase tracking-wider ${suave}`}>
+          <th className="w-5 py-1 text-left">#</th>
+          <th className="py-1 text-left">Equipo</th>
+          <th className="w-6 py-1 text-center">PJ</th>
+          <th className="w-6 py-1 text-center max-[380px]:hidden">G</th>
+          <th className="w-6 py-1 text-center max-[380px]:hidden">E</th>
+          <th className="w-6 py-1 text-center max-[380px]:hidden">P</th>
+          <th className="w-8 py-1 text-center">DG</th>
+          <th className="w-8 py-1 text-right">Pts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map((f) => {
+          const sube = f.yo && antes !== undefined ? antes - f.puesto : 0;
+          return (
+            <tr
+              key={f.id}
+              className={`${f.yo ? 'font-black ring-2 ring-amber-300' : ''} ${f.puesto === 1 ? (oscura ? 'bg-amber-300/15' : 'bg-amber-300/25') : f.yo ? (oscura ? 'bg-white/10' : 'surf-2') : ''}`}
+            >
+              <td className="rounded-l-lg py-1 pl-1 tabular-nums">
+                {f.puesto === 1 ? '🏆' : f.puesto}
+                {sube !== 0 && <span className={`ml-0.5 text-[9px] ${sube > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{sube > 0 ? '▲' : '▼'}</span>}
+              </td>
+              <td className="py-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-[11px]" style={{ background: f.color, color: f.tinta }}>
+                    {f.escudo}
+                  </span>
+                  <span className="truncate">{f.nombre}</span>
+                  <span className="ml-auto hidden gap-0.5 sm:flex" aria-label={`forma ${f.forma.join('')}`}>
+                    {f.forma.map((x, i) => (
+                      <span key={i} className={`h-1.5 w-1.5 rounded-full ${FORMA[x]}`} />
+                    ))}
+                  </span>
+                </span>
+              </td>
+              <td className="py-1 text-center tabular-nums">{f.pj}</td>
+              <td className="py-1 text-center tabular-nums max-[380px]:hidden">{f.g}</td>
+              <td className="py-1 text-center tabular-nums max-[380px]:hidden">{f.e}</td>
+              <td className="py-1 text-center tabular-nums max-[380px]:hidden">{f.p}</td>
+              <td className="py-1 text-center tabular-nums">{f.dg > 0 ? `+${f.dg}` : f.dg}</td>
+              <td className="rounded-r-lg py-1 pr-1 text-right text-[13px] font-black tabular-nums">{f.pts}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** Los goleadores del equipo, de todas las temporadas. */
+function Pichichi({ liga, plantilla, oscura }: { liga: Liga; plantilla: Map<string, CromoReward>; oscura?: boolean }) {
+  const top = Object.entries(liga.goleadores)
+    .map(([id, goles]) => ({ cromo: plantilla.get(id), goles }))
+    .filter((x): x is { cromo: CromoReward; goles: number } => Boolean(x.cromo) && x.goles > 0)
+    .sort((a, b) => b.goles - a.goles)
+    .slice(0, 3);
+  if (!top.length) return null;
+  return (
+    <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${oscura ? 'text-white' : 't-1'}`}>
+      <span className={`text-[9px] font-black uppercase tracking-wider ${oscura ? 'text-amber-300' : 't-3'}`}>⚽ Goleadores</span>
+      {top.map(({ cromo, goles }, i) => (
+        <span key={cromo.id} className={`flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 ${oscura ? 'bg-white/10' : 'surf-2'}`}>
+          <CromoPortrait cromo={cromo} size="xs" round />
+          <span className="font-bold">{corto(cromo.name)}</span>
+          <span className={`font-black ${i === 0 ? 'text-amber-400' : ''}`}>{goles}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -360,9 +583,20 @@ interface PartidoProps {
   equipo: string;
   tecnicas: CromoReward[];
   oficial: boolean;
-  /** Apunta el resultado; si era la última jornada, dice cómo acabó la liga. */
-  onFin: (gf: number, gc: number) => { campeon: boolean; puntos: number } | null;
+  /**
+   * Apunta el resultado y los goleadores. Devuelve la tabla tras la jornada,
+   * de dónde a dónde se ha pasado y, si era la última, cómo acabó la liga.
+   * En un amistoso, nada.
+   */
+  onFin: (gf: number, gc: number, goles: string[]) => TrasJornada | null;
   onClose: () => void;
+}
+
+interface TrasJornada {
+  fin: FinTemporada | null;
+  tabla: Fila[];
+  antes: number;
+  despues: number;
 }
 
 /** Tres letras para el marcador, como en la tele. */
@@ -385,7 +619,9 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
   const [desenlace, setDesenlace] = useState<Desenlace | null>(null);
   const [lucen, setLucen] = useState<Record<string, number>>({});
   const [cronica, setCronica] = useState<{ minuto: number; texto: string; gol?: 'favor' | 'contra' }[]>([]);
-  const [finLiga, setFinLiga] = useState<{ campeon: boolean; puntos: number } | null>(null);
+  const [finLiga, setFinLiga] = useState<TrasJornada | null>(null);
+  /** Quién ha marcado, en orden: el que remata, o el que recibe el pase. */
+  const [goles, setGoles] = useState<string[]>([]);
   const [foco, setFoco] = useState<number | null>(null);
   const timers = useRef<number[]>([]);
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -475,6 +711,7 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
       setFase('desenlace');
       if (res.gol && jugada.tipo === 'ataque') {
         setGf((g) => g + 1);
+        setGoles((g) => [...g, (o.id === 'pase' && o.a ? o.a : o.de).cromo.id]);
         playCue('gol');
       } else if (res.gol) {
         setGc((g) => g + 1);
@@ -520,7 +757,7 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
     setElegida(null);
     setDesenlace(null);
     if (n + 1 >= jugadas.length) {
-      setFinLiga(onFin(gf, gc));
+      setFinLiga(onFin(gf, gc, goles));
       setFase('final');
       playCue(gf > gc ? 'gol' : 'parada');
       return;
@@ -850,14 +1087,29 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
               {oficial ? (gana ? '+3 puntos para la liga' : empata ? '+1 punto para la liga' : 'Sin puntos esta vez') : 'Amistoso: no cuenta para la liga'}
             </p>
           </div>
-          {finLiga && (
-            <div className={`rounded-2xl p-4 text-center ${finLiga.campeon ? 'bg-amber-300 text-[#241a14]' : 'surf-2'}`}>
-              <p className="text-4xl">{finLiga.campeon ? '🏆' : '📋'}</p>
-              <p className="text-xl font-black">{finLiga.campeon ? '¡CAMPEONES DE LIGA!' : 'Fin de la temporada'}</p>
-              <p className="text-sm">
-                {finLiga.puntos} puntos.{' '}
-                {finLiga.campeon ? 'La próxima temporada los rivales vienen más fuertes.' : `Hacían falta ${PUNTOS_CAMPEON}. ¡La próxima!`}
+          {finLiga?.fin && (
+            <div className={`rounded-2xl p-4 text-center ${finLiga.fin.campeon ? 'bg-amber-300 text-[#241a14]' : finLiga.fin.puesto <= 3 ? 'bg-slate-200 text-[#241a14]' : 'surf-2'}`}>
+              <p className="text-4xl">{finLiga.fin.campeon ? '🏆' : finLiga.fin.puesto === 2 ? '🥈' : finLiga.fin.puesto === 3 ? '🥉' : '📋'}</p>
+              <p className="text-xl font-black">
+                {finLiga.fin.campeon ? '¡CAMPEONES DE LIGA!' : finLiga.fin.puesto <= 3 ? `¡Podio! ${ordinal(finLiga.fin.puesto)} de la liga` : `Fin de la temporada: ${ordinal(finLiga.fin.puesto)}`}
               </p>
+              <p className="text-sm">
+                {finLiga.fin.puntos} puntos.{' '}
+                {finLiga.fin.campeon ? 'La próxima temporada los rivales vienen más fuertes.' : 'Campeón es el que acaba primero. ¡La próxima!'}
+              </p>
+            </div>
+          )}
+          {finLiga && (
+            <div className="rounded-2xl p-2.5 surf-2">
+              <p className="mb-1 text-[10px] font-black uppercase tracking-wider t-3">
+                📊 {finLiga.fin ? 'Clasificación final' : `Clasificación tras la jornada`} ·{' '}
+                {finLiga.despues < finLiga.antes
+                  ? `subes al ${ordinal(finLiga.despues)}`
+                  : finLiga.despues > finLiga.antes
+                    ? `bajas al ${ordinal(finLiga.despues)}`
+                    : `sigues ${ordinal(finLiga.despues)}`}
+              </p>
+              <Clasificacion filas={finLiga.tabla} antes={finLiga.antes} />
             </div>
           )}
           {mvp && (
