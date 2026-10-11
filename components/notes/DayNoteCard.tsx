@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { useToast } from '@/components/ui/Toast';
 import { NoteField } from '@/components/ui/NoteField';
 import type { HabitStore } from '@/hooks/useHabitStore';
@@ -20,6 +21,19 @@ export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardPr
 
   const entry = store.getEntry(profile.id, date);
   const note = entry?.note ?? '';
+
+  // «Guardado» decía sólo lo del navegador; si la nube iba mal, nadie se
+  // enteraba aquí. Se añade en qué estado está lo de casa.
+  const nube =
+    !store.cloud.configured || store.cloud.status === 'off'
+      ? ''
+      : store.cloud.status === 'synced'
+        ? ' · en la nube'
+        : store.cloud.status === 'syncing'
+          ? ' · subiendo'
+          : store.cloud.status === 'error'
+            ? ' · ⚠️ la nube falló'
+            : ' · sólo en este aparato';
 
   const deleteDay = () => {
     const before = store.snapshot();
@@ -51,17 +65,22 @@ export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardPr
             ? 'Aún no hay registros para este día.'
             : store.status === 'saving'
               ? '⏳ Guardando…'
-              : `✓ Guardado · ${filled} ${filled === 1 ? 'registro' : 'registros'}`}
+              : store.status === 'error'
+                ? '⚠️ No se ha podido guardar en este navegador.'
+                : `✓ Guardado aquí · ${filled} ${filled === 1 ? 'registro' : 'registros'}${nube}`}
         </p>
 
         {entry && (
-          <button
-            type="button"
-            onClick={deleteDay}
-            className="btn-ghost t-danger ml-auto px-2.5 py-1.5 text-xs"
-          >
-            🗑️ Borrar el día
-          </button>
+          <span className="ml-auto">
+            <ConfirmButton
+              question={`¿Borrar todo lo de ${friendlyDateLabel(date).toLowerCase()}?`}
+              onConfirm={deleteDay}
+              className="btn-ghost t-danger px-2.5 py-1.5 text-xs"
+              confirmLabel="Sí, borrar"
+            >
+              🗑️ Borrar el día
+            </ConfirmButton>
+          </span>
         )}
       </div>
     </div>

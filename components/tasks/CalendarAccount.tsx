@@ -24,11 +24,17 @@ function whenChecked(iso: string): string {
   return `el ${new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long' }).format(new Date(iso))}`;
 }
 
+/**
+ * Si el servidor tiene Google configurado. Mientras se pregunta no se sabe,
+ * y ese rato no se puede pintar como un «no»: un cartel de «no está
+ * disponible» que parpadea en cada apertura es peor que un hueco.
+ */
+export type CalendarAvailability = 'loading' | 'ready' | 'off';
+
 interface CalendarAccountProps {
   profile: Profile;
   kid: boolean;
-  /** El servidor tiene Google configurado. */
-  available: boolean;
+  status: CalendarAvailability;
   /** Qué falta por configurar, si no lo está. */
   reason?: string;
   link?: CalendarLink;
@@ -39,7 +45,7 @@ interface CalendarAccountProps {
 export function CalendarAccount({
   profile,
   kid,
-  available,
+  status,
   reason,
   link,
   onChanged,
@@ -127,9 +133,26 @@ export function CalendarAccount({
     }
   };
 
+  /* ------------------------------------------------------ preguntando */
+
+  if (status === 'loading') {
+    return (
+      <div className={`${kid ? 'card-kid' : 'card'} p-4`} aria-busy>
+        <p className="sr-only" role="status">
+          Comprobando el calendario…
+        </p>
+        <div aria-hidden className="space-y-2">
+          <div className="skeleton h-4 w-40 max-w-full rounded-lg" />
+          <div className="skeleton h-3 w-full rounded-lg" />
+          <div className="skeleton h-3 w-2/3 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
   /* --------------------------------------------------- sin configurar */
 
-  if (!available) {
+  if (status === 'off') {
     return (
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
         <p className="text-sm font-bold t-1">📆 Google Calendar</p>

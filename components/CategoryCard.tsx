@@ -215,7 +215,7 @@ export function CategoryCard({
               cabecera porque es lo que decide si esta tarjeta urge o no. */}
           {fromWeek && (
             <span
-              className={`hidden rounded-full px-2 py-0.5 text-[10px] font-semibold sm:inline-flex
+              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold
                 ${fromWeek.done === fromWeek.total ? 'bg-accent-soft t-1' : 'surf-2 t-2'}`}
               title={`La semana apartaba ${fromWeek.total} de estos hábitos para hoy`}
             >
@@ -269,7 +269,12 @@ export function CategoryCard({
               >
                 <span aria-hidden>✨</span> Como siempre ({fills.length})
               </button>
-              <span className="hidden text-[11px] t-3 sm:inline">lo que contestas igual casi todos los días</span>
+              {/* En el móvil, la versión corta; esconderla del todo dejaba el
+                  botón sin explicar justo donde más se usa. */}
+              <span className="min-w-0 text-[11px] leading-tight t-3">
+                <span className="sm:hidden">lo de casi todos los días</span>
+                <span className="hidden sm:inline">lo que contestas igual casi todos los días</span>
+              </span>
             </div>
           )}
           <div className={`p-4 ${kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'}`}>

@@ -353,10 +353,45 @@ export function ChallengesPanel({
 
   return (
     <div className="space-y-4">
-      {/* El juego del día: la partida de hoy, antes que nada, porque es lo que
-          se puede ganar hoy mismo. Los retos van a semana vista. */}
+      {/* Para los peques esta pestaña es un rollo largo —el cole, el fútbol,
+          el juego, los retos, el equipo, la liga, el álbum— y llegar a la
+          liga era bajar diez pantallas. Una fila de atajos pegada arriba lleva
+          a cada parte de un toque. */}
+      {kid && (
+        <nav
+          aria-label="Partes de esta pestaña"
+          className="sticky top-[3.75rem] z-20 -mx-1 flex gap-1.5 overflow-x-auto px-1 py-1.5"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {[
+            { id: 'hoy', label: '📅 Hoy', ok: true },
+            { id: 'retos-semana', label: '🎯 Retos', ok: true },
+            { id: 'equipo', label: '🏟️ Equipo', ok: rewardKind === 'cromo' },
+            { id: 'liga', label: '🏆 Liga', ok: rewardKind === 'cromo' },
+            { id: 'album', label: '📒 Álbum', ok: Boolean(rewardKind) },
+            { id: 'historial', label: '🏅 Semanas', ok: true },
+          ]
+            .filter((s) => s.ok)
+            .map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() =>
+                  s.id === 'hoy'
+                    ? window.scrollTo({ top: 0, behavior: 'smooth' })
+                    : document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+                className="chip h-9 shrink-0 border text-[11px] backdrop-blur-md hairline surf-raised t-1"
+              >
+                {s.label}
+              </button>
+            ))}
+        </nav>
+      )}
+
       {/* El reto del cole va antes: es el que gana el tiro especial que
-          luego se tira en la tanda del juego del día. */}
+          luego se tira en la tanda del juego del día. Después el de fútbol
+          y, con ellos, el juego del día. Los retos van a semana vista. */}
       {onColeResult && cursoDe(profile.id) && (
         <RetoColeCard
           profile={profile}
@@ -396,7 +431,7 @@ export function ChallengesPanel({
       )}
 
       {/* Cabecera: cuántos van y cuántos puntos hay en juego */}
-      <div className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5`}>
+      <div id="retos-semana" className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5 scroll-mt-24`}>
         <ProgressRing ratio={total ? week.done / total : 0} size={kid ? 116 : 96}>
           <span className="text-2xl font-black tabular-nums t-1">
             {week.done}
@@ -490,41 +525,47 @@ export function ChallengesPanel({
       {/* El equipo que se monta con los cromos. Sólo para quien colecciona
           cromos de fútbol: las frases de María no se alinean en un campo. */}
       {rewardKind === 'cromo' && (
-        <Campograma
-          profileId={profile.id}
-          rewards={rewards}
-          kid={kid}
-          headingClass={headingClass}
-          lineup={lineup}
-        />
+        <div id="equipo" className="scroll-mt-24">
+          <Campograma
+            profileId={profile.id}
+            rewards={rewards}
+            kid={kid}
+            headingClass={headingClass}
+            lineup={lineup}
+          />
+        </div>
       )}
 
       {/* Y con el once hecho, a jugar la liga. */}
       {rewardKind === 'cromo' && (
-        <LigaCromos
-          profileId={profile.id}
-          name={profile.name}
-          date={date}
-          rewards={rewards}
-          lineup={lineup}
-          kid={kid}
-          headingClass={headingClass}
-        />
+        <div id="liga" className="scroll-mt-24">
+          <LigaCromos
+            profileId={profile.id}
+            name={profile.name}
+            date={date}
+            rewards={rewards}
+            lineup={lineup}
+            kid={kid}
+            headingClass={headingClass}
+          />
+        </div>
       )}
 
       {/* Álbum de premios */}
       {rewardKind && (
-        <RewardsAlbum
-          profileId={profile.id}
-          rewards={rewards}
-          kind={rewardKind}
-          kid={kid}
-          headingClass={headingClass}
-        />
+        <div id="album" className="scroll-mt-24">
+          <RewardsAlbum
+            profileId={profile.id}
+            rewards={rewards}
+            kind={rewardKind}
+            kid={kid}
+            headingClass={headingClass}
+          />
+        </div>
       )}
 
       {/* Medallero */}
-      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
+      <div id="historial" className={`${kid ? 'card-kid' : 'card'} p-4 scroll-mt-24`}>
         <h3 className={headingClass}>Semanas anteriores</h3>
         <HistoryStrip weeks={history} />
       </div>

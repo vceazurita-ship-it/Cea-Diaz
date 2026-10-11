@@ -9,8 +9,9 @@ import { PlanChallengesCard } from '@/components/planner/PlanChallengesCard';
 import { PlanCopySheet } from '@/components/planner/PlanCopySheet';
 import type { CopyRequest, CopyTarget } from '@/components/planner/PlanCopySheet';
 import { ReplicaAsk } from '@/components/planner/ReplicaAsk';
-import { WeekTimetable } from '@/components/planner/WeekTimetable';
+import { SKIN_GOLD, WeekTimetable } from '@/components/planner/WeekTimetable';
 import type { TimetableZoom } from '@/components/planner/WeekTimetable';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
@@ -205,6 +206,13 @@ export function WeekPlanner({
    * desajustaría la hidratación.
    */
   const [mirrors, setMirrors] = useState(true);
+  /**
+   * En un móvil el resumen va plegado a una línea y la chuleta de la
+   * cuadrícula detrás de un «?»: entre la cabecera, el resumen, los avisos y
+   * los retos, la semana quedaba a dos pantallas de distancia.
+   */
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [tip, setTip] = useState(false);
 
   const kid = profile.kind === 'kid';
   const theme = themeOf(profile.id);
@@ -238,15 +246,16 @@ export function WeekPlanner({
   }, [seed, onSeedUsed]);
 
   /**
-   * En una pantalla estrecha la semana entera no se lee, así que se entra por
-   * un día. Se decide una sola vez y tras montar —en el servidor no hay
-   * ventana—, y a partir de ahí manda lo que elija quien mira.
+   * En una pantalla estrecha —o de dedo, que para la cuadrícula es lo mismo—
+   * la semana entera no se lee, así que se entra por un día. Se decide una
+   * sola vez y tras montar —en el servidor no hay ventana—, y a partir de ahí
+   * manda lo que elija quien mira.
    */
   const chosen = useRef(false);
   useEffect(() => {
     if (chosen.current) return;
     chosen.current = true;
-    if (window.innerWidth < 700) setRange('dia');
+    if (window.matchMedia('(max-width: 639px), (pointer: coarse)').matches) setRange('dia');
   }, []);
 
   const review = useMemo(
@@ -309,9 +318,15 @@ export function WeekPlanner({
   /** La frase de la semana: la misma todo el día, distinta cada día. */
   const quote = theme.quotes[today % theme.quotes.length] ?? theme.quotes[0];
 
-  /** Sin nada apartado no hay semana que enseñar: se empieza por los días. */
+  /**
+   * Sin nada apartado no hay semana que enseñar ni días que tocar: sale la
+   * tarjeta de empezar. Lo de los peques, si lo hay, sí se pinta en el
+   * horario, porque la semana de María no está en blanco mientras lleve la
+   * natación de los dos.
+   */
   const defined = plan.blocks.length > 0;
-  const shown: PlanView = defined ? view : 'dias';
+  const shown: PlanView = defined ? view : 'completa';
+  const anything = defined || borrowed.length > 0;
 
   /* ------------------------------------------------------------ acciones */
 
@@ -793,184 +808,248 @@ export function WeekPlanner({
         score={{ kept: review.kept, missed: review.missed }}
       />
 
-      {/* Lo que la semana tipo dice de sí misma */}
-      <section className="card p-3 sm:p-4" aria-label="Resumen de la semana tipo">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Tile
-            value={`${review.blocks}`}
-            label={review.blocks === 1 ? theme.blockWord : theme.blockWords}
-            heading={heading}
-          />
-          <Tile value={`${filled}/7`} label="días con algo" heading={heading} />
-          <Tile
-            value={`${review.linked}`}
-            label={review.linked === 1 ? 'atado a un hábito' : 'atados a un hábito'}
-            heading={heading}
-          />
-          <Tile
-            value={judged > 0 ? `${Math.round((kept / judged) * 100)} %` : durationLabel(total)}
-            label={judged > 0 ? 'de lo vivido, cumplido' : 'apartados en la semana'}
-            heading={heading}
-          />
-        </div>
-
-        {/* Y aquí, y sólo aquí, entran las fechas: la semana tipo contra la
-            semana que se está viviendo. */}
-        {judged > 0 && (
-          <div className="mt-3 border-t pt-3 hairline">
-            <p className="text-xs t-3">
-              Contra la semana del{' '}
-              <strong className="tabular-nums t-2">{formatShort(dates[0])}</strong> al{' '}
-              <strong className="tabular-nums t-2">{formatShort(dates[6])}</strong>: ✓ {kept}{' '}
-              cumplidos · ✕ {missed} fallidos.
-            </p>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full track">
-              <div
-                className="h-full rounded-full bg-accent transition-[width] duration-500"
-                style={{ width: `${Math.round((kept / judged) * 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* En qué se va la semana: la barra que contesta «¿dónde está mi
-            tiempo?» sin tener que sumar ochenta ratos a mano. */}
-        {shares.length > 1 && (
-          <div className="mt-3 border-t pt-3 hairline">
-            <div className="flex h-2.5 w-full overflow-hidden rounded-full track">
-              {shares.map((item) => (
-                <span
-                  key={item.kind}
-                  title={`${PLAN_KINDS[item.kind].label}: ${durationLabel(item.minutes)}`}
-                  className="h-full"
-                  style={{
-                  width: `${(item.minutes / Math.max(1, total)) * 100}%`,
-                  backgroundImage: gradientOf(kindPalette(item.kind), '90deg'),
-                }}
-                />
-              ))}
-            </div>
-            {/* Y la leyenda es el filtro: picar en «Trabajo» apaga todo lo
-                demás en la cuadrícula. En una semana de ochenta ratos es la
-                única forma de mirar sólo una cosa. */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {focus !== null && (
-                <button
-                  type="button"
-                  onClick={() => setFocus(null)}
-                  className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 text-[11px] font-semibold t-1"
-                >
-                  ✕ Ver todo
-                </button>
-              )}
-              {shares.map((item) => (
-                <button
-                  key={item.kind}
-                  type="button"
-                  onClick={() => setFocus(focus === item.kind ? null : item.kind)}
-                  aria-pressed={focus === item.kind}
-                  title={`Resaltar sólo ${PLAN_KINDS[item.kind].label.toLowerCase()}`}
-                  className={`inline-flex items-center gap-1 rounded-full px-1.5 text-[11px] transition
-                    ${focus === item.kind ? 'bg-accent-soft font-semibold t-1' : 't-3 hover-soft'}`}
-                >
-                  <span
-                    aria-hidden
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundImage: gradientOf(kindPalette(item.kind)) }}
-                  />
-                  {PLAN_KINDS[item.kind].label}
-                  <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Lo que a este perfil le toca de los peques. Sale de la semana de
-            Leo y de la de Hugo: lo que allí lleva «con mamá» —o «con los
-            dos»— aparece aquí, y aquí es donde se ve cuánto es.
-
-            Se reparte por **con quién se está** y no por peque: la natación
-            de los dos hermanos es una sola tarde, así que tiene su fila y no
-            se cuenta entera en la de cada uno. Con eso, las filas suman el
-            rato de verdad apartado, que es lo que se lee al lado. */}
-        {takes && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
-            <span className="text-xs font-bold uppercase tracking-wide t-3">Con los peques:</span>
-
-            {withKids.length > 0 ? (
-              <>
-                {withKids.map((item) => (
-                  <span
-                    key={item.id}
-                    className="chip-soft"
-                    title={`${item.count} ${item.count === 1 ? 'rato' : 'ratos'} con ${item.name} esta semana`}
-                  >
-                    <span
-                      aria-hidden
-                      className="-ml-0.5 h-3.5 w-1 shrink-0 rounded-full"
-                      style={{ backgroundImage: mirrorRail(item.kids) }}
-                    />
-                    <span aria-hidden>{item.avatar}</span>
-                    {item.name}
-                    <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
-                  </span>
-                ))}
-                {withKids.length > 1 && (
-                  <span className="text-[11px] tabular-nums t-3">
-                    · {durationLabel(mirrorMinutes(borrowed))} en total
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-xs t-3">
-                {mirrors
-                  ? 'Nada por ahora. En la semana de Leo y de Hugo, marca quién está con ellos en cada rato y saldrá aquí.'
-                  : 'Escondido ahora mismo.'}
-              </span>
-            )}
-
+      {/* Sin nada apartado todavía: en vez de siete tarjetas vacías y los
+          botones al final de la página, una sola tarjeta que dice qué es esto
+          y por dónde se empieza. */}
+      {!defined && (
+        <section
+          className={`${kid ? 'card-kid' : 'card'} p-4 text-center sm:p-6`}
+          aria-label="Empezar la semana tipo"
+        >
+          <span aria-hidden className="block text-4xl">
+            {theme.icon}
+          </span>
+          <h3 className={`mt-2 text-base font-bold t-1 ${heading}`}>Todavía no hay nada apartado</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed t-2">
+            La semana tipo se define una vez, de lunes a domingo, y vale para todas las que vengan
+            hasta que se cambie.
+          </p>
+          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:justify-center">
+            <button type="button" onClick={useSample} className="btn-primary px-4 text-sm">
+              ✨ Empezar con una de ejemplo
+            </button>
+            <button type="button" onClick={openCopy} className="btn-ghost px-4 text-sm">
+              ⧉ Copiar la semana de otro
+            </button>
             <button
               type="button"
-              onClick={() => {
-                const next = !mirrors;
-                setMirrors(next);
-                showMirrors(profile.id, next);
-                notify({
-                  message: next
-                    ? 'Lo de los peques, en tu semana.'
-                    : 'Sólo tus ratos. Vuelve a encenderlo cuando quieras.',
-                  icon: next ? '👨‍👩‍👦' : '🙈',
-                });
-              }}
-              aria-pressed={mirrors}
-              title={
-                mirrors
-                  ? 'Esconder los ratos de los peques que te tocan'
-                  : 'Ver los ratos de los peques que te tocan'
-              }
-              className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition
-                ${mirrors ? 'bg-accent-soft t-1' : 'surf-2 t-3 hover-soft'}`}
+              onClick={() => setEditing({ block: emptyBlock(today), isNew: true })}
+              className="btn-ghost px-4 text-sm"
             >
-              {mirrors ? '👁️ Se ven' : '🙈 Escondidos'}
+              ＋ Añadir el primer rato
             </button>
           </div>
-        )}
+        </section>
+      )}
 
-        {/* Con quién están los peques en la semana tipo */}
-        {kid && share.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
-            <span className="text-xs font-bold uppercase tracking-wide t-3">Con quién:</span>
-            {share.map(({ companion, minutes }) => (
-              <span key={companion} className="chip-soft">
-                <span aria-hidden>{COMPANIONS[companion].icon}</span>
-                {COMPANIONS[companion].short}
-                <span className="tabular-nums opacity-70">{durationLabel(minutes)}</span>
-              </span>
-            ))}
+      {/* Lo que la semana tipo dice de sí misma */}
+      {defined && (
+        <section className="card p-3 sm:p-4" aria-label="Resumen de la semana tipo">
+          {/* En un móvil, plegado: una línea con las cifras y el resto al
+              tocarla. Con pantalla se ve entero y esta línea no existe. */}
+          <button
+            type="button"
+            onClick={() => setSummaryOpen((value) => !value)}
+            aria-expanded={summaryOpen}
+            className="flex min-h-9 w-full items-center gap-2 text-left sm:hidden"
+          >
+            <span className="min-w-0 flex-1 truncate text-xs tabular-nums t-2">
+              <strong className="t-1">{review.blocks}</strong>{' '}
+              {review.blocks === 1 ? theme.blockWord : theme.blockWords} ·{' '}
+              <strong className="t-1">{filled}/7</strong> días ·{' '}
+              <strong className="t-1">{review.linked}</strong>{' '}
+              {review.linked === 1 ? 'atado' : 'atados'} ·{' '}
+              <strong className="t-1">
+                {judged > 0 ? `${Math.round((kept / judged) * 100)} %` : durationLabel(total)}
+              </strong>
+            </span>
+            <span
+              aria-hidden
+              className={`shrink-0 text-xs t-3 transition-transform ${summaryOpen ? 'rotate-180' : ''}`}
+            >
+              ▾
+            </span>
+          </button>
+
+          <div className={`${summaryOpen ? 'mt-3' : 'hidden'} sm:mt-0 sm:block`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Tile
+                value={`${review.blocks}`}
+                label={review.blocks === 1 ? theme.blockWord : theme.blockWords}
+                heading={heading}
+              />
+              <Tile value={`${filled}/7`} label="días con algo" heading={heading} />
+              <Tile
+                value={`${review.linked}`}
+                label={review.linked === 1 ? 'atado a un hábito' : 'atados a un hábito'}
+                heading={heading}
+              />
+              <Tile
+                value={judged > 0 ? `${Math.round((kept / judged) * 100)} %` : durationLabel(total)}
+                label={judged > 0 ? 'de lo vivido, cumplido' : 'apartados en la semana'}
+                heading={heading}
+              />
+            </div>
+
+            {/* Y aquí, y sólo aquí, entran las fechas: la semana tipo contra la
+                semana que se está viviendo. */}
+            {judged > 0 && (
+              <div className="mt-3 border-t pt-3 hairline">
+                <p className="text-xs t-3">
+                  Contra la semana del{' '}
+                  <strong className="tabular-nums t-2">{formatShort(dates[0])}</strong> al{' '}
+                  <strong className="tabular-nums t-2">{formatShort(dates[6])}</strong>: ✓ {kept}{' '}
+                  cumplidos · ✕ {missed} fallidos.
+                </p>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full track">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-500"
+                    style={{ width: `${Math.round((kept / judged) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* En qué se va la semana: la barra que contesta «¿dónde está mi
+                tiempo?» sin tener que sumar ochenta ratos a mano. */}
+            {shares.length > 1 && (
+              <div className="mt-3 border-t pt-3 hairline">
+                <div className="flex h-2.5 w-full overflow-hidden rounded-full track">
+                  {shares.map((item) => (
+                    <span
+                      key={item.kind}
+                      title={`${PLAN_KINDS[item.kind].label}: ${durationLabel(item.minutes)}`}
+                      className="h-full"
+                      style={{
+                      width: `${(item.minutes / Math.max(1, total)) * 100}%`,
+                      backgroundImage: gradientOf(kindPalette(item.kind), '90deg'),
+                    }}
+                    />
+                  ))}
+                </div>
+                {/* Y la leyenda es el filtro: picar en «Trabajo» apaga todo lo
+                    demás en la cuadrícula. En una semana de ochenta ratos es la
+                    única forma de mirar sólo una cosa. */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {focus !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setFocus(null)}
+                      className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 text-[11px] font-semibold t-1"
+                    >
+                      ✕ Ver todo
+                    </button>
+                  )}
+                  {shares.map((item) => (
+                    <button
+                      key={item.kind}
+                      type="button"
+                      onClick={() => setFocus(focus === item.kind ? null : item.kind)}
+                      aria-pressed={focus === item.kind}
+                      title={`Resaltar sólo ${PLAN_KINDS[item.kind].label.toLowerCase()}`}
+                      className={`inline-flex items-center gap-1 rounded-full px-1.5 text-[11px] transition
+                        ${focus === item.kind ? 'bg-accent-soft font-semibold t-1' : 't-3 hover-soft'}`}
+                    >
+                      <span
+                        aria-hidden
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundImage: gradientOf(kindPalette(item.kind)) }}
+                      />
+                      {PLAN_KINDS[item.kind].label}
+                      <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lo que a este perfil le toca de los peques. Sale de la semana de
+                Leo y de la de Hugo: lo que allí lleva «con mamá» —o «con los
+                dos»— aparece aquí, y aquí es donde se ve cuánto es.
+
+                Se reparte por **con quién se está** y no por peque: la natación
+                de los dos hermanos es una sola tarde, así que tiene su fila y no
+                se cuenta entera en la de cada uno. Con eso, las filas suman el
+                rato de verdad apartado, que es lo que se lee al lado. */}
+            {takes && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
+                <span className="text-xs font-bold uppercase tracking-wide t-3">Con los peques:</span>
+
+                {withKids.length > 0 ? (
+                  <>
+                    {withKids.map((item) => (
+                      <span
+                        key={item.id}
+                        className="chip-soft"
+                        title={`${item.count} ${item.count === 1 ? 'rato' : 'ratos'} con ${item.name} esta semana`}
+                      >
+                        <span
+                          aria-hidden
+                          className="-ml-0.5 h-3.5 w-1 shrink-0 rounded-full"
+                          style={{ backgroundImage: mirrorRail(item.kids) }}
+                        />
+                        <span aria-hidden>{item.avatar}</span>
+                        {item.name}
+                        <span className="tabular-nums opacity-70">{durationLabel(item.minutes)}</span>
+                      </span>
+                    ))}
+                    {withKids.length > 1 && (
+                      <span className="text-[11px] tabular-nums t-3">
+                        · {durationLabel(mirrorMinutes(borrowed))} en total
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs t-3">
+                    {mirrors
+                      ? 'Nada por ahora. En la semana de Leo y de Hugo, marca quién está con ellos en cada rato y saldrá aquí.'
+                      : 'Escondido ahora mismo.'}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !mirrors;
+                    setMirrors(next);
+                    showMirrors(profile.id, next);
+                    notify({
+                      message: next
+                        ? 'Lo de los peques, en tu semana.'
+                        : 'Sólo tus ratos. Vuelve a encenderlo cuando quieras.',
+                      icon: next ? '👨‍👩‍👦' : '🙈',
+                    });
+                  }}
+                  aria-pressed={mirrors}
+                  title={
+                    mirrors
+                      ? 'Esconder los ratos de los peques que te tocan'
+                      : 'Ver los ratos de los peques que te tocan'
+                  }
+                  className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition
+                    ${mirrors ? 'bg-accent-soft t-1' : 'surf-2 t-3 hover-soft'}`}
+                >
+                  {mirrors ? '👁️ Se ven' : '🙈 Escondidos'}
+                </button>
+              </div>
+            )}
+
+            {/* Con quién están los peques en la semana tipo */}
+            {kid && share.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3 hairline">
+                <span className="text-xs font-bold uppercase tracking-wide t-3">Con quién:</span>
+                {share.map(({ companion, minutes }) => (
+                  <span key={companion} className="chip-soft">
+                    <span aria-hidden>{COMPANIONS[companion].icon}</span>
+                    {COMPANIONS[companion].short}
+                    <span className="tabular-nums opacity-70">{durationLabel(minutes)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Lo guardado suelto, atable de un toque */}
       {(pending.linked > 0 || pending.filled > 0) && (
@@ -1040,7 +1119,7 @@ export function WeekPlanner({
                 role="tab"
                 aria-selected={shown === option.id}
                 onClick={() => setView(option.id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition
+                className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold transition
                   ${shown === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
               >
                 {option.label}
@@ -1062,7 +1141,7 @@ export function WeekPlanner({
                   aria-pressed={zoom === option.id}
                   aria-label={option.label}
                   title={option.label}
-                  className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition
+                  className={`min-h-9 rounded-full px-2.5 py-1.5 text-xs font-semibold transition
                     ${zoom === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
                 >
                   {option.icon}
@@ -1083,7 +1162,7 @@ export function WeekPlanner({
                   type="button"
                   onClick={() => setRange(option.id)}
                   aria-pressed={range === option.id}
-                  className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition
+                  className={`min-h-9 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition
                     ${range === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
                 >
                   {option.label}
@@ -1104,7 +1183,20 @@ export function WeekPlanner({
             </label>
           )}
 
-          <p className="w-full text-[11px] leading-relaxed t-3">
+          {/* La chuleta. En un móvil son sesenta palabras entre los botones y
+              la semana, así que va detrás de un «?» y se quita tocándolo otra
+              vez; con pantalla se lee del tirón, como siempre. */}
+          <button
+            type="button"
+            onClick={() => setTip((value) => !value)}
+            aria-expanded={tip}
+            aria-label={tip ? 'Cerrar la ayuda' : 'Cómo se usa'}
+            className="btn-ghost h-9 w-9 min-h-9 rounded-full p-0 text-xs font-bold sm:hidden"
+          >
+            {tip ? '✕' : '?'}
+          </button>
+
+          <p className={`w-full text-[11px] leading-relaxed t-3 ${tip ? '' : 'hidden sm:block'}`}>
             {shown === 'completa'
               ? 'Pica en un rato para cambiarlo y arrástralo para moverlo. Estíralo por arriba o por abajo para cambiar lo que dura —y con ello lo que se pretende dedicar al hábito—, arrástralo con Alt para copiarlo, y en su esquina tienes ⧉ para repetirlo y ✕ para quitarlo sin abrir nada.'
               : 'Aquí se aparta, se copia, se mueve y se vacía.'}
@@ -1113,7 +1205,7 @@ export function WeekPlanner({
       )}
 
       {/* Con un solo día en pantalla hay que poder elegir cuál */}
-      {defined && shown === 'completa' && range === 'dia' && (
+      {anything && shown === 'completa' && range === 'dia' && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Qué día">
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
             const count = blocksOfDay(plan, day).length;
@@ -1124,7 +1216,7 @@ export function WeekPlanner({
                 type="button"
                 onClick={() => setSoloDay(day)}
                 aria-pressed={active}
-                className={`btn min-h-0 border px-2.5 py-1 text-[11px] font-semibold
+                className={`btn min-h-9 border px-2.5 py-1 text-[11px] font-semibold
                   ${active ? 'bg-accent t-on-accent border-accent' : 'hairline surf-1 t-2 hover-soft'}
                   ${day === today && !active ? 'border-accent' : ''}`}
               >
@@ -1137,7 +1229,7 @@ export function WeekPlanner({
       )}
 
       {/* La semana tipo, entera */}
-      {shown === 'completa' && (
+      {anything && shown === 'completa' && (
         <section className={`${kid ? 'card-kid' : 'card'} p-3`} aria-label="La semana tipo entera">
           <WeekTimetable
             plan={shownPlan}
@@ -1178,7 +1270,7 @@ export function WeekPlanner({
       )}
 
       {/* Los siete días, para tocarlos */}
-      {shown === 'dias' && (
+      {defined && shown === 'dias' && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
             const blocks = blocksOfDay(plan, day);
@@ -1303,7 +1395,7 @@ export function WeekPlanner({
                             onClick={() => setSheet({ kind: 'block', block })}
                             aria-label={`Copiar o mover «${block.title}»`}
                             title="Copiar, repetir o mover"
-                            className="btn-ghost min-h-0 shrink-0 px-2 py-0 text-xs"
+                            className="btn-ghost shrink-0 px-2 py-0 text-xs"
                           >
                             ⧉
                           </button>
@@ -1316,7 +1408,7 @@ export function WeekPlanner({
                             onClick={() => remove(block)}
                             aria-label={`Quitar «${block.title}»`}
                             title="Quitar de la semana (se puede deshacer)"
-                            className="btn-ghost min-h-0 shrink-0 px-2 py-0 text-xs"
+                            className="btn-ghost shrink-0 px-2 py-0 text-xs"
                           >
                             ✕
                           </button>
@@ -1357,11 +1449,11 @@ export function WeekPlanner({
                   </ul>
                 )}
 
-                <div className="mt-2 flex items-center gap-1">
+                <div className="mt-2 flex flex-wrap items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setEditing({ block: emptyBlock(day), isNew: true })}
-                    className="btn-ghost min-h-0 flex-1 px-2 py-1.5 text-xs"
+                    className="btn-ghost flex-1 px-2 py-1.5 text-xs"
                   >
                     ＋ Añadir
                   </button>
@@ -1370,20 +1462,25 @@ export function WeekPlanner({
                     onClick={() => setSheet({ kind: 'day', day })}
                     aria-label={`Copiar o mover el ${DAY_NAMES[day].toLowerCase()}`}
                     title="Copiar, mover o intercambiar el día"
-                    className="btn-ghost min-h-0 px-2 py-1.5 text-xs"
+                    className="btn-ghost px-2 py-1.5 text-xs"
                   >
                     ⧉
                   </button>
+                  {/* Vaciar un día entero se pregunta en el sitio: un toque de
+                      más al lado de «copiar» no puede llevarse la tarde. El
+                      «deshacer» del aviso sigue detrás, por si acaso. */}
                   {blocks.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => clearDay(day)}
-                      aria-label={`Vaciar el ${DAY_NAMES[day].toLowerCase()}`}
+                    <ConfirmButton
+                      question={`¿Vaciar el ${DAY_NAMES[day].toLowerCase()}?`}
+                      onConfirm={() => clearDay(day)}
+                      confirmLabel="Sí, vaciarlo"
                       title="Vaciar el día"
-                      className="btn-ghost min-h-0 px-2 py-1.5 text-xs"
+                      className="btn-ghost px-2 py-1.5 text-xs"
+                      confirmClassName="btn-danger px-2 py-1.5 text-xs"
                     >
-                      🧹
-                    </button>
+                      <span aria-hidden>🧹</span>
+                      <span className="sr-only">Vaciar el {DAY_NAMES[day].toLowerCase()}</span>
+                    </ConfirmButton>
                   )}
                 </div>
               </article>
@@ -1431,35 +1528,44 @@ export function WeekPlanner({
         </section>
       )}
 
-      {/* Lo que se puede hacer con la semana entera */}
-      <section className="card flex flex-wrap items-center gap-x-2 gap-y-2 p-3">
-        <p className="text-xs font-bold uppercase tracking-wide t-3">La semana entera</p>
+      {/* Lo que se puede hacer con la semana entera. Sin semana, esto es la
+          tarjeta de arriba; con ella, lo que la rehace o la vacía pregunta
+          antes, porque son ochenta ratos de un toque y el «deshacer» del
+          aviso se va a los pocos segundos. */}
+      {defined && (
+        <section className="card flex flex-wrap items-center gap-x-2 gap-y-2 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide t-3">La semana entera</p>
 
-        <button type="button" onClick={useSample} className="btn-ghost px-3 py-1.5 text-xs">
-          ✨ {defined ? 'Rehacer con la de ejemplo' : 'Empezar con una de ejemplo'}
-        </button>
+          <ConfirmButton
+            question="¿Rehacer toda la semana con la de ejemplo?"
+            onConfirm={useSample}
+            confirmLabel="Sí, rehacerla"
+          >
+            ✨ Rehacer con la de ejemplo
+          </ConfirmButton>
 
-        <button type="button" onClick={openCopy} className="btn-ghost px-3 py-1.5 text-xs">
-          ⧉ Copiar la semana de otro
-        </button>
+          <button type="button" onClick={openCopy} className="btn-ghost px-3 py-1.5 text-xs">
+            ⧉ Copiar la semana de otro
+          </button>
 
-        {defined && (
           <button type="button" onClick={relink} className="btn-ghost px-3 py-1.5 text-xs">
             🔗 Atar a los hábitos
           </button>
-        )}
 
-        {defined && (
-          <button type="button" onClick={clearWeek} className="btn-ghost px-3 py-1.5 text-xs">
+          <ConfirmButton
+            question="¿Vaciar toda la semana?"
+            onConfirm={clearWeek}
+            confirmLabel="Sí, vaciarla"
+          >
             🧹 Vaciar la semana
-          </button>
-        )}
+          </ConfirmButton>
 
-        <p className="w-full text-[11px] leading-relaxed t-3 sm:w-auto sm:flex-1">
-          No se rehace cada lunes: se define una vez y se repite hasta que se cambie. Lo que ocurre
-          un solo día va en Tareas, que tiene fecha y se tacha.
-        </p>
-      </section>
+          <p className="w-full text-[11px] leading-relaxed t-3 sm:w-auto sm:flex-1">
+            No se rehace cada lunes: se define una vez y se repite hasta que se cambie. Lo que
+            ocurre un solo día va en Tareas, que tiene fecha y se tacha.
+          </p>
+        </section>
+      )}
 
       {/* Qué significa cada marca. Sólo cuando hay algo marcado: en una
           semana tipo recién definida no marca nada y sobra. */}
@@ -1632,8 +1738,7 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
             aria-hidden
             className="absolute inset-x-0 top-0 h-1.5"
             style={{
-              background:
-                'linear-gradient(90deg, rgba(255,255,255,0.9), #febe10 45%, #febe10 55%, rgba(255,255,255,0.9))',
+              background: `linear-gradient(90deg, rgba(255,255,255,0.9), ${SKIN_GOLD.pitch} 45%, ${SKIN_GOLD.pitch} 55%, rgba(255,255,255,0.9))`,
             }}
           />
           {/* Círculo central del campo. */}
@@ -1655,8 +1760,7 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
           aria-hidden
           className="absolute inset-x-6 top-0 h-px"
           style={{
-            background:
-              'linear-gradient(90deg, transparent, #d4af37 30%, #f4e2a1 50%, #d4af37 70%, transparent)',
+            background: `linear-gradient(90deg, transparent, ${SKIN_GOLD.leaf} 30%, ${SKIN_GOLD.pale} 50%, ${SKIN_GOLD.leaf} 70%, transparent)`,
           }}
         />
       )}
@@ -1697,7 +1801,7 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
             aria-hidden
             className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 font-display text-lg
                        t-1 surf-2"
-            style={{ borderColor: '#febe10' }}
+            style={{ borderColor: SKIN_GOLD.pitch }}
           >
             {profile.squad}
           </span>

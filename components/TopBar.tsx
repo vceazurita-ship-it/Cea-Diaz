@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { SyncBadge } from '@/components/cloud/SyncBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAppearance } from '@/hooks/useAppearance';
+import type { CloudState } from '@/hooks/useHabitStore';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useTheme } from '@/hooks/useTheme';
 import { PROFILES, accentFor, accentStyle } from '@/lib/profiles';
@@ -16,6 +18,9 @@ interface TopBarProps {
   lockedIds?: ProfileId[];
   /** Abre el editor de fotos y sintonía del perfil activo. */
   onCustomize?: () => void;
+  /** El estado de la nube, para decirlo en la barra; tocarlo abre sus ajustes. */
+  cloud?: CloudState;
+  onOpenCloud?: () => void;
 }
 
 export function TopBar({
@@ -24,6 +29,8 @@ export function TopBar({
   onHome,
   lockedIds = [],
   onCustomize,
+  cloud,
+  onOpenCloud,
 }: TopBarProps) {
   const { dress } = useAppearance();
   const { mode } = useTheme();
@@ -104,6 +111,8 @@ export function TopBar({
             );
           })}
         </div>
+
+        {cloud && onOpenCloud && <SyncBadge cloud={cloud} onOpen={onOpenCloud} className="hidden sm:inline-flex" />}
 
         <ThemeToggle className="h-11 px-2.5" />
 

@@ -229,7 +229,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
       </div>
 
       {abierto && reto && estado && (
-        <Modal title={`${estado.meta.icon} Reto de ${estado.meta.nombre}`} size="lg" onClose={() => setAbierto(null)}>
+        <Modal title={`${estado.meta.icon} Reto de ${estado.meta.nombre}`} size="lg" dismissible={false} onClose={() => setAbierto(null)}>
           {!presentado && idea ? (
             <Presentacion titulo={reto.temas[0].titulo} idea={idea} onStart={() => setPresentado(true)} />
           ) : index >= total ? (

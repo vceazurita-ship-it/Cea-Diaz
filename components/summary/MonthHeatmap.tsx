@@ -1,6 +1,6 @@
 'use client';
 
-import { formatShort, isFuture, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
+import { formatShort, isFuture, isToday, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
 import { percent } from '@/lib/scoring';
 import type { DayScore } from '@/types';
 
@@ -50,24 +50,31 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
           // Igual que en la tira de la semana: los días que aún no han
           // llegado se ven, para que el mes esté completo, pero no se abren.
           const future = isFuture(day.date);
+          const today = isToday(day.date);
           const state = future
             ? 'todavía no ha llegado'
             : day.empty
               ? 'sin registro'
               : percent(day.ratio);
+          const name = today ? `${formatShort(day.date)}, hoy` : formatShort(day.date);
 
+          // Hoy lleva un anillo de acento: en un mes a medias, la casilla de
+          // hoy es la que se busca primero y antes no se distinguía de las de
+          // ayer. El hueco entre casillas mide 6 px y el anillo con su
+          // separación, 3: no se pisa con las vecinas.
           return (
             <button
               key={day.date}
               type="button"
               disabled={future}
               onClick={() => onSelectDay?.(day.date)}
-              title={`${formatShort(day.date)} · ${state}`}
-              aria-label={`${formatShort(day.date)}, ${state}`}
+              title={`${name} · ${state}`}
+              aria-label={`${name}, ${state}`}
               className={`flex aspect-square items-center justify-center rounded-lg text-[11px]
                          font-semibold tabular-nums transition-transform
                          ${future ? 'cursor-not-allowed opacity-40' : 'hover:scale-110'}
-                         ${day.empty ? 'surf-2 t-3' : 't-1'}`}
+                         ${day.empty ? 'surf-2 t-3' : 't-1'}
+                         ${today ? 'ring-2 ring-[var(--accent)] ring-offset-1 ring-offset-[var(--bg-2)]' : ''}`}
               style={day.empty ? undefined : { backgroundColor: fillFor(day.ratio) }}
             >
               {Number(day.date.slice(-2))}

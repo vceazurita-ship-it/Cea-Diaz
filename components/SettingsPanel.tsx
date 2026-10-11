@@ -690,8 +690,15 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
       <div
         role="tablist"
         aria-label="Apartados de los ajustes"
-        className="sticky top-0 z-10 -mx-5 -mt-1 mb-4 flex gap-1 overflow-x-auto px-5 pb-2 pt-1
+        className="sticky top-[var(--modal-head,5rem)] z-10 -mx-5 -mt-1 mb-4 flex gap-1 overflow-x-auto px-5 pb-2 pt-1
                    surf-raised"
+        // La máscara difumina los extremos: en el móvil ocho apartados no
+        // caben, y sin esto nada decía que la tira seguía.
+        style={{
+          scrollbarWidth: 'none',
+          maskImage: 'linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%)',
+        }}
         onKeyDown={(event) => {
           const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
           if (delta === 0) return;

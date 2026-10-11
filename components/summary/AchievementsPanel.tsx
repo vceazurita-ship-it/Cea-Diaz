@@ -37,7 +37,9 @@ export function AchievementsPanel({ achievements, playful = false }: Achievement
               >
                 {achievement.label}
               </p>
-              <p className="truncate text-[11px] t-3">{achievement.description}</p>
+              {/* Dos líneas y no una cortada: la descripción es lo que dice
+                  cómo se consigue el logro, y truncada no decía nada. */}
+              <p className="line-clamp-2 text-[11px] leading-snug t-3">{achievement.description}</p>
 
               {!achievement.unlocked && (
                 <div className="mt-1.5 flex items-center gap-2">
@@ -55,8 +57,9 @@ export function AchievementsPanel({ achievements, playful = false }: Achievement
             </div>
 
             {achievement.unlocked && (
-              <span className="shrink-0 text-xs font-black t-accent" aria-label="conseguido">
-                ✓
+              <span className="shrink-0 text-xs font-black t-accent">
+                <span aria-hidden>✓</span>
+                <span className="sr-only">conseguido</span>
               </span>
             )}
           </div>

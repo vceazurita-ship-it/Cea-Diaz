@@ -1,6 +1,10 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  // El modo lo elige la casa (`data-mode` en <html> y en <main>), no el
+  // sistema: sin esto, un `dark:` seguía al sistema y pintaba el contraste
+  // del revés cuando la app iba en noche y el móvil en día, o al contrario.
+  darkMode: ['selector', '[data-mode="dark"]'],
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',

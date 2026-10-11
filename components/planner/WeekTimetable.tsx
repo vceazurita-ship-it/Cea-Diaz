@@ -97,6 +97,20 @@ const MIN_DURATION = 10;
  *    la cuadrícula en algo de adulto sin perder el código de color.
  * ------------------------------------------------------------------------- */
 
+/**
+ * Los oros de las pieles: el del escudo en el campo, el del filete de María
+ * y su versión en rosa. No son del tema sino de la casa, así que no cambian
+ * con el modo; se leen de una variable para que el día que vivan en
+ * `globals.css` manden desde allí, y mientras tanto va de reserva el valor de
+ * siempre.
+ */
+export const SKIN_GOLD = {
+  pitch: 'var(--gold-pitch, #febe10)',
+  leaf: 'var(--gold-leaf, #d4af37)',
+  pale: 'var(--gold-pale, #f4e2a1)',
+  rose: 'var(--gold-rose, #e8b4b8)',
+} as const;
+
 interface Look {
   /** Relleno de la pastilla: color entero o papel con velo. */
   fill: 'solid' | 'wash';
@@ -121,7 +135,7 @@ const LOOKS: Record<PlanOrnament, Look> = {
     chip: 'rounded-xl border-2 border-white/60 shadow-md',
     title: 'font-display uppercase tracking-wide',
     turf: true,
-    rail: 'linear-gradient(90deg, rgba(255,255,255,0.85), #febe10 45%, #febe10 55%, rgba(255,255,255,0.85))',
+    rail: `linear-gradient(90deg, rgba(255,255,255,0.85), ${SKIN_GOLD.pitch} 45%, ${SKIN_GOLD.pitch} 55%, rgba(255,255,255,0.85))`,
     head: 'font-display uppercase tracking-wide',
   },
   gold: {
@@ -130,7 +144,7 @@ const LOOKS: Record<PlanOrnament, Look> = {
     chip: 'rounded-2xl border shadow-sm',
     title: 'font-display',
     turf: false,
-    rail: 'linear-gradient(90deg, transparent, #d4af37 30%, #f4e2a1 50%, #d4af37 70%, transparent)',
+    rail: `linear-gradient(90deg, transparent, ${SKIN_GOLD.leaf} 30%, ${SKIN_GOLD.pale} 50%, ${SKIN_GOLD.leaf} 70%, transparent)`,
     head: 'font-display tracking-wide',
   },
   /* El de María: el mismo oro, en rosa, y las columnas rotuladas despacio. */
@@ -140,7 +154,7 @@ const LOOKS: Record<PlanOrnament, Look> = {
     chip: 'rounded-2xl border shadow-sm',
     title: 'royal-title',
     turf: false,
-    rail: 'linear-gradient(90deg, transparent, #e8b4b8 20%, #f4e2a1 50%, #e8b4b8 80%, transparent)',
+    rail: `linear-gradient(90deg, transparent, ${SKIN_GOLD.rose} 20%, ${SKIN_GOLD.pale} 50%, ${SKIN_GOLD.rose} 80%, transparent)`,
     head: 'royal-title tracking-wide',
   },
   steel: {
@@ -597,7 +611,7 @@ export function WeekTimetable({
             type="button"
             onClick={() => setHandMode((value) => !value)}
             aria-pressed={handMode}
-            className={`btn min-h-0 border px-2.5 py-1 text-[11px] font-semibold
+            className={`btn border px-2.5 py-1 text-[11px] font-semibold
               ${handMode ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
           >
             ✋ {handMode ? 'Arrastrando' : 'Arrastrar ratos'}
@@ -616,8 +630,12 @@ export function WeekTimetable({
           style={{ minWidth: shownDays.length * minColumn + 40 }}
           onPointerUp={abort}
         >
-          {/* Regla de horas */}
-          <div className="w-9 shrink-0">
+          {/* Regla de horas. Se queda pegada a la izquierda mientras la
+              semana se desplaza: sin ella, a la tercera columna ya no se sabe
+              si lo que se mira son las cinco o las siete. Lleva fondo y va por
+              encima de todo, incluido lo que se arrastra, para que ningún rato
+              pase por debajo medio tapado. */}
+          <div className="sticky left-0 z-40 w-9 shrink-0 surf-raised">
             <div style={{ height: HEAD }} />
             <div className="relative" style={{ height }}>
               {hours.map((minute) => (
@@ -1145,9 +1163,13 @@ export function WeekTimetable({
                         {/* Copiar y quitar sin abrir nada. Es lo que convierte
                             rellenar la semana en un rato en vez de en una
                             sesión de formularios. */}
+                        {/* Cada botón es un cuadrado de 32 px donde picar y
+                            una ficha de 20 px que se ve: el dedo necesita lo
+                            primero y la pastilla no tiene sitio para que lo
+                            segundo crezca. */}
                         {showTools && (
                           <span
-                            className={`rato-util absolute right-0.5 top-0.5 z-10 flex gap-0.5 transition-opacity
+                            className={`rato-util absolute right-0 top-0 z-10 flex transition-opacity
                               group-hover:opacity-100 group-focus-within:opacity-100
                               ${toolsOn ? 'opacity-100' : 'opacity-0'}`}
                           >
@@ -1170,10 +1192,15 @@ export function WeekTimetable({
                                 }}
                                 aria-label={`Repetir «${block.title || 'el rato'}»`}
                                 title="Repetir detrás (o arrástralo con Alt)"
-                                className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
-                                  ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'} hover:brightness-125`}
+                                className="grid h-8 w-8 place-items-center hover:brightness-125"
                               >
-                                ⧉
+                                <span
+                                  aria-hidden
+                                  className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
+                                    ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'}`}
+                                >
+                                  ⧉
+                                </span>
                               </button>
                             )}
                             {onDelete && (
@@ -1186,17 +1213,29 @@ export function WeekTimetable({
                                 }}
                                 aria-label={`Quitar «${block.title || 'el rato'}»`}
                                 title="Quitar de la semana (se puede deshacer)"
-                                className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
-                                  ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'} hover:brightness-125`}
+                                className="grid h-8 w-8 place-items-center hover:brightness-125"
                               >
-                                ✕
+                                <span
+                                  aria-hidden
+                                  className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
+                                    ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'}`}
+                                >
+                                  ✕
+                                </span>
                               </button>
                             )}
                           </span>
                         )}
 
-                        {/* El tirador de arriba: empezar antes sin tocar el final */}
-                        {onResize && !borrowed && box >= 34 && (
+                        {/* Los tiradores. Con ratón bastan ocho píxeles; con el
+                            dedo se queda en catorce, y entonces sólo salen en
+                            pastillas con alto de sobra, porque entre los dos
+                            no pueden comerse el sitio por el que se arrastra
+                            el rato. Y como con el dedo no hay «pasar por
+                            encima», se enseñan mientras esté puesto el modo de
+                            arrastrar. */}
+                        {/* El de arriba: empezar antes sin tocar el final */}
+                        {onResize && !borrowed && box >= (coarse ? 48 : 34) && (
                           <span
                             role="presentation"
                             onPointerDown={start(block, 'head')}
@@ -1204,18 +1243,19 @@ export function WeekTimetable({
                             onPointerUp={finish(block)}
                             onPointerCancel={abort}
                             style={{ touchAction: handMode ? 'none' : 'manipulation' }}
-                            className="absolute left-1/4 right-1/4 top-0 h-2 cursor-ns-resize opacity-0
-                                       transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                            className={`absolute left-1/4 right-1/4 top-0 flex cursor-ns-resize items-start justify-center
+                                       transition-opacity group-hover:opacity-100 group-focus-within:opacity-100
+                                       ${coarse ? 'h-3.5' : 'h-2'} ${coarse && handMode ? 'opacity-100' : 'opacity-0'}`}
                           >
                             <span
-                              className={`mx-auto mb-0.5 block h-0.5 w-6 rounded-full
+                              className={`mt-0.5 block h-0.5 w-6 rounded-full
                                 ${wash ? 'bg-[color:var(--border-strong)]' : 'bg-white/80'}`}
                             />
                           </span>
                         )}
 
-                        {/* El tirador de abajo: estirar para que dure más */}
-                        {onResize && !borrowed && box >= 26 && (
+                        {/* El de abajo: estirar para que dure más */}
+                        {onResize && !borrowed && box >= (coarse ? 34 : 26) && (
                           <span
                             role="presentation"
                             onPointerDown={start(block, 'resize')}
@@ -1223,11 +1263,12 @@ export function WeekTimetable({
                             onPointerUp={finish(block)}
                             onPointerCancel={abort}
                             style={{ touchAction: handMode ? 'none' : 'manipulation' }}
-                            className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize opacity-0
-                                       transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                            className={`absolute inset-x-0 bottom-0 flex cursor-ns-resize items-end justify-center
+                                       transition-opacity group-hover:opacity-100 group-focus-within:opacity-100
+                                       ${coarse ? 'h-3.5' : 'h-2'} ${coarse && handMode ? 'opacity-100' : 'opacity-0'}`}
                           >
                             <span
-                              className={`mx-auto mt-0.5 block h-0.5 w-6 rounded-full
+                              className={`mb-0.5 block h-0.5 w-6 rounded-full
                                 ${wash ? 'bg-[color:var(--border-strong)]' : 'bg-white/80'}`}
                             />
                           </span>

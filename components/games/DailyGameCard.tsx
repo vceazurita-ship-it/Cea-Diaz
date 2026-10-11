@@ -307,7 +307,7 @@ export function DailyGameCard({
 
       {/* ------------------------------------------------------- la partida */}
       {open && (
-        <Modal title={round.title} size="lg" onClose={() => setOpen(false)}>
+        <Modal title={round.title} size="lg" dismissible={false} onClose={() => setOpen(false)}>
           {index >= total ? (
             <Scoreboard
               correct={correct}
@@ -343,7 +343,7 @@ export function DailyGameCard({
 
       {/* ----------------------------------------------------- la tanda */}
       {shooting && onPenalty && (
-        <Modal title="Penaltis contra Benji" size="lg" onClose={() => setShooting(false)}>
+        <Modal title="Penaltis contra Benji" size="lg" dismissible={false} onClose={() => setShooting(false)}>
           <PenaltyShootout
             profileId={profile.id}
             name={profile.name}

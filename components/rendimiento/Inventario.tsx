@@ -1,10 +1,11 @@
 'use client';
 
-import { reportsFor } from '@/lib/academics';
+import { reportsFor, type ReportCard } from '@/lib/academics';
 import { cogFor } from '@/lib/cognitive';
+import { todayKey } from '@/lib/dates';
 import { testsFor } from '@/lib/fitness';
 import { PROFILES } from '@/lib/profiles';
-import type { DayEntry, ProfileId } from '@/types';
+import type { DateKey, DayEntry, ProfileId } from '@/types';
 
 /* =========================================================================
  *  Qué hay cargado y qué falta, de los dos.
@@ -21,8 +22,6 @@ import type { DayEntry, ProfileId } from '@/types';
 
 interface InventarioProps {
   entries: Record<string, DayEntry>;
-  /** El color del perfil en cuyo panel se está, para el botón. */
-  accent: string;
   onSubir: () => void;
 }
 
@@ -36,12 +35,38 @@ interface Fila {
   detalle: string;
   /** Con cuántos se considera completo. */
   minimo: number;
+  /**
+   * Si lo que hay sirve todavía. Un boletín del curso pasado cuenta como
+   * boletín, pero no como el boletín que se espera: el de este curso.
+   */
+  vigente: boolean;
+}
+
+/**
+ * Curso escolar al que pertenece una fecha, por su año de inicio: de
+ * septiembre a agosto. Octubre de 2026 es el curso 2026; junio de 2026, el
+ * de 2025.
+ */
+function cursoDe(date: DateKey): number {
+  const [year, month] = date.split('-').map(Number);
+  return month >= 9 ? year : year - 1;
+}
+
+/**
+ * El curso de un boletín, por lo que escribe el colegio («25-26» → 2025). Si
+ * no se entiende, vale el curso del día en que se guardó, que es lo más
+ * parecido a cuándo llegó a casa.
+ */
+function cursoDelBoletin(report: ReportCard): number {
+  const match = /^(\d{2})-\d{2}$/.exec(report.course);
+  return match ? 2000 + Number(match[1]) : cursoDe(report.date);
 }
 
 function filasDe(entries: Record<string, DayEntry>, profileId: ProfileId): Fila[] {
   const tests = testsFor(entries, profileId);
   const reports = reportsFor(entries, profileId);
   const cogs = cogFor(entries, profileId);
+  const cursoActual = cursoDe(todayKey());
 
   return [
     {
@@ -56,6 +81,7 @@ function filasDe(entries: Record<string, DayEntry>, profileId: ProfileId): Fila[
             ? `una, de ${tests[0].date.slice(0, 4)}`
             : 'sin ninguna',
       minimo: 1,
+      vigente: true,
     },
     {
       id: 'colegio',
@@ -64,6 +90,10 @@ function filasDe(entries: Record<string, DayEntry>, profileId: ProfileId): Fila[
       cuantos: reports.length,
       detalle: reports.length ? `curso ${reports[0].course || reports[0].date.slice(0, 4)}` : 'sin ninguno',
       minimo: 1,
+      // El boletín del curso pasado ya se subió en su día; lo que se pregunta
+      // aquí es si está el de este curso. Sin esto, septiembre decía «están
+      // todos» con el boletín de junio.
+      vigente: reports.some((report) => cursoDelBoletin(report) === cursoActual),
     },
     {
       id: 'cabeza',
@@ -72,23 +102,30 @@ function filasDe(entries: Record<string, DayEntry>, profileId: ProfileId): Fila[
       cuantos: cogs.length,
       detalle: cogs.length ? `de ${cogs[0].date.slice(0, 4)}` : 'sin cargar',
       minimo: 1,
+      vigente: true,
     },
   ];
 }
 
-export function Inventario({ entries, accent, onSubir }: InventarioProps) {
+/** Lo que hay cumple, lo que hay se quedó viejo, o no hay nada. */
+function estadoDe(fila: Fila): 'hay' | 'viejo' | 'falta' {
+  if (fila.cuantos < fila.minimo) return 'falta';
+  return fila.vigente ? 'hay' : 'viejo';
+}
+
+export function Inventario({ entries, onSubir }: InventarioProps) {
   const ninos = PROFILES.filter((profile) => profile.kind === 'kid');
   const tablero = ninos.map((profile) => ({ profile, filas: filasDe(entries, profile.id) }));
   const faltan = tablero.reduce(
-    (sum, { filas }) => sum + filas.filter((fila) => fila.cuantos < fila.minimo).length,
+    (sum, { filas }) => sum + filas.filter((fila) => estadoDe(fila) !== 'hay').length,
     0,
   );
 
   return (
-    <section className={`rounded-2xl border p-3 ${faltan > 0 ? 'border-amber-500/40 bg-amber-500/10' : 'hairline surf-1'}`}>
+    <section className={`card p-4 ${faltan > 0 ? 'bg-accent-faint' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-[13px] font-black t-1">
+          <h4 className="text-sm font-black t-1">
             {faltan === 0 ? '✅ Los informes están todos' : `📥 Faltan ${faltan} por subir`}
           </h4>
           <p className="mt-0.5 text-[11px] leading-snug t-3">
@@ -97,33 +134,31 @@ export function Inventario({ entries, accent, onSubir }: InventarioProps) {
               : 'Suelta la carpeta entera y cada informe va a su sitio, de los dos niños a la vez.'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onSubir}
-          className="shrink-0 rounded-xl px-3 py-1.5 text-[12px] font-black text-white"
-          style={{ backgroundColor: accent }}
-        >
+        <button type="button" onClick={onSubir} className="btn-primary shrink-0 px-3 text-xs">
           📁 Subir
         </button>
       </div>
 
-      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {tablero.map(({ profile, filas }) => (
           <div key={profile.id} className="rounded-xl border p-2 hairline surf-1">
+            {/* El nombre va en el color de cada niño y no en el acento del
+                panel: aquí se habla de los dos a la vez. */}
             <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: profile.accentDeep ?? profile.accent }}>
               {profile.name}
             </p>
             <ul className="mt-1 space-y-1">
               {filas.map((fila) => {
-                const hay = fila.cuantos >= fila.minimo;
+                const estado = estadoDe(fila);
+                const hay = estado === 'hay';
                 return (
                   <li key={fila.id} className="flex items-center gap-2 text-[11px]">
-                    <span aria-hidden className={hay ? '' : 'opacity-40'}>
+                    <span aria-hidden className={estado === 'falta' ? 'opacity-40' : ''}>
                       {fila.icon}
                     </span>
                     <span className={`min-w-0 flex-1 truncate ${hay ? 't-2' : 't-3'}`}>{fila.label}</span>
-                    <span className={`shrink-0 font-black ${hay ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                      {hay ? fila.detalle : 'falta'}
+                    <span className={`shrink-0 font-black ${hay ? 't-accent' : 't-danger'}`}>
+                      {estado === 'hay' ? fila.detalle : estado === 'viejo' ? 'del curso pasado' : 'falta'}
                     </span>
                   </li>
                 );

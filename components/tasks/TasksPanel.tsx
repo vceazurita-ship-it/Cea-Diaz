@@ -2,7 +2,7 @@
 
 import { headingFont } from '@/lib/profiles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarAccount } from '@/components/tasks/CalendarAccount';
+import { CalendarAccount, type CalendarAvailability } from '@/components/tasks/CalendarAccount';
 import { MonthGrid } from '@/components/tasks/MonthGrid';
 import { SpreadTasks } from '@/components/tasks/SpreadTasks';
 import { TaskComposer } from '@/components/tasks/TaskComposer';
@@ -59,7 +59,9 @@ interface TasksPanelProps {
 }
 
 export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: TasksPanelProps) {
-  const [available, setAvailable] = useState(false);
+  // Hasta que `/api/calendario` contesta no se sabe si hay Google: ni se
+  // pinta como que no lo hay ni se decide sobre lo que se apunte mientras.
+  const [status, setStatus] = useState<CalendarAvailability>('loading');
   const [reason, setReason] = useState<string | undefined>();
   const [links, setLinks] = useState<CalendarLink[]>([]);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -79,7 +81,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
 
   const refreshStatus = useCallback(async () => {
     const state = await calendar.status();
-    setAvailable(state.configured);
+    setStatus(state.configured ? 'ready' : 'off');
     setReason(state.reason);
     setLinks(state.links);
   }, []);
@@ -90,6 +92,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
 
   const link = links.find((item) => item.profileId === profile.id);
   const linked = Boolean(link);
+  const unknown = status === 'loading';
 
   const tasks = store.getTasks(profile.id);
   const pending = dueCount(tasks);
@@ -207,6 +210,27 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
     })();
   }, [linked, profile.id, push, store]);
 
+  /**
+   * Lo apuntado mientras aún no se sabía si había cuenta. Si al final no la
+   * hay, se le quita la marca de pendiente: un «se mandará al calendario»
+   * en un perfil sin calendario sería una promesa que nadie va a cumplir.
+   * Si la hay, el reintento de arriba se encarga, como de lo demás.
+   */
+  const blind = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (unknown) return;
+    const ids = blind.current;
+    blind.current = [];
+    if (linked || ids.length === 0) return;
+
+    for (const task of store.getTasks(profile.id)) {
+      if (ids.includes(task.id) && task.calendarPending) {
+        store.saveTask({ ...task, calendarPending: undefined });
+      }
+    }
+  }, [unknown, linked, profile.id, store]);
+
   /* ----------------------------------------------------------- altas */
 
   const add = async (draft: TaskDraft) => {
@@ -215,13 +239,21 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
     // Con cuenta enlazada, lo que tiene fecha va al calendario sin pedirlo
     // otra vez: es justamente para eso para lo que se conectó. Se marca como
     // pendiente *antes* de intentarlo, para que quede constancia aunque la
-    // app se cierre a mitad de camino.
-    const shouldSend = linked && canGoToCalendar(created);
+    // app se cierre a mitad de camino. Si todavía no se sabe si hay cuenta,
+    // se marca igual y se deja para el reintento: lo contrario era perder
+    // en silencio lo apuntado en el primer segundo tras abrir la sección.
+    const shouldSend = (linked || unknown) && canGoToCalendar(created);
     const task = shouldSend ? { ...created, calendarPending: true } : created;
     store.saveTask(task);
 
     if (!shouldSend) {
       notify({ message: 'Apuntado.', icon: '📝' });
+      return;
+    }
+
+    if (unknown) {
+      blind.current.push(task.id);
+      notify({ message: 'Apuntado. Irá al calendario en cuanto se pueda.', icon: '📝' });
       return;
     }
 
@@ -458,7 +490,14 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
         })}
       </div>
 
-      <TaskComposer kid={kid} onSubmit={add} />
+      {/* En el calendario, lo nuevo nace en el día que se está mirando; la
+          clave hace que el formulario se rehaga al cambiar de día. */}
+      <TaskComposer
+        key={view === 'calendario' ? focusDay : 'lista'}
+        kid={kid}
+        defaultDue={view === 'calendario' ? focusDay : undefined}
+        onSubmit={add}
+      />
 
       {view === 'calendario' ? (
         <div className="space-y-3">
@@ -534,7 +573,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
       <CalendarAccount
         profile={profile}
         kid={kid}
-        available={available}
+        status={status}
         reason={reason}
         link={link}
         onChanged={() => void refreshStatus()}
@@ -545,6 +584,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
           <TaskComposer
             task={editing}
             kid={kid}
+            bare
             onSubmit={(draft) => void applyEdit(draft)}
             onCancel={() => setEditing(null)}
           />

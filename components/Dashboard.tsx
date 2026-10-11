@@ -344,20 +344,22 @@ export function Dashboard({
     [profile, store.entries, date],
   );
 
-  const tabs: Array<{ id: DashboardTab; label: string; icon: string }> =
+  // `short` es el nombre para la barra del móvil, donde seis pestañas se
+  // reparten 390 px: «Estadísticas» no cabe, «Datos» sí.
+  const tabs: Array<{ id: DashboardTab; label: string; icon: string; short?: string }> =
     skin === 'pitch'
       ? [
           { id: 'today', label: 'Partido', icon: '⚽' },
           { id: 'plan', label: 'Semana', icon: '🗓️' },
           { id: 'challenges', label: 'Retos', icon: '🎯' },
           { id: 'tasks', label: 'Recados', icon: '📋' },
-          { id: 'summary', label: 'Estadísticas', icon: '📊' },
+          { id: 'summary', label: 'Estadísticas', icon: '📊', short: 'Datos' },
           /**
            * Lo que se le mide: los partidos con el rastreador, las pruebas
            * físicas y el colegio. Sólo está donde hay algo que medir: en los
            * paneles de Leo y de Hugo.
            */
-          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'Rendimiento', icon: '📈' }] : []),
+          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'Rendimiento', icon: '📈', short: 'Medidas' }] : []),
         ]
       : // El panel de María se lee como un cuento, y sus secciones también:
         // el día es su jornada, la semana su reino, los retos sus deseos.
@@ -367,7 +369,7 @@ export function Dashboard({
             { id: 'plan', label: 'Mi semana', icon: '🏰' },
             { id: 'challenges', label: 'Deseos', icon: '🌟' },
             { id: 'tasks', label: 'Recados', icon: '📜' },
-            { id: 'summary', label: 'Mi historia', icon: '📖' },
+            { id: 'summary', label: 'Mi historia', icon: '📖', short: 'Historia' },
           ]
         : [
           { id: 'today', label: 'Registro', icon: '📝' },
@@ -386,7 +388,7 @@ export function Dashboard({
         ];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-4">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 sm:pb-16">
       <ProfileHeader
         profile={profile}
         skin={skin}
@@ -396,9 +398,14 @@ export function Dashboard({
         filled={filled}
       />
 
-      {/* Pestañas */}
+      {/* Pestañas. En el móvil van abajo, fijas y con el nombre debajo del
+          icono: en una fila arriba, seis pestañas se quedaban en «P…», «S…»,
+          «R…» y nadie sabía adónde iba. A partir de tableta, arriba como
+          siempre. */}
       <div
-        className="mb-4 flex rounded-2xl border p-1 hairline surf-1"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t px-1 pt-1 hairline surf-raised
+          sm:static sm:mb-4 sm:rounded-2xl sm:border sm:p-1 sm:surf-1"
+        style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
         role="tablist"
         aria-label="Secciones del perfil"
         onKeyDown={(event) => {
@@ -421,21 +428,25 @@ export function Dashboard({
               id={`tab-${option.id}`}
               tabIndex={active ? 0 : -1}
               onClick={() => setTab(option.id)}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-1.5
-                py-2.5 text-xs font-bold transition-colors sm:gap-2 sm:px-3 sm:text-sm
+              className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1
+                py-1.5 text-[10px] font-bold leading-tight transition-colors
+                sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm
                 ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}
                 ${skin === 'pitch' ? 'font-display uppercase tracking-wide' : ''}
                 ${skin === 'royal' ? 'royal-title' : ''}`}
             >
-              <span aria-hidden>{option.icon}</span>
-              <span className="truncate">{option.label}</span>
+              <span aria-hidden className="text-lg leading-none sm:text-base">
+                {option.icon}
+              </span>
+              <span className="max-w-full truncate sm:hidden">{option.short ?? option.label}</span>
+              <span className="hidden max-w-full truncate sm:inline">{option.label}</span>
 
               {/* Lo que urge hoy se ve desde cualquier pestaña */}
               {option.id === 'tasks' && tasksDue > 0 && (
                 <span
                   aria-label={`${tasksDue} pendientes`}
-                  className={`shrink-0 rounded-full px-1.5 text-[10px] tabular-nums
-                    ${active ? 'bg-white/25' : 'bg-accent-soft t-1'}`}
+                  className={`absolute right-1 top-0.5 shrink-0 rounded-full px-1.5 text-[10px] tabular-nums
+                    sm:static ${active ? 'bg-white/25' : 'bg-accent-soft t-1'}`}
                 >
                   {tasksDue}
                 </span>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ambient } from '@/components/Ambient';
 import { SignIn } from '@/components/cloud/SignIn';
+import { SyncBadge } from '@/components/cloud/SyncBadge';
 import { Dashboard } from '@/components/Dashboard';
 import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
@@ -16,8 +17,13 @@ import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 import { useToday } from '@/hooks/useToday';
-import { todayKey, weekKeys } from '@/lib/dates';
+import { addDays, todayKey, weekKeys } from '@/lib/dates';
+import { cuandoEs, planDelDia } from '@/lib/examenes';
 import { FOOTBAR_RETURN_KEY } from '@/lib/footbarClient';
+import { gameEnabledFor, gameResultFor, isGameDone } from '@/lib/games';
+import { RETOS, RETO_META, cursoDe, resultadosDe, retoSuperado } from '@/lib/retoCole';
+import { futbolResultFor, futbolSuperado } from '@/lib/retoFutbol';
+import { dueCount } from '@/lib/tasks';
 import { playAnthem, stopAnthem } from '@/lib/sound';
 import {
   NEUTRAL_ACCENT,
@@ -55,7 +61,12 @@ function Home() {
   const [unlocked, setUnlocked] = useState<ProfileId[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Apartado por el que abrir los ajustes; sólo lo fija quien los abre. */
-  const [settingsSection, setSettingsSection] = useState<'seguridad' | 'gps' | undefined>();
+  const [settingsSection, setSettingsSection] = useState<'seguridad' | 'gps' | 'nube' | undefined>();
+
+  const openCloud = useCallback(() => {
+    setSettingsSection('nube');
+    setSettingsOpen(true);
+  }, []);
   /** Perfil cuyo aspecto se está editando. */
   const [editing, setEditing] = useState<Profile | null>(null);
   /** Perfil cuya sintonía está sonando ahora mismo, para poder cortarla. */
@@ -73,11 +84,31 @@ function Home() {
         const day = computeDayScore(profile.id, today, entry);
         const week = summarizePeriod(profile.id, weekKeys(today), store.entries);
 
+        // Lo que a cada uno le queda por hacer hoy, para decirlo en la
+        // portada antes de entrar: el juego, los retos del cole, el examen
+        // que viene y los recados que vencen.
+        const pendientes: ProfileGlance['pendientes'] = [];
+        if (gameEnabledFor(profile)) {
+          const game = gameResultFor(store.entries, profile.id, today);
+          if (!game || !isGameDone(game)) pendientes.push({ icon: '🎮', label: game ? 'Juego a medias' : 'Juego del día' });
+        }
+        if (cursoDe(profile.id)) {
+          const hoy = resultadosDe(store.entries, profile.id, today);
+          const ganados = RETOS.filter((r) => retoSuperado(hoy[r])).length;
+          if (ganados < RETOS.length) pendientes.push({ icon: '📚', label: `Cole ${ganados}/${RETOS.length}` });
+          if (!futbolSuperado(futbolResultFor(store.entries, profile.id, today))) pendientes.push({ icon: '⚽', label: 'Reto de fútbol' });
+          const examen = planDelDia(profile.id, today)?.pendientes[0];
+          if (examen) pendientes.push({ icon: '📝', label: `${RETO_META[examen.asignatura].nombre}: ${cuandoEs(examen.fecha)}`, urgente: examen.fecha <= addDays(today, 2) });
+        }
+        const due = dueCount(store.getTasks(profile.id), today);
+        if (due > 0) pendientes.push({ icon: '📋', label: `${due} ${due === 1 ? 'recado' : 'recados'}`, urgente: true });
+
         acc[profile.id] = {
           today: day.ratio,
           stars: day.stars,
           streak: week.streak,
           tracked: !day.empty,
+          pendientes,
         };
         return acc;
       },
@@ -298,7 +329,29 @@ function Home() {
             lockedIds={lockedIds}
             // Un perfil bloqueado no enseña sus fotos, así que tampoco se editan.
             onCustomize={needsPin ? undefined : () => setEditing(profile)}
+            cloud={store.cloud}
+            onOpenCloud={openCloud}
           />
+        )}
+
+        {/* Un guardado que falla no puede pasar desapercibido: es la única
+            señal de que lo registrado no está en ninguna parte. Va arriba y
+            pegado, porque al pie de un panel largo no lo veía nadie. */}
+        {store.status === 'error' && (
+          <div
+            role="alert"
+            className="sticky top-0 z-30 mx-auto flex max-w-5xl items-start gap-3 rounded-b-2xl border px-4 py-3 backdrop-blur-md"
+            style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-bg)' }}
+          >
+            <span aria-hidden>⚠️</span>
+            <p className="min-w-0 flex-1 text-sm t-danger">
+              <strong>No se ha podido guardar en este navegador.</strong> Suele ser falta de
+              espacio o el modo privado. Exporta una copia desde Ajustes antes de cerrar.
+            </p>
+            <button type="button" onClick={() => setSettingsOpen(true)} className="btn-danger shrink-0 px-3 py-1.5 text-xs">
+              Ajustes
+            </button>
+          </div>
         )}
 
         <div id="contenido" tabIndex={-1} className="outline-none">
@@ -315,6 +368,15 @@ function Home() {
               onUnlock={() => setUnlocked((prev) => [...prev, profile.id])}
               onCancel={goHome}
             />
+          ) : !store.hydrated ? (
+            // Hasta que lo guardado está leído, un panel vacío diría «0 %» y
+            // «aún no hay registros» a quien sí los tiene: mejor un esqueleto.
+            <div className="mx-auto w-full max-w-5xl space-y-4 px-4 pt-4" aria-busy="true" aria-label="Cargando">
+              <div className="skeleton h-40 rounded-3xl" />
+              <div className="skeleton h-12 rounded-2xl" />
+              <div className="skeleton h-28 rounded-2xl" />
+              <div className="skeleton h-48 rounded-2xl" />
+            </div>
           ) : (
             <Dashboard
               profile={profile}
@@ -333,32 +395,23 @@ function Home() {
           )}
         </div>
 
-{/* Un guardado que falla no puede pasar desapercibido: es la única
-            señal de que lo registrado no está en ninguna parte. */}
-        {store.status === 'error' && (
-          <div
-            role="alert"
-            className="mx-auto mt-4 flex max-w-5xl items-start gap-3 rounded-2xl border px-4 py-3"
-            style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-bg)' }}
-          >
-            <span aria-hidden>⚠️</span>
-            <p className="text-sm t-danger">
-              <strong>No se ha podido guardar en este navegador.</strong> Suele ser falta de
-              espacio o el modo privado. Exporta una copia desde Ajustes antes de cerrar.
-            </p>
-          </div>
-        )}
-
         {/* Pie con acceso a ajustes */}
         <footer
-          className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 pb-8 pt-2"
-          style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+          className={`mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 pt-2 ${dressedUp ? 'pb-24 sm:pb-8' : 'pb-8'}`}
+          style={dressedUp ? undefined : { paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
-          <p className="text-[11px] t-3">
-            {store.cloud.status === 'synced'
-              ? 'Los datos se guardan en este navegador y en la cuenta de casa.'
-              : 'Los datos se guardan en este navegador (localStorage).'}
-          </p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <SyncBadge cloud={store.cloud} onOpen={openCloud} />
+            <p className="text-[11px] t-3">
+              {store.cloud.status === 'synced'
+                ? 'Guardado en este navegador y en la cuenta de casa.'
+                : store.cloud.status === 'error'
+                  ? 'Guardado en este navegador; la nube no responde.'
+                  : store.cloud.status === 'signed-out'
+                    ? 'Guardado sólo en este navegador: entra en la cuenta de casa para compartirlo.'
+                    : 'Guardado en este navegador.'}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             {/* En el selector no hay barra superior, así que el interruptor
                 de día y noche vive también aquí: nunca está a más de un toque. */}
@@ -379,7 +432,9 @@ function Home() {
             type="button"
             onClick={silence}
             className="chip-accent fixed right-4 z-40 min-h-[2.5rem] shadow-lg"
-            style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+            // Con el panel abierto, en el móvil la barra de pestañas ocupa el
+            // borde de abajo: el botón sube para no quedar tapado.
+            style={{ bottom: dressedUp ? 'calc(4.5rem + env(safe-area-inset-bottom))' : 'max(1rem, env(safe-area-inset-bottom))' }}
           >
             🔇 {nowPlaying.anthemLabel ?? 'Silenciar'}
           </button>

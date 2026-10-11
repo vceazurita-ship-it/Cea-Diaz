@@ -39,6 +39,14 @@
   /* Acento y tinte por defecto; cada perfil los sobrescribe en línea. */
   --accent: #818cf8;
   --tint: #64748b;
+
+  /* Los dorados de las pieles: el oro del escudo (estadio), el oro viejo y
+     el pálido del cuento, y el oro rosa de María. Antes iban a pelo en la
+     agenda; aquí hay un solo sitio donde cambiarlos. */
+  --gold-pitch: #febe10;
+  --gold-leaf: #d4af37;
+  --gold-pale: #f4e2a1;
+  --gold-rose: #e8b4b8;
 }
 
 /* --------------------------------------------------------------- noche */

@@ -11,6 +11,7 @@ import {
   accentStyle,
   paletteStyle,
 } from '@/lib/profiles';
+import { capitalize, formatLong, todayKey } from '@/lib/dates';
 import { percent } from '@/lib/scoring';
 import type { Profile, ProfileId } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
@@ -22,6 +23,8 @@ export interface ProfileGlance {
   stars: number;
   streak: number;
   tracked: boolean;
+  /** Lo que le queda por hacer hoy: el juego, el cole, el examen, los recados. */
+  pendientes: { icon: string; label: string; urgente?: boolean }[];
 }
 
 interface ProfileSelectorProps {
@@ -137,6 +140,21 @@ function ProfileCard({
       <div className="px-5 pb-5 pt-2">
         <p className="truncate text-sm t-2">{profile.role}</p>
         <p className="mt-0.5 truncate text-xs t-3">{profile.tagline}</p>
+
+        {/* Lo que le queda hoy, dicho antes de entrar: así la portada sirve
+            para decidir adónde ir y no sólo para elegir una foto. */}
+        {hydrated && glance && glance.pendientes.length > 0 && (
+          <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Pendiente hoy">
+            {glance.pendientes.slice(0, 4).map((p) => (
+              <li
+                key={p.label}
+                className={`chip text-[10px] ${p.urgente ? 'border border-accent bg-accent-soft t-1' : 'surf-2 t-2'}`}
+              >
+                <span aria-hidden>{p.icon}</span> {p.label}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="mt-4 flex min-h-[24px] items-center justify-between gap-3">
           {hydrated && glance ? (
@@ -309,7 +327,7 @@ export function ProfileSelector({
 
         <div className="relative px-5 pb-7 pt-4 text-center sm:pb-9">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] t-3">
-            Seguimiento de hábitos
+            {capitalize(formatLong(todayKey()))}
           </p>
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl t-1">
             Hábitos en Familia

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { ColegioPanel } from '@/components/rendimiento/ColegioPanel';
 import { ExportarPdf } from '@/components/rendimiento/ExportarPdf';
@@ -44,6 +44,7 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
   const [subiendo, setSubiendo] = useState(false);
   const [exportando, setExportando] = useState(false);
   const sessions = useGpsSessions(profile.id);
+  const tabsId = useId();
 
   const tests = useMemo(() => testsFor(store.entries, profile.id), [store.entries, profile.id]);
   const reports = useMemo(() => reportsFor(store.entries, profile.id), [store.entries, profile.id]);
@@ -59,29 +60,54 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
     { id: 'colegio', label: 'Colegio', icon: '📚', count: reports.length },
   ];
 
+  /** Flechas entre pestañas, como pide una lista de pestañas de verdad. */
+  const mover = (desde: Area, paso: number) => {
+    const i = areas.findIndex((item) => item.id === desde);
+    const siguiente = areas[(i + paso + areas.length) % areas.length].id;
+    setArea(siguiente);
+    document.getElementById(`${tabsId}-tab-${siguiente}`)?.focus();
+  };
+
   return (
     <div className="space-y-4">
-      {/* Las tres áreas. Se ven siempre las tres, aunque una esté vacía: una
-          sección que no se sabe que existe no se llena nunca. */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Lo primero que se ve: qué hay cargado y qué falta, de los dos. */}
+      <Inventario entries={store.entries} onSubir={() => setSubiendo(true)} />
+
+      {/* Todo lo de los dos —hábitos, entrenos, pruebas, colegio— en papel. */}
+      <button type="button" onClick={() => setExportando(true)} className="btn-ghost w-full text-sm">
+        📄 Exportar a PDF
+      </button>
+
+      {/* Las tres áreas, pegadas a lo que abren. Se ven siempre las tres,
+          aunque una esté vacía: una sección que no se sabe que existe no se
+          llena nunca. Antes iban arriba del todo, con el inventario y el PDF
+          en medio, y no se veía qué era lo que cambiaban. */}
+      <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Área de rendimiento">
         {areas.map((item) => {
           const activa = area === item.id;
           return (
             <button
               key={item.id}
+              id={`${tabsId}-tab-${item.id}`}
               type="button"
+              role="tab"
+              aria-selected={activa}
+              aria-controls={`${tabsId}-panel-${item.id}`}
+              tabIndex={activa ? 0 : -1}
               onClick={() => setArea(item.id)}
-              aria-pressed={activa}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowRight') mover(item.id, 1);
+                if (event.key === 'ArrowLeft') mover(item.id, -1);
+              }}
               className={`rounded-xl border px-2 py-2 text-center transition-colors ${
-                activa ? 'border-transparent text-white' : 'hairline surf-1 t-2'
+                activa ? 'border-transparent bg-accent t-on-accent' : 'hairline surf-1 t-2'
               }`}
-              style={activa ? { backgroundColor: profile.accentDeep ?? profile.accent } : undefined}
             >
               <span aria-hidden className="block text-lg leading-none">
                 {item.icon}
               </span>
               <span className="mt-1 block text-[11px] font-black leading-tight">{item.label}</span>
-              <span className={`block text-[10px] leading-tight ${activa ? 'text-white/70' : 't-3'}`}>
+              <span className={`block text-[10px] leading-tight ${activa ? 't-on-accent opacity-70' : 't-3'}`}>
                 {item.count === 0 ? 'vacío' : item.count}
               </span>
             </button>
@@ -89,25 +115,20 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
         })}
       </div>
 
-      {/* Lo primero que se ve: qué hay cargado y qué falta, de los dos. */}
-      <Inventario
-        entries={store.entries}
-        accent={profile.accentDeep ?? profile.accent}
-        onSubir={() => setSubiendo(true)}
-      />
-
-      {/* Todo lo de los dos —hábitos, entrenos, pruebas, colegio— en papel. */}
-      <button type="button" onClick={() => setExportando(true)} className="btn-ghost w-full text-sm">
-        📄 Exportar a PDF
-      </button>
-
-      {area === 'partidos' && <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />}
-      {area === 'fisico' && (
-        <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
-      )}
-      {area === 'colegio' && (
-        <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
-      )}
+      <div
+        id={`${tabsId}-panel-${area}`}
+        role="tabpanel"
+        aria-labelledby={`${tabsId}-tab-${area}`}
+        className="space-y-4"
+      >
+        {area === 'partidos' && <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />}
+        {area === 'fisico' && (
+          <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
+        )}
+        {area === 'colegio' && (
+          <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
+        )}
+      </div>
 
       {subiendo && (
         <Modal title="Subir informes" onClose={() => setSubiendo(false)}>

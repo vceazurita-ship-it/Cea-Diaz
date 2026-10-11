@@ -25,6 +25,17 @@ interface TaskComposerProps {
   /** Presente al editar; ausente al crear. */
   task?: Task;
   kid: boolean;
+  /**
+   * El día con el que nace una tarea nueva. Desde el calendario es el día
+   * que se está mirando: quien ha ido al martes quiere apuntar en el martes.
+   * Sin él, hoy.
+   */
+  defaultDue?: DateKey;
+  /**
+   * Sin tarjeta propia. Dentro de un diálogo el formulario ya va en una hoja,
+   * y una tarjeta dentro de otra sólo resta sitio en el móvil.
+   */
+  bare?: boolean;
   onSubmit: (draft: TaskDraft) => void;
   onCancel?: () => void;
 }
@@ -37,17 +48,29 @@ function quickDateOf(due: DateKey | undefined): QuickDate {
   const today = todayKey();
   if (due === today) return 'hoy';
   if (due === addDays(today, 1)) return 'manana';
+  if (due === addDays(today, 7)) return 'semana';
   return 'otro';
 }
 
-export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProps) {
+export function TaskComposer({
+  task,
+  kid,
+  defaultDue,
+  bare = false,
+  onSubmit,
+  onCancel,
+}: TaskComposerProps) {
   const editing = Boolean(task);
+
+  // Al editar manda lo guardado, también el «sin fecha»; al crear, el día
+  // que venga de fuera o, si no, hoy.
+  const initialDue = task ? task.due : (defaultDue ?? todayKey());
 
   const [title, setTitle] = useState(task?.title ?? '');
   const [detail, setDetail] = useState(task?.detail ?? '');
   const [kind, setKind] = useState<TaskKind>(task?.kind ?? 'otro');
-  const [due, setDue] = useState<DateKey | undefined>(task?.due ?? todayKey());
-  const [quick, setQuick] = useState<QuickDate>(quickDateOf(task?.due ?? todayKey()));
+  const [due, setDue] = useState<DateKey | undefined>(initialDue);
+  const [quick, setQuick] = useState<QuickDate>(quickDateOf(initialDue));
   const [time, setTime] = useState(task?.time ?? '');
   const [duration, setDuration] = useState(task?.duration ?? DEFAULT_DURATION);
   const [repeat, setRepeat] = useState<TaskRepeat>(task?.repeat ?? 'none');
@@ -61,7 +84,8 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
 
   const field = useRef<HTMLInputElement>(null);
 
-  // Lo dictado se añade al final de lo que ya hubiera, como en las notas.
+  // Los avisos que se pueden elegir cambian con la hora: con ella, minutos
+  // antes; sin ella, Google sólo sabe contar desde la medianoche.
   const reminders = useMemo(() => remindersFor(Boolean(time)), [time]);
 
   // El aviso por defecto depende de si hay hora, así que al ponerla o
@@ -104,10 +128,15 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
     if (editing) return;
 
     // Tras crear, el formulario se queda listo para el siguiente recado: se
-    // conserva el día elegido, porque quien apunta uno suele apuntar dos.
+    // conserva el día elegido, porque quien apunta uno suele apuntar dos. Lo
+    // demás vuelve a su sitio: las opciones se pliegan, y un tipo o un aviso
+    // que siguieran puestos sin verse se colarían en la siguiente tarea.
     setTitle('');
     setDetail('');
+    setKind('otro');
     setTime('');
+    setDuration(DEFAULT_DURATION);
+    setRemind(DEFAULT_ALL_DAY_REMINDER);
     setRepeat('none');
     setOpen(false);
     field.current?.focus();
@@ -122,7 +151,7 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
   ];
 
   return (
-    <form onSubmit={submit} className={`${kid ? 'card-kid' : 'card'} p-4`}>
+    <form onSubmit={submit} className={bare ? '' : `${kid ? 'card-kid' : 'card'} p-4`}>
       {/* Qué hay que hacer */}
       <input
         ref={field}
@@ -309,17 +338,23 @@ export function TaskComposer({ task, kid, onSubmit, onCancel }: TaskComposerProp
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/* El botón principal ocupa el ancho en el móvil: es lo que se pulsa
+          con el pulgar al acabar de escribir, no un enlace más. */}
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <button
           type="submit"
           disabled={!title.trim()}
-          className="btn-primary px-3 py-2 text-xs"
+          className="btn-primary w-full px-4 py-2.5 text-sm sm:w-auto"
         >
           {editing ? '💾 Guardar cambios' : '➕ Añadir tarea'}
         </button>
 
         {onCancel && (
-          <button type="button" onClick={onCancel} className="btn-ghost px-3 py-2 text-xs">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-ghost w-full px-4 py-2.5 text-sm sm:w-auto"
+          >
             Cancelar
           </button>
         )}

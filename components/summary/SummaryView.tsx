@@ -42,12 +42,41 @@ interface SummaryViewProps {
   onOpenPlan?: () => void;
 }
 
-function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/**
+ * Una diferencia con signo, dicha como se dice: «+6 pts», «−2 días», «Igual».
+ * El menos es el tipográfico (U+2212), que mide lo mismo que el más y no se
+ * confunde con un guion.
+ */
+function signed(delta: number, unit: string, singular = unit): string {
+  if (delta === 0) return 'Igual';
+  const n = Math.abs(delta);
+  return `${delta > 0 ? '+' : '−'}${n} ${n === 1 ? singular : unit}`;
+}
+
+/**
+ * Comparación con el periodo anterior. Las cifras absolutas —media, racha,
+ * estrellas— ya las dice la tarjeta del anillo; repetirlas aquí era leer lo
+ * mismo dos veces. Lo que no decía nadie es si se va mejor o peor que la
+ * semana o el mes de antes, y para eso sirven estas fichas.
+ */
+function DeltaTile({
+  label,
+  delta,
+  unit,
+  singular,
+}: {
+  label: string;
+  delta: number | null;
+  unit: string;
+  singular?: string;
+}) {
+  const tone = delta === null || delta === 0 ? 't-3' : delta > 0 ? 't-accent' : 't-danger';
   return (
     <div className="card p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide t-3">{label}</p>
-      <p className="mt-0.5 text-2xl font-black tabular-nums t-accent">{value}</p>
-      {hint && <p className="text-[11px] t-3">{hint}</p>}
+      <p className={`mt-0.5 text-2xl font-black tabular-nums ${tone}`}>
+        {delta === null ? '—' : signed(delta, unit, singular)}
+      </p>
     </div>
   );
 }
@@ -78,6 +107,14 @@ export function SummaryView({
     [profile.id, dates, entries],
   );
 
+  // El periodo de antes, para decir si se va mejor o peor. Si no tiene ni
+  // un día registrado no hay con qué comparar y las fichas lo dicen así.
+  const previous = useMemo(() => {
+    const keys = range === 'week' ? weekKeys(addDays(date, -7)) : monthKeys(addMonths(date, -1));
+    const prev = summarizePeriod(profile.id, keys, entries);
+    return prev.trackedDays > 0 ? prev : null;
+  }, [profile.id, range, date, entries]);
+
   // Los logros se calculan sobre el mes completo, sea cual sea la vista.
   const monthSummary = useMemo(
     () => summarizePeriod(profile.id, monthKeys(date), entries),
@@ -92,6 +129,11 @@ export function SummaryView({
       : capitalize(formatMonth(date));
 
   const empty = summary.trackedDays === 0;
+  const previousLabel = range === 'week' ? 'la semana anterior' : 'el mes anterior';
+
+  /** Diferencia con el periodo anterior, o nada si no hay con qué comparar. */
+  const delta = (pick: (s: typeof summary) => number): number | null =>
+    previous ? Math.round(pick(summary) - pick(previous)) : null;
 
   /** ¿Cae ese día dentro del periodo que se está viviendo ahora mismo? */
   const isCurrentPeriod = (key: DateKey) =>
@@ -120,7 +162,7 @@ export function SummaryView({
           <button
             type="button"
             onClick={() => shift(-1)}
-            className="btn-ghost h-10 w-10 shrink-0 p-0 text-base"
+            className="btn-ghost h-10 w-10 shrink-0 p-0 text-lg"
             aria-label={range === 'week' ? 'Semana anterior' : 'Mes anterior'}
           >
             ←
@@ -132,7 +174,7 @@ export function SummaryView({
             type="button"
             onClick={() => shift(1)}
             disabled={atCurrent}
-            className="btn-ghost h-10 w-10 shrink-0 p-0 text-base"
+            className="btn-ghost h-10 w-10 shrink-0 p-0 text-lg"
             aria-label={range === 'week' ? 'Semana siguiente' : 'Mes siguiente'}
           >
             →
@@ -196,17 +238,32 @@ export function SummaryView({
         </div>
       </div>
 
-      {/* Estadísticas rápidas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Media" value={percent(summary.average)} hint="días con registro" />
-        <StatTile
-          label="Constancia"
-          value={`${summary.trackedDays}/${summary.days.length}`}
-          hint="días registrados"
-        />
-        <StatTile label="Racha" value={`${summary.streak}`} hint="días seguidos" />
-        <StatTile label="Estrellas" value={`${summary.totalStars}`} hint="en el periodo" />
-      </div>
+      {/* Contra el periodo anterior. Con el actual vacío no se enseña: todo
+          saldría en negativo y no sería verdad, sólo que aún no se ha
+          empezado. */}
+      {!empty && (
+        <section aria-label={`Comparación con ${previousLabel}`}>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide t-3">
+            {previous ? `Respecto a ${previousLabel}` : `Sin registros en ${previousLabel}`}
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <DeltaTile label="Media" delta={delta((s) => s.average * 100)} unit="pts" />
+            <DeltaTile
+              label="Días registrados"
+              delta={delta((s) => s.trackedDays)}
+              unit="días"
+              singular="día"
+            />
+            <DeltaTile
+              label="Mejor racha"
+              delta={delta((s) => s.bestStreak)}
+              unit="días"
+              singular="día"
+            />
+            <DeltaTile label="Estrellas" delta={delta((s) => s.totalStars)} unit="⭐" />
+          </div>
+        </section>
+      )}
 
       {/* Evolución */}
       <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
@@ -218,9 +275,12 @@ export function SummaryView({
         ) : (
           <MonthHeatmap days={summary.days} onSelectDay={onSelectDay} />
         )}
-        <p className="mt-2 text-center text-[11px] t-3">
-          Toca cualquier día para abrir su registro.
-        </p>
+        {/* Con el periodo vacío no hay registro que abrir: la pista sobra. */}
+        {!empty && (
+          <p className="mt-2 text-center text-[11px] t-3">
+            Toca cualquier día para abrir su registro.
+          </p>
+        )}
       </div>
 
       {/* Desglose por categoría */}

@@ -88,7 +88,7 @@ export function PlanAlerts({ alerts, skin, onDay }: PlanAlertsProps) {
                   <button
                     type="button"
                     onClick={() => onDay(alert.day!)}
-                    className="btn-ghost mt-1.5 min-h-0 px-2 py-0.5 text-[11px]"
+                    className="btn-ghost mt-1.5 min-h-9 px-2 py-0.5 text-[11px]"
                   >
                     Ver el {DAY_NAMES[alert.day].toLowerCase()}
                   </button>

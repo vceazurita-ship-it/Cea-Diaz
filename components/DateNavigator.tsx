@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import {
   addDays,
   capitalize,
@@ -22,6 +23,29 @@ interface DateNavigatorProps {
 export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigatorProps) {
   const today = todayKey();
   const days = weekKeys(date);
+  const picker = useRef<HTMLInputElement>(null);
+
+  /**
+   * Abre el calendario del sistema. Hasta ahora ir a un día concreto era
+   * pulsar «←» tantas veces como días hubiera de por medio; el calendario
+   * nativo lo hace en un toque y además es el que ya sabe usar cada uno en
+   * su teléfono. `showPicker` es lo moderno; donde no exista, enfocar y
+   * pulsar el campo abre el mismo calendario.
+   */
+  const openPicker = () => {
+    const input = picker.current;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        /* Algún navegador lo tiene y aun así lo rechaza: se cae al plan B. */
+      }
+    }
+    input.focus();
+    input.click();
+  };
 
   return (
     <nav className="card p-3" aria-label="Navegación por días">
@@ -35,11 +59,36 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
           ←
         </button>
 
-        <div className="min-w-0 text-center">
-          <p className="truncate text-base font-bold leading-tight t-1">
-            {friendlyDateLabel(date)}
-          </p>
-          <p className="truncate text-xs t-3">{capitalize(formatMonth(date))}</p>
+        <div className="relative min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={openPicker}
+            className="btn-ghost w-full flex-col gap-0 border-transparent bg-transparent px-2 py-1"
+            aria-label={`Ir a otro día. Ahora: ${friendlyDateLabel(date)}`}
+          >
+            <span className="block w-full truncate text-center text-base font-bold leading-tight t-1">
+              {friendlyDateLabel(date)}
+            </span>
+            <span className="block w-full truncate text-center text-xs font-normal t-3">
+              {capitalize(formatMonth(date))} <span aria-hidden>▾</span>
+            </span>
+          </button>
+          {/* El campo de fecha de verdad, invisible pero presente: `display:
+              none` impediría abrir su calendario. Lo que el usuario ve y toca
+              es el botón de arriba. */}
+          <input
+            ref={picker}
+            type="date"
+            tabIndex={-1}
+            aria-hidden
+            value={date}
+            max={today}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next && next <= today) onChange(next);
+            }}
+            className="pointer-events-none absolute bottom-0 left-1/2 h-px w-px opacity-0"
+          />
         </div>
 
         <div className="flex shrink-0 gap-1">
@@ -80,7 +129,7 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
               aria-label={`${WEEKDAY_LABELS[i]} ${Number(day.slice(-2))}${
                 ratio > 0 ? `, ${Math.round(ratio * 100)} %` : ', sin registro'
               }`}
-              className={`flex flex-col items-center gap-1 rounded-xl py-2 transition-colors
+              className={`flex min-h-10 flex-col items-center gap-1 rounded-xl py-2 transition-colors
                 disabled:cursor-not-allowed
                 ${selected ? 'surf-3' : future ? '' : 'hover-soft'}
                 ${future ? 'opacity-45' : ''}`}
@@ -90,7 +139,7 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
               {/* El día de hoy se marca con un disco de acento; el seleccionado,
                   con el fondo de la casilla. Así ambos se distinguen a la vez. */}
               <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-sm
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm
                   font-semibold tabular-nums
                   ${isCurrentDay ? 'bg-accent t-on-accent' : selected ? 't-1' : 't-2'}`}
               >
@@ -99,7 +148,7 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
 
               {/* Cumplimiento del día: barra corta en lugar de punto, para que
                   se lea de un vistazo cuánto se llenó, no sólo si hay algo. */}
-              <span className="h-1 w-5 overflow-hidden rounded-full track">
+              <span className="h-1.5 w-6 overflow-hidden rounded-full track">
                 <span
                   className="block h-full rounded-full bg-accent transition-[width] duration-500"
                   style={{ width: `${Math.round(Math.min(1, ratio) * 100)}%` }}
