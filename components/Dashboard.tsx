@@ -34,6 +34,7 @@ import { getCategories } from '@/lib/habits';
 import { learnHabits, usualFills, type UsualFill } from '@/lib/habitual';
 import { PENALTY_NOTE_KEY, encodePenaltyResult } from '@/lib/penalties';
 import { COLE_NOTE_KEY, conResultado } from '@/lib/retoCole';
+import { TEMAS_NOTE_DATE, TEMAS_NOTE_KEY } from '@/lib/temasVistos';
 import { FUTBOL_NOTE_KEY, encodeFutbolResult } from '@/lib/retoFutbol';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
@@ -644,6 +645,11 @@ export function Dashboard({
             onColeResult={(result) =>
               // Varios retos al día: se anota éste sin pisar los demás.
               store.setEntryNote(profile.id, date, COLE_NOTE_KEY, conResultado(store.entries, profile.id, date, result))
+            }
+            onAjusteTemas={(text) =>
+              // Lo marcado como visto o aún no cuelga del primer día del
+              // trimestre, para que viaje con las notas y le llegue a su tableta.
+              store.setEntryNote(profile.id, TEMAS_NOTE_DATE, TEMAS_NOTE_KEY, text)
             }
             onFutbolResult={(result) =>
               store.setEntryNote(profile.id, date, FUTBOL_NOTE_KEY, encodeFutbolResult(result))

@@ -22,6 +22,8 @@ import {
 } from '@/lib/retoCole';
 import { cuandoEs, diasHasta, planDelDia, type PlanDelDia } from '@/lib/examenes';
 import { notaEnTexto, notasPorAsignatura } from '@/lib/notaCole';
+import { ajusteDe } from '@/lib/temasVistos';
+import { TemasVistos } from '@/components/games/TemasVistos';
 import { IDEA, type Curso } from '@/lib/temario';
 import type { DateKey, DayEntry, Profile, Visual } from '@/types';
 
@@ -44,10 +46,14 @@ interface RetoColeCardProps {
   kid: boolean;
   headingClass: string;
   onResult: (result: RetoResult) => void;
+  /** Guarda lo marcado como visto o aún no (`lib/temasVistos.ts`). */
+  onAjusteTemas?: (text: string) => void;
 }
 
-export function RetoColeCard({ profile, curso, date, entries, kid, headingClass, onResult }: RetoColeCardProps) {
+export function RetoColeCard({ profile, curso, date, entries, kid, headingClass, onResult, onAjusteTemas }: RetoColeCardProps) {
   const today = isToday(date);
+  const ajuste = useMemo(() => ajusteDe(entries, profile.id), [entries, profile.id]);
+  const [editandoTemas, setEditandoTemas] = useState(false);
   const retos = useMemo(() => retosDelDia(date, profile.id), [date, profile.id]);
   const hoy = retoDelDia(date, profile.id);
   const plan = useMemo(() => planDelDia(profile.id, date), [profile.id, date]);
@@ -79,7 +85,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   /** La presentación del tema, antes de la primera pregunta. */
   const [presentado, setPresentado] = useState(false);
 
-  const reto = useMemo(() => (abierto ? buildRetoCole(profile.id, curso, date, abierto) : null), [abierto, profile.id, curso, date]);
+  const reto = useMemo(() => (abierto ? buildRetoCole(profile.id, curso, date, abierto, 0, ajuste) : null), [abierto, profile.id, curso, date, ajuste]);
   const estado = abierto ? estados.find((e) => e.reto === abierto)! : null;
   const answered = estado?.result?.answered ?? 0;
   const correct = estado?.result?.correct ?? 0;
@@ -92,8 +98,8 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
    */
   const [practica, setPractica] = useState<{ reto: RetoId; vuelta: number; index: number; chosen: string | null; aciertos: number } | null>(null);
   const practicaReto = useMemo(
-    () => (practica ? buildRetoCole(profile.id, curso, date, practica.reto, practica.vuelta) : null),
-    [practica?.reto, practica?.vuelta, profile.id, curso, date], // eslint-disable-line react-hooks/exhaustive-deps
+    () => (practica ? buildRetoCole(profile.id, curso, date, practica.reto, practica.vuelta, ajuste) : null),
+    [practica?.reto, practica?.vuelta, profile.id, curso, date, ajuste], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const abrir = (e: (typeof estados)[number]) => {
@@ -155,7 +161,14 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
         </div>
 
         <div className="p-4">
-          <h3 className={headingClass}>Retos del cole</h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className={headingClass}>Retos del cole</h3>
+            {onAjusteTemas && (
+              <button type="button" onClick={() => setEditandoTemas(true)} className="chip-soft shrink-0 text-[10px] font-black" title="Marcar qué temas han visto ya en clase (con PIN)">
+                📚 Temas{Object.keys(ajuste).length > 0 ? ` · ${Object.keys(ajuste).length}` : ''}
+              </button>
+            )}
+          </div>
           {plan && <AvisoExamen plan={plan} date={date} />}
           <p className="text-[11px] font-semibold leading-snug t-2">
             {today
@@ -242,6 +255,10 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
             </>
           )}
         </Modal>
+      )}
+
+      {editandoTemas && onAjusteTemas && (
+        <TemasVistos profile={profile} curso={curso} date={date} ajuste={ajuste} onSave={onAjusteTemas} onClose={() => setEditandoTemas(false)} />
       )}
 
       {/* La práctica libre: lo mismo, sin anotar nada. */}

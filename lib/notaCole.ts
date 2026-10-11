@@ -1,8 +1,9 @@
 import { type Grade } from '@/lib/academics';
 import { addDays, parseDateKey, todayKey } from '@/lib/dates';
 import { CONVOCATORIAS, diasHasta, type Examen } from '@/lib/examenes';
-import { ASIGNATURAS, TRIMESTRE_DESDE, resultadosDe } from '@/lib/retoCole';
+import { ASIGNATURAS, TRIMESTRE_DESDE, cursoDe, resultadosDe } from '@/lib/retoCole';
 import { TEMARIO, type Asignatura, type Tema } from '@/lib/temario';
+import { ajusteDe, temasDelExamen } from '@/lib/temasVistos';
 import type { DateKey, DayEntry, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -240,20 +241,23 @@ export interface PreparacionExamen {
  */
 export function preparacionExamenes(entries: Record<string, DayEntry>, profileId: ProfileId, hoy: DateKey = todayKey()): PreparacionExamen[] {
   const convocatoria = CONVOCATORIAS.find((c) => c.profileId === profileId && c.examenes.some((e) => e.fecha >= hoy));
-  if (!convocatoria) return [];
+  const curso = cursoDe(profileId);
+  if (!convocatoria || !curso) return [];
   const todo = evidenciaCole(entries, profileId, hoy);
+  // Lo marcado desde casa como «aún no» no entra en el examen, así que
+  // tampoco se le pide cuentas.
+  const ajuste = ajusteDe(entries, profileId);
   return [...convocatoria.examenes]
     .filter((e) => e.fecha >= hoy)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .map((examen) => {
-      const temas: PreparacionTema[] = examen.temas
-        .map((id) => TEMA_POR_ID.get(id))
-        .filter((t): t is Tema => Boolean(t))
-        .map((t) => {
-          const nt = notaTema(t, todo, hoy);
-          return { ...nt, estado: estadoDe(nt.n, nt.nota) };
-        });
-      const propia = todo.filter((e) => examen.temas.includes(e.tema ?? ''));
+      const delExamen = temasDelExamen(examen, curso, hoy, ajuste);
+      const ids = delExamen.map((t) => t.id);
+      const temas: PreparacionTema[] = delExamen.map((t) => {
+        const nt = notaTema(t, todo, hoy);
+        return { ...nt, estado: estadoDe(nt.n, nt.nota) };
+      });
+      const propia = todo.filter((e) => ids.includes(e.tema ?? ''));
       const nota = notaDe(propia, hoy);
       const estado = temas.length ? temas.map((t) => t.estado).sort((a, b) => ORDEN_ESTADO.indexOf(a) - ORDEN_ESTADO.indexOf(b))[0] : 'sin-practicar';
       return { examen, dias: diasHasta(examen.fecha, hoy), temas, n: propia.length, nota, grade: gradeDeNota(nota), estado };

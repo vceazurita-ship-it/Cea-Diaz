@@ -61,6 +61,8 @@ interface ChallengesPanelProps {
   onPenaltyResult?: (result: PenaltyResult) => void;
   /** Anota el reto del cole del día; sólo lo tienen los peques con curso. */
   onColeResult?: (result: RetoResult) => void;
+  /** Guarda qué temas han visto ya en clase, marcado desde casa. */
+  onAjusteTemas?: (text: string) => void;
   /** Anota el reto de fútbol (la tecnificación) del día. */
   onFutbolResult?: (result: FutbolResult) => void;
   /**
@@ -276,6 +278,7 @@ export function ChallengesPanel({
   onGameResult,
   onPenaltyResult,
   onColeResult,
+  onAjusteTemas,
   onFutbolResult,
   onReserve,
 }: ChallengesPanelProps) {
@@ -363,6 +366,7 @@ export function ChallengesPanel({
           kid={kid}
           headingClass={headingClass}
           onResult={onColeResult}
+          onAjusteTemas={onAjusteTemas}
         />
       )}
 

@@ -39,7 +39,9 @@ export interface PeticionPdf {
 }
 
 /** Las notas que en realidad son datos guardados, no texto de nadie. */
-const NOTAS_DE_DATOS = new Set(['prueba', 'boletin', 'cognitivo']);
+// Lo que va en las notas pero no es texto de nadie: cifras de informes y los
+// resultados cifrados de los retos. Tienen su sección o no son para leer.
+const NOTAS_DE_DATOS = new Set(['prueba', 'boletin', 'cognitivo', 'cole', 'futbol', 'temas', 'juego', 'penaltis']);
 
 const MARGIN = 14;
 const INK: [number, number, number] = [30, 41, 59];

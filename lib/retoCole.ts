@@ -3,7 +3,8 @@ import { addDays, parseDateKey } from '@/lib/dates';
 import { entryKey } from '@/lib/storage';
 import { planDelDia } from '@/lib/examenes';
 import type { PlanDelDia } from '@/lib/examenes';
-import { TEMARIO, barajar, makeRand, temaDe, temasHasta, type Asignatura, type Curso, type Pregunta, type Rand, type Tema } from '@/lib/temario';
+import { barajar, makeRand, temasHasta, type Asignatura, type Curso, type Pregunta, type Rand, type Tema } from '@/lib/temario';
+import { temaActual, temasDelExamen, type AjusteTemas } from '@/lib/temasVistos';
 import type { DateKey, DayEntry, GameQuestion, ProfileId, ShotKind } from '@/types';
 
 /* =========================================================================
@@ -161,7 +162,15 @@ function aVerdaderoFalso(q: Pregunta, rand: Rand, en: boolean): Pregunta {
  * repetir, y si aun así salen más de dos de test, las que sobran se pasan a
  * escribir la respuesta (si es un número) o a verdadero o falso.
  */
-export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey, reto: RetoId = retoDelDia(date, profileId), vuelta = 0): RetoCole {
+export function buildRetoCole(
+  profileId: ProfileId,
+  curso: Curso,
+  date: DateKey,
+  reto: RetoId = retoDelDia(date, profileId),
+  vuelta = 0,
+  /** Lo marcado a mano como visto o aún no (`lib/temasVistos.ts`). */
+  ajuste: AjusteTemas = {},
+): RetoCole {
   const plan = planDelDia(profileId, date);
   // La vuelta 0 es el reto que puntúa; las demás, la práctica libre. El reto
   // que toca por calendario conserva la semilla de siempre.
@@ -171,11 +180,11 @@ export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey,
 
   // Los grupos de los que se va sacando por turnos: cada asignatura, sus
   // temas. Preparando exámenes, todos los temas que entran en cada uno; si
-  // no, el tema de la semana. El repaso, una pregunta de cada asignatura.
+  // no, el tema que se está dando. El repaso, una pregunta de cada
+  // asignatura. Lo marcado desde casa como «aún no» se queda fuera.
   const temasDe = (a: Asignatura): Tema[] => {
     const examen = plan?.pendientes.find((e) => e.asignatura === a);
-    const delExamen = examen ? TEMARIO.filter((t) => examen.temas.includes(t.id)) : [];
-    return delExamen.length > 0 ? delExamen : [temaDe(a, curso, date)];
+    return examen ? temasDelExamen(examen, curso, date, ajuste) : [temaActual(a, curso, date, ajuste)];
   };
   const grupos: Tema[][] =
     reto === 'repaso'
