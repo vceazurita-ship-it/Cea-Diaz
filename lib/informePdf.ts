@@ -10,6 +10,8 @@ import { SPORTS, getCategories } from '@/lib/habits';
 import { getProfile } from '@/lib/profiles';
 import { computeDayScore, formatMetricValue, metricRatio, summarizePeriod } from '@/lib/scoring';
 import { SECCIONES, type Rango, type Seccion } from '@/lib/informePdfOpciones';
+import { CERTEZA_META, ESTADO_META, PREGUNTAS_PARA_LISTO, notasPorAsignatura, preparacionExamenes } from '@/lib/notaCole';
+import { RETO_META, TRIMESTRE_DESDE } from '@/lib/retoCole';
 import type { DateKey, DayEntry, GpsSession, Metric, MetricValue, Profile, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -576,6 +578,49 @@ function fisico(papel: Papel, kid: ProfileId, rango: Rango, entries: Record<stri
 
 function colegio(papel: Papel, kid: ProfileId, rango: Rango, entries: Record<string, DayEntry>) {
   papel.titulo('Colegio');
+
+  // Lo que dicen los retos del cole: la nota de cada asignatura hasta el
+  // último día del periodo, y cómo van preparados los exámenes que vienen.
+  const hasta = rango.to < todayKey() ? rango.to : todayKey();
+  const notas = notasPorAsignatura(entries, kid, hasta);
+  if (notas.some((n) => n.n > 0)) {
+    papel.subtitulo(`Retos del cole · nota por asignatura a ${fecha(hasta)}`);
+    papel.tabla(
+      ['Asignatura', 'Preguntas', 'Bien', 'Nota /10', 'Escala', 'Certeza', 'Tendencia'],
+      notas.map((n) => [
+        RETO_META[n.asignatura].nombre,
+        String(n.n),
+        String(n.aciertos),
+        n.nota === null ? '-' : numero(n.nota, 1),
+        n.grade ? GRADE_NAME[n.grade] : '-',
+        CERTEZA_META[n.certeza].label,
+        n.tendencia === 'sube' ? 'sube' : n.tendencia === 'baja' ? 'baja' : n.tendencia === 'igual' ? 'igual' : '-',
+      ]),
+      { first: 48 },
+    );
+    papel.parrafo(`Nota de 0 a 10 de las preguntas contestadas en los retos desde el ${fecha(TRIMESTRE_DESDE)}; lo reciente pesa más. La certeza crece con las preguntas: con menos de 10 es una pista, con más de 25 un dato.`, 7.5);
+
+    const examenes = preparacionExamenes(entries, kid, hasta);
+    if (examenes.length > 0) {
+      papel.subtitulo('Cómo van preparados los exámenes');
+      papel.tabla(
+        ['Examen', 'Fecha', 'Tema', 'Preguntas', 'Nota /10', 'Estado'],
+        examenes.flatMap((p) =>
+          p.temas.map((t, i) => [
+            i === 0 ? RETO_META[p.examen.asignatura].nombre : '',
+            i === 0 ? fecha(p.examen.fecha) : '',
+            t.tema.titulo,
+            t.n === 0 ? '-' : `${t.aciertos}/${t.n}`,
+            t.nota === null ? '-' : numero(t.nota, 1),
+            ESTADO_META[t.estado].label,
+          ]),
+        ),
+        { first: 34 },
+      );
+      papel.parrafo(`Un tema está listo con 8 o más sobre 10 y al menos ${PREGUNTAS_PARA_LISTO} preguntas; un examen está tan preparado como su tema más flojo.`, 7.5);
+    }
+  }
+
   const reports: ReportCard[] = reportsFor(entries, kid)
     .filter((r) => enRango(r.date, rango))
     .sort((a, b) => a.date.localeCompare(b.date));

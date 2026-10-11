@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { Modal } from '@/components/ui/Modal';
+import { NotasCole } from '@/components/rendimiento/NotasCole';
 import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { friendlyDateLabel } from '@/lib/dates';
 import {
@@ -77,6 +78,10 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
           📄 Subir informe
         </button>
       </div>
+
+      {/* Lo de cada día, antes que el boletín: la nota que van sacando en
+          los retos del cole y lo preparado que va cada examen. */}
+      <NotasCole profile={profile} entries={entries} />
 
       {!last || !audit ? (
         <>

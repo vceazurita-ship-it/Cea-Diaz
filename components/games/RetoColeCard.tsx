@@ -21,6 +21,7 @@ import {
   type RetoResult,
 } from '@/lib/retoCole';
 import { cuandoEs, diasHasta, planDelDia, type PlanDelDia } from '@/lib/examenes';
+import { notaEnTexto, notasPorAsignatura } from '@/lib/notaCole';
 import { IDEA, type Curso } from '@/lib/temario';
 import type { DateKey, DayEntry, Profile, Visual } from '@/types';
 
@@ -51,6 +52,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   const hoy = retoDelDia(date, profile.id);
   const plan = useMemo(() => planDelDia(profile.id, date), [profile.id, date]);
   const resultados = resultadosDe(entries, profile.id, date);
+  const notas = useMemo(() => (kid ? [] : notasPorAsignatura(entries, profile.id, date)), [kid, entries, profile.id, date]);
 
   // Cómo va cada reto hoy, y el nivel de su tiro.
   const estados = retos.map((reto) => {
@@ -117,8 +119,12 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
     if (anotada.current === clave) return;
     anotada.current = clave;
     setChosen(optionId);
-    const hit = optionId === reto.questions[index].answer;
-    onResult({ reto: abierto, correct: correct + (hit ? 1 : 0), answered: answered + 1, total, at: new Date().toISOString() });
+    const q = reto.questions[index];
+    const hit = optionId === q.answer;
+    // Pregunta a pregunta, el tema y si se acertó: de ahí sale la nota de
+    // cada asignatura y lo preparado que va cada examen (`lib/notaCole.ts`).
+    const detalle = [...(estado?.result?.detalle ?? []), { tema: q.tema ?? reto.temas[0].id, hit }];
+    onResult({ reto: abierto, correct: correct + (hit ? 1 : 0), answered: answered + 1, total, at: new Date().toISOString(), detalle });
   };
 
   const idea = reto && reto.reto !== 'repaso' ? IDEA[reto.temas[0].id] : undefined;
@@ -194,6 +200,18 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
             })}
           </div>
           {today && estados.some((e) => e.done) && <p className="mt-2 text-[10px] t-3">🧺 Un reto ya jugado se vuelve a abrir para practicar más, sin nota.</p>}
+          {/* Para los mayores: la nota que van sacando en cada asignatura.
+              Lo de verdad está en Rendimiento → Colegio, tema a tema. */}
+          {!kid && notas.some((n) => n.n > 0) && (
+            <p className="mt-2 text-[10px] leading-snug t-3">
+              📊 Notas del trimestre:{' '}
+              {notas
+                .filter((n) => n.n > 0)
+                .map((n) => `${RETO_META[n.asignatura].nombre} ${notaEnTexto(n.nota)}`)
+                .join(' · ')}
+              . Tema a tema, en Rendimiento → Colegio.
+            </p>
+          )}
         </div>
       </div>
 

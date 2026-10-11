@@ -98,7 +98,7 @@ export interface RetoCole {
 /** Iconos que no enseñan nada a tamaño grande. */
 const SIN_LAMINA = new Set(['📝', '🤔', '✏️', '🖊️', '🔠', '🏷️', '⚖️', '✍️', '➕', '➖', '✖️', '🧩', '🔁', '0️⃣', '🧮', '🎯', '🔄', '🧷', '📦', '🥇', '🔤', '🔎', '🤝', '🔢', '🇬🇧', '🏛️', '📶', '🐝', '🗓️', '👏', '🎵', '🌱', '🔍', '👑', '🐑', '🧭', '🏫', '🦠', '🔬', '✨', '🎢', '🪙', '☀️']);
 
-function aQuestion(id: string, q: Pregunta, seed: number): GameQuestion {
+function aQuestion(id: string, q: Pregunta, tema: string, seed: number): GameQuestion {
   const rand = makeRand(seed);
   // Sin material propio, una lámina con su dibujo, si el dibujo dice algo:
   // los iconos de «escribe» o «piensa» sólo ensuciarían el tapete.
@@ -106,7 +106,7 @@ function aQuestion(id: string, q: Pregunta, seed: number): GameQuestion {
   if (q.juego) {
     // En los otros juegos la única opción es la respuesta buena escrita;
     // se contesta con su `id` al acertar y con otro al fallar.
-    return { id, prompt: q.prompt, options: [{ id: 'a', text: q.ok }], answer: 'a', explain: q.why, icon: q.icon, visual, juego: q.juego };
+    return { id, prompt: q.prompt, options: [{ id: 'a', text: q.ok }], answer: 'a', explain: q.why, icon: q.icon, visual, juego: q.juego, tema };
   }
   const malos = [...new Set(q.no.filter((x) => x !== q.ok))].slice(0, 3);
   const options = barajar([q.ok, ...malos], rand).map((text, i) => ({ id: 'abcd'[i], text }));
@@ -118,6 +118,7 @@ function aQuestion(id: string, q: Pregunta, seed: number): GameQuestion {
     explain: q.why,
     icon: q.icon,
     visual,
+    tema,
   };
 }
 
@@ -213,15 +214,15 @@ export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey,
   let tests = 0;
   let vf = 0;
   const mezcladas = preguntas.map(({ q, tema }) => {
-    if (q.juego) return q;
+    if (q.juego) return { q, tema };
     tests += 1;
-    if (tests <= 2) return q;
-    if (/^[\d.]+$/.test(q.ok)) return { ...q, juego: { tipo: 'escribe' as const, teclado: 'numeros' as const } };
+    if (tests <= 2) return { q, tema };
+    if (/^[\d.]+$/.test(q.ok)) return { q: { ...q, juego: { tipo: 'escribe' as const, teclado: 'numeros' as const } }, tema };
     if (vf < 2 && q.no.length > 0) {
       vf += 1;
-      return aVerdaderoFalso(q, rand, EN_INGLES.has(tema.asignatura));
+      return { q: aVerdaderoFalso(q, rand, EN_INGLES.has(tema.asignatura)), tema };
     }
-    return q;
+    return { q, tema };
   });
 
   return {
@@ -230,14 +231,23 @@ export function buildRetoCole(profileId: ProfileId, curso: Curso, date: DateKey,
     curso,
     temas,
     plan,
-    questions: mezcladas.map((q, i) => aQuestion(`cole-${date}-${reto}-${i}`, q, seed + i * 7919)),
+    questions: mezcladas.map(({ q, tema }, i) => aQuestion(`cole-${date}-${reto}-${i}`, q, tema.id, seed + i * 7919)),
   };
 }
 
 /* ---------------------------------------------------------------------------
- * Lo que se guarda: `reto|aciertos|contestadas|total|momento`, y si se han
- * jugado varios retos el mismo día, uno detrás de otro separados por `;`.
+ * Lo que se guarda: `reto|aciertos|contestadas|total|momento|detalle`, y si
+ * se han jugado varios retos el mismo día, uno detrás de otro separados por
+ * `;`. El detalle es pregunta a pregunta: el tema y si se acertó
+ * (`m3-1+,m3-2-,…`), que es de donde sale la nota de cada asignatura
+ * (`lib/notaCole.ts`). Las notas viejas, sin detalle, se siguen leyendo.
  * ------------------------------------------------------------------------- */
+
+/** Una pregunta contestada: de qué tema era y si se acertó. */
+export interface Acierto {
+  tema: string;
+  hit: boolean;
+}
 
 export interface RetoResult {
   reto: RetoId;
@@ -245,19 +255,27 @@ export interface RetoResult {
   answered: number;
   total: number;
   at: string;
+  /** Pregunta a pregunta, en orden. Vacío en lo anotado antes de guardarse. */
+  detalle?: Acierto[];
 }
 
 export function encodeRetoResult(r: RetoResult): string {
-  return [r.reto, r.correct, r.answered, r.total, r.at].join('|');
+  const detalle = (r.detalle ?? []).map((a) => `${a.tema}${a.hit ? '+' : '-'}`).join(',');
+  return [r.reto, r.correct, r.answered, r.total, r.at, detalle].join('|');
 }
 
 export function parseRetoResult(text: string | undefined | null): RetoResult | null {
   if (!text) return null;
-  const [reto, correct, answered, total, at] = text.split('|');
+  const [reto, correct, answered, total, at, detalle] = text.split('|');
   if (!(reto in RETO_META)) return null;
   const n = [correct, answered, total].map(Number);
   if (n.some((v) => !Number.isFinite(v)) || n[2] <= 0) return null;
-  return { reto: reto as RetoId, correct: n[0], answered: n[1], total: n[2], at: at ?? '' };
+  const aciertos: Acierto[] = (detalle ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => /^[a-z]\d-\d+[+-]$/.test(x))
+    .map((x) => ({ tema: x.slice(0, -1), hit: x.endsWith('+') }));
+  return { reto: reto as RetoId, correct: n[0], answered: n[1], total: n[2], at: at ?? '', detalle: aciertos };
 }
 
 export type RetoResults = Partial<Record<RetoId, RetoResult>>;

@@ -591,6 +591,12 @@ export interface GameQuestion {
    * `components/games/Juegos.tsx`.
    */
   juego?: Juego;
+  /**
+   * El tema de `lib/temario.ts` del que sale (en los retos del cole). Sirve
+   * para saber, pregunta a pregunta, qué parte del temario va bien y cuál
+   * no: de ahí sale la nota de cada asignatura.
+   */
+  tema?: string;
 }
 
 /**
