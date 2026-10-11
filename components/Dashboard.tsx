@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
 import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
 import { DateNavigator } from '@/components/DateNavigator';
@@ -247,6 +247,32 @@ export function Dashboard({
     return () => window.removeEventListener('keydown', onKey);
   }, [tab, date, onDateChange]);
 
+  /* ------------------------------------------------------ deslizar
+   *
+   * En el móvil, un dedo de lado cambia de día, como pasar página: a la
+   * izquierda el siguiente, a la derecha el anterior. Tiene que ser un gesto
+   * claro —más de 70 px de lado y poco de arriba abajo— para no confundirlo
+   * con el desplazamiento ni con un toque en una casilla.
+   */
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const onSwipeStart = (event: React.TouchEvent) => {
+    const t = event.touches[0];
+    swipe.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onSwipeEnd = (event: React.TouchEvent) => {
+    const start = swipe.current;
+    swipe.current = null;
+    const t = event.changedTouches[0];
+    if (!start || !t) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input[type="range"], textarea, [role="dialog"]')) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > 50) return;
+    if (dx < 0 && date < todayKey()) onDateChange(addDays(date, 1));
+    if (dx > 0) onDateChange(addDays(date, -1));
+  };
+
   /* ------------------------------------------------------- acciones */
 
   /**
@@ -457,7 +483,14 @@ export function Dashboard({
       </div>
 
       {tab === 'today' ? (
-        <div className="space-y-4" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
+        <div
+          className="space-y-4"
+          role="tabpanel"
+          id="panel-today"
+          aria-labelledby="tab-today"
+          onTouchStart={onSwipeStart}
+          onTouchEnd={onSwipeEnd}
+        >
           <DateNavigator
             date={date}
             onChange={onDateChange}

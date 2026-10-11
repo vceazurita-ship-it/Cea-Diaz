@@ -180,6 +180,17 @@ const SECTIONS: Array<{ id: Section; label: string; icon: string }> = [
   { id: 'seguridad', label: 'Seguridad', icon: '🔐' },
 ];
 
+/**
+ * Los apartados por grupos, para la lista del móvil: lo que se ve, lo de
+ * los niños y lo de la cuenta. Ocho pestañas en una tira no dicen qué va
+ * con qué; tres grupos sí.
+ */
+const GRUPOS: Array<{ titulo: string; blurb: string; ids: Section[] }> = [
+  { titulo: 'Cómo se ve', blurb: 'Modo, portada y sintonías.', ids: ['aspecto', 'sonido'] },
+  { titulo: 'Los niños', blurb: 'Juegos, pegatinas y el GPS de los partidos.', ids: ['juegos', 'pegatinas', 'gps'] },
+  { titulo: 'La cuenta y los datos', blurb: 'La nube, las copias y el PIN.', ids: ['nube', 'datos', 'seguridad'] },
+];
+
 /** «hace 3 min», que es como se mira si algo acaba de pasar. */
 function agoLabel(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -216,6 +227,13 @@ function weakPin(pin: string): boolean {
 
 export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelProps) {
   const [section, setSection] = useState<Section>(initialSection ?? 'aspecto');
+  /**
+   * En el móvil los ajustes se abren por una lista de apartados en grupos y
+   * se entra en uno; esto dice si se está en la lista. Quien llega con un
+   * apartado pedido (la vuelta de Footbar, la nube desde la barra) entra
+   * directo. En pantalla grande la lista no existe: están las pestañas.
+   */
+  const [menuOpen, setMenuOpen] = useState(!initialSection);
 
   const [pin, setPin] = useState('');
   const [pinAgain, setPinAgain] = useState('');
@@ -686,12 +704,64 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
 
   return (
     <Modal title="⚙️ Ajustes" onClose={onClose} size="lg">
-      {/* Navegación: los apartados, siempre a la vista */}
+      {/* En el móvil: la lista de apartados por grupos, o la vuelta a ella
+          desde dentro de uno. */}
+      {menuOpen ? (
+        <nav aria-label="Apartados de los ajustes" className="space-y-3 sm:hidden">
+          {GRUPOS.map((grupo) => (
+            <section key={grupo.titulo} className="card overflow-hidden">
+              <div className="px-4 pb-1 pt-3">
+                <h3 className="text-sm font-black t-1">{grupo.titulo}</h3>
+                <p className="text-[11px] t-3">{grupo.blurb}</p>
+              </div>
+              <ul className="divide-y hairline">
+                {grupo.ids.map((id) => {
+                  const option = SECTIONS.find((s) => s.id === id)!;
+                  return (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSection(id);
+                          setMenuOpen(false);
+                        }}
+                        className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left text-sm font-semibold t-1 hover-soft"
+                      >
+                        <span aria-hidden className="text-lg">
+                          {option.icon}
+                        </span>
+                        <span className="min-w-0 flex-1">{option.label}</span>
+                        {alerts[id] && (
+                          <span aria-label="requiere atención" style={{ background: 'var(--danger)' }} className="inline-block h-2 w-2 rounded-full" />
+                        )}
+                        <span aria-hidden className="t-3">
+                          ›
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </nav>
+      ) : (
+        <div className="sticky top-[var(--modal-head,5rem)] z-10 -mx-5 -mt-1 mb-3 flex items-center gap-2 px-5 pb-2 pt-1 surf-raised sm:hidden">
+          <button type="button" onClick={() => setMenuOpen(true)} className="btn-ghost h-10 px-3 text-xs">
+            ← Apartados
+          </button>
+          <p className="min-w-0 truncate text-sm font-black t-1">
+            {SECTIONS.find((s) => s.id === section)?.icon} {SECTIONS.find((s) => s.id === section)?.label}
+          </p>
+        </div>
+      )}
+
+      {/* Navegación en pantalla grande: los apartados, siempre a la vista */}
       <div
         role="tablist"
         aria-label="Apartados de los ajustes"
-        className="sticky top-[var(--modal-head,5rem)] z-10 -mx-5 -mt-1 mb-4 flex gap-1 overflow-x-auto px-5 pb-2 pt-1
-                   surf-raised"
+        className="sticky top-[var(--modal-head,5rem)] z-10 -mx-5 -mt-1 mb-4 hidden gap-1 overflow-x-auto px-5 pb-2 pt-1
+                   surf-raised sm:flex"
         // La máscara difumina los extremos: en el móvil ocho apartados no
         // caben, y sin esto nada decía que la tira seguía.
         style={{
@@ -735,7 +805,7 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
         })}
       </div>
 
-      <div className="space-y-4 text-sm" id={`ajustes-${section}`} role="tabpanel">
+      <div className={`space-y-4 text-sm ${menuOpen ? 'hidden sm:block' : ''}`} id={`ajustes-${section}`} role="tabpanel">
         {/* ---------------------------------------------- aspecto de la app */}
         {section === 'aspecto' && (
           <>
