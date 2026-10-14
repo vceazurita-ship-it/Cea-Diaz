@@ -415,9 +415,70 @@ function GroupHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
   );
 }
 
+/* ---------------------------------------------------------------- compacta */
+
+/**
+ * La cabecera en una línea, para las pestañas que no son el día.
+ *
+ * La grande es la portada del perfil y se queda en su pestaña. En Semana,
+ * Retos o Datos ocupaba la primera media pantalla del móvil repitiendo lo
+ * mismo, y lo que se venía a ver empezaba por debajo del pliegue. Aquí cabe
+ * quién es, qué día es y cómo va, en 64 px, con la letra de su piel.
+ */
+function CompactHeader({ profile, skin, date, dayScore, streak }: ProfileHeaderProps) {
+  const pct = Math.round(dayScore.ratio * 100);
+  const name = profile.name.replace('Hábitos en ', '');
+  const pitch = skin === 'pitch';
+  const royal = skin === 'royal';
+
+  return (
+    <header
+      className={`relative mb-4 flex items-center gap-3 overflow-hidden p-2.5 pr-3 animate-floatUp
+        ${pitch ? 'card-kid turf' : 'card'}`}
+    >
+      {royal && <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[2px]" />}
+      <Avatar profile={profile} size={44} shape={pitch || royal ? 'circle' : 'squircle'} ring />
+
+      <div className="min-w-0 flex-1">
+        <h1
+          className={`truncate leading-none t-1 ${
+            pitch
+              ? 'font-display -skew-x-6 text-2xl uppercase tracking-tight'
+              : royal
+                ? 'royal-title text-xl'
+                : skin === 'editorial'
+                  ? 'font-display text-xl tracking-tight'
+                  : 'text-lg font-black'
+          }`}
+        >
+          {royal && <span aria-hidden className="mr-1 text-base">👑</span>}
+          {name}
+        </h1>
+        <p className="mt-1 truncate text-[11px] font-semibold t-3">
+          {friendlyDateLabel(date)} · {capitalize(formatLong(date))}
+        </p>
+      </div>
+
+      {streak > 0 && (
+        <span className="chip-soft hidden shrink-0 min-[360px]:inline-flex" title="Días seguidos por encima del 60 %">
+          🔥 {streak}
+        </span>
+      )}
+
+      <ProgressRing ratio={dayScore.ratio} size={46} stroke={4}>
+        <span className="text-xs font-black tabular-nums t-1" aria-live="polite">
+          {pct}
+          <span className="text-[8px]">%</span>
+        </span>
+      </ProgressRing>
+    </header>
+  );
+}
+
 /* ------------------------------------------------------------- despachador */
 
-export function ProfileHeader(props: ProfileHeaderProps) {
+export function ProfileHeader(props: ProfileHeaderProps & { compact?: boolean }) {
+  if (props.compact) return <CompactHeader {...props} />;
   switch (props.skin) {
     case 'pitch':
       return <PitchHeader {...props} />;

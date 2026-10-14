@@ -294,7 +294,7 @@ export function CategoryCard({
 
         <span className="min-w-0 flex-1">
           <span
-            className={`block truncate font-bold t-1 ${
+            className={`line-clamp-2 block font-bold leading-tight t-1 [overflow-wrap:anywhere] ${
               pitch
                 ? 'font-display text-lg uppercase tracking-wide'
                 : royal
@@ -307,7 +307,7 @@ export function CategoryCard({
             {category.label}
           </span>
           {/* Plegada, la tarjeta dice cuánto falta; desplegada, de qué va. */}
-          <span className="block truncate text-xs t-3">
+          <span className="mt-0.5 line-clamp-2 block text-xs t-3">
             {open
               ? category.description
               : complete

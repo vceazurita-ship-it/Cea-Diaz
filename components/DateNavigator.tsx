@@ -32,9 +32,11 @@ interface DateNavigatorProps {
   onChange: (date: DateKey) => void;
   /** Cumplimiento por día de la semana visible, para pintar la tira. */
   weekRatios?: Record<DateKey, number>;
+  /** Lo hecho del día, para que la pastilla flotante diga también cuánto queda. */
+  progress?: { done: number; total: number };
 }
 
-export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigatorProps) {
+export function DateNavigator({ date, onChange, weekRatios = {}, progress }: DateNavigatorProps) {
   const today = todayKey();
   const days = weekKeys(date);
   const picker = useRef<HTMLInputElement>(null);
@@ -121,6 +123,30 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
           >
             {dayPillLabel(date)}
           </button>
+          {/* Cuánto queda, sin tener que volver arriba a mirarlo: un anillo
+              pequeño que se llena según se baja rellenando casillas. */}
+          {progress && progress.total > 0 && (
+            <span
+              className="flex items-center gap-1.5 border-l pl-2 pr-1 text-xs font-bold tabular-nums hairline t-2"
+              aria-label={`${progress.done} de ${progress.total} registradas`}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden className="-rotate-90">
+                <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-current opacity-15" />
+                <circle
+                  cx="9"
+                  cy="9"
+                  r="7"
+                  fill="none"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  stroke="var(--accent)"
+                  strokeDasharray={`${(2 * Math.PI * 7 * progress.done) / progress.total} 99`}
+                  className="transition-[stroke-dasharray] duration-500"
+                />
+              </svg>
+              {progress.done === progress.total ? '✓' : `${progress.done}/${progress.total}`}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onChange(addDays(date, 1))}

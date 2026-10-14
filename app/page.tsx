@@ -364,6 +364,9 @@ function Home() {
             onCustomize={needsPin ? undefined : () => setEditing(profile)}
             cloud={store.cloud}
             onOpenCloud={openCloud}
+            todayRatio={Object.fromEntries(
+              Object.entries(glances).map(([id, glance]) => [id, glance.tracked ? glance.today : 0]),
+            )}
           />
         )}
 

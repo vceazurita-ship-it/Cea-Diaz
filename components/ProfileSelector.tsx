@@ -286,6 +286,17 @@ function CoverStatus({
   );
 }
 
+/**
+ * El saludo de la portada según la hora. Por la noche, que es cuando se
+ * registra casi todo, lo dice claro: toca apuntar el día.
+ */
+function greeting(hour: number): string {
+  if (hour >= 20 || hour < 2) return 'Buenas noches 🌙 Es la hora de apuntar el día: dos minutos por perfil.';
+  if (hour < 6) return 'Buenas noches. Elige tu perfil para registrar el día.';
+  if (hour < 13) return 'Buenos días ☀️ Elige tu perfil, o mira cómo quedó ayer.';
+  return 'Buenas tardes. Elige tu perfil para registrar el día, o entra en los módulos compartidos.';
+}
+
 export function ProfileSelector({
   onSelect,
   glances,
@@ -333,7 +344,7 @@ export function ProfileSelector({
             Hábitos en Familia
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm t-2">
-            Elige tu perfil para registrar el día, o entra en los módulos compartidos.
+            {hydrated ? greeting(new Date().getHours()) : 'Elige tu perfil para registrar el día, o entra en los módulos compartidos.'}
           </p>
 
           {/* Estado del día de un vistazo, antes de entrar en ningún perfil. */}

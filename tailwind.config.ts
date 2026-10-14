@@ -23,6 +23,24 @@ const config: Config = {
       // oscura. Ya no hace falta: los grises salen de los tokens del modo, que
       // son los únicos que saben si toca papel o noche.
       keyframes: {
+        // Al cambiar de pestaña, lo nuevo entra fundido. Sólo opacidad: un
+        // transform en el panel haría de contenedor a la pastilla fija del día.
+        aparece: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        // La tarjeta del día completo: entra pequeña, se pasa y se asienta.
+        salta: {
+          '0%': { opacity: '0', transform: 'scale(0.5)' },
+          '60%': { opacity: '1', transform: 'scale(1.06)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        // El confeti del día completo: sale del centro y cae girando.
+        estalla: {
+          '0%': { opacity: '1', transform: 'translate(0, 0) rotate(0deg) scale(0.6)' },
+          '70%': { opacity: '1' },
+          '100%': { opacity: '0', transform: 'translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1)' },
+        },
         pop: {
           '0%': { transform: 'scale(1)' },
           '45%': { transform: 'scale(1.18)' },
@@ -141,6 +159,9 @@ const config: Config = {
         },
       },
       animation: {
+        aparece: 'aparece 260ms ease-out',
+        salta: 'salta 460ms cubic-bezier(0.2, 1.4, 0.4, 1) both',
+        estalla: 'estalla 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) both',
         flota: 'flota 2.6s ease-in-out infinite',
         explota: 'explota 360ms ease-out both',
         voltea: 'voltea 220ms ease-out both',

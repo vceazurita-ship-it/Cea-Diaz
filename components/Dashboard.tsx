@@ -13,6 +13,9 @@ import { TodayPlanCard } from '@/components/planner/TodayPlanCard';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import type { CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
+import { Celebration } from '@/components/ui/Celebration';
+import { playCue } from '@/lib/sound';
+import { success as hapticSuccess } from '@/lib/haptics';
 import { CHALLENGE_NOTE_KEY } from '@/lib/challenges';
 
 /* -------------------------------------------------------------------------
@@ -265,6 +268,26 @@ export function Dashboard({
   const total = dayScore.categories.reduce((sum, category) => sum + category.total, 0);
   const pending = total - filled;
 
+  /* ------------------------------------------------ la fiesta del día
+   *
+   * Cuando quien registra rellena la última casilla, salta el confeti. Sólo
+   * si ha sido a mano en este día: al llegar la nube o al abrir un día ya
+   * completo no se celebra nada, que no lo ha hecho nadie ahora.
+   */
+  const touched = useRef<DateKey | null>(null);
+  const lastPending = useRef<{ date: DateKey; pending: number } | null>(null);
+  const [party, setParty] = useState(false);
+  useEffect(() => {
+    const prev = lastPending.current;
+    lastPending.current = { date, pending };
+    if (prev && prev.date === date && prev.pending > 0 && pending === 0 && total > 0 && touched.current === date) {
+      setParty(true);
+      playCue('combo');
+      hapticSuccess();
+    }
+  }, [date, pending, total]);
+  const endParty = useCallback(() => setParty(false), []);
+
   /* ---------------------------------------------- el registro y la semana
    *
    * Las dos mitades de la app se miraban de lejos: la agenda sabía que hoy
@@ -334,6 +357,7 @@ export function Dashboard({
     : categories;
 
   const handleChange = (metricId: string, value: Parameters<HabitStore['setValue']>[3]) => {
+    touched.current = date;
     store.setValue(profile.id, date, metricId, value);
   };
 
@@ -493,6 +517,7 @@ export function Dashboard({
    */
   const fillFromWeek = () => {
     if (fills.length === 0) return;
+    touched.current = date;
     const before = store.snapshot();
 
     for (const fill of fills) store.setValue(profile.id, date, fill.metricId, fill.value);
@@ -513,6 +538,7 @@ export function Dashboard({
    */
   const fillUsual = (list: UsualFill[], where?: string) => {
     if (list.length === 0) return;
+    touched.current = date;
     const before = store.snapshot();
     for (const fill of list) store.setValue(profile.id, date, fill.metricId, fill.value);
 
@@ -528,6 +554,7 @@ export function Dashboard({
 
   const copyYesterday = () => {
     const from = addDays(date, -1);
+    touched.current = date;
     const before = store.snapshot();
     const copied = store.copyDay(profile.id, from, date);
 
@@ -590,6 +617,23 @@ export function Dashboard({
       className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 sm:pb-16"
       data-variant={kid ? 'kid' : 'adult'}
     >
+      {party && (
+        <Celebration
+          icon={skin === 'pitch' ? '🏆' : skin === 'royal' ? '👑' : '🎉'}
+          title={
+            skin === 'pitch'
+              ? '¡Partido completo!'
+              : skin === 'royal'
+                ? '¡Cuento terminado!'
+                : '¡Día completo!'
+          }
+          subtitle={`${profile.name.replace('Hábitos en ', '')}: ${total} de ${total} ${
+            isToday(date) ? 'hoy' : friendlyDateLabel(date).toLowerCase()
+          }${week.streak > 1 ? ` · 🔥 ${week.streak} días de racha` : ''}.`}
+          onDone={endParty}
+        />
+      )}
+
       <ProfileHeader
         profile={profile}
         skin={skin}
@@ -597,6 +641,7 @@ export function Dashboard({
         dayScore={dayScore}
         streak={week.streak}
         filled={filled}
+        compact={tab !== 'today'}
       />
 
       {/* Pestañas. En el móvil van abajo, fijas y con el nombre debajo del
@@ -681,7 +726,7 @@ export function Dashboard({
 
       {tab === 'today' ? (
         <div
-          className="space-y-4"
+          className="animate-aparece space-y-4"
           role="tabpanel"
           id="panel-today"
           aria-labelledby="tab-today"
@@ -692,6 +737,7 @@ export function Dashboard({
             date={date}
             onChange={onDateChange}
             weekRatios={weekRatios}
+            progress={{ done: filled, total }}
           />
 
           {/* Lo que se quedó sin apuntar estos días: un toque y se está en
@@ -943,7 +989,7 @@ export function Dashboard({
           </p>
         </div>
       ) : tab === 'plan' ? (
-        <div role="tabpanel" id="panel-plan" aria-labelledby="tab-plan">
+        <div className="animate-aparece" role="tabpanel" id="panel-plan" aria-labelledby="tab-plan">
           <WeekPlanner
             profile={profile}
             date={date}
@@ -954,7 +1000,7 @@ export function Dashboard({
           />
         </div>
       ) : tab === 'challenges' ? (
-        <div role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">
+        <div className="animate-aparece" role="tabpanel" id="panel-challenges" aria-labelledby="tab-challenges">
           <ChallengesPanel
             profile={profile}
             date={date}
@@ -984,7 +1030,7 @@ export function Dashboard({
           />
         </div>
       ) : tab === 'economia' ? (
-        <div role="tabpanel" id="panel-economia" aria-labelledby="tab-economia">
+        <div className="animate-aparece" role="tabpanel" id="panel-economia" aria-labelledby="tab-economia">
           {financeOpen ? (
             <FinancePanel profile={profile} />
           ) : (
@@ -992,11 +1038,11 @@ export function Dashboard({
           )}
         </div>
       ) : tab === 'gps' ? (
-        <div role="tabpanel" id="panel-gps" aria-labelledby="tab-gps">
+        <div className="animate-aparece" role="tabpanel" id="panel-gps" aria-labelledby="tab-gps">
           <RendimientoPanel profile={profile} store={store} kid={kid} skin={skin} />
         </div>
       ) : tab === 'tasks' ? (
-        <div role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">
+        <div className="animate-aparece" role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">
           <TasksPanel
             profile={profile}
             store={store}
@@ -1007,7 +1053,7 @@ export function Dashboard({
           />
         </div>
       ) : (
-        <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
+        <div className="animate-aparece" role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
           <SummaryView
           profile={profile}
           date={date}

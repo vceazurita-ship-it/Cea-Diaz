@@ -21,6 +21,8 @@ interface TopBarProps {
   /** El estado de la nube, para decirlo en la barra; tocarlo abre sus ajustes. */
   cloud?: CloudState;
   onOpenCloud?: () => void;
+  /** Lo registrado hoy por cada perfil (0–1), para marcar en la tira quién ha terminado. */
+  todayRatio?: Partial<Record<ProfileId, number>>;
 }
 
 export function TopBar({
@@ -31,6 +33,7 @@ export function TopBar({
   onCustomize,
   cloud,
   onOpenCloud,
+  todayRatio = {},
 }: TopBarProps) {
   const { dress } = useAppearance();
   const { mode } = useTheme();
@@ -113,12 +116,27 @@ export function TopBar({
                   ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
                 title={locked ? `${profile.name} (bloqueado)` : profile.name}
               >
-                <Avatar
-                  profile={profile}
-                  size={32}
-                  shape="circle"
-                  className={active ? 'ring-2 ring-white/30' : 'opacity-90'}
-                />
+                {/* Quién ha terminado hoy y quién va a medias, sin salir del
+                    perfil: a las nueve de la noche es lo que se quiere saber
+                    para decidir a quién se apunta después. */}
+                <span className="relative shrink-0">
+                  <Avatar
+                    profile={profile}
+                    size={32}
+                    shape="circle"
+                    className={active ? 'ring-2 ring-white/30' : 'opacity-90'}
+                  />
+                  {!active && (todayRatio[profile.id] ?? 0) > 0 && (
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full
+                        border-2 border-[var(--bg)] font-black leading-none
+                        ${(todayRatio[profile.id] ?? 0) >= 0.999 ? 'h-4 w-4 bg-accent text-[8px] t-on-accent' : 'h-3 w-3 bg-[var(--warn,#f59e0b)]'}`}
+                      aria-label={(todayRatio[profile.id] ?? 0) >= 0.999 ? 'día completo' : 'a medias'}
+                    >
+                      {(todayRatio[profile.id] ?? 0) >= 0.999 ? '✓' : ''}
+                    </span>
+                  )}
+                </span>
                 <span className={active ? 'inline' : 'hidden md:inline'}>{label}</span>
                 {locked && (
                   <span className="text-xs" aria-label="bloqueado">
