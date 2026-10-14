@@ -33,7 +33,8 @@ import type { DateKey, DayEntry, GameQuestion, ProfileId, ShotKind } from '@/typ
  *  tiene su tiro —y menos le llega Benji—.
  * ========================================================================= */
 
-export const COLE_NOTE_KEY = 'cole';
+import { COLE_NOTE_KEY } from '@/lib/noteKeys';
+export { COLE_NOTE_KEY };
 export const COLE_QUESTIONS = 5;
 export const COLE_PASS = 4;
 

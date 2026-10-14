@@ -355,14 +355,13 @@ export function ProfileSelector({
       <section className="mb-10">
         <h2 className="rule mb-3">Perfiles individuales</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {INDIVIDUAL_PROFILES.map((profile, index) => (
+          {INDIVIDUAL_PROFILES.map((profile) => (
             <ProfileCard
               key={profile.id}
               profile={profile}
               glance={glances[profile.id]}
               hydrated={hydrated}
               onSelect={onSelect}
-              priority={index < 2}
             />
           ))}
         </div>

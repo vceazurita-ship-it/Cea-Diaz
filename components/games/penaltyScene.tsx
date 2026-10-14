@@ -351,7 +351,7 @@ export function Marcador({
         return (
           <span
             key={i}
-            className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black leading-none sm:h-[1.15rem] sm:w-[1.15rem]
+            className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black leading-none sm:h-6 sm:w-6
               ${
                 good === true
                   ? 'bg-emerald-400 text-emerald-950'
@@ -380,11 +380,11 @@ export function Marcador({
       <div className="flex items-stretch">
         {/* La mosca de la cadena: en directo y qué se juega. */}
         <div className="hidden flex-col justify-center gap-0.5 border-r border-white/10 px-3 sm:flex">
-          <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-rose-400">
+          <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.16em] text-rose-400">
             <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
             En directo
           </span>
-          <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${golden ? 'text-amber-300' : 'text-white/70'}`}>
+          <span className={`text-[11px] font-black uppercase tracking-[0.12em] ${golden ? 'text-amber-300' : 'text-white/70'}`}>
             {golden ? 'Tiro de oro' : 'Tanda de penaltis'}
           </span>
         </div>
@@ -411,9 +411,9 @@ export function Marcador({
                 ${batido ? 'animate-latido bg-amber-300 text-[#241a14]' : 'bg-white text-[#0b1220]'}`}
             >
               <span className="text-2xl font-black leading-tight">{points}</span>
-              <span className="text-[9px] font-black uppercase tracking-[0.1em] opacity-70">pts</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">pts</span>
             </span>
-            <span className={`mt-px text-[9px] font-black uppercase tracking-[0.1em] ${batido ? 'text-amber-300' : 'text-white/50'}`}>
+            <span className={`mt-px text-[11px] font-black uppercase tracking-[0.1em] ${batido ? 'text-amber-300' : 'text-white/50'}`}>
               {batido ? '¡récord!' : record > 0 ? `récord ${record}` : 'sin récord'}
             </span>
           </div>
@@ -427,7 +427,7 @@ export function Marcador({
           </div>
 
           <div className="flex justify-end">{fila('tira')}</div>
-          <span className={`whitespace-nowrap text-center text-[9px] font-black uppercase tracking-[0.14em] ${golden ? 'animate-pulse text-amber-300' : 'text-amber-300'}`}>
+          <span className={`whitespace-nowrap text-center text-[11px] font-black uppercase tracking-[0.14em] ${golden ? 'animate-pulse text-amber-300' : 'text-amber-300'}`}>
             {golden ? '★ Tiro de oro' : `Penalti ${shooting}/${PENALTY_SHOTS}`}
           </span>
           <div className="flex">{fila('para')}</div>

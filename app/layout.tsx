@@ -7,7 +7,9 @@ export const metadata: Metadata = {
     'Seguimiento de hábitos de Leo, Hugo, María y Víctor: nutrición, sueño, deporte, estudio, trabajo y rutinas compartidas.',
   applicationName: 'Hábitos en Familia',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  // iPhone no lee SVG para la pantalla de inicio: el suyo va en PNG y sin
+  // esquinas, que las redondea él.
+  icons: { icon: '/icon.svg', apple: '/apple-touch-icon.png' },
   appleWebApp: { capable: true, title: 'Hábitos', statusBarStyle: 'black-translucent' },
   // El de Apple está descatalogado y el navegador lo dice en cada carga; el
   // estándar es éste. Se declaran los dos: iPhone sigue leyendo el suyo.

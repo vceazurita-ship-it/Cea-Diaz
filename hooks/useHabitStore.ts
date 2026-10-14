@@ -33,10 +33,7 @@ import {
   versionIndex,
   type CloudTable,
 } from '@/lib/cloud';
-import { GAME_NOTE_KEY } from '@/lib/games';
-import { PENALTY_NOTE_KEY } from '@/lib/penalties';
-import { COLE_NOTE_KEY } from '@/lib/retoCole';
-import { FUTBOL_NOTE_KEY } from '@/lib/retoFutbol';
+import { COLE_NOTE_KEY, FUTBOL_NOTE_KEY, GAME_NOTE_KEY, PENALTY_NOTE_KEY } from '@/lib/noteKeys';
 import {
   applyRemoteGps,
   loadGps,
@@ -64,7 +61,6 @@ import {
   replicaAction,
   type ReplicaMark,
 } from '@/lib/replica';
-import { buildSeedDatabase } from '@/lib/seed';
 import {
   applyRemoteSettings,
   loadSettings,
@@ -1729,7 +1725,9 @@ export function useHabitStore(): HabitStore {
     // cada casa, no de un ejemplo.
     synced.current = { entries: {}, tasks: {} };
 
-    setDb((prev) => {
+    // El ejemplo se pide al usarlo: son meses de días inventados que nadie
+    // necesita para abrir la app.
+    void import('@/lib/seed').then(({ buildSeedDatabase }) => setDb((prev) => {
       const seed = buildSeedDatabase();
       const after = { entries: seed.entries, tasks: prev.tasks };
 
@@ -1741,7 +1739,7 @@ export function useHabitStore(): HabitStore {
         // borrados: si no, la nube los devolvería mezclados con el ejemplo.
         tombstones: regrave(prev.tombstones, prev, after),
       };
-    });
+    }));
   }, []);
 
   const resetEntries = useCallback(() => {

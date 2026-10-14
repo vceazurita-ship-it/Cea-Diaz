@@ -619,7 +619,7 @@ export function Tiro3D({
                 return (
                   <span
                     key={i}
-                    className={`grid h-5 w-5 place-items-center rounded-full border-2 text-[10px] font-black shadow
+                    className={`grid h-5 w-5 place-items-center rounded-full border-2 text-[11px] font-black shadow
                       ${o === 'gol' ? 'border-emerald-200 bg-emerald-500 text-white' : o === 'tirado' ? 'border-slate-300 bg-slate-400 text-white' : o ? 'border-rose-200 bg-rose-500 text-white' : now ? 'animate-pulse border-amber-300 bg-black/40' : 'border-white/50 bg-black/35'}`}
                   >
                     {o === 'gol' ? '✓' : o && o !== 'tirado' ? '✕' : ''}
@@ -635,7 +635,7 @@ export function Tiro3D({
                 {marcador.points.toLocaleString('es-ES')}
                 <span className="ml-1 text-[11px] text-white/70">PTS</span>
               </p>
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-white/60">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/60">
                 {(landed ? record : recordAntes) > 0
                   ? `Récord ${(landed ? record : recordAntes).toLocaleString('es-ES')}`
                   : 'Sin récord'}
@@ -694,7 +694,7 @@ export function Tiro3D({
         )}
         {step === 'apuntar' && !cartel && (
           <div className="pointer-events-none absolute inset-x-[26%] bottom-[3%] z-10 flex justify-center">
-            <div className="animate-floatUp rounded-2xl bg-white/90 px-2.5 py-1 text-center text-[10px] font-black leading-tight text-[#0b1220] shadow-lg">
+            <div className="animate-floatUp rounded-2xl bg-white/90 px-2.5 py-1 text-center text-[11px] font-black leading-tight text-[#0b1220] shadow-lg">
               Estira el balón hacia atrás y suelta
             </div>
           </div>
@@ -718,22 +718,22 @@ export function Tiro3D({
                           setKind(id);
                           setTray(false);
                         }}
-                        className={`flex flex-col items-center rounded-xl px-1 py-1.5 text-center text-[10px] font-black leading-tight text-white ring-2 transition
+                        className={`flex flex-col items-center rounded-xl px-1 py-1.5 text-center text-[11px] font-black leading-tight text-white ring-2 transition
                           ${kind === id ? 'bg-white/20 ring-amber-300' : 'bg-white/5 ring-transparent'} disabled:opacity-35`}
                         style={{ boxShadow: kind === id ? `0 0 18px ${t.color}66` : undefined }}
                       >
                         <span className="text-xl leading-none">{t.icon}</span>
                         <span className="mt-0.5">{t.short}</span>
-                        <span className="text-[9px] text-amber-300">{t.cost ? '⚡'.repeat(t.cost) : 'gratis'}</span>
-                        {ok.reason === 'usado' && <span className="text-[8px] text-white/60">usado</span>}
+                        <span className="text-[11px] text-amber-300">{t.cost ? '⚡'.repeat(t.cost) : 'gratis'}</span>
+                        {ok.reason === 'usado' && <span className="text-[11px] text-white/60">usado</span>}
                       </button>
                     );
                   })}
                   {/* Los del cole: se ganan con el reto de la asignatura del día. */}
-                  <p className="col-span-4 mt-1 flex items-center gap-1 border-t border-white/10 px-1 pt-1.5 text-[9px] font-black uppercase tracking-widest text-amber-300">
+                  <p className="col-span-4 mt-1 flex items-center gap-1 border-t border-white/10 px-1 pt-1.5 text-[11px] font-black uppercase tracking-widest text-amber-300">
                     🎒 Tiros del cole
                   </p>
-                  <div className="col-span-4 grid grid-cols-6 gap-1">
+                  <div className="col-span-4 grid grid-cols-3 gap-1 sm:grid-cols-6">
                     {COLE_ORDER.map((id) => {
                       const t = SHOT_TYPES[id];
                       const ok = shotAvailability(id, result, cole, energiaExtra);
@@ -748,19 +748,19 @@ export function Tiro3D({
                             setTray(false);
                           }}
                           title={ganado ? t.name : `${t.name}: gana el reto del cole`}
-                          className={`relative flex flex-col items-center rounded-xl px-0.5 py-1.5 text-center text-[8px] font-black leading-tight text-white ring-2 transition
+                          className={`relative flex flex-col items-center rounded-xl px-0.5 py-1.5 text-center text-[11px] font-black leading-tight text-white ring-2 transition
                             ${kind === id ? 'bg-white/25 ring-amber-300' : ganado ? 'ring-transparent' : 'bg-white/5 ring-transparent'} disabled:opacity-40`}
                           style={ganado ? { background: `radial-gradient(circle at 50% 30%, ${t.color}aa, #0b1220)`, boxShadow: `0 0 16px ${t.color}88` } : undefined}
                         >
                           <span className={`text-lg leading-none ${ganado ? 'animate-latido' : 'grayscale'}`}>{ganado ? t.icon : '🔒'}</span>
                           <span className="mt-0.5">{t.short}</span>
-                          {ok.reason === 'usado' && <span className="text-[7px] text-white/60">usado</span>}
+                          {ok.reason === 'usado' && <span className="text-[11px] text-white/60">usado</span>}
                         </button>
                       );
                     })}
                   </div>
                   {cole.length > 0 && coleNivel > 1 && (
-                    <p className="col-span-4 px-1 text-[9px] font-bold text-amber-200/90">
+                    <p className="col-span-4 px-1 text-[11px] font-bold text-amber-200/90">
                       {'★'.repeat(coleNivel)} Nivel {coleNivel}: Benji llega menos.
                     </p>
                   )}
@@ -785,7 +785,7 @@ export function Tiro3D({
                 >
                   {SHOT_TYPES[kind].icon}
                 </span>
-                <span className="mt-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                <span className="mt-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white">
                   {step === 'apuntar' ? 'Cambiar tiro' : SHOT_TYPES[kind].short}
                 </span>
                 <span className="mt-0.5 flex gap-0.5" aria-label={`Energía: ${energyLeft(result, energiaExtra)}`}>
@@ -934,7 +934,7 @@ export function Tiro3D({
           <div aria-hidden className="pointer-events-none absolute inset-0 z-30">
             <div className="absolute inset-x-0 top-0 h-[8%] bg-black" />
             <div className="absolute inset-x-0 bottom-0 h-[8%] bg-black" />
-            <div className="absolute right-[3%] top-[10%] flex items-center gap-1.5 rounded bg-[#0b1220]/90 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+            <div className="absolute right-[3%] top-[10%] flex items-center gap-1.5 rounded bg-[#0b1220]/90 px-2 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
               Repetición
             </div>
@@ -946,7 +946,7 @@ export function Tiro3D({
       {step === 'visto' && fired && (
         <div className="animate-floatUp space-y-2">
           <p className="rounded-2xl bg-[#0b1220] px-3.5 py-2.5 text-[13px] font-bold leading-snug text-white" aria-live="polite">
-            <span className="mr-1.5 rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]">Directo</span>
+            <span className="mr-1.5 rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-[0.14em]">Directo</span>
             {fired.shot.why}
           </p>
           <div className="grid grid-cols-[auto_1fr] gap-2">
@@ -1024,9 +1024,9 @@ function Medidor({ power, band, active, clavada }: { power: number; band: [numbe
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-manga text-[26px] leading-none text-white">{power}</span>
-        <span className="text-[8px] font-black uppercase tracking-[0.14em] text-white/70">Potencia</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.06em] text-white/70">Potencia</span>
         {active && (
-          <span className={`mt-0.5 rounded px-1 text-[8px] font-black uppercase ${clavada ? 'bg-sky-400 text-[#0b1220]' : 'bg-white/10 text-white/70'}`}>
+          <span className={`mt-0.5 rounded px-1 text-[11px] font-black uppercase ${clavada ? 'bg-sky-400 text-[#0b1220]' : 'bg-white/10 text-white/70'}`}>
             {clavada ? '¡Pulso!' : zona === 'pasado' ? 'Te pasas' : zona === 'flojo' ? 'Más' : '¡Suelta!'}
           </span>
         )}

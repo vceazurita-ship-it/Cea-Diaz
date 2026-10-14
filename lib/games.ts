@@ -40,7 +40,8 @@ import type {
  * ========================================================================= */
 
 /** Clave con la que la partida del día se anota en las notas del día. */
-export const GAME_NOTE_KEY = 'juego';
+import { GAME_NOTE_KEY } from '@/lib/noteKeys';
+export { GAME_NOTE_KEY };
 
 /** Preguntas de cada partida. */
 export const GAME_QUESTIONS = 5;

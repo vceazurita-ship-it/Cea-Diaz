@@ -70,7 +70,8 @@ import type { DateKey, DayEntry, PenaltyResult, ProfileId, ShotKind } from '@/ty
  * ========================================================================= */
 
 /** Clave con la que la tanda se anota en las notas del día. */
-export const PENALTY_NOTE_KEY = 'penaltis';
+import { PENALTY_NOTE_KEY } from '@/lib/noteKeys';
+export { PENALTY_NOTE_KEY };
 
 /** Penaltis de una tanda. */
 export const PENALTY_SHOTS = 5;

@@ -13,7 +13,8 @@ import type { DateKey, DayEntry, GameQuestion, ProfileId } from '@/types';
  *  contestado se queda, en una línea de las notas del día.
  * ========================================================================= */
 
-export const FUTBOL_NOTE_KEY = 'futbol';
+import { FUTBOL_NOTE_KEY } from '@/lib/noteKeys';
+export { FUTBOL_NOTE_KEY };
 export const FUTBOL_QUESTIONS = 5;
 export const FUTBOL_PASS = 4;
 /** Lo que da el reto superado en la tanda de ese día. */
