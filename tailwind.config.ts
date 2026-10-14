@@ -123,8 +123,27 @@ const config: Config = {
           '55%': { opacity: '1', transform: 'scale(0.96) rotate(1deg)' },
           '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)' },
         },
+        // Las burbujas de los retos: suben y bajan, cada una a su ritmo.
+        flota: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-7px)' },
+        },
+        // Una burbuja que se explota.
+        explota: {
+          '0%': { opacity: '1', transform: 'scale(1)' },
+          '40%': { opacity: '1', transform: 'scale(1.35)' },
+          '100%': { opacity: '0', transform: 'scale(0.2)' },
+        },
+        // La carta de la memoria al darse la vuelta.
+        voltea: {
+          '0%': { transform: 'rotateY(90deg)' },
+          '100%': { transform: 'rotateY(0deg)' },
+        },
       },
       animation: {
+        flota: 'flota 2.6s ease-in-out infinite',
+        explota: 'explota 360ms ease-out both',
+        voltea: 'voltea 220ms ease-out both',
         banda: 'banda 820ms cubic-bezier(0.3, 0.9, 0.4, 1) both',
         acerca: 'acerca 480ms cubic-bezier(0.2, 1.3, 0.4, 1) both',
         pop: 'pop 320ms ease-out',

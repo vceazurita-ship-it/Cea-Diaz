@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
+import { QuickChecklist } from '@/components/QuickChecklist';
 import { DateNavigator, dayPillLabel } from '@/components/DateNavigator';
 import { AttentionCard } from '@/components/experts/AttentionCard';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
@@ -159,9 +160,14 @@ export function Dashboard({
   const kid = profile.kind === 'kid';
   const skin = skinOf(profile);
 
+  // Los recados de los peques y de María no los usaba nadie y ocupaban un
+  // sitio de la barra: sólo salen cuando tienen alguno pendiente (o se ha
+  // entrado a propósito desde el enlace del registro).
+  const recadosOcultos = (skin === 'pitch' || skin === 'royal') && !store.getTasks(profile.id).some((t) => !t.done) && rawTab !== 'tasks';
+
   // `short` es el nombre para la barra del móvil, donde seis pestañas se
   // reparten 390 px: «Estadísticas» no cabe, «Datos» sí.
-  const tabs: Array<{ id: DashboardTab; label: string; icon: string; short?: string }> =
+  const allTabs: Array<{ id: DashboardTab; label: string; icon: string; short?: string }> =
     skin === 'pitch'
       ? [
           { id: 'today', label: 'Partido', icon: '⚽' },
@@ -201,6 +207,8 @@ export function Dashboard({
             ? [{ id: 'economia' as const, label: 'Economía', icon: '💶' }]
             : []),
         ];
+
+  const tabs = recadosOcultos ? allTabs.filter((t) => t.id !== 'tasks') : allTabs;
 
   /* La pestaña que se pinta es siempre una de las que este perfil tiene: si
      llegaba otra —la economía de Víctor en el panel de María—, se cae al
@@ -703,6 +711,10 @@ export function Dashboard({
                   {dayPillLabel(day)} →
                 </button>
               ))}
+              {/* El remedio para la próxima vez: que el móvil avise. */}
+              <a href="/api/recordatorio?h=21:00" className="chip min-h-[2rem] border hairline surf-1 font-semibold t-2 hover-soft" title="Añade al calendario del móvil un aviso diario a las 21:00">
+                ⏰ Avísame cada noche
+              </a>
             </div>
           )}
 
@@ -814,6 +826,10 @@ export function Dashboard({
             </span>
           </div>
 
+          {/* Para los mayores, lo de sí o no de un toque: un registro largo
+              que se hace en medio minuto es un registro que se hace. */}
+          {!kid && <QuickChecklist categories={categories} values={values} onChange={handleChange} />}
+
           {/* Lo que la semana tenía apartado para hoy, ya contrastado con lo
               registrado: es lo que ata la agenda a estas casillas. */}
           <TodayPlanCard
@@ -899,6 +915,20 @@ export function Dashboard({
             >
               {pending === 0 ? '¡Hecho! ' : ''}Seguir con {sibling.name}, {friendlyDateLabel(date).toLowerCase()} →
             </button>
+          )}
+
+          <p className="text-center">
+            <a href="/api/recordatorio?h=21:00" className="text-[11px] font-semibold underline-offset-2 t-3 hover:underline" title="Añade al calendario del móvil un evento diario con alarma">
+              ⏰ Que el móvil me recuerde apuntar cada noche a las 21:00
+            </a>
+          </p>
+
+          {recadosOcultos && (
+            <p className="text-center">
+              <button type="button" onClick={() => setTab('tasks')} className="text-[11px] font-semibold underline-offset-2 t-3 hover:underline">
+                📋 Apuntarle un recado a {profile.name}
+              </button>
+            </p>
           )}
 
           {/* Los atajos sólo se anuncian donde hay teclado: en el móvil eran

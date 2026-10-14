@@ -155,6 +155,59 @@ function aVerdaderoFalso(q: Pregunta, rand: Rand, en: boolean): Pregunta {
 }
 
 /**
+ * Para que un mismo tema no se juegue siempre igual, algunos juegos se
+ * cambian por otro que trabaja lo mismo de otra manera:
+ *
+ *   · emparejar → **memoria**: las mismas parejas, boca abajo;
+ *   · clasificar → **burbujas** (explota sólo las de una caja) o
+ *     **el intruso** (¿cuál no es de la familia?);
+ *   · deletrear → **globos**: se adivina letra a letra antes de que se
+ *     pinchen todos.
+ */
+function otraManera(q: Pregunta, rand: Rand, en: boolean): Pregunta {
+  const juego = q.juego!;
+  const r = rand();
+  if (juego.tipo === 'empareja' && juego.pares.length <= 5 && r < 0.5) {
+    return { ...q, prompt: en ? 'Memory! Find each pair.' : '¡Memoria! Encuentra cada pareja.', icon: '🃏', juego: { tipo: 'memoria', pares: juego.pares } };
+  }
+  if (juego.tipo === 'clasifica' && juego.cajas.length >= 2) {
+    const cajas = juego.cajas.filter((c) => c.items.length > 0);
+    if (r < 0.35 && cajas.length >= 2) {
+      const objetivo = cajas[Math.floor(rand() * cajas.length)];
+      const items = barajar(cajas.flatMap((c) => c.items.map((t) => ({ t, ok: c === objetivo }))), rand);
+      return {
+        ...q,
+        icon: '🫧',
+        prompt: en ? `Pop only the bubbles that are «${objetivo.nombre}»!` : `¡Explota sólo las burbujas de «${objetivo.nombre}»!`,
+        juego: { tipo: 'burbujas', objetivo: objetivo.nombre, items, en },
+      };
+    }
+    // El intruso: tres de una caja y uno de otra.
+    const grande = [...cajas].sort((a, b) => b.items.length - a.items.length)[0];
+    const otras = cajas.filter((c) => c !== grande);
+    if (r < 0.7 && grande.items.length >= 3 && otras.length) {
+      const deOtra = otras[Math.floor(rand() * otras.length)];
+      const intruso = deOtra.items[Math.floor(rand() * deOtra.items.length)];
+      const familia = barajar(grande.items, rand).slice(0, 3);
+      return {
+        icon: '🕵️',
+        prompt: en ? `Find the odd one out: which one is NOT «${grande.nombre}»?` : `Busca al intruso: ¿cuál NO es de «${grande.nombre}»?`,
+        ok: intruso,
+        no: familia,
+        why: en
+          ? `«${intruso}» is «${deOtra.nombre}»; ${familia.join(', ')} are «${grande.nombre}». ${q.why}`
+          : `«${intruso}» es de «${deOtra.nombre}»; ${familia.join(', ')} son de «${grande.nombre}». ${q.why}`,
+        visual: q.visual,
+      };
+    }
+  }
+  if (juego.tipo === 'escribe' && juego.teclado === 'letras' && q.ok.length >= 4 && r < 0.5) {
+    return { ...q, icon: '🎈', juego: { tipo: 'globos', palabra: q.ok.toLowerCase(), en } };
+  }
+  return q;
+}
+
+/**
  * Las cinco preguntas de un reto. Deterministas: el mismo día, el mismo
  * niño y el mismo reto dan las mismas, en el mismo orden, se recargue lo
  * que se recargue.
@@ -171,12 +224,19 @@ export function buildRetoCole(
   vuelta = 0,
   /** Lo marcado a mano como visto o aún no (`lib/temasVistos.ts`). */
   ajuste: AjusteTemas = {},
+  /**
+   * Para sacar las preguntas de unos temas en concreto: los del repaso
+   * inteligente (`lib/dominio.ts`) o los fallados, en la revancha. Cada
+   * tema es un grupo, y se van turnando.
+   */
+  opciones: { temas?: Tema[]; n?: number; semilla?: string } = {},
 ): RetoCole {
+  const cuantas = opciones.n ?? COLE_QUESTIONS;
   const plan = planDelDia(profileId, date);
   // La vuelta 0 es el reto que puntúa; las demás, la práctica libre. El reto
   // que toca por calendario conserva la semilla de siempre.
   const deHoy = reto === retoDelDia(date, profileId);
-  const seed = hashSeed(`${profileId}:cole:${date}${deHoy ? '' : `:${reto}`}${vuelta ? `:practica${vuelta}` : ''}`);
+  const seed = hashSeed(`${profileId}:cole:${date}${deHoy ? '' : `:${reto}`}${vuelta ? `:practica${vuelta}` : ''}${opciones.semilla ? `:${opciones.semilla}` : ''}`);
   const rand = makeRand(seed);
 
   // Los grupos de los que se va sacando por turnos: cada asignatura, sus
@@ -187,8 +247,9 @@ export function buildRetoCole(
     const examen = plan?.pendientes.find((e) => e.asignatura === a);
     return examen ? temasDelExamen(examen, curso, date, ajuste) : [temaActual(a, curso, date, ajuste)];
   };
-  const grupos: Tema[][] =
-    reto === 'repaso'
+  const grupos: Tema[][] = opciones.temas?.length
+    ? opciones.temas.map((t) => [t])
+    : reto === 'repaso'
       ? (plan && plan.pendientes.length > 1 ? plan.pendientes.map((e) => e.asignatura) : ASIGNATURAS).map(temasDe)
       : [temasDe(reto)];
   const temas = grupos.flat();
@@ -207,14 +268,14 @@ export function buildRetoCole(
   const preguntas: { q: Pregunta; tema: Tema }[] = [];
   const vistas = new Set<string>();
   const porTipo = new Map<string, number>();
-  for (let i = 0; preguntas.length < COLE_QUESTIONS && i < 80; i += 1) {
+  for (let i = 0; preguntas.length < cuantas && i < 80; i += 1) {
     const grupo = grupos[preguntas.length % grupos.length];
     const tema = grupo[Math.floor(rand() * grupo.length)];
     const q = siguiente(tema)(rand);
     // Sin repetir enunciado en la misma partida, ni más de dos del mismo juego.
     if (vistas.has(q.prompt)) continue;
     const tipo = q.juego?.tipo ?? 'test';
-    if (tipo !== 'test' && (porTipo.get(tipo) ?? 0) >= 2 && i < 60) continue;
+    if (tipo !== 'test' && (porTipo.get(tipo) ?? 0) >= (tipo === 'relampago' ? 1 : 2) && i < 60) continue;
     vistas.add(q.prompt);
     porTipo.set(tipo, (porTipo.get(tipo) ?? 0) + 1);
     preguntas.push({ q, tema });
@@ -224,7 +285,7 @@ export function buildRetoCole(
   let tests = 0;
   let vf = 0;
   const mezcladas = preguntas.map(({ q, tema }) => {
-    if (q.juego) return { q, tema };
+    if (q.juego) return { q: otraManera(q, rand, EN_INGLES.has(tema.asignatura)), tema };
     tests += 1;
     if (tests <= 2) return { q, tema };
     if (/^[\d.]+$/.test(q.ok)) return { q: { ...q, juego: { tipo: 'escribe' as const, teclado: 'numeros' as const } }, tema };

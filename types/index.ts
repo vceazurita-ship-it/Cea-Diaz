@@ -615,7 +615,15 @@ export type Juego =
   /** Cada cosa en su caja. */
   | { tipo: 'clasifica'; cajas: { nombre: string; items: string[] }[] }
   /** Verdadero o falso: se afirma algo y hay que decir si es verdad. */
-  | { tipo: 'vf'; afirmacion: string; verdadero: boolean; en?: boolean };
+  | { tipo: 'vf'; afirmacion: string; verdadero: boolean; en?: boolean }
+  /** Las parejas, boca abajo: se levantan de dos en dos hasta encontrar cada una con la suya. */
+  | { tipo: 'memoria'; pares: [string, string][] }
+  /** Burbujas que flotan: se explotan sólo las de `objetivo`. */
+  | { tipo: 'burbujas'; objetivo: string; items: { t: string; ok: boolean }[]; en?: boolean }
+  /** Adivinar la palabra letra a letra antes de que se pinchen los globos. */
+  | { tipo: 'globos'; palabra: string; en?: boolean }
+  /** Cálculo relámpago: varias cuentas cortas contra el reloj. */
+  | { tipo: 'relampago'; ops: { q: string; a: number }[]; segundos: number };
 
 /** Un material para ver una pregunta en vez de sólo leerla. */
 export type Visual =

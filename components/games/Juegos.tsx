@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { hashSeed } from '@/lib/challenges';
 import { barajar, makeRand } from '@/lib/temario';
+import { playCue } from '@/lib/sound';
 import { feedbackClass } from '@/lib/ui/tone';
 import type { GameQuestion, Juego } from '@/types';
 
@@ -16,6 +17,11 @@ import type { GameQuestion, Juego } from '@/types';
  *   · **Empareja**: cada cosa de la izquierda con la suya de la derecha.
  *   · **Clasifica**: cada cosa en su caja.
  *   · **Verdadero o falso**.
+ *   · **Memoria**: las parejas boca abajo, de dos en dos.
+ *   · **Burbujas**: se explotan sólo las que son de una caja.
+ *   · **Globos**: la palabra se adivina letra a letra; cada fallo pincha
+ *     un globo.
+ *   · **Cálculo relámpago**: seis cuentas de cabeza contra el reloj.
  *
  *  Todos se juegan igual: se prepara la respuesta tocando, se comprueba con
  *  un botón y, contestado (`chosen` con algo), el juego se bloquea y se
@@ -46,6 +52,14 @@ export function JuegoDe(props: JuegoProps) {
       return <Clasifica {...props} juego={juego} />;
     case 'vf':
       return <VerdaderoFalso {...props} juego={juego} />;
+    case 'memoria':
+      return <Memoria {...props} juego={juego} />;
+    case 'burbujas':
+      return <Burbujas {...props} juego={juego} />;
+    case 'globos':
+      return <Globos {...props} juego={juego} />;
+    case 'relampago':
+      return <Relampago {...props} juego={juego} />;
   }
 }
 
@@ -435,6 +449,342 @@ function VerdaderoFalso({ question, chosen, juego, onAnswer }: JuegoProps & { ju
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- memoria */
+
+function Memoria({ question, chosen, juego, onAnswer }: JuegoProps & { juego: Extract<Juego, { tipo: 'memoria' }> }) {
+  const { pares } = juego;
+  const cartas = useMemo(
+    () => barajar(pares.flatMap(([a, b], par) => [{ par, texto: a }, { par, texto: b }]), makeRand(hashSeed(`${question.id}:memoria`))),
+    [question.id, pares],
+  );
+  /** Los fallos que se perdonan: levantar a ciegas al principio es parte del juego. */
+  const permitidos = pares.length + 2;
+  const [abiertas, setAbiertas] = useState<number[]>([]);
+  const [halladas, setHalladas] = useState<number[]>([]);
+  const [fallos, setFallos] = useState(0);
+  const terminado = useRef(false);
+
+  const levantar = (i: number) => {
+    if (chosen || terminado.current || abiertas.length >= 2 || abiertas.includes(i) || halladas.includes(cartas[i].par)) return;
+    const ahora = [...abiertas, i];
+    setAbiertas(ahora);
+    if (ahora.length < 2) return;
+    const [x, y] = ahora;
+    if (cartas[x].par === cartas[y].par) {
+      playCue('acierto');
+      const todas = [...halladas, cartas[x].par];
+      setHalladas(todas);
+      setAbiertas([]);
+      if (todas.length === pares.length) {
+        terminado.current = true;
+        onAnswer(fallos <= permitidos);
+      }
+    } else {
+      const f = fallos + 1;
+      setFallos(f);
+      window.setTimeout(() => setAbiertas([]), 900);
+      if (f > permitidos) {
+        terminado.current = true;
+        window.setTimeout(() => onAnswer(false), 900);
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-bold t-3">
+        Levanta dos cartas: si son pareja, se quedan boca arriba. Fallos: {fallos} de {permitidos} permitidos.
+      </p>
+      <div className={`grid gap-2 ${cartas.length > 8 ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        {cartas.map((c, i) => {
+          const hallada = halladas.includes(c.par);
+          const vista = Boolean(chosen) || hallada || abiertas.includes(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => levantar(i)}
+              disabled={Boolean(chosen) || hallada}
+              className={`flex min-h-[64px] items-center justify-center rounded-xl border-2 p-2 text-center text-[13px] font-black leading-tight transition disabled:opacity-100 ${
+                vista
+                  ? `animate-voltea ${hallada ? 'border-emerald-400 bg-emerald-400/15 t-1' : 'border-accent surf-1 t-1'}`
+                  : 'border-transparent bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl text-white shadow-md active:scale-95'
+              }`}
+              aria-label={vista ? c.texto : 'Carta boca abajo'}
+            >
+              {vista ? c.texto : '❓'}
+            </button>
+          );
+        })}
+      </div>
+      {chosen && (
+        <ul className="space-y-0.5 text-sm font-bold leading-snug t-2">
+          {pares.map(([a, b], i) => (
+            <li key={i}>
+              {a} <span className="t-3">=</span> <b className="t-accent">{b}</b>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ burbujas */
+
+const BURBUJA = ['#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb7185'];
+
+function Burbujas({ chosen, juego, onAnswer }: JuegoProps & { juego: Extract<Juego, { tipo: 'burbujas' }> }) {
+  const { items } = juego;
+  const [rotas, setRotas] = useState<number[]>([]);
+  const acierto = items.every((it, i) => it.ok === rotas.includes(i));
+
+  const tocar = (i: number) => {
+    if (chosen) return;
+    if (!rotas.includes(i)) playCue('pop');
+    setRotas((r) => (r.includes(i) ? r.filter((k) => k !== i) : [...r, i]));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex min-h-[150px] flex-wrap items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-sky-400/15 to-indigo-500/10 p-3">
+        {items.map((it, i) => {
+          const rota = rotas.includes(i);
+          const bien = chosen ? it.ok === rota : null;
+          const color = BURBUJA[i % BURBUJA.length];
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => tocar(i)}
+              disabled={Boolean(chosen)}
+              className={`relative flex h-[84px] w-[84px] items-center justify-center rounded-full p-1.5 text-center text-[12px] font-black leading-tight shadow-lg transition disabled:opacity-100 ${rota && !chosen ? 'scale-90 opacity-50 line-through' : 'animate-flota'}`}
+              style={{
+                animationDelay: `${(i % 5) * 0.37}s`,
+                background: chosen
+                  ? bien
+                    ? 'rgba(52,211,153,.35)'
+                    : 'rgba(251,113,133,.4)'
+                  : `radial-gradient(circle at 30% 28%, rgba(255,255,255,.85) 0 9%, ${color}55 10%, ${color}aa 100%)`,
+                border: `2px solid ${chosen ? (bien ? '#34d399' : '#fb7185') : 'rgba(255,255,255,.7)'}`,
+                color: '#0f172a',
+              }}
+              aria-pressed={rota}
+            >
+              {rota && !chosen ? `💥 ${it.t}` : it.t}
+              {chosen && it.ok && <span className="absolute -right-1 -top-1 text-base">{rota ? '✅' : '⭕'}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {chosen && !acierto && (
+        <p className="text-sm font-bold leading-snug t-2">
+          {juego.en ? 'The right ones:' : 'Eran éstas:'}{' '}
+          <b className="t-accent">
+            {items
+              .filter((it) => it.ok)
+              .map((it) => it.t)
+              .join(', ')}
+          </b>
+        </p>
+      )}
+      {!chosen && (
+        <>
+          <p className="text-[11px] font-bold t-3">{juego.en ? 'Popped one by mistake? Tap it again to bring it back.' : 'Si explotas una sin querer, tócala otra vez y vuelve.'}</p>
+          <Comprobar disabled={rotas.length === 0} onClick={() => onAnswer(acierto)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- globos */
+
+const sinTilde = (l: string) => SIN_TILDE[l] ?? (l === 'ü' ? 'u' : l);
+const ES_LETRA = /[a-zñ]/;
+const GLOBOS = 6;
+
+function Globos({ chosen, juego, onAnswer }: JuegoProps & { juego: Extract<Juego, { tipo: 'globos' }> }) {
+  const letras = juego.palabra.split('');
+  const abc = (juego.en ? 'abcdefghijklmnopqrstuvwxyz' : 'abcdefghijklmnñopqrstuvwxyz').split('');
+  const [dichas, setDichas] = useState<string[]>([]);
+  const esta = (l: string) => letras.some((x) => sinTilde(x) === l);
+  const fallos = dichas.filter((l) => !esta(l)).length;
+  const vivos = GLOBOS - fallos;
+  const resuelta = letras.every((x) => !ES_LETRA.test(sinTilde(x)) || dichas.includes(sinTilde(x)));
+  const avisado = useRef(false);
+
+  useEffect(() => {
+    if (chosen || avisado.current) return;
+    if (resuelta || vivos <= 0) {
+      avisado.current = true;
+      onAnswer(resuelta);
+    }
+  }, [resuelta, vivos, chosen, onAnswer]);
+
+  const decir = (l: string) => {
+    if (chosen || dichas.includes(l) || vivos <= 0 || resuelta) return;
+    playCue(esta(l) ? 'acierto' : 'pop');
+    setDichas((d) => [...d, l]);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-center gap-1 text-3xl" aria-label={`${vivos} globos`}>
+        {Array.from({ length: GLOBOS }, (_, i) => (
+          <span key={i} className={i < vivos ? 'animate-flota' : 'opacity-30 grayscale'} style={{ animationDelay: `${i * 0.3}s` }}>
+            {i < vivos ? '🎈' : '💥'}
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap justify-center gap-1.5" aria-live="polite">
+        {letras.map((x, i) => {
+          const dicha = dichas.includes(sinTilde(x)) || !ES_LETRA.test(sinTilde(x));
+          const visible = Boolean(chosen) || dicha;
+          return (
+            <span
+              key={i}
+              className={`flex h-11 w-9 items-end justify-center border-b-4 pb-0.5 font-display text-2xl font-black uppercase ${chosen && !dicha ? 't-danger' : 't-1'}`}
+              style={{ borderColor: 'currentColor' }}
+            >
+              {visible ? x : ''}
+            </span>
+          );
+        })}
+      </div>
+      {!chosen && (
+        <div className="grid grid-cols-7 gap-1 sm:grid-cols-9">
+          {abc.map((l) => {
+            const dicha = dichas.includes(l);
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => decir(l)}
+                disabled={dicha}
+                className={`h-10 rounded-lg border text-base font-black uppercase transition active:scale-95 ${dicha ? (esta(l) ? 'border-emerald-400 bg-emerald-400/20 t-1' : 'opacity-25 hairline t-3') : 'hairline surf-1 hover-soft'}`}
+                style={dicha ? undefined : { color: VOCAL.test(l) ? '#2563eb' : '#dc2626' }}
+              >
+                {l}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --------------------------------------------------- cálculo relámpago */
+
+function Relampago({ chosen, juego, onAnswer }: JuegoProps & { juego: Extract<Juego, { tipo: 'relampago' }> }) {
+  const { ops, segundos } = juego;
+  const [empezado, setEmpezado] = useState(false);
+  const [quedan, setQuedan] = useState(segundos);
+  const [i, setI] = useState(0);
+  const [texto, setTexto] = useState('');
+  const [hechas, setHechas] = useState<{ dicho: string; bien: boolean }[]>([]);
+  const [destello, setDestello] = useState<boolean | null>(null);
+  const cerrado = useRef(false);
+
+  const cerrar = (lista: { bien: boolean }[]) => {
+    if (cerrado.current) return;
+    cerrado.current = true;
+    onAnswer(lista.filter((h) => h.bien).length >= ops.length - 1);
+  };
+
+  useEffect(() => {
+    if (!empezado || chosen || cerrado.current) return;
+    if (quedan <= 0) {
+      playCue('fuera');
+      cerrar(hechas);
+      return;
+    }
+    const t = window.setTimeout(() => setQuedan((q) => q - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [empezado, quedan, chosen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const enviar = () => {
+    if (!texto || cerrado.current) return;
+    const bien = Number(texto) === ops[i].a;
+    playCue(bien ? 'acierto' : 'fallo');
+    setDestello(bien);
+    window.setTimeout(() => setDestello(null), 300);
+    const lista = [...hechas, { dicho: texto, bien }];
+    setHechas(lista);
+    setTexto('');
+    if (i + 1 >= ops.length) cerrar(lista);
+    else setI(i + 1);
+  };
+
+  const pulsar = (t: string) => {
+    if (t === '⌫') setTexto((v) => v.slice(0, -1));
+    else if (t === '✔') enviar();
+    else if (texto.length < 6) setTexto((v) => v + t);
+  };
+
+  if (chosen) {
+    return (
+      <ul className="grid grid-cols-2 gap-1.5 text-sm font-bold">
+        {ops.map((o, k) => {
+          const h = hechas[k];
+          return (
+            <li key={k} className={`rounded-lg border px-2 py-1.5 ${feedbackClass(h ? h.bien : false)} t-1`}>
+              {o.q} = <b>{o.a}</b>
+              {h && !h.bien && <span className="ml-1 line-through t-3">{h.dicho}</span>}
+              {!h && <span className="ml-1 t-3">⏱️</span>}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  if (!empezado) {
+    return (
+      <button type="button" onClick={() => setEmpezado(true)} className="btn-primary h-16 w-full text-lg">
+        ⚡ ¡Empezar! · {ops.length} cuentas en {segundos} s
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="h-2.5 flex-1 overflow-hidden rounded-full surf-3">
+          <div className={`h-full rounded-full transition-all duration-1000 ${quedan <= 10 ? 'bg-rose-500' : 'bg-amber-400'}`} style={{ width: `${(quedan / segundos) * 100}%` }} />
+        </div>
+        <span className={`w-10 text-right font-display text-lg font-black tabular-nums ${quedan <= 10 ? 't-danger' : 't-1'}`}>{quedan}s</span>
+      </div>
+      <p className="text-center text-[11px] font-black uppercase tracking-wider t-3">
+        Cuenta {i + 1} de {ops.length} · {hechas.filter((h) => h.bien).length} ✅
+      </p>
+      <div
+        className={`flex min-h-[72px] items-center justify-center gap-3 rounded-2xl border-2 font-display text-3xl font-black tabular-nums transition ${
+          destello === true ? 'border-emerald-400 bg-emerald-400/20' : destello === false ? 'border-rose-400 bg-rose-400/20' : 'hairline surf-1'
+        } t-1`}
+      >
+        <span>{ops[i].q} =</span>
+        <span className="min-w-[2ch] t-accent">{texto || '?'}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✔'].map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => pulsar(t)}
+            disabled={t === '✔' && !texto}
+            className={t === '✔' ? 'btn-primary h-12 text-xl disabled:opacity-40' : 'btn h-12 border text-xl font-black hairline surf-1 hover-soft t-1'}
+            aria-label={t === '⌫' ? 'Borrar' : t === '✔' ? 'Siguiente' : t}
+          >
+            {t}
+          </button>
+        ))}
       </div>
     </div>
   );

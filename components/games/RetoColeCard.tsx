@@ -24,7 +24,8 @@ import { cuandoEs, diasHasta, planDelDia, type PlanDelDia } from '@/lib/examenes
 import { notaEnTexto, notasPorAsignatura } from '@/lib/notaCole';
 import { ajusteDe } from '@/lib/temasVistos';
 import { TemasVistos } from '@/components/games/TemasVistos';
-import { IDEA, type Curso } from '@/lib/temario';
+import { IDEA, TEMARIO, type Curso, type Tema } from '@/lib/temario';
+import { dominioDelTemario, estrellasEnTexto, temasParaRepasar, DOMINIO_MIN_DIAS, DOMINIO_MIN_PREGUNTAS, type DominioAsignatura } from '@/lib/dominio';
 import type { DateKey, DayEntry, Profile, Visual } from '@/types';
 
 /* =========================================================================
@@ -59,6 +60,16 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   const plan = useMemo(() => planDelDia(profile.id, date), [profile.id, date]);
   const resultados = resultadosDe(entries, profile.id, date);
   const notas = useMemo(() => (kid ? [] : notasPorAsignatura(entries, profile.id, date)), [kid, entries, profile.id, date]);
+  // El repaso inteligente: los temas que más lo necesitan, mirando sólo
+  // hasta ayer para que no cambie mientras se juega.
+  const repasoTemas = useMemo(() => temasParaRepasar(entries, profile.id, curso, date, ajuste), [entries, profile.id, curso, date, ajuste]);
+  const repasoIds = repasoTemas.map((t) => t.id).join(',');
+  const dominio = useMemo(() => dominioDelTemario(entries, profile.id, curso, ajuste, date), [entries, profile.id, curso, ajuste, date]);
+  const temasTotal = dominio.reduce((n, a) => n + a.temas.length, 0);
+  const temasAprendidos = dominio.reduce((n, a) => n + a.aprendidos, 0);
+  const tocanRepaso = dominio.reduce((n, a) => n + a.temas.filter((t) => t.toca && !t.aprendido).length, 0);
+  const [verTemario, setVerTemario] = useState(false);
+  const opcionesDe = (r: RetoId) => (r === 'repaso' ? { temas: repasoTemas } : {});
 
   // Cómo va cada reto hoy, y el nivel de su tiro.
   const estados = retos.map((reto) => {
@@ -85,7 +96,10 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   /** La presentación del tema, antes de la primera pregunta. */
   const [presentado, setPresentado] = useState(false);
 
-  const reto = useMemo(() => (abierto ? buildRetoCole(profile.id, curso, date, abierto, 0, ajuste) : null), [abierto, profile.id, curso, date, ajuste]);
+  const reto = useMemo(
+    () => (abierto ? buildRetoCole(profile.id, curso, date, abierto, 0, ajuste, opcionesDe(abierto)) : null),
+    [abierto, profile.id, curso, date, ajuste, repasoIds], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const estado = abierto ? estados.find((e) => e.reto === abierto)! : null;
   const answered = estado?.result?.answered ?? 0;
   const correct = estado?.result?.correct ?? 0;
@@ -98,9 +112,34 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
    */
   const [practica, setPractica] = useState<{ reto: RetoId; vuelta: number; index: number; chosen: string | null; aciertos: number } | null>(null);
   const practicaReto = useMemo(
-    () => (practica ? buildRetoCole(profile.id, curso, date, practica.reto, practica.vuelta, ajuste) : null),
-    [practica?.reto, practica?.vuelta, profile.id, curso, date, ajuste], // eslint-disable-line react-hooks/exhaustive-deps
+    () => (practica ? buildRetoCole(profile.id, curso, date, practica.reto, practica.vuelta, ajuste, opcionesDe(practica.reto)) : null),
+    [practica?.reto, practica?.vuelta, profile.id, curso, date, ajuste, repasoIds], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  /**
+   * La revancha: al acabar, lo fallado vuelve con preguntas nuevas del mismo
+   * tema. No cambia la nota, pero un error que se corrige al momento se
+   * queda mucho más que uno que sólo se lee.
+   */
+  const [revancha, setRevancha] = useState<{ temas: Tema[]; index: number; chosen: string | null; aciertos: number } | null>(null);
+  const revanchaReto = useMemo(
+    () =>
+      revancha && abierto
+        ? buildRetoCole(profile.id, curso, date, abierto, 0, ajuste, { temas: revancha.temas, n: revancha.temas.length, semilla: 'revancha' })
+        : null,
+    [revancha?.temas, abierto, profile.id, curso, date, ajuste], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const fallados = (estado?.result?.detalle ?? [])
+    .filter((a) => !a.hit)
+    .map((a) => TEMARIO.find((t) => t.id === a.tema))
+    .filter((t): t is Tema => Boolean(t));
+  /** Aciertos seguidos justo antes de la pregunta `i`. */
+  const rachaAntes = (i: number) => {
+    const d = (estado?.result?.detalle ?? []).slice(0, i);
+    let n = 0;
+    for (let k = d.length - 1; k >= 0 && d[k].hit; k -= 1) n += 1;
+    return n;
+  };
 
   const abrir = (e: (typeof estados)[number]) => {
     if (!today) return;
@@ -112,6 +151,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
     setIndex(ya);
     setChosen(null);
     setPresentado(ya > 0);
+    setRevancha(null);
     setAbierto(e.reto);
   };
 
@@ -217,6 +257,23 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
             })}
           </div>
           {today && estados.some((e) => e.done) && <p className="mt-2 text-[11px] t-3">🧺 Un reto ya jugado se vuelve a abrir para practicar más, sin nota.</p>}
+          {temasTotal > 0 && (
+            <button type="button" onClick={() => setVerTemario(true)} className="mt-3 flex w-full items-center gap-3 rounded-xl border p-2.5 text-left hairline surf-1 hover-soft">
+              <span className="text-2xl" aria-hidden>🗺️</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-black t-1">
+                  Mi temario: {temasAprendidos} de {temasTotal} {temasTotal === 1 ? 'tema aprendido' : 'temas aprendidos'}
+                </span>
+                <span className="mt-1 block h-2 overflow-hidden rounded-full surf-3">
+                  <span className="block h-full rounded-full bg-emerald-400" style={{ width: `${(temasAprendidos / temasTotal) * 100}%` }} />
+                </span>
+                <span className="mt-1 block text-[11px] font-semibold t-3">
+                  {tocanRepaso > 0 ? `${tocanRepaso} ${tocanRepaso === 1 ? 'pide' : 'piden'} repaso: el ⭐ Repaso de hoy va a por ellos.` : 'Al día: nada pide repaso hoy.'}
+                </span>
+              </span>
+              <span className="text-sm t-3" aria-hidden>›</span>
+            </button>
+          )}
           {/* Para los mayores: la nota que van sacando en cada asignatura.
               Lo de verdad está en Rendimiento → Colegio, tema a tema. */}
           {!kid && notas.some((n) => n.n > 0) && (
@@ -236,13 +293,56 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
         <Modal title={`${estado.meta.icon} Reto de ${estado.meta.nombre}`} size="lg" dismissible={false} onClose={() => setAbierto(null)}>
           {!presentado && idea ? (
             <Presentacion titulo={reto.temas[0].titulo} idea={idea} onStart={() => setPresentado(true)} />
+          ) : index >= total && revancha && revanchaReto ? (
+            revancha.index >= revanchaReto.questions.length ? (
+              <div className="space-y-3 text-center">
+                <p className="text-5xl animate-pop">{revancha.aciertos === revanchaReto.questions.length ? '🦸' : '💪'}</p>
+                <p className="font-display text-xl font-black t-1">
+                  Revancha: {revancha.aciertos} de {revanchaReto.questions.length} corregidas
+                </p>
+                <p className="text-sm t-2">
+                  {revancha.aciertos === revanchaReto.questions.length
+                    ? 'Lo que fallaste ya lo sabes. Así es como se aprende de verdad.'
+                    : 'Lo que aún cuesta volverá en el ⭐ Repaso de los próximos días hasta que salga solo.'}
+                </p>
+                <button type="button" onClick={() => setAbierto(null)} className="btn-primary w-full">
+                  {estado.won ? '🥅 ¡A por Benji!' : 'Vale'}
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="mb-3 text-[11px] font-black uppercase tracking-wider t-warn">🔁 Revancha · lo que fallaste, otra vez (no cambia la nota)</p>
+                <Question
+                  question={revanchaReto.questions[revancha.index]}
+                  index={revancha.index}
+                  total={revanchaReto.questions.length}
+                  chosen={revancha.chosen}
+                  kid={kid}
+                  onAnswer={(id) =>
+                    setRevancha((r) => (r && !r.chosen ? { ...r, chosen: id, aciertos: r.aciertos + (id === revanchaReto.questions[r.index].answer ? 1 : 0) } : r))
+                  }
+                  onNext={() => setRevancha((r) => (r ? { ...r, index: r.index + 1, chosen: null } : r))}
+                  nextLabel={revancha.index + 1 === revanchaReto.questions.length ? 'Ver cómo ha ido' : 'Siguiente'}
+                />
+              </>
+            )
           ) : index >= total ? (
-            <Desbloqueo won={estado.won} correct={correct} total={total} kind={estado.meta.tiro} nivel={estado.nivel} onClose={() => setAbierto(null)} />
+            <Desbloqueo
+              won={estado.won}
+              correct={correct}
+              total={total}
+              kind={estado.meta.tiro}
+              nivel={estado.nivel}
+              fallados={fallados.length}
+              onRevancha={fallados.length ? () => setRevancha({ temas: fallados, index: 0, chosen: null, aciertos: 0 }) : undefined}
+              onClose={() => setAbierto(null)}
+            />
           ) : (
             <>
               <p className="mb-3 text-[11px] font-bold leading-snug t-3">
                 🎯 {COLE_PASS} de {total} y {estado.tiro.article} <b className="t-1">{estado.tiro.name}</b> es tuyo hoy.
                 {reto.reto !== 'repaso' && ` · ${reto.temas.length > 1 ? reto.temas.map((t) => t.titulo).join(' + ') : reto.temas[0].titulo}`}
+                {reto.reto === 'repaso' && ` · 🧠 Lo que más te conviene repasar hoy: ${reto.temas.map((t) => `${RETO_META[t.asignatura].icon} ${t.titulo}`).join(' · ')}`}
               </p>
               <Question
                 question={reto.questions[index]}
@@ -250,6 +350,8 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
                 total={total}
                 chosen={chosen}
                 kid={kid}
+                racha={rachaAntes(index)}
+                jefe={index === total - 1}
                 onAnswer={answer}
                 onNext={() => {
                   setChosen(null);
@@ -258,6 +360,12 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
               />
             </>
           )}
+        </Modal>
+      )}
+
+      {verTemario && (
+        <Modal title="🗺️ Mi temario" size="lg" onClose={() => setVerTemario(false)}>
+          <MapaTemario dominio={dominio} />
         </Modal>
       )}
 
@@ -362,6 +470,8 @@ function Desbloqueo({
   total,
   kind,
   nivel,
+  fallados = 0,
+  onRevancha,
   onClose,
 }: {
   won: boolean;
@@ -369,16 +479,26 @@ function Desbloqueo({
   total: number;
   kind: (typeof RETO_META)[keyof typeof RETO_META]['tiro'];
   nivel: number;
+  fallados?: number;
+  onRevancha?: () => void;
   onClose: () => void;
 }) {
   const tiro = SHOT_TYPES[kind];
+  const botonRevancha = onRevancha && (
+    <button type="button" onClick={onRevancha} className={`${won ? 'btn-ghost border hairline' : 'btn-primary'} w-full`}>
+      🔁 Revancha: {fallados === 1 ? 'la que fallaste' : `las ${fallados} que fallaste`}, otra vez
+    </button>
+  );
   if (!won) {
     return (
       <div className="space-y-3 text-center">
         <p className="text-5xl">💪</p>
         <p className="font-display text-xl font-black t-1">{correct}/{total}</p>
-        <p className="text-sm t-2">Hacían falta {COLE_PASS} para el {tiro.name}. Las explicaciones de cada pregunta son lo que se entrena: puedes practicar más sin nota, y mañana hay otro reto.</p>
-        <button type="button" onClick={onClose} className="btn-primary w-full">Vale</button>
+        <p className="text-sm t-2">Hacían falta {COLE_PASS} para el {tiro.name}. Lo que se falla es justo lo que se aprende: haz la revancha ahora y volverá en el ⭐ Repaso hasta que salga solo.</p>
+        {botonRevancha}
+        <button type="button" onClick={onClose} className={onRevancha ? 'btn-ghost w-full' : 'btn-primary w-full'}>
+          {onRevancha ? 'Ahora no' : 'Vale'}
+        </button>
       </div>
     );
   }
@@ -401,6 +521,53 @@ function Desbloqueo({
       </div>
       <p className="text-[13px] leading-snug t-2">{tiro.blurb} Lo tienes en la tanda de hoy: elígelo en «Cambiar tiro». No gasta energía. ¿A por otro reto?</p>
       <button type="button" onClick={onClose} className="btn-primary w-full">🥅 ¡A por Benji!</button>
+      {botonRevancha}
+    </div>
+  );
+}
+
+/**
+ * El mapa del temario: cada asignatura con sus temas ya vistos, sus
+ * estrellas y lo que le falta a cada uno para darlo por aprendido. Es la
+ * respuesta a «¿se lo sabe?»: no por una nota suelta, sino por haberlo
+ * demostrado varios días.
+ */
+function MapaTemario({ dominio }: { dominio: DominioAsignatura[] }) {
+  return (
+    <div className="space-y-4">
+      <p className="rounded-xl border p-3 text-[12px] leading-snug hairline surf-1 t-2">
+        Un tema está <b className="t-1">aprendido ⭐⭐⭐</b> cuando ha salido al menos en {DOMINIO_MIN_PREGUNTAS} preguntas, en {DOMINIO_MIN_DIAS} días distintos, y acierta 8 de las 10
+        últimas. Lo fallado vuelve antes en el ⭐ Repaso, y lo aprendido también vuelve de vez en cuando para que no se olvide.
+      </p>
+      {dominio.map((a) => (
+        <section key={a.asignatura}>
+          <h4 className="mb-1.5 flex items-center gap-2 text-[13px] font-black t-1">
+            {RETO_META[a.asignatura].icon} {RETO_META[a.asignatura].nombre}
+            <span className="ml-auto text-[11px] font-bold t-3">
+              {a.aprendidos}/{a.temas.length} aprendidos
+            </span>
+          </h4>
+          <ul className="space-y-1.5">
+            {a.temas.map((t) => (
+              <li key={t.tema.id} className={`rounded-xl border p-2.5 ${t.aprendido ? 'border-emerald-400 bg-emerald-400/10' : 'hairline surf-1'}`}>
+                <div className="flex items-start gap-2">
+                  <span className="min-w-0 flex-1 text-[12px] font-bold leading-snug t-1">{t.tema.titulo}</span>
+                  <span className="shrink-0 text-[12px]" aria-label={`${t.estrellas} estrellas`}>
+                    {estrellasEnTexto(t.estrellas)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] leading-snug t-3">
+                  {t.n === 0
+                    ? 'Aún no ha salido en ningún reto.'
+                    : `${t.n} preguntas en ${t.dias} ${t.dias === 1 ? 'día' : 'días'}${t.reciente !== null ? ` · últimas: ${Math.round(t.reciente * 100)} % bien` : ''}`}
+                  {t.aprendido ? ' · ✅ aprendido' : t.falta ? ` · le falta: ${t.falta}` : ''}
+                  {t.toca && t.n > 0 && !t.aprendido ? ' · 🔁 toca repaso' : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

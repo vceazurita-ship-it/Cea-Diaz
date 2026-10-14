@@ -194,6 +194,32 @@ function cajasDe(rand: Rand, cajas: { nombre: string; items: string[] }[], n = 6
   return cajas.map((c) => ({ nombre: c.nombre, items: barajar(c.items, rand).slice(0, porCaja) }));
 }
 
+/**
+ * Cálculo relámpago: seis cuentas cortas contra el reloj. El cálculo mental
+ * se automatiza con velocidad y repetición, y contra el reloj se juega con
+ * más ganas que en una ficha. Vale con fallar una como mucho.
+ */
+function relampago(titulo: string, hacer: (rand: Rand) => { q: string; a: number }, n = 6, segundos = 50): (rand: Rand) => Pregunta {
+  return (rand) => {
+    const ops: { q: string; a: number }[] = [];
+    const vistos = new Set<string>();
+    for (let i = 0; ops.length < n && i < 60; i += 1) {
+      const o = hacer(rand);
+      if (vistos.has(o.q)) continue;
+      vistos.add(o.q);
+      ops.push(o);
+    }
+    return {
+      icon: '⚡',
+      prompt: `¡Cálculo relámpago! ${titulo}: ${ops.length} cuentas en ${segundos} segundos.`,
+      ok: ops.map((o) => `${o.q} = ${num(o.a)}`).join(' · '),
+      no: [],
+      why: 'El cálculo mental se entrena con velocidad: cuantas más veces se hace, más rápido sale solo. Vale fallar una como mucho.',
+      juego: { tipo: 'relampago', ops, segundos },
+    };
+  };
+}
+
 /* ---------------------------------------------------------------------------
  * Números en letra, para leer y escribir números
  * ------------------------------------------------------------------------- */
@@ -722,6 +748,11 @@ const SIGLAS: Pregunta[] = [
   p('🇪🇺', '¿Qué significa UE?', 'Unión Europea', ['Universidad Española', 'Uno y Español', 'Unidad Escolar'], 'La Unión Europea: España es uno de sus países.'),
   p('🌍', '¿Qué significa ONU?', 'Organización de las Naciones Unidas', ['Oficina de Niños Unidos', 'Orden de los Números Usados', 'Olimpiada Nacional Universal'], 'La ONU reúne a casi todos los países del mundo.'),
   p('🔠', 'Las siglas se escriben…', 'En mayúsculas', ['En minúsculas', 'Con tilde', 'Al revés'], 'DNI, ONU, UE: en mayúsculas y sin puntos.'),
+  p('🚌', '¿Qué significa EE. UU.?', 'Estados Unidos', ['Escuela Europea', 'Equipo Unido', 'Españoles Unidos'], 'EE. UU.: se dobla la letra porque «Estados» y «Unidos» van en plural.'),
+  p('🏫', '¿Qué significa CEIP?', 'Colegio de Educación Infantil y Primaria', ['Centro de Estudios de Inglés y Plástica', 'Club Escolar Infantil de Pintura', 'Casa Española de Ideas y Proyectos'], 'C-E-I-P: un colegio de Infantil y Primaria.'),
+  p('🚗', '¿Qué significa DGT?', 'Dirección General de Tráfico', ['Día General del Tren', 'Dibujo Grande de Tráfico', 'Deportes Grandes y Torneos'], 'La DGT se encarga del tráfico y de los carnés de conducir.'),
+  p('🪪', '¿Cuál de estas es una sigla?', 'ONU', ['Mesa', 'Árbol', 'Rápido'], 'ONU sale de las primeras letras de «Organización de las Naciones Unidas».'),
+  p('🔠', 'En una sigla, cada letra es…', 'La primera letra de una palabra', ['Una sílaba', 'Un número', 'Una vocal'], 'DNI: D de Documento, N de Nacional, I de Identidad.'),
 ];
 
 const POLISEMICAS: [string, string, string][] = [
@@ -893,6 +924,12 @@ const MAYUSCULAS: Pregunta[] = [
   p('🔠', '¿Cuál está bien escrita?', 'Leo vive en Madrid.', ['leo vive en Madrid.', 'Leo vive en madrid.', 'leo Vive en madrid.'], 'Mayúscula al empezar y en los nombres propios (Leo, Madrid).'),
   p('🔠', '¿Cuál está bien escrita?', 'Hoy juega el Real Madrid.', ['hoy juega el real madrid.', 'Hoy Juega El Real Madrid.', 'hoy juega el Real Madrid.'], 'Al principio de la frase y en el nombre del equipo.'),
   p('🔠', '¿Después de un punto se escribe…?', 'Mayúscula', ['Minúscula', 'Coma', 'Nada'], 'Después de punto, siempre mayúscula.'),
+  p('🔠', '¿Cuál está bien escrita?', 'Mi perro se llama Toby.', ['mi perro se llama toby.', 'Mi Perro se llama Toby.', 'Mi perro se llama toby.'], 'Mayúscula al empezar y en el nombre del perro, que es propio.'),
+  p('🔠', '¿Cuál está bien escrita?', 'El río Ebro pasa por Zaragoza.', ['El río ebro pasa por zaragoza.', 'el Río Ebro pasa por Zaragoza.', 'El Río ebro Pasa por Zaragoza.'], 'Ebro y Zaragoza son nombres propios: mayúscula. «río» no.'),
+  p('🔠', '¿Qué palabra lleva mayúscula?', 'Sevilla', ['ciudad', 'perro', 'mesa'], 'Los nombres propios de personas, animales y lugares van con mayúscula.'),
+  p('⏺️', '¿Qué signo se pone al final de una oración?', 'El punto', ['La coma', 'La tilde', 'El guion'], 'El punto cierra la oración, y lo que sigue empieza con mayúscula.'),
+  p('🔠', 'Los días de la semana y los meses se escriben…', 'Con minúscula', ['Con mayúscula', 'Con tilde siempre', 'En siglas'], 'lunes, martes, enero, octubre: en minúscula (salvo al empezar la frase).'),
+  p('🔠', '¿Cuál está bien escrita?', 'Ayer fui al cine. Me gustó mucho.', ['Ayer fui al cine. me gustó mucho.', 'ayer fui al cine. Me gustó mucho.', 'Ayer fui al Cine. me gustó mucho.'], 'Mayúscula al empezar y después de cada punto.'),
 ];
 
 /* ---------------------------------------------------------------------------
@@ -1458,6 +1495,15 @@ const FUN_G: Pregunta[] = [
   p('📝', 'The film was very ___. I was ___.', 'boring / bored', ['bored / boring', 'boring / boring', 'bored / bored'], '-ing: how something is. -ed: how you feel.'),
   p('📝', 'I love ___ football.', 'playing', ['play', 'played', 'plays'], 'After love/like/enjoy we use the -ing form (gerund).'),
   p('📝', 'The match was ___! We all shouted.', 'exciting', ['excited', 'excite', 'excites'], 'The match is exciting; we are excited.'),
+  p('📝', 'I am ___ in dinosaurs. They are so ___!', 'interested / interesting', ['interesting / interested', 'interested / interested', 'interesting / interesting'], 'I am interested (how I feel); dinosaurs are interesting (how they are).'),
+  p('📝', 'We were ___ when our team won.', 'excited', ['exciting', 'excite', 'excites'], '-ed: how people feel. We were excited.'),
+  p('📝', 'This book is ___. I want to stop reading.', 'boring', ['bored', 'bore', 'bores'], '-ing: how something is. The book is boring.'),
+  p('📝', 'My brother likes ___ in the lake.', 'swimming', ['swim', 'swims', 'swam'], 'like + -ing: swimming (swim → doble m).'),
+  p('📝', 'They enjoy ___ to festivals.', 'going', ['go', 'goes', 'went'], 'enjoy + -ing: going.'),
+  p('📝', '___ is my favourite sport.', 'Skating', ['Skate', 'Skated', 'Skates'], 'A gerund can be the subject of the sentence: Skating is fun.'),
+  p('📝', 'Which one is a gerund?', 'running', ['run', 'ran', 'runs'], 'Gerund = verb + -ing used like a noun: running, playing, dancing.'),
+  p('🎪', 'People dance and eat special food at a…', 'festival', ['cliff', 'stream', 'score'], 'festival = fiesta, festival.'),
+  p('🏁', 'The person who finishes first in a race is the…', 'winner', ['player', 'team', 'score'], 'winner = ganador.'),
 ];
 const MOVE_V: Vocab = [['packing', 'hacer las maletas'], ['moving', 'mudarse'], ['neighbors', 'vecinos'], ['ice skating', 'patinaje sobre hielo'], ['sledding', 'ir en trineo'], ['country', 'país / campo'], ['suburb', 'barrio de las afueras'], ['shopping mall', 'centro comercial'], ['hospital', 'hospital'], ['factory', 'fábrica'], ['rural area', 'zona rural'], ['urban area', 'zona urbana']];
 const MOVE_G: Pregunta[] = [
@@ -1479,6 +1525,16 @@ const SPACE_G: Pregunta[] = [
   p('📝', 'In the future, people ___ live on Mars.', 'will', ['are', 'did', 'was'], 'Predictions: will + verb.'),
   p('📝', 'If you look through a telescope, you ___ see the craters.', 'will', ['would', 'did', 'were'], 'Future real conditional: If + present, will + verb.'),
   p('📝', 'Would you like to go to the Moon ___ to Mars?', 'or', ['and', 'but', 'so'], 'Choice questions use «or».'),
+  p('📝', 'I think it ___ rain tomorrow.', 'will', ['is', 'was', 'does'], 'A prediction about the future: will + verb.'),
+  p('📝', 'Robots ___ help astronauts in the future.', 'will', ['were', 'did', 'are'], 'will + verb, the same for I, you, he, she, it, we, they.'),
+  p('📝', 'The negative of «will» is…', "won't", ["willn't", "don't", "isn't"], "won't = will not: People won't live on the Sun."),
+  p('📝', '___ people live on the Moon one day?', 'Will', ['Do', 'Are', 'Did'], 'Questions: Will + subject + verb? — Will people live on the Moon?'),
+  p('📝', 'If we ___ to the planetarium, we will see the stars.', 'go', ['will go', 'went', 'going'], 'If + present (go), will + verb (will see).'),
+  p('📝', 'If it is cloudy tonight, we ___ see the Moon.', "won't", ["don't", "didn't", "aren't"], 'If + present, won\'t + verb: we won\'t see it.'),
+  p('🔭', 'An astronomer uses a ___ to look at the stars.', 'telescope', ['spacecraft', 'crater', 'orbit'], 'telescope = telescopio.'),
+  p('🌑', 'A hole on the surface of the Moon is a…', 'crater', ['comet', 'galaxy', 'orbit'], 'crater = cráter: made when rocks hit the Moon.'),
+  p('🪐', 'The path a planet follows around the Sun is its…', 'orbit', ['surface', 'gravity', 'crater'], 'orbit = órbita.'),
+  p('🍏', 'The force that pulls things down to the ground is…', 'gravity', ['orbit', 'surface', 'telescope'], 'gravity = gravedad.'),
 ];
 const PAST_V: Vocab = [['army', 'ejército'], ['soldier', 'soldado'], ['emperor', 'emperador'], ['armor', 'armadura'], ['treasure', 'tesoro'], ['archaeologist', 'arqueólogo'], ['tomb', 'tumba'], ['clay', 'arcilla'], ['skull', 'cráneo'], ['excavate', 'excavar'], ['layers', 'capas'], ['paleontologist', 'paleontólogo']];
 const PAST_G: Pregunta[] = [
@@ -1522,10 +1578,10 @@ const ordenaFrase = (frases: string[]) => (rand: Rand): Pregunta => {
   return ordena('🧩', 'Put the words in order to make a sentence.', f.split(' '), `${f}.`);
 };
 
-const FUN_S = ['The match was exciting', 'I love playing football', 'We were bored at the museum', 'She enjoys skipping with her friends'];
+const FUN_S = ['The match was exciting', 'I love playing football', 'We were bored at the museum', 'She enjoys skipping with her friends', 'Swimming in the lake is fun', 'The winner of the race was very excited', 'Our team scored three goals'];
 const MOVE_S = ['When I was five I could swim', 'If it rains we stay at home', 'We moved to the city because of my dad', 'My neighbors live in a suburb'];
 const POEM_S = ['I was reading when the phone rang', 'They were playing football at five', 'The ladybug is red and black'];
-const SPACE_S = ['One day people will live on Mars', 'If you look through a telescope you will see craters', 'The Moon orbits the Earth'];
+const SPACE_S = ['One day people will live on Mars', 'If you look through a telescope you will see craters', 'The Moon orbits the Earth', 'Robots will help astronauts on Mars', 'If it is cloudy we will not see the stars', 'People will travel to other planets'];
 const PAST_S = ['I want to be an archaeologist', 'She enjoys collecting old coins', 'The soldiers wore heavy armor'];
 const FOOD_S = ['We are visiting the farm tomorrow', 'Would you like some cake', 'The milk is in the fridge'];
 
@@ -1542,18 +1598,49 @@ const CM4 = 'Matemáticas 4 · Construyendo Mundos (Santillana)';
 const OD3 = 'Oxford Discover 3';
 const OD4 = 'Oxford Discover 4';
 
+/* ---- Cálculo relámpago: las cuentas de cada tema de mates, contra el reloj ---- */
+
+const rTablas = (tablas: number[]) =>
+  relampago(`tablas del ${tablas.join(', ')}`, (rand) => {
+    const a = uno(rand, tablas);
+    const b = entre(rand, 2, 10);
+    return { q: `${a} × ${b}`, a: a * b };
+  });
+const rMasDiezCienMil = (max: number) =>
+  relampago('sumar 10, 100 o 1.000', (rand) => {
+    const n = entre(rand, 100, max);
+    const k = uno(rand, max > 9999 ? [100, 1000, 10000] : [10, 100, 1000]);
+    return rand() < 0.7 || n < k ? { q: `${num(n)} + ${num(k)}`, a: n + k } : { q: `${num(n)} − ${num(k)}`, a: n - k };
+  });
+const rSumasMentales = (grande: boolean) =>
+  relampago('sumas y restas de cabeza', (rand) => {
+    const a = grande ? entre(rand, 120, 990) : entre(rand, 11, 89);
+    const b = grande ? uno(rand, [9, 11, 19, 21, 30, 40, 99]) : entre(rand, 2, 9);
+    return rand() < 0.5 || a < b ? { q: `${a} + ${b}`, a: a + b } : { q: `${a} − ${b}`, a: a - b };
+  });
+const rPorCeros = relampago('por 10, por 100 y por 1.000', (rand) => {
+  const a = entre(rand, 2, 99);
+  const k = uno(rand, [10, 100, 1000]);
+  return { q: `${a} × ${num(k)}`, a: a * k };
+});
+const rPerimetros = relampago('perímetros', (rand) => {
+  const lado = entre(rand, 2, 12);
+  const f = uno(rand, [['cuadrado', 4], ['triángulo equilátero', 3], ['pentágono regular', 5], ['hexágono regular', 6]] as const);
+  return { q: `${f[0]} de lado ${lado}`, a: lado * f[1] };
+});
+
 export const TEMARIO: Tema[] = [
   /* ------------------------------------------------ Mates 3º (Anaya: U1-4) */
-  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Los números', fuente: OM3, puntos: ['Números de 3 y 4 cifras', 'Valor de posición', 'Comparar y la recta numérica', 'Aproximar', 'Ordinales'], hacer: [leerNumero(100, 9999), escribe(leerNumero(100, 9999)), valorCifra(10000), escribe(valorCifra(10000)), mayor(1000, 9999), ordenaNumeros(100, 9999), emparejaLetraCifra(100, 9999), aproximar(10, 100, 9999), emparejaAproximar(10, 100, 999), ordinal, clasificaParImpar] },
-  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · La suma y la resta', fuente: OM3, puntos: ['Sumar y restar en vertical', 'Propiedades de la suma', 'Monedas y billetes', 'Problemas', 'Estimar'], hacer: [sumaLlevando(4), escribe(sumaLlevando(4)), restaLlevando(4), escribe(restaLlevando(4)), propiedadesSuma, monedas, vuelta, estimarSuma, problemaDos, escribe(problemaDos)] },
-  { id: 'm3-3', asignatura: 'mates', curso: 3, desde: '2026-10-26', titulo: 'U3 · La multiplicación. Las tablas', fuente: OM3, puntos: ['Suma de sumandos iguales', 'Tablas del 2, 5, 10, 4 y 8', 'El doble', 'Grupos iguales'], hacer: [tablaDe([2, 5, 10, 4, 8]), escribe(tablaDe([2, 5, 10, 4, 8])), emparejaTablas([2, 5, 10, 4, 8]), dobleTriple, escribe(dobleTriple), grupos([2, 5, 10, 4, 8])] },
-  { id: 'm3-4', asignatura: 'mates', curso: 3, desde: '2026-11-19', titulo: 'U4 · Las tablas. Practico la multiplicación', fuente: OM3, puntos: ['Tablas del 3, 6, 9 y 7', 'Por 10, 100 y 1.000', 'Multiplicar en vertical', 'Patrones'], hacer: [tablaDe([3, 6, 9, 7]), escribe(tablaDe([3, 6, 9, 7])), emparejaTablas([3, 6, 9, 7]), porDiezCienMil, escribe(porDiezCienMil), porUnaCifra(99), escribe(porUnaCifra(99)), patron, grupos([3, 6, 9, 7])] },
+  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Los números', fuente: OM3, puntos: ['Números de 3 y 4 cifras', 'Valor de posición', 'Comparar y la recta numérica', 'Aproximar', 'Ordinales'], hacer: [rMasDiezCienMil(9999), leerNumero(100, 9999), escribe(leerNumero(100, 9999)), valorCifra(10000), escribe(valorCifra(10000)), mayor(1000, 9999), ordenaNumeros(100, 9999), emparejaLetraCifra(100, 9999), aproximar(10, 100, 9999), emparejaAproximar(10, 100, 999), ordinal, clasificaParImpar] },
+  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · La suma y la resta', fuente: OM3, puntos: ['Sumar y restar en vertical', 'Propiedades de la suma', 'Monedas y billetes', 'Problemas', 'Estimar'], hacer: [rSumasMentales(false), sumaLlevando(4), escribe(sumaLlevando(4)), restaLlevando(4), escribe(restaLlevando(4)), propiedadesSuma, monedas, vuelta, estimarSuma, problemaDos, escribe(problemaDos)] },
+  { id: 'm3-3', asignatura: 'mates', curso: 3, desde: '2026-10-26', titulo: 'U3 · La multiplicación. Las tablas', fuente: OM3, puntos: ['Suma de sumandos iguales', 'Tablas del 2, 5, 10, 4 y 8', 'El doble', 'Grupos iguales'], hacer: [rTablas([2, 5, 10, 4, 8]), tablaDe([2, 5, 10, 4, 8]), escribe(tablaDe([2, 5, 10, 4, 8])), emparejaTablas([2, 5, 10, 4, 8]), dobleTriple, escribe(dobleTriple), grupos([2, 5, 10, 4, 8])] },
+  { id: 'm3-4', asignatura: 'mates', curso: 3, desde: '2026-11-19', titulo: 'U4 · Las tablas. Practico la multiplicación', fuente: OM3, puntos: ['Tablas del 3, 6, 9 y 7', 'Por 10, 100 y 1.000', 'Multiplicar en vertical', 'Patrones'], hacer: [rTablas([3, 6, 9, 7]), tablaDe([3, 6, 9, 7]), escribe(tablaDe([3, 6, 9, 7])), emparejaTablas([3, 6, 9, 7]), porDiezCienMil, escribe(porDiezCienMil), porUnaCifra(99), escribe(porUnaCifra(99)), patron, grupos([3, 6, 9, 7])] },
 
   /* ------------------------------------------------ Mates 4º */
-  { id: 'm4-1', asignatura: 'mates', curso: 4, desde: '2026-09-07', titulo: 'U1 · Números de cinco cifras', fuente: CM4, puntos: ['Leer y descomponer hasta 99.999', 'Aproximar a decenas y centenas', 'Ordinales', 'Números romanos'], hacer: [leerNumero(10000, 99999), escribe(leerNumero(10000, 99999)), valorCifra(100000), escribe(valorCifra(100000)), ordenaNumeros(10000, 99999), emparejaLetraCifra(10000, 99999), aproximar(10, 1000, 99999), aproximar(100, 1000, 99999), emparejaAproximar(100, 1000, 9999), romanos, escribe(romanos), emparejaRomanos] },
-  { id: 'm4-2', asignatura: 'mates', curso: 4, desde: '2026-10-01', titulo: 'U2 · Sumas y restas', fuente: CM4, puntos: ['Propiedad conmutativa y asociativa', 'Operaciones combinadas', 'Estimaciones', 'Problemas'], hacer: [sumaLlevando(5), escribe(sumaLlevando(5)), restaLlevando(5), escribe(restaLlevando(5)), propiedades, combinadas, escribe(combinadas), estimarSuma, problemaDos, escribe(problemaDos)] },
-  { id: 'm4-3', asignatura: 'mates', curso: 4, desde: '2026-10-26', titulo: 'U3 · La multiplicación', fuente: CM4, puntos: ['Por una y dos cifras', 'Factores acabados en ceros', 'Propiedades', 'Estimar productos'], hacer: [porUnaCifra(9999), escribe(porUnaCifra(9999)), porDosCifras, escribe(porDosCifras), porCeros, escribe(porCeros), emparejaTablas([6, 7, 8, 9]), estimarProducto, propiedades, problemaMulti, escribe(problemaMulti)] },
-  { id: 'm4-4', asignatura: 'mates', curso: 4, desde: '2026-11-19', titulo: 'U4 · Ángulos y polígonos', fuente: CM4, puntos: ['Medir ángulos', 'Polígonos regulares', 'Perímetro', 'Área con cuadraditos', 'Triángulos y cuadriláteros'], hacer: [anguloGrados, escribe(anguloGrados), poligono, perimetro, escribe(perimetro), area, escribe(area), delBanco(TRIANGULOS)] },
+  { id: 'm4-1', asignatura: 'mates', curso: 4, desde: '2026-09-07', titulo: 'U1 · Números de cinco cifras', fuente: CM4, puntos: ['Leer y descomponer hasta 99.999', 'Aproximar a decenas y centenas', 'Ordinales', 'Números romanos'], hacer: [rMasDiezCienMil(99999), leerNumero(10000, 99999), escribe(leerNumero(10000, 99999)), valorCifra(100000), escribe(valorCifra(100000)), ordenaNumeros(10000, 99999), emparejaLetraCifra(10000, 99999), aproximar(10, 1000, 99999), aproximar(100, 1000, 99999), emparejaAproximar(100, 1000, 9999), romanos, escribe(romanos), emparejaRomanos] },
+  { id: 'm4-2', asignatura: 'mates', curso: 4, desde: '2026-10-01', titulo: 'U2 · Sumas y restas', fuente: CM4, puntos: ['Propiedad conmutativa y asociativa', 'Operaciones combinadas', 'Estimaciones', 'Problemas'], hacer: [rSumasMentales(true), sumaLlevando(5), escribe(sumaLlevando(5)), restaLlevando(5), escribe(restaLlevando(5)), propiedades, combinadas, escribe(combinadas), estimarSuma, problemaDos, escribe(problemaDos)] },
+  { id: 'm4-3', asignatura: 'mates', curso: 4, desde: '2026-10-26', titulo: 'U3 · La multiplicación', fuente: CM4, puntos: ['Por una y dos cifras', 'Factores acabados en ceros', 'Propiedades', 'Estimar productos'], hacer: [rPorCeros, rTablas([6, 7, 8, 9]), porUnaCifra(9999), escribe(porUnaCifra(9999)), porDosCifras, escribe(porDosCifras), porCeros, escribe(porCeros), emparejaTablas([6, 7, 8, 9]), estimarProducto, propiedades, problemaMulti, escribe(problemaMulti)] },
+  { id: 'm4-4', asignatura: 'mates', curso: 4, desde: '2026-11-19', titulo: 'U4 · Ángulos y polígonos', fuente: CM4, puntos: ['Medir ángulos', 'Polígonos regulares', 'Perímetro', 'Área con cuadraditos', 'Triángulos y cuadriláteros'], hacer: [rPerimetros, anguloGrados, escribe(anguloGrados), poligono, perimetro, escribe(perimetro), area, escribe(area), delBanco(TRIANGULOS)] },
 
   /* ------------------------------------------------ Lengua 3º (Anaya: U1-4) */
   { id: 'l3-1', asignatura: 'lengua', curso: 3, desde: '2026-09-07', titulo: 'U1 · Letra, sílaba, palabra y oración', fuente: LOM3, puntos: ['La letra, la sílaba, la palabra y la oración', 'Abecedario y diccionario', 'La sílaba tónica'], hacer: [delBanco(LETRA_ORACION), ordenAlfabetico, ordenaAlfabetico, contarSilabas, escribe(contarSilabas), silabaTonica, escribe(silabaTonica)] },

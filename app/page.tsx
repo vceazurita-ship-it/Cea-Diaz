@@ -141,9 +141,11 @@ function Home() {
   }, []);
 
   const select = useCallback(
-    (id: ProfileId) => {
+    (id: ProfileId, keepDay = false) => {
       setActiveProfile(id);
-      setDate(todayKey());
+      // Desde la portada se entra en hoy; desde la barra de arriba se cambia
+      // de persona sin soltar el día que se estaba mirando.
+      if (!keepDay) setDate(todayKey());
 
       // La sintonía se lanza aquí, dentro del gesto de tocar el perfil: es la
       // única forma de que el navegador deje sonar algo. Se toma del perfil ya
@@ -355,7 +357,7 @@ function Home() {
         {profile && (
           <TopBar
             activeId={profile.id}
-            onSelect={select}
+            onSelect={(id) => select(id, true)}
             onHome={goHome}
             lockedIds={lockedIds}
             // Un perfil bloqueado no enseña sus fotos, así que tampoco se editan.

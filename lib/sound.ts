@@ -85,7 +85,7 @@ export function stopAnthem(): void {
  * de un gesto —al soltar el tiro—, que es lo único que los navegadores dejan.
  * ------------------------------------------------------------------------- */
 
-type Cue = 'tiro' | 'gol' | 'parada' | 'fuera';
+type Cue = 'tiro' | 'gol' | 'parada' | 'fuera' | 'acierto' | 'fallo' | 'combo' | 'pop';
 
 /** Cada ruido: forma de onda, de qué nota a qué nota, y cuánto dura. */
 const CUES: Record<Cue, { wave: OscillatorType; from: number; to: number; ms: number }> = {
@@ -97,6 +97,12 @@ const CUES: Record<Cue, { wave: OscillatorType; from: number; to: number; ms: nu
   parada: { wave: 'sawtooth', from: 300, to: 120, ms: 200 },
   // El silbido de lo que se va por arriba.
   fuera: { wave: 'sine', from: 880, to: 180, ms: 380 },
+  // Los de los retos del cole: un «ding» al acertar, un «bup» al fallar,
+  // uno más alto con cada racha, y el «plop» de una burbuja.
+  acierto: { wave: 'sine', from: 660, to: 1320, ms: 180 },
+  fallo: { wave: 'triangle', from: 240, to: 140, ms: 220 },
+  combo: { wave: 'square', from: 780, to: 1560, ms: 260 },
+  pop: { wave: 'sine', from: 900, to: 300, ms: 70 },
 };
 
 let audioContext: AudioContext | null = null;

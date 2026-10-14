@@ -19,7 +19,9 @@ import {
   type PreparacionExamen,
   type Tendencia,
 } from '@/lib/notaCole';
-import { RETO_META } from '@/lib/retoCole';
+import { RETO_META, cursoDe } from '@/lib/retoCole';
+import { DOMINIO_MIN_DIAS, DOMINIO_MIN_PREGUNTAS, dominioDelTemario, estrellasEnTexto } from '@/lib/dominio';
+import { ajusteDe } from '@/lib/temasVistos';
 import type { DayEntry, Profile } from '@/types';
 
 /* =========================================================================
@@ -49,6 +51,10 @@ export function NotasCole({ profile, entries }: NotasColeProps) {
   const examenes = useMemo(() => preparacionExamenes(entries, profile.id), [entries, profile.id]);
   const pendientes = useMemo(() => loQueMasConviene(examenes), [examenes]);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const curso = cursoDe(profile.id);
+  const dominio = useMemo(() => (curso ? dominioDelTemario(entries, profile.id, curso, ajusteDe(entries, profile.id)) : []), [entries, profile.id, curso]);
+  const aprendidos = dominio.reduce((n, a) => n + a.aprendidos, 0);
+  const temasTotal = dominio.reduce((n, a) => n + a.temas.length, 0);
 
   const total = notas.reduce((a, n) => a + n.n, 0);
   const conNota = notas.filter((n) => n.nota !== null);
@@ -112,6 +118,41 @@ export function NotasCole({ profile, entries }: NotasColeProps) {
               </span>
             ))}
           </p>
+        </section>
+      )}
+
+      {/* El temario aprendido: no una nota, sino demostrado en varios días. */}
+      {temasTotal > 0 && (
+        <section className="card p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h4 className="text-sm font-black t-1">Temario aprendido</h4>
+            <p className="text-[11px] t-3">
+              {aprendidos} de {temasTotal} temas
+            </p>
+          </div>
+          <p className="mt-0.5 text-[11px] leading-snug t-3">
+            Un tema cuenta como aprendido con {DOMINIO_MIN_PREGUNTAS} preguntas o más, en {DOMINIO_MIN_DIAS} días distintos y 8 de las 10 últimas bien. Lo que no, vuelve solo en el ⭐ Repaso de los retos.
+          </p>
+          <ul className="mt-2.5 space-y-2">
+            {dominio.map((a) => (
+              <li key={a.asignatura}>
+                <div className="flex items-center gap-2 text-[12px] font-black t-1">
+                  <span className="w-[38%] shrink-0 truncate">
+                    {RETO_META[a.asignatura].icon} {RETO_META[a.asignatura].nombre}
+                  </span>
+                  <span className="flex-1">
+                    <ProgressBar ratio={a.temas.length ? a.aprendidos / a.temas.length : 0} color="#34d399" ariaLabel={`${a.aprendidos} de ${a.temas.length} temas aprendidos`} />
+                  </span>
+                  <span className="w-10 text-right text-[11px] tabular-nums t-3">
+                    {a.aprendidos}/{a.temas.length}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] leading-snug t-3">
+                  {a.temas.map((t) => `${t.tema.titulo.split(' · ')[0]} ${estrellasEnTexto(t.estrellas)}${t.aprendido ? '' : t.n ? ` (${t.n} preg., ${t.dias} d)` : ' (sin practicar)'}`).join(' · ')}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </>

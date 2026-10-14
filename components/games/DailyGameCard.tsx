@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { JuegoDe } from '@/components/games/Juegos';
 import { Material } from '@/components/games/Material';
 import { PenaltyShootout } from '@/components/games/PenaltyShootout';
@@ -27,6 +27,7 @@ import { gameRewardId, rarityLabel } from '@/lib/rewards';
 import { nivelesDelCole, tirosDelCole } from '@/lib/retoCole';
 import { energiaDelFutbol } from '@/lib/retoFutbol';
 import { computeDayScore } from '@/lib/scoring';
+import { playCue } from '@/lib/sound';
 import { loadSettings, subscribeSettings } from '@/lib/settings';
 import { entryKey } from '@/lib/storage';
 import { answerClass } from '@/lib/ui/tone';
@@ -435,13 +436,34 @@ interface QuestionProps {
   kid: boolean;
   onAnswer: (optionId: string) => void;
   onNext: () => void;
+  /** Aciertos seguidos antes de ésta: con dos o más, la racha se celebra. */
+  racha?: number;
+  /** La última del reto, la que se juega contra Benji: se viste de final. */
+  jefe?: boolean;
+  /** El texto del botón de seguir, si no es el de siempre. */
+  nextLabel?: string;
 }
 
-export function Question({ question, index, total, chosen, kid, onAnswer, onNext }: QuestionProps) {
+export function Question({ question, index, total, chosen, kid, onAnswer, onNext, racha = 0, jefe = false, nextLabel }: QuestionProps) {
   const hit = chosen === question.answer;
+  const rachaAhora = hit ? racha + 1 : 0;
+
+  // Un ruidito al contestar: el «ding» del acierto (más alto con racha) o el
+  // «bup» del fallo. Sólo al pasar de sin contestar a contestada.
+  const sonada = useRef<string | null>(null);
+  useEffect(() => {
+    if (!chosen || sonada.current === question.id) return;
+    sonada.current = question.id;
+    playCue(hit ? (rachaAhora >= 3 ? 'combo' : 'acierto') : 'fallo');
+  }, [chosen, hit, rachaAhora, question.id]);
 
   return (
     <div className="space-y-4">
+      {jefe && !chosen && (
+        <div className="animate-golpe rounded-xl bg-gradient-to-r from-rose-600 to-amber-500 px-3 py-2 text-center text-[12px] font-black uppercase tracking-widest text-white shadow-lg">
+          ⚔️ Pregunta final · ¡la de Benji!
+        </div>
+      )}
       {/* Por dónde va la partida */}
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-black uppercase tracking-wide t-3">
@@ -509,12 +531,17 @@ export function Question({ question, index, total, chosen, kid, onAnswer, onNext
         <div className="animate-floatUp space-y-3">
           <p className={`text-sm font-black ${hit ? 't-accent' : 't-1'}`} aria-live="polite">
             {hit ? '✅ ¡Correcto!' : '❌ No era ésa'}
+            {rachaAhora >= 2 && (
+              <span className="ml-2 inline-block animate-pop rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-black text-[#241a14]">
+                🔥 ¡{rachaAhora} seguidas!
+              </span>
+            )}
           </p>
           <p className="rounded-xl border p-3 text-[13px] leading-snug hairline surf-1 t-2">
             💡 {question.explain}
           </p>
           <button type="button" onClick={onNext} className="btn-primary w-full">
-            {index + 1 === total ? 'Ver el resultado' : 'Siguiente pregunta'}
+            {nextLabel ?? (index + 1 === total ? 'Ver el resultado' : 'Siguiente pregunta')}
           </button>
         </div>
       )}
