@@ -1,6 +1,7 @@
 import type { ProfileGlance } from '@/components/ProfileSelector';
 import type { HabitStore } from '@/hooks/useHabitStore';
-import { addDays, weekKeys } from '@/lib/dates';
+import { addDays, formatShort, weekKeys } from '@/lib/dates';
+import { diasEntre, diasSinApuntar, ultimoRegistro } from '@/lib/huecos';
 import { cuandoEs, planDelDia } from '@/lib/examenes';
 import { gameEnabledFor, gameResultFor, isGameDone } from '@/lib/games';
 import { PROFILES } from '@/lib/profiles';
@@ -46,6 +47,27 @@ export function computeGlances(
       }
       const due = dueCount(store.getTasks(profile.id), today);
       if (due > 0) pendientes.push({ icon: '📋', label: `${due} ${due === 1 ? 'recado' : 'recados'}`, urgente: true });
+
+      // Lo que se quedó sin apuntar: ayer, o unos días sueltos esta semana,
+      // a quien registra a diario; a quien lo dejó, desde cuándo.
+      const huecos = diasSinApuntar(store.entries, profile.id, today);
+      if (huecos.length > 0) {
+        pendientes.unshift({
+          icon: '🕘',
+          label:
+            huecos[0] === addDays(today, -1)
+              ? huecos.length === 1
+                ? 'Ayer sin apuntar'
+                : `Ayer y ${huecos.length - 1} más sin apuntar`
+              : `${huecos.length} ${huecos.length === 1 ? 'día' : 'días'} sin apuntar`,
+          urgente: true,
+        });
+      } else {
+        const last = ultimoRegistro(store.entries, profile.id, today);
+        if (last && diasEntre(last, today) > 3) {
+          pendientes.push({ icon: '💤', label: `Sin apuntar desde el ${formatShort(last).replace('.', '')}` });
+        }
+      }
 
       acc[profile.id] = {
         today: day.ratio,

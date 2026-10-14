@@ -110,6 +110,13 @@ function Home() {
     [glanceLib, store, today],
   );
 
+  // La app guardada en el aparato (`public/sw.js`): abre al momento y sin
+  // cobertura. Sólo en lo publicado; en desarrollo serviría código viejo.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }, []);
+
   // Medianoche con la app abierta: quien estuviera mirando «hoy» pasa al día
   // nuevo, y quien estuviera repasando un día atrás se queda donde estaba.
   // Sin esto lo que se registrara de madrugada iría a parar a la víspera.
@@ -124,6 +131,14 @@ function Home() {
     () => PROFILES.filter((p) => p.isPrivate && !unlocked.includes(p.id)).map((p) => p.id),
     [unlocked],
   );
+
+  /** De un perfil a otro sin soltar el día ni el registro, y sin sintonía:
+   *  es seguir apuntando, no entrar. */
+  const switchKeepingDay = useCallback((id: ProfileId) => {
+    setLandingTab('today');
+    setActiveProfile(id);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   const select = useCallback(
     (id: ProfileId) => {
@@ -405,6 +420,7 @@ function Home() {
                   : null
               }
               onCalendarNoticeSeen={() => setCalendarReturn(null)}
+              onSwitchProfile={switchKeepingDay}
             />
           )}
         </div>

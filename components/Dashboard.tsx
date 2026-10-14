@@ -79,10 +79,11 @@ import { FUTBOL_NOTE_KEY, encodeFutbolResult } from '@/lib/retoFutbol';
 import { learningFor } from '@/lib/learning';
 import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
 import { clockNow, planFills, plannedToday, planProgress } from '@/lib/planToday';
-import { skinOf } from '@/lib/profiles';
+import { diasSinApuntar } from '@/lib/huecos';
+import { PROFILES, skinOf } from '@/lib/profiles';
 import { computeDayScore, summarizePeriod } from '@/lib/scoring';
 import { dueCount } from '@/lib/tasks';
-import type { DashboardTab, DateKey, Metric, MetricValue, PlanBlock, Profile } from '@/types';
+import type { DashboardTab, DateKey, Metric, MetricValue, PlanBlock, Profile, ProfileId } from '@/types';
 
 /** Un día sin registrar. Siempre el mismo, para no recalcular por su culpa. */
 const EMPTY_VALUES: Record<string, MetricValue> = {};
@@ -97,6 +98,12 @@ interface DashboardProps {
   /** Desenlace de esa conexión, para acusarlo donde se pidió. */
   calendarNotice?: CalendarNotice | null;
   onCalendarNoticeSeen?: () => void;
+  /**
+   * Pasar a otro perfil sin salir del registro ni cambiar de día. Leo y Hugo
+   * se apuntan seguidos, por la noche: volver a la portada y buscar el día
+   * otra vez entre uno y otro era el paso que sobraba.
+   */
+  onSwitchProfile?: (id: ProfileId) => void;
 }
 
 /**
@@ -122,6 +129,7 @@ export function Dashboard({
   initialTab,
   calendarNotice,
   onCalendarNoticeSeen,
+  onSwitchProfile,
 }: DashboardProps) {
   const [rawTab, setTabState] = useState<DashboardTab>(initialTab ?? 'today');
   const [onlyPending, setOnlyPending] = useState(false);
@@ -539,6 +547,15 @@ export function Dashboard({
     setTab('plan');
   };
 
+  /** Días recientes sin nada apuntado, contados desde hoy y sin el que se ve. */
+  const huecos = useMemo(
+    () => diasSinApuntar(store.entries, profile.id, todayKey()).filter((day) => day !== date),
+    [store.entries, profile.id, date],
+  );
+
+  /** El hermano con el que se registra a la vez, si lo hay. */
+  const sibling = kid && onSwitchProfile ? PROFILES.find((p) => p.kind === 'kid' && p.id !== profile.id) : undefined;
+
   /** Recados que urgen hoy; se acusan en la propia pestaña. */
   const tasksDue = dueCount(store.getTasks(profile.id));
 
@@ -669,6 +686,26 @@ export function Dashboard({
             weekRatios={weekRatios}
           />
 
+          {/* Lo que se quedó sin apuntar estos días: un toque y se está en
+              ese día. Al día siguiente todavía se recuerda; a la semana, no. */}
+          {huecos.length > 0 && (
+            <div className="banner banner-warn flex flex-wrap items-center gap-2" role="status">
+              <span className="font-semibold t-1">
+                <span aria-hidden>🕘</span> Sin apuntar:
+              </span>
+              {huecos.slice(0, 4).map((day) => (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => onDateChange(day)}
+                  className="chip min-h-[2rem] border hairline surf-1 font-semibold t-1 hover-soft"
+                >
+                  {dayPillLabel(day)} →
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Barra de acciones del día. En el móvil eran tres filas de
               botones antes de la primera casilla; ahora es una tira que se
               desliza de lado, con lo que propone la app delante —lo de la
@@ -752,6 +789,17 @@ export function Dashboard({
               >
                 📋 Copiar del día anterior
               </button>
+
+              {sibling && (
+                <button
+                  type="button"
+                  onClick={() => onSwitchProfile?.(sibling.id)}
+                  className="btn-ghost shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-semibold t-1"
+                  title={`Registrar a ${sibling.name} el mismo día`}
+                >
+                  ➡️ Ahora {sibling.name}
+                </button>
+              )}
             </div>
 
             <span className="shrink-0 text-xs tabular-nums t-3 sm:ml-auto" aria-live="polite">
@@ -842,6 +890,16 @@ export function Dashboard({
 
           {/* Observaciones del día */}
           <DayNoteCard profile={profile} date={date} store={store} kid={kid} filled={filled} />
+
+          {sibling && (
+            <button
+              type="button"
+              onClick={() => onSwitchProfile?.(sibling.id)}
+              className={`${pending === 0 ? 'btn-primary' : 'btn-ghost border hairline'} w-full justify-center px-4 py-3 text-sm font-bold`}
+            >
+              {pending === 0 ? '¡Hecho! ' : ''}Seguir con {sibling.name}, {friendlyDateLabel(date).toLowerCase()} →
+            </button>
+          )}
 
           {/* Los atajos sólo se anuncian donde hay teclado: en el móvil eran
               cuatro líneas de letra pequeña que no llevaban a ninguna parte. */}
