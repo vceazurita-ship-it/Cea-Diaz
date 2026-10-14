@@ -98,7 +98,29 @@ export function TaskComposer({
     });
   }, [time]);
 
+  /**
+   * Si la fecha se ha elegido a mano. El formulario ya no se rehace al picar
+   * otro día del mes —se llevaba lo medio escrito—, así que es él quien sigue
+   * al día que se mira: siempre que no haya nada escrito, y aunque lo haya,
+   * mientras la fecha no se haya tocado. Lo que se eligió a mano para una
+   * tarea a medias no se pisa.
+   */
+  const dateTouched = useRef(false);
+  const titleRef = useRef(title);
+  titleRef.current = title;
+
+  useEffect(() => {
+    if (editing) return;
+    const empty = !titleRef.current.trim();
+    if (!empty && dateTouched.current) return;
+    if (empty) dateTouched.current = false;
+    const next = defaultDue ?? todayKey();
+    setDue(next);
+    setQuick(quickDateOf(next));
+  }, [defaultDue, editing]);
+
   const pick = (choice: QuickDate) => {
+    dateTouched.current = true;
     setQuick(choice);
     if (choice === 'hoy') setDue(todayKey());
     else if (choice === 'manana') setDue(addDays(todayKey(), 1));
@@ -186,7 +208,10 @@ export function TaskComposer({
         <input
           type="date"
           value={due ?? ''}
-          onChange={(event) => setDue(event.target.value || undefined)}
+          onChange={(event) => {
+            dateTouched.current = true;
+            setDue(event.target.value || undefined);
+          }}
           aria-label="Día de la tarea"
           className="field mt-2 min-h-[2.75rem] w-full p-3"
         />

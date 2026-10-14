@@ -230,7 +230,11 @@ export function ExportarPdf({ entries, profileId, accent, onClose }: ExportarPdf
         </ul>
       </fieldset>
 
-      {error && <p className="text-[12px] font-semibold text-rose-600 dark:text-rose-400">⚠️ {error}</p>}
+      {error && (
+        <p role="alert" className="banner banner-danger text-[12px] font-semibold t-1">
+          ⚠️ {error}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={onClose} className="btn-ghost text-sm">

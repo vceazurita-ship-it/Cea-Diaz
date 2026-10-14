@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 
 import { Modal } from '@/components/ui/Modal';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Meter } from '@/components/rendimiento/Meter';
 import { NotasCole } from '@/components/rendimiento/NotasCole';
 import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { friendlyDateLabel } from '@/lib/dates';
@@ -10,6 +12,8 @@ import {
   AREA_NAME,
   GRADE_COLOR,
   GRADE_NAME,
+  GRADE_ON_FILL,
+  GRADE_TEXT,
   GRADE_POINTS,
   gradeFor,
   reportsFor,
@@ -20,6 +24,7 @@ import { AC_EXPERTS, AC_SOURCES, AC_SOURCE_BY_ID, areasOf, auditReport } from '@
 import { COG_INDICES, bandOf, cogFor, type CogProfile } from '@/lib/cognitive';
 import { testsFor } from '@/lib/fitness';
 import { headingFont } from '@/lib/profiles';
+import { severityBox } from '@/lib/ui/tone';
 import type { DateKey, DayEntry, Profile, ProfileSkin } from '@/types';
 
 /* =========================================================================
@@ -38,13 +43,6 @@ interface ColegioPanelProps {
   skin: ProfileSkin;
   onSave: (profileId: import('@/types').ProfileId, date: DateKey, key: string, line: string) => void;
 }
-
-const TONE: Record<string, string> = {
-  bien: 'border-emerald-500/40 bg-emerald-500/10',
-  dato: 'hairline surf-1',
-  ojo: 'border-amber-500/40 bg-amber-500/10',
-  atencion: 'border-rose-500/40 bg-rose-500/10',
-};
 
 const ICON: Record<string, string> = { bien: '✅', dato: 'ℹ️', ojo: '👀', atencion: '⚠️' };
 
@@ -117,8 +115,8 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
                       <span
                         key={i}
                         title={GRADE_NAME[grade]}
-                        className="flex h-5 flex-1 items-center justify-center rounded text-[9px] font-black text-white"
-                        style={{ backgroundColor: GRADE_COLOR[grade] }}
+                        className="flex h-5 flex-1 items-center justify-center rounded text-[11px] font-black"
+                        style={{ backgroundColor: GRADE_COLOR[grade], color: GRADE_ON_FILL }}
                       >
                         {grade}
                       </span>
@@ -126,7 +124,7 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
                   </span>
                   <span
                     className="w-8 shrink-0 text-right text-[11px] font-black"
-                    style={{ color: gradeFor(row) ? GRADE_COLOR[gradeFor(row)!] : undefined }}
+                    style={{ color: gradeFor(row) ? GRADE_TEXT[gradeFor(row)!] : undefined }}
                   >
                     {gradeFor(row) ?? '—'}
                   </span>
@@ -146,7 +144,7 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
             <h4 className="text-sm font-black t-1">Lo que dice la serie</h4>
             <ul className="mt-2 space-y-2">
               {audit.findings.map((finding) => (
-                <li key={finding.id} className={`rounded-xl border p-2.5 ${TONE[finding.severity]}`}>
+                <li key={finding.id} className={`rounded-xl border p-2.5 ${severityBox(finding.severity)}`}>
                   <p className="text-[12px] font-black leading-snug t-1">
                     <span aria-hidden>{ICON[finding.severity]}</span> {finding.title}
                   </p>
@@ -212,7 +210,7 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
 
       {subiendo && (
         <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
-          <SubirInforme profile={profile} onSave={onSave} onClose={() => setSubiendo(false)} />
+          <SubirInforme profile={profile} onSave={onSave} entries={entries} onClose={() => setSubiendo(false)} />
         </Modal>
       )}
     </div>
@@ -256,13 +254,17 @@ function Cognitivo({ cog, profile }: { cog: CogProfile; profile: Profile }) {
                   <span className="ml-1 font-normal t-3">{banda.label}</span>
                 </p>
               </div>
-              <div className="relative mt-1 h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-                <span className="absolute inset-y-0 left-[33%] w-[33%] bg-black/10 dark:bg-white/10" />
-                <span
-                  className="absolute top-1/2 h-3 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                  style={{ left: x + '%', backgroundColor: profile.accent }}
-                />
-              </div>
+              <Meter
+                className="mt-1"
+                label={index.label}
+                value={value.score}
+                min={55}
+                max={145}
+                valueText={`${value.score}, ${banda.label}`}
+                band={[33.3, 66.7]}
+                marker={x}
+                color={profile.accent}
+              />
               <p className="mt-0.5 text-[11px] leading-snug t-3">{index.blurb}</p>
             </li>
           );
@@ -287,10 +289,11 @@ function Historico({ reports }: { reports: ReportCard[] }) {
         {filas.map(({ report, media }) => (
           <li key={report.date} className="flex items-center gap-2">
             <span className="w-16 shrink-0 text-[11px] font-black t-2">{report.course || report.date.slice(0, 4)}</span>
-            <span className="h-2 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-              <span
-                className="block h-full rounded-full bg-emerald-500"
-                style={{ width: `${((media ?? 0) / 5) * 100}%` }}
+            <span className="flex-1">
+              <ProgressBar
+                ratio={(media ?? 0) / 5}
+                color="var(--ok)"
+                ariaLabel={`Media de ${report.course || report.date.slice(0, 4)}`}
               />
             </span>
             <span className="w-10 shrink-0 text-right text-[11px] font-black tabular-nums t-1">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { Modal } from '@/components/ui/Modal';
+import { Meter } from '@/components/rendimiento/Meter';
 import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { friendlyDateLabel } from '@/lib/dates';
 import {
@@ -20,6 +21,7 @@ import {
 import { AREA_LABEL, SEVERITY_ICON, auditOf, type Finding } from '@/lib/fitnessAudit';
 import { FIT_EXPERTS, FIT_SOURCE_BY_ID, FIT_SOURCES, GENETICA, meaningful } from '@/lib/fitnessReferences';
 import { headingFont } from '@/lib/profiles';
+import { severityBox } from '@/lib/ui/tone';
 import type { DateKey, GpsSession, Profile, ProfileSkin } from '@/types';
 
 /* =========================================================================
@@ -42,13 +44,6 @@ interface FisicoPanelProps {
   skin: ProfileSkin;
   onSave: (profileId: import('@/types').ProfileId, date: DateKey, key: string, line: string) => void;
 }
-
-const TONE: Record<string, string> = {
-  bien: 'border-emerald-500/40 bg-emerald-500/10',
-  dato: 'hairline surf-1',
-  ojo: 'border-amber-500/40 bg-amber-500/10',
-  atencion: 'border-rose-500/40 bg-rose-500/10',
-};
 
 export function FisicoPanel({ profile, entries, sessions, skin, onSave }: FisicoPanelProps) {
   const [subiendo, setSubiendo] = useState(false);
@@ -111,18 +106,19 @@ export function FisicoPanel({ profile, entries, sessions, skin, onSave }: Fisico
                         {item.range[0] === item.range[1] ? item.range[0] : `${item.range[0]}–${item.range[1]}`}
                       </p>
                     </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          marginLeft: `${item.range[0]}%`,
-                          width: `${Math.max(2, item.range[1] - item.range[0])}%`,
-                          backgroundColor: profile.accent,
-                        }}
-                      />
-                    </div>
+                    <Meter
+                      label={`${item.title}: percentil`}
+                      value={Math.round((item.range[0] + item.range[1]) / 2)}
+                      valueText={
+                        item.range[0] === item.range[1]
+                          ? `percentil ${item.range[0]}`
+                          : `percentil entre ${item.range[0]} y ${item.range[1]}`
+                      }
+                      range={item.range}
+                      color={profile.accent}
+                    />
                     <p className="mt-1.5 text-[11px] leading-snug t-2">{item.detail}</p>
-                    {item.caveat && <p className="mt-1 text-[11px] leading-snug text-amber-600 dark:text-amber-400">⚠️ {item.caveat}</p>}
+                    {item.caveat && <p className="mt-1 text-[11px] leading-snug t-warn">⚠️ {item.caveat}</p>}
                   </li>
                 ))}
               </ul>
@@ -180,7 +176,7 @@ export function FisicoPanel({ profile, entries, sessions, skin, onSave }: Fisico
 
       {subiendo && (
         <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
-          <SubirInforme profile={profile} onSave={onSave} onClose={() => setSubiendo(false)} />
+          <SubirInforme profile={profile} onSave={onSave} entries={entries} onClose={() => setSubiendo(false)} />
         </Modal>
       )}
     </div>
@@ -231,7 +227,7 @@ function Resumen({ audit, profile }: { audit: NonNullable<ReturnType<typeof audi
  */
 function Genetica() {
   return (
-    <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+    <section className="banner banner-warn rounded-2xl p-4">
       <h4 className="text-sm font-black t-1">🧬 {GENETICA.title}</h4>
       <p className="mt-1.5 text-[12px] leading-snug t-2">
         {GENETICA.text.split('**').map((piece, i) => (i % 2 ? <strong key={i}>{piece}</strong> : piece))}
@@ -260,7 +256,7 @@ function Auditoria({ findings }: { findings: Finding[] }) {
             {findings
               .filter((finding) => finding.area === area)
               .map((finding) => (
-                <li key={finding.id} className={`rounded-xl border p-2.5 ${TONE[finding.severity]}`}>
+                <li key={finding.id} className={`rounded-xl border p-2.5 ${severityBox(finding.severity)}`}>
                   <p className="text-[12px] font-black leading-snug t-1">
                     <span aria-hidden>{SEVERITY_ICON[finding.severity]}</span> {finding.title}
                   </p>
@@ -340,7 +336,7 @@ function Evolucion({ serie }: { serie: FitnessTest[] }) {
                       ))}
                       <td
                         className={`py-1 pl-2 text-right font-black tabular-nums ${
-                          !real || mejor === null ? 't-3' : mejor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                          !real || mejor === null ? 't-3' : mejor ? 't-ok' : 't-danger'
                         }`}
                       >
                         {cambio === null ? '—' : `${cambio > 0 ? '+' : ''}${cambio.toFixed(1).replace('.', ',')} %`}

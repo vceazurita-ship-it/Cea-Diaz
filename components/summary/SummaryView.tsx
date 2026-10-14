@@ -1,7 +1,8 @@
 'use client';
 
 import { kickerFont } from '@/lib/profiles';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import { AchievementsPanel } from '@/components/summary/AchievementsPanel';
 import { MonthHeatmap } from '@/components/summary/MonthHeatmap';
 import { PlanAdherence } from '@/components/summary/PlanAdherence';
@@ -22,6 +23,8 @@ import {
 } from '@/lib/dates';
 import { computeAchievements, percent, summarizePeriod } from '@/lib/scoring';
 import type { DateKey, DayEntry, Profile, ProfileSkin, SummaryRange } from '@/types';
+
+const SUMMARY_RANGES: readonly SummaryRange[] = ['week', 'month'];
 
 interface SummaryViewProps {
   profile: Profile;
@@ -90,7 +93,12 @@ export function SummaryView({
   onDateChange,
   onOpenPlan,
 }: SummaryViewProps) {
-  const [range, setRange] = useState<SummaryRange>('week');
+  /** Semana o mes: se recuerda en este aparato y por perfil. */
+  const [range, setRange] = useRemembered<SummaryRange>(
+    `resumen:${profile.id}:periodo`,
+    'week',
+    oneOf(SUMMARY_RANGES),
+  );
   const kid = profile.kind === 'kid';
   const today = todayKey();
   // Cada piel rotula lo suyo: marcador de estadio en el campo, serif de
@@ -107,13 +115,39 @@ export function SummaryView({
     [profile.id, dates, entries],
   );
 
+  /** ¿Cae ese día dentro del periodo que se está viviendo ahora mismo? */
+  const isCurrentPeriod = (key: DateKey) =>
+    range === 'week'
+      ? startOfWeek(key) === startOfWeek(today)
+      : key.slice(0, 7) === today.slice(0, 7);
+
+  const atCurrent = isCurrentPeriod(date);
+
+  /**
+   * Cuántos días lleva el periodo en curso, hoy incluido; `null` mirando uno
+   * ya cerrado.
+   */
+  const elapsed = atCurrent
+    ? range === 'week'
+      ? weekKeys(today).indexOf(today) + 1
+      : Number(today.slice(8, 10))
+    : null;
+
   // El periodo de antes, para decir si se va mejor o peor. Si no tiene ni
   // un día registrado no hay con qué comparar y las fichas lo dicen así.
+  //
+  // Con el periodo en curso se compara contra el mismo trozo del anterior:
+  // un miércoles lleva tres días, y ponerlo contra la semana pasada entera
+  // salía siempre en negativo —«−4 días registrados»— sin que fuera verdad.
   const previous = useMemo(() => {
     const keys = range === 'week' ? weekKeys(addDays(date, -7)) : monthKeys(addMonths(date, -1));
-    const prev = summarizePeriod(profile.id, keys, entries);
+    const prev = summarizePeriod(
+      profile.id,
+      elapsed === null ? keys : keys.slice(0, elapsed),
+      entries,
+    );
     return prev.trackedDays > 0 ? prev : null;
-  }, [profile.id, range, date, entries]);
+  }, [profile.id, range, date, entries, elapsed]);
 
   // Los logros se calculan sobre el mes completo, sea cual sea la vista.
   const monthSummary = useMemo(
@@ -130,18 +164,17 @@ export function SummaryView({
 
   const empty = summary.trackedDays === 0;
   const previousLabel = range === 'week' ? 'la semana anterior' : 'el mes anterior';
+  /** Lo que se dice encima de las fichas, con el matiz del periodo a medias. */
+  const comparedLabel =
+    elapsed === null
+      ? `Respecto a ${previousLabel}`
+      : range === 'week'
+        ? 'Respecto al mismo punto de la semana anterior'
+        : 'Respecto al mismo punto del mes anterior';
 
   /** Diferencia con el periodo anterior, o nada si no hay con qué comparar. */
   const delta = (pick: (s: typeof summary) => number): number | null =>
     previous ? Math.round(pick(summary) - pick(previous)) : null;
-
-  /** ¿Cae ese día dentro del periodo que se está viviendo ahora mismo? */
-  const isCurrentPeriod = (key: DateKey) =>
-    range === 'week'
-      ? startOfWeek(key) === startOfWeek(today)
-      : key.slice(0, 7) === today.slice(0, 7);
-
-  const atCurrent = isCurrentPeriod(date);
 
   /**
    * Un periodo atrás o adelante. Al volver al periodo en curso se cae en hoy
@@ -201,7 +234,7 @@ export function SummaryView({
                 type="button"
                 onClick={() => setRange(option)}
                 aria-pressed={active}
-                className={`min-h-[2.25rem] rounded-lg px-4 text-xs font-bold transition-colors
+                className={`tap-area min-h-[2.25rem] rounded-lg px-4 text-xs font-bold transition-colors
                   ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft hover:t-1'}`}
               >
                 {option === 'week' ? 'Semana' : 'Mes'}
@@ -218,7 +251,7 @@ export function SummaryView({
             {Math.round(summary.average * 100)}
             <span className="text-sm">%</span>
           </span>
-          <span className="text-[10px] uppercase tracking-wide t-3">media</span>
+          <span className="text-[11px] uppercase tracking-wide t-3">media</span>
         </ProgressRing>
 
         <div className="min-w-[180px] flex-1 space-y-2">
@@ -244,7 +277,11 @@ export function SummaryView({
       {!empty && (
         <section aria-label={`Comparación con ${previousLabel}`}>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide t-3">
-            {previous ? `Respecto a ${previousLabel}` : `Sin registros en ${previousLabel}`}
+            {previous
+              ? comparedLabel
+              : elapsed === null
+                ? `Sin registros en ${previousLabel}`
+                : `Sin registros a estas alturas de ${previousLabel}`}
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <DeltaTile label="Media" delta={delta((s) => s.average * 100)} unit="pts" />
@@ -327,6 +364,8 @@ export function SummaryView({
         skin={skin}
         kid={kid}
         headingClass={headingClass}
+        isCurrent={atCurrent}
+        periodLabel={periodLabel}
         onOpenPlan={onOpenPlan}
       />
 

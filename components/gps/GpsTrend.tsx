@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+
+import { useRemembered } from '@/hooks/useRemembered';
 
 import { GPS_FIELDS, KIND_META, formatValue, valueOf, type GpsFieldId } from '@/lib/gps';
 import { formatShort } from '@/lib/dates';
@@ -42,6 +44,9 @@ function barColor(kind: GpsSession['kind']): string {
     : 'color-mix(in srgb, var(--accent) 55%, transparent)';
 }
 
+const esCampo = (value: unknown): value is GpsFieldId | '' =>
+  value === '' || GPS_FIELDS.some((item) => item.id === value);
+
 interface GpsTrendProps {
   /** Sesiones de la más reciente a la más antigua. */
   sessions: GpsSession[];
@@ -55,7 +60,8 @@ export function GpsTrend({ sessions, kid }: GpsTrendProps) {
     [sessions],
   );
 
-  const [field, setField] = useState<GpsFieldId | null>(null);
+  // Lo elegido se recuerda en el aparato; vacío es «la de siempre».
+  const [field, setField] = useRemembered<GpsFieldId | ''>('gps:tendencia:cifra', '', esCampo);
 
   /**
    * La que se enseña sin tocar nada: la distancia, que es la cifra que
@@ -135,7 +141,7 @@ export function GpsTrend({ sessions, kid }: GpsTrendProps) {
               {/* La cifra va siempre puesta, como en la tira de la semana: en
                   un móvil no existe posar el ratón encima, y sin el número
                   cuatro sesiones parecidas se leen como un bloque macizo. */}
-              <span className="h-3 truncate text-[9px] font-semibold tabular-nums t-3">
+              <span className="h-3 truncate text-[10px] font-semibold tabular-nums t-3">
                 {record ? '🏅 ' : ''}
                 {short(row.value, chosen.decimals)}
               </span>
@@ -145,7 +151,7 @@ export function GpsTrend({ sessions, kid }: GpsTrendProps) {
                   style={{ height: `${height}%`, backgroundColor: barColor(row.session.kind) }}
                 />
               </div>
-              <span className="w-full truncate text-center text-[9px] tabular-nums t-3">
+              <span className="w-full truncate text-center text-[10px] tabular-nums t-3">
                 {row.session.date.slice(8)}/{row.session.date.slice(5, 7)}
               </span>
             </div>

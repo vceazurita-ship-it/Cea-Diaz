@@ -1,17 +1,31 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   addDays,
   capitalize,
   formatMonth,
   friendlyDateLabel,
   isToday,
+  parseDateKey,
   todayKey,
   weekKeys,
   WEEKDAY_LABELS,
 } from '@/lib/dates';
+import { prefersReducedMotion } from '@/lib/haptics';
 import type { DateKey } from '@/types';
+
+const weekdayDay = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric' });
+
+/**
+ * El día en corto, para una pastilla o un aviso: «Hoy · martes 14», «Ayer ·
+ * lunes 13» o, si no tiene nombre propio, «Jueves 9».
+ */
+export function dayPillLabel(key: DateKey): string {
+  const named = weekdayDay.format(parseDateKey(key));
+  const friendly = friendlyDateLabel(key);
+  return ['Hoy', 'Ayer', 'Mañana'].includes(friendly) ? `${friendly} · ${named}` : capitalize(named);
+}
 
 interface DateNavigatorProps {
   date: DateKey;
@@ -47,8 +61,79 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
     input.click();
   };
 
+  /* -------------------------------------------- el día, a la vista siempre
+   *
+   * En un día largo de casillas, al bajar se perdía de vista qué día era, y
+   * más de una vez se apuntó en el de ayer creyendo que era hoy. Cuando el
+   * navegador sale por arriba, asoma bajo la barra una pastilla con el día y
+   * sus flechas; al volver a verlo, se esconde.
+   */
+  const box = useRef<HTMLElement>(null);
+  const [away, setAway] = useState(false);
+
+  useEffect(() => {
+    const node = box.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const top =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 0;
+    const observer = new IntersectionObserver(
+      ([seen]) => setAway(!seen.isIntersecting && seen.boundingClientRect.top < top),
+      { rootMargin: `-${Math.round(top)}px 0px 0px 0px` },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const backToNavigator = () =>
+    box.current?.scrollIntoView({
+      block: 'start',
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    });
+
   return (
-    <nav className="card p-3" aria-label="Navegación por días">
+    <nav ref={box} className="card scroll-mt-24 p-3" aria-label="Navegación por días">
+      {away && (
+        // El centrado va en una capa y la animación en otra: las dos usan
+        // `transform` y en el mismo elemento la entrada se comía el centrado.
+        <div
+          className="pointer-events-none fixed inset-x-0 z-20 flex justify-center px-4"
+          style={{ top: 'calc(var(--topbar-h, 0px) + 0.5rem)' }}
+        >
+        <div
+          role="group"
+          aria-label="Día que se está viendo"
+          className="pointer-events-auto flex animate-floatUp items-center gap-1 rounded-full border
+            px-1 py-1 text-sm shadow-lg hairline surf-raised"
+        >
+          <button
+            type="button"
+            onClick={() => onChange(addDays(date, -1))}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover-soft"
+            aria-label="Día anterior"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={backToNavigator}
+            className="rounded-full px-2 py-1 font-semibold t-1 hover-soft"
+            title="Volver al calendario de la semana"
+          >
+            {dayPillLabel(date)}
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(addDays(date, 1))}
+            disabled={date >= today}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover-soft disabled:opacity-30"
+            aria-label="Día siguiente"
+          >
+            →
+          </button>
+        </div>
+        </div>
+      )}
+
       <div className="mb-3 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -64,7 +149,9 @@ export function DateNavigator({ date, onChange, weekRatios = {} }: DateNavigator
             type="button"
             onClick={openPicker}
             className="btn-ghost w-full flex-col gap-0 border-transparent bg-transparent px-2 py-1"
-            aria-label={`Ir a otro día. Ahora: ${friendlyDateLabel(date)}`}
+            // El nombre empieza por lo que se lee en el botón: quien maneja el
+            // móvil con la voz dice «Hoy» o «Ayer», y tiene que encontrarlo.
+            aria-label={`${friendlyDateLabel(date)}, ${capitalize(formatMonth(date))}. Ir a otro día`}
           >
             <span className="block w-full truncate text-center text-base font-bold leading-tight t-1">
               {friendlyDateLabel(date)}

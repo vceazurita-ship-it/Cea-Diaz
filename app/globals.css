@@ -66,11 +66,25 @@
   --border-strong: rgba(255, 255, 255, 0.28);
   --track: rgba(255, 255, 255, 0.13);
   --text: color-mix(in srgb, var(--tint) 8%, #f3f6f9);
-  --text-2: color-mix(in srgb, var(--tint) 20%, #c8d0dd);
-  --text-3: color-mix(in srgb, var(--tint) 24%, #b0b9c8);
+  /* Revisados con axe en octubre de 2026: con 20 % y 24 % de tinte, el
+     segundo y el tercer nivel se quedaban en 3,6–4,5:1 sobre las fichas de
+     los peques, que apilan `--surface-2` encima de su tarjeta (la «Racha
+     actual», el «▶ jugar» de los retos, los rótulos de la agenda). Menos
+     tinte y una base más clara los suben a 4,6:1 en el peor caso sin que el
+     tercer nivel deje de verse por debajo del segundo. */
+  --text-2: color-mix(in srgb, var(--tint) 14%, #dde2ea);
+  --text-3: color-mix(in srgb, var(--tint) 18%, #ccd3de);
   --on-accent: #0b0f14;
   --danger: #fda4af;
   --danger-bg: rgba(244, 63, 94, 0.16);
+  /* Los otros tres estados: bien, ojo e información. Antes cada archivo
+     elegía su verde y su ámbar, y sobre papel varios no llegaban a 3:1. */
+  --ok: #6ee7b7;
+  --ok-bg: rgba(16, 185, 129, 0.16);
+  --warn: #fcd34d;
+  --warn-bg: rgba(245, 158, 11, 0.16);
+  --info: #7dd3fc;
+  --info-bg: rgba(14, 165, 233, 0.16);
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
   --shadow-pop: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
   --ring: rgba(255, 255, 255, 0.58);
@@ -95,10 +109,18 @@
   --track: color-mix(in srgb, var(--tint) 18%, #ded9d1);
   --text: color-mix(in srgb, var(--tint) 12%, #171b21);
   --text-2: color-mix(in srgb, var(--tint) 16%, #3f4653);
-  --text-3: color-mix(in srgb, var(--tint) 20%, #4e5561);
+  /* Base un punto más oscura que antes (#4e5561): sobre la casilla marcada de
+     la agenda de Leo, `--surface-3`, el tercer nivel daba 4,48:1. */
+  --text-3: color-mix(in srgb, var(--tint) 20%, #454c58);
   --on-accent: #ffffff;
   --danger: #b3123c;
   --danger-bg: rgba(190, 18, 60, 0.08);
+  --ok: #047857;
+  --ok-bg: rgba(4, 120, 87, 0.09);
+  --warn: #a16207;
+  --warn-bg: rgba(161, 98, 7, 0.1);
+  --info: #0369a1;
+  --info-bg: rgba(3, 105, 161, 0.09);
   --shadow-card: 0 1px 2px rgba(24, 27, 33, 0.05), 0 12px 28px -18px rgba(24, 27, 33, 0.35);
   --shadow-pop: 0 30px 60px -24px rgba(24, 27, 33, 0.45);
   --ring: rgba(24, 27, 33, 0.5);
@@ -208,8 +230,51 @@ button:active:not(:disabled),
   .t-danger {
     color: var(--danger);
   }
+  .t-ok {
+    color: var(--ok);
+  }
+  .t-warn {
+    color: var(--warn);
+  }
+  .t-info {
+    color: var(--info);
+  }
+
+  /* Velos y bordes de estado, para semáforos, avisos y respuestas. */
+  .bg-ok-soft {
+    background-color: var(--ok-bg);
+  }
+  .bg-warn-soft {
+    background-color: var(--warn-bg);
+  }
+  .bg-info-soft {
+    background-color: var(--info-bg);
+  }
+  .bg-danger-soft {
+    background-color: var(--danger-bg);
+  }
+  .border-ok {
+    border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+  .border-warn {
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  }
+  .border-info {
+    border-color: color-mix(in srgb, var(--info) 45%, transparent);
+  }
+  .border-danger {
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  }
   .t-accent {
     color: var(--accent);
+  }
+  /* De día, el acento como texto se oscurece un punto. La cuenta de arriba
+     daba AA sobre tarjeta blanca, pero no sobre la tarjeta de los peques,
+     que es `--surface-2`: el verde de Leo se quedaba en 3,9:1 en los «0 %» y
+     los «0 cromos» (axe). Con un 15 % de negro pasa de 5:1 en todas las
+     superficies de día y el color se sigue reconociendo como el suyo. */
+  [data-mode='light'] .t-accent {
+    color: color-mix(in srgb, var(--accent) 85%, #000);
   }
   .t-on-accent {
     color: var(--on-accent);
@@ -392,13 +457,37 @@ button:active:not(:disabled),
 }
 
 @layer components {
+  /* Un aviso en línea: borde y velo del estado, texto de siempre encima. */
+  .banner {
+    @apply rounded-xl border p-3 text-xs leading-relaxed;
+  }
+  .banner-ok {
+    border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+    background-color: var(--ok-bg);
+  }
+  .banner-warn {
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    background-color: var(--warn-bg);
+  }
+  .banner-info {
+    border-color: color-mix(in srgb, var(--info) 45%, transparent);
+    background-color: var(--info-bg);
+  }
+  .banner-danger {
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    background-color: var(--danger-bg);
+  }
+
   .card {
     @apply rounded-2xl border;
     border-color: var(--border);
     background-color: var(--surface);
     box-shadow: var(--shadow-card);
   }
-  .card-kid {
+  .card-kid,
+  /* En el panel de un peque, cualquier `.card` de dentro se viste como las
+     suyas: así no hay que ir componente a componente eligiendo la clase. */
+  [data-variant='kid'] .card {
     @apply rounded-3xl border-2;
     border-color: var(--border);
     background-color: var(--surface-2);
@@ -470,8 +559,13 @@ button:active:not(:disabled),
       font-size: 16px;
     }
   }
+  /* El campo apaga el anillo general (`outline-none`) y marca el foco con su
+     propio borde. Un filete de 1 px que cambia de color se pierde de día, así
+     que se dobla con una sombra del mismo acento: 2 px, como el anillo del
+     resto de la app. */
   .field:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
   .field::placeholder {
     color: var(--text-3);
@@ -486,6 +580,41 @@ button:active:not(:disabled),
     content: '';
     @apply h-px flex-1;
     background-color: var(--border);
+  }
+
+  /* Zona de toque de 44 px sin cambiar el dibujo.
+   *
+   * Con el dedo, Apple y Android piden 44 px; la auditoría de la portada y de
+   * cada pestaña encontraba una veintena de botones entre 24 y 40: las fichas
+   * de «🗓️ Apartarle un rato», los atajos de la agenda, los conmutadores de
+   * «Foto · Pegar · A mano», las flechas de cambiar de día. Agrandarlos a la
+   * vista habría cambiado la densidad de toda la app, así que lo que crece es
+   * la zona que recoge el toque: un `::after` transparente que desborda el
+   * botón por arriba y por abajo, que es lo que les faltaba (de ancho casi
+   * todos pasan).
+   *
+   * Sólo con puntero grueso: con ratón no hace falta y podría robar el clic
+   * a un vecino. `position: relative` vive en esta capa a propósito: las
+   * utilidades `absolute`, `fixed` o `sticky` de un botón concreto pesan más
+   * y lo siguen colocando donde estaba. `.tap-area` sirve para los botones
+   * sueltos que no llevan ninguna de estas clases. */
+  @media (pointer: coarse) {
+    .btn,
+    button.chip,
+    button.chip-soft,
+    button.chip-accent,
+    .tap-area {
+      position: relative;
+    }
+    .btn::after,
+    button.chip::after,
+    button.chip-soft::after,
+    button.chip-accent::after,
+    .tap-area::after {
+      content: '';
+      position: absolute;
+      inset: -8px -2px;
+    }
   }
 }
 
@@ -574,4 +703,50 @@ input[type='range']:disabled::-webkit-slider-thumb {
 }
 input[type='range']:disabled::-moz-range-thumb {
   background: var(--text-3);
+}
+
+/* El alto de la barra de pestañas del móvil, que el panel mide y publica en
+   <html>. A partir de tableta la barra va arriba, en el flujo, y no tapa
+   nada: se deja en cero aunque el panel la haya medido. */
+@media (min-width: 640px) {
+  :root {
+    --tabbar-h: 0px !important;
+  }
+}
+
+/* Una tira que se desliza de lado: los extremos se difuminan para insinuar
+   que sigue, como la de perfiles de la barra de arriba, y sin barra de
+   desplazamiento. En tableta la tira se parte en filas y no hace falta. */
+.edge-mask-x {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+.edge-mask-x::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 640px) {
+  .edge-mask-x {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/* El «no» de un PIN mal puesto: la caja tiembla de lado, como quien niega
+   con la cabeza. Con «reducir movimiento» la regla general la deja quieta. */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+.shake {
+  animation: shake 360ms ease-in-out;
 }

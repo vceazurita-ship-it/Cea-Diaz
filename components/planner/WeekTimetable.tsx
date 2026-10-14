@@ -21,7 +21,7 @@ import {
   timeOf,
   weekSpan,
 } from '@/lib/planner';
-import type { PlanOrnament } from '@/lib/planner';
+import type { BlockPalette, PlanOrnament } from '@/lib/planner';
 import { SILENT, statusIcon } from '@/lib/planCheck';
 import type { PlanBlock, PlanKind, PlanStatus, WeekPlan } from '@/types';
 
@@ -66,7 +66,7 @@ import type { PlanBlock, PlanKind, PlanStatus, WeekPlan } from '@/types';
  * ========================================================================= */
 
 /** Altos de hora entre los que se elige. Con menos, media hora no se lee. */
-export const HOUR_HEIGHTS = { compacta: 34, normal: 52, amplia: 78 } as const;
+const HOUR_HEIGHTS = { compacta: 34, normal: 52, amplia: 78 } as const;
 
 export type TimetableZoom = keyof typeof HOUR_HEIGHTS;
 
@@ -110,6 +110,79 @@ export const SKIN_GOLD = {
   pale: 'var(--gold-pale, #f4e2a1)',
   rose: 'var(--gold-rose, #e8b4b8)',
 } as const;
+
+/* ---------------------------------------------------------------------------
+ * El texto sobre el color del rato
+ *
+ * En las pieles de color entero el texto iba siempre en blanco, y sobre el
+ * amarillo de la comida o el verde claro del deporte no se leía. Ahora se
+ * mira lo claro que es el color de verdad —los dos extremos del degradado,
+ * porque el texto pasa por encima de los dos— y se elige el blanco o casi
+ * negro que más contraste dé en el peor de ellos. Lo mismo para las fichas
+ * de copiar y quitar y para los tiradores, que van del mismo lado.
+ * ------------------------------------------------------------------------- */
+
+interface OnColour {
+  text: string;
+  /** Fondo de las fichas de la esquina (⧉ y ✕). */
+  chip: string;
+  /** La rayita de los tiradores de estirar. */
+  handle: string;
+}
+
+const ON_LIGHT: OnColour = {
+  text: '#14171f',
+  chip: 'rgba(255,255,255,0.55)',
+  handle: 'rgba(20,23,31,0.55)',
+};
+
+const ON_DARK: OnColour = {
+  text: '#ffffff',
+  chip: 'rgba(0,0,0,0.3)',
+  handle: 'rgba(255,255,255,0.8)',
+};
+
+/** Luminancia relativa (WCAG) de un `hsl(h s% l%)`; `null` si no lo es. */
+function luminanceOf(colour: string): number | null {
+  const match = /hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/.exec(colour);
+  if (!match) return null;
+
+  const h = Number(match[1]) / 360;
+  const s = Number(match[2]) / 100;
+  const l = Number(match[3]) / 100;
+
+  // De HSL a RGB, la conversión de siempre.
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const channel = (t: number) => {
+    const x = ((t % 1) + 1) % 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  const linear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+
+  const [r, g, b] = [channel(h + 1 / 3), channel(h), channel(h - 1 / 3)].map(linear);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Luminancia del casi negro de `ON_LIGHT` (#14171f), calculada una vez. */
+const DARK_INK = luminanceOf('hsl(225 21% 10%)') ?? 0.009;
+
+const contrast = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+/** Blanco o casi negro, el que mejor se lea sobre los dos extremos del rato. */
+function onColourOf(palette: BlockPalette): OnColour {
+  const ends = [luminanceOf(palette.from), luminanceOf(palette.to)].filter(
+    (value): value is number => value !== null,
+  );
+  if (ends.length === 0) return ON_DARK;
+
+  const onWhite = Math.min(...ends.map((value) => contrast(value, 1)));
+  const onDark = Math.min(...ends.map((value) => contrast(value, DARK_INK)));
+  return onDark > onWhite ? ON_LIGHT : ON_DARK;
+}
 
 interface Look {
   /** Relleno de la pastilla: color entero o papel con velo. */
@@ -601,6 +674,11 @@ export function WeekTimetable({
   const minColumn = shownDays.length > 4 ? 92 : shownDays.length > 2 ? 120 : 180;
 
   const wash = look.fill === 'wash';
+  /**
+   * En la vista compacta la hora mide 34 píxeles, y ahí —sólo ahí, y en los
+   * ratos aplastados— la letra baja a 10: once puntos no caben en el renglón.
+   */
+  const compact = zoom === 'compacta';
 
   return (
     <div className="space-y-2">
@@ -616,7 +694,7 @@ export function WeekTimetable({
           >
             ✋ {handMode ? 'Arrastrando' : 'Arrastrar ratos'}
           </button>
-          <p className="text-[10px] leading-tight t-3">
+          <p className="text-[11px] leading-tight t-3">
             {handMode
               ? 'Arrastra un rato a otro día o a otra hora. Vuelve a tocar para desplazar la pantalla.'
               : 'Enciéndelo para mover los ratos con el dedo.'}
@@ -641,7 +719,7 @@ export function WeekTimetable({
               {hours.map((minute) => (
                 <span
                   key={minute}
-                  className="absolute right-1 text-[10px] font-semibold tabular-nums t-3"
+                  className="absolute right-1 text-[11px] font-semibold tabular-nums t-3"
                   style={{ top: topOf(minute) - 6 }}
                 >
                   {timeOf(minute)}
@@ -685,9 +763,9 @@ export function WeekTimetable({
                         <span className="hidden sm:inline">
                           {tight ? DAY_SHORT[day] : DAY_NAMES[day]}
                         </span>
-                        {hoy && <span className="ml-1 text-[9px] normal-case">hoy</span>}
+                        {hoy && <span className="ml-1 text-[11px] normal-case">hoy</span>}
                       </span>
-                      <span className="flex items-center gap-1 text-[9px] leading-none tabular-nums opacity-70">
+                      <span className="flex items-center gap-1 text-[11px] leading-none tabular-nums opacity-75">
                         {/* Con la semana entera en un móvil, la columna mide
                             ochenta píxeles y «4 · 6 h 45 min» se parte en dos
                             renglones que empujan la cuadrícula hacia abajo.
@@ -843,6 +921,8 @@ export function WeekTimetable({
                      * misma mancha gris.
                      */
                     const palette = blockPalette(block);
+                    /** Con color entero, el texto que se lee encima. */
+                    const on = onColourOf(palette);
                     const box = Math.max(15, ((to - from) / 60) * HOUR - 2);
                     const tall = box >= 34;
                     const roomy = box >= 52;
@@ -961,6 +1041,7 @@ export function WeekTimetable({
                              listón —lo pintan los dos <span> de abajo—; en el
                              campo, entero. */
                           backgroundImage: wash ? undefined : gradientOf(palette),
+                          color: wash ? undefined : on.text,
                           /* En papel el velo es suave a propósito —el texto
                              manda—, así que el color del tema se apoya también
                              en el borde: con eso dos ratos del mismo tipo se
@@ -992,7 +1073,7 @@ export function WeekTimetable({
                                     ${
                                       wash
                                         ? 'surf-raised t-1 hairline-strong shadow-sm hover:brightness-[1.04]'
-                                        : 'text-white shadow-sm hover:brightness-110'
+                                        : 'shadow-sm hover:brightness-110'
                                     }
                                     ${off ? 'opacity-20' : ''}
                                     ${borrowed ? 'rato-prestado' : ''}
@@ -1072,7 +1153,7 @@ export function WeekTimetable({
                               {block.icon}
                             </span>
                             {clashes > 0 && (
-                              <span aria-hidden className={`text-[9px] ${wash ? 't-danger' : ''}`}>
+                              <span aria-hidden className={`text-[11px] ${wash ? 't-danger' : ''}`}>
                                 ⚠
                               </span>
                             )}
@@ -1082,7 +1163,7 @@ export function WeekTimetable({
                               medio de una tarjeta de dos horas. */}
                           {tall && (
                             <span
-                              className={`rato-nombre w-full break-words text-center text-[9px] font-semibold leading-[1.15]
+                              className={`rato-nombre w-full break-words text-center font-semibold leading-[1.15] ${compact ? 'text-[10px]' : 'text-[11px]'}
                                 ${wash ? 't-2' : 'opacity-95'}`}
                             >
                               {block.title || 'Sin nombre'}
@@ -1104,7 +1185,7 @@ export function WeekTimetable({
                               <span aria-hidden>{block.icon}</span> {block.title || 'Sin nombre'}
                             </span>
                             {status && !SILENT.has(status) && (
-                              <span className="ml-auto shrink-0 text-[10px]" aria-hidden>
+                              <span className="ml-auto shrink-0 text-[11px]" aria-hidden>
                                 {statusIcon(status, ornament === 'pitch')}
                               </span>
                             )}
@@ -1112,7 +1193,7 @@ export function WeekTimetable({
 
                           {tall && (
                             <span
-                              className={`relative mt-0.5 flex items-center gap-1 truncate text-[10px] tabular-nums
+                              className={`relative mt-0.5 flex items-center gap-1 truncate tabular-nums ${compact ? 'text-[10px]' : 'text-[11px]'}
                                 ${wash ? 't-3' : 'opacity-85'}`}
                             >
                               <span className="truncate">
@@ -1153,7 +1234,7 @@ export function WeekTimetable({
                           {roomy && block.metricId && (
                             <span
                               aria-hidden
-                              className={`rato-detalle absolute bottom-0.5 right-1 text-[9px] ${wash ? 't-3' : 'opacity-70'}`}
+                              className={`rato-detalle absolute bottom-0.5 right-1 text-[11px] ${wash ? 't-3' : 'opacity-70'}`}
                             >
                               🔗{blockLinks(block).length > 1 ? blockLinks(block).length : ''}
                             </span>
@@ -1196,8 +1277,9 @@ export function WeekTimetable({
                               >
                                 <span
                                   aria-hidden
-                                  className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
-                                    ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'}`}
+                                  className={`grid h-5 w-5 place-items-center rounded text-[11px] leading-none
+                                    ${wash ? 'surf-3 t-1' : ''}`}
+                                  style={wash ? undefined : { background: on.chip, color: on.text }}
                                 >
                                   ⧉
                                 </span>
@@ -1217,8 +1299,9 @@ export function WeekTimetable({
                               >
                                 <span
                                   aria-hidden
-                                  className={`grid h-5 w-5 place-items-center rounded text-[10px] leading-none
-                                    ${wash ? 'surf-3 t-1' : 'bg-black/30 text-white'}`}
+                                  className={`grid h-5 w-5 place-items-center rounded text-[11px] leading-none
+                                    ${wash ? 'surf-3 t-1' : ''}`}
+                                  style={wash ? undefined : { background: on.chip, color: on.text }}
                                 >
                                   ✕
                                 </span>
@@ -1249,7 +1332,8 @@ export function WeekTimetable({
                           >
                             <span
                               className={`mt-0.5 block h-0.5 w-6 rounded-full
-                                ${wash ? 'bg-[color:var(--border-strong)]' : 'bg-white/80'}`}
+                                ${wash ? 'bg-[color:var(--border-strong)]' : ''}`}
+                              style={wash ? undefined : { background: on.handle }}
                             />
                           </span>
                         )}
@@ -1269,7 +1353,8 @@ export function WeekTimetable({
                           >
                             <span
                               className={`mb-0.5 block h-0.5 w-6 rounded-full
-                                ${wash ? 'bg-[color:var(--border-strong)]' : 'bg-white/80'}`}
+                                ${wash ? 'bg-[color:var(--border-strong)]' : ''}`}
+                              style={wash ? undefined : { background: on.handle }}
                             />
                           </span>
                         )}
@@ -1290,7 +1375,7 @@ export function WeekTimetable({
                       }}
                     >
                       <span className="absolute left-1 top-0.5 flex max-w-[calc(100%-0.5rem)] items-center gap-1
-                                       rounded bg-accent px-1 text-[9px] font-bold t-on-accent">
+                                       rounded bg-accent px-1 text-[11px] font-bold t-on-accent">
                         {drag.copy && <span aria-hidden>＋</span>}
                         <span className="tabular-nums">{timeOf(drag.start)}</span>
                         <span className="truncate">
@@ -1301,7 +1386,7 @@ export function WeekTimetable({
                   )}
 
                   {placed.length === 0 && (
-                    <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] t-3">
+                    <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] t-3">
                       libre
                     </span>
                   )}

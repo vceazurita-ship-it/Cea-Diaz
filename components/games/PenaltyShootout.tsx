@@ -368,7 +368,7 @@ function Carta({
             ).map(([k, v]) => (
               <span key={k}>
                 <span className="block tabular-nums">{v}</span>
-                <span className="block text-[8px] opacity-70">{k}</span>
+                <span className="block text-[10px] opacity-80">{k}</span>
               </span>
             ))}
           </span>
@@ -425,7 +425,7 @@ function CaraACara({
           </div>
         </div>
         <div className="absolute inset-0 bg-[#241a14] [clip-path:polygon(61%_0,63%_0,39%_100%,37%_100%)]" />
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-3 pb-4 pt-2 text-[9px] font-black uppercase tracking-[0.18em] text-white">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-3 pb-4 pt-2 text-[11px] font-black uppercase tracking-[0.12em] text-white">
           <span className="flex items-center gap-1">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> En directo
           </span>
@@ -493,7 +493,7 @@ function CaraACara({
               <span className="mt-0.5 block text-[11px] uppercase tracking-wide">
                 {i + 1}. {title}
               </span>
-              <span className="block text-[9px] font-semibold text-white/60">{hint}</span>
+              <span className="block text-[11px] font-semibold leading-tight text-white/70">{hint}</span>
             </li>
           ))}
         </ol>
@@ -651,7 +651,7 @@ function Final({
             ] as const
           ).map(([k, v]) => (
             <div key={k} className="border-r border-white/10 py-2.5 last:border-r-0">
-              <dt className="text-[9px] font-black uppercase tracking-[0.12em] text-white/60">{k}</dt>
+              <dt className="text-[11px] font-black uppercase tracking-wide text-white/70">{k}</dt>
               <dd className="text-lg font-black tabular-nums">{v}</dd>
             </div>
           ))}

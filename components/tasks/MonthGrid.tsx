@@ -91,7 +91,7 @@ export function MonthGrid({
         {WEEKDAY_LABELS.map((day, index) => (
           <span
             key={`${day}-${index}`}
-            className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide t-3"
+            className="pb-1 text-center text-[11px] font-bold uppercase tracking-wide t-3"
           >
             {day}
           </span>
@@ -158,7 +158,7 @@ export function MonthGrid({
               {already && (
                 <span
                   aria-hidden
-                  className="absolute right-0.5 top-0.5 text-[9px] leading-none"
+                  className="absolute right-0.5 top-0.5 text-[11px] leading-none"
                   title="Ya la tiene"
                 >
                   ✓

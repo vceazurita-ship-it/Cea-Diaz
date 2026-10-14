@@ -318,6 +318,12 @@ alter table public.finance
 alter table public.finance
   add column if not exists pay_months integer;
 
+-- Y los meses cerrados: el extracto real de cada mes —saldo de partida y
+-- cada concepto con su ingreso o su gasto—, que es lo que se pone contra el
+-- mes tipo de las libretas.
+alter table public.finance
+  add column if not exists closings jsonb not null default '[]'::jsonb;
+
 create index if not exists finance_owner_idx on public.finance (owner, profile_id);
 
 alter table public.finance enable row level security;

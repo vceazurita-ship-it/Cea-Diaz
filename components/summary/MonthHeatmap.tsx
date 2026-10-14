@@ -35,7 +35,7 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
     <div>
       <div className="mb-1.5 grid grid-cols-7 gap-1.5">
         {WEEKDAY_LABELS.map((label, i) => (
-          <span key={`${label}-${i}`} className="text-center text-[10px] font-bold uppercase t-3">
+          <span key={`${label}-${i}`} className="text-center text-[11px] font-bold uppercase t-3">
             {label}
           </span>
         ))}
@@ -83,7 +83,7 @@ export function MonthHeatmap({ days, onSelectDay }: MonthHeatmapProps) {
         })}
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] t-3">
+      <div className="mt-3 flex items-center justify-end gap-1.5 text-[11px] t-3">
         <span>Menos</span>
         {[0, 0.25, 0.5, 0.75, 1].map((level) => (
           <span

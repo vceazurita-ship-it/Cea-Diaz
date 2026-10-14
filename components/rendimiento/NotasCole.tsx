@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 
-import { GRADE_COLOR, GRADE_NAME } from '@/lib/academics';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { GRADE_COLOR, GRADE_NAME, GRADE_ON_FILL, GRADE_TEXT, NO_GRADE_COLOR, NO_GRADE_TEXT } from '@/lib/academics';
 import { friendlyDateLabel } from '@/lib/dates';
 import { cuandoEs } from '@/lib/examenes';
 import {
@@ -38,8 +39,8 @@ interface NotasColeProps {
 }
 
 const FLECHA: Record<Tendencia, { icon: string; label: string; cls: string }> = {
-  sube: { icon: '↗', label: 'sube', cls: 'text-emerald-500' },
-  baja: { icon: '↘', label: 'baja', cls: 'text-rose-500' },
+  sube: { icon: '↗', label: 'sube', cls: 't-ok' },
+  baja: { icon: '↘', label: 'baja', cls: 't-danger' },
   igual: { icon: '→', label: 'igual', cls: 't-3' },
 };
 
@@ -87,7 +88,7 @@ export function NotasCole({ profile, entries }: NotasColeProps) {
           </p>
 
           {pendientes.length > 0 && (
-            <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-[12px] leading-snug">
+            <div className="banner banner-warn mt-2 p-2.5 text-[12px] leading-snug">
               <p className="font-black t-1">📌 Lo que más conviene repasar</p>
               <p className="mt-0.5 t-2">
                 {pendientes
@@ -119,7 +120,8 @@ export function NotasCole({ profile, entries }: NotasColeProps) {
 
 function FilaAsignatura({ nota: n, abierta, onToggle }: { nota: NotaAsignatura; abierta: boolean; onToggle: () => void }) {
   const meta = RETO_META[n.asignatura];
-  const color = n.grade ? GRADE_COLOR[n.grade] : '#94a3b8';
+  const fill = n.grade ? GRADE_COLOR[n.grade] : NO_GRADE_COLOR;
+  const color = n.grade ? GRADE_TEXT[n.grade] : NO_GRADE_TEXT;
   const certeza = CERTEZA_META[n.certeza];
   return (
     <li>
@@ -128,13 +130,13 @@ function FilaAsignatura({ nota: n, abierta, onToggle }: { nota: NotaAsignatura; 
           <span className="w-[38%] shrink-0 truncate text-[12px] font-black t-1">
             {meta.icon} {meta.nombre}
           </span>
-          <span className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-            {n.nota !== null && <span className="block h-full rounded-full" style={{ width: `${(n.nota / 10) * 100}%`, backgroundColor: color }} />}
+          <span className="flex-1">
+            <ProgressBar ratio={(n.nota ?? 0) / 10} color={fill} ariaLabel={`Nota de ${meta.nombre}`} />
           </span>
           <span className="w-9 shrink-0 text-right text-[13px] font-black tabular-nums" style={{ color }}>
             {notaEnTexto(n.nota)}
           </span>
-          <span className="w-6 shrink-0 text-right text-[10px] font-black" style={{ color }} title={n.grade ? GRADE_NAME[n.grade] : undefined}>
+          <span className="w-6 shrink-0 text-right text-[11px] font-black" style={{ color }} title={n.grade ? GRADE_NAME[n.grade] : undefined}>
             {n.grade ?? ''}
           </span>
         </div>
@@ -157,7 +159,7 @@ function FilaAsignatura({ nota: n, abierta, onToggle }: { nota: NotaAsignatura; 
       {abierta && n.temas.length > 0 && (
         <ul className="mt-1 space-y-1 rounded-xl border p-2 hairline surf-1">
           {n.temas.map((t) => {
-            const c = t.nota === null ? '#94a3b8' : GRADE_COLOR[gradeColorKey(t.nota)];
+            const c = t.nota === null ? NO_GRADE_TEXT : GRADE_TEXT[gradeColorKey(t.nota)];
             return (
               <li key={t.tema.id} className="flex items-center gap-2 text-[11px]">
                 <span className="min-w-0 flex-1 truncate t-2">{t.tema.titulo}</span>
@@ -183,7 +185,7 @@ function gradeColorKey(nota: number): keyof typeof GRADE_COLOR {
 function Examen({ p }: { p: PreparacionExamen }) {
   const meta = RETO_META[p.examen.asignatura];
   const estado = ESTADO_META[p.estado];
-  const color = p.grade ? GRADE_COLOR[p.grade] : '#94a3b8';
+  const color = p.grade ? GRADE_TEXT[p.grade] : NO_GRADE_TEXT;
   return (
     <li className="rounded-xl border p-2.5 hairline surf-1">
       <div className="flex items-center gap-2">
@@ -194,7 +196,7 @@ function Examen({ p }: { p: PreparacionExamen }) {
             {p.dias === 0 ? ' (hoy)' : p.dias === 1 ? ' (mañana)' : ` (faltan ${p.dias} días)`}
           </span>
         </p>
-        <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black text-white" style={{ backgroundColor: estado.color }} title={estado.blurb}>
+        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black" style={{ backgroundColor: estado.color, color: GRADE_ON_FILL }} title={estado.blurb}>
           {estado.icon} {estado.label}
         </span>
       </div>
@@ -208,7 +210,7 @@ function Examen({ p }: { p: PreparacionExamen }) {
               </span>
               <span className="min-w-0 flex-1 truncate t-2">{t.tema.titulo}</span>
               <span className="shrink-0 t-3">{t.n === 0 ? 'sin preguntas' : `${t.aciertos}/${t.n}`}</span>
-              <span className="w-8 shrink-0 text-right font-black tabular-nums" style={{ color: t.nota === null ? '#94a3b8' : GRADE_COLOR[gradeColorKey(t.nota)] }}>
+              <span className="w-8 shrink-0 text-right font-black tabular-nums" style={{ color: t.nota === null ? NO_GRADE_TEXT : GRADE_TEXT[gradeColorKey(t.nota)] }}>
                 {notaEnTexto(t.nota)}
               </span>
             </li>

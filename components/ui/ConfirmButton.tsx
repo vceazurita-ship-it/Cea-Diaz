@@ -59,7 +59,6 @@ export function ConfirmButton({
       <span className="text-xs font-semibold t-1">{question}</span>
       <button
         type="button"
-        autoFocus
         onClick={() => {
           setAsking(false);
           onConfirm();
@@ -68,7 +67,13 @@ export function ConfirmButton({
       >
         {confirmLabel}
       </button>
-      <button type="button" onClick={() => setAsking(false)} className="btn-ghost px-3 py-1.5 text-xs">
+      {/* El foco cae en el «No»: un Intro de más no debe borrar nada. */}
+      <button
+        type="button"
+        autoFocus
+        onClick={() => setAsking(false)}
+        className="btn-ghost px-3 py-1.5 text-xs"
+      >
         No
       </button>
     </span>

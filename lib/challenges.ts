@@ -48,6 +48,15 @@ import type {
  *  de antemano y se rellenan el día que se marca la sesión.
  * ========================================================================= */
 
+/**
+ * Clave con la que se guarda lo que se apunta desde el panel de retos.
+ *
+ * Vive aquí y no en `ChallengesPanel` para que el panel del perfil pueda leer
+ * la nota sin importar el componente entero: el panel de retos arrastra los
+ * juegos, la liga y el álbum, y se carga aparte sólo al abrir esa pestaña.
+ */
+export const CHALLENGE_NOTE_KEY = 'retos';
+
 /** Ventana de historial que sirve de base para calibrar los retos. */
 export const BASELINE_DAYS = 28;
 

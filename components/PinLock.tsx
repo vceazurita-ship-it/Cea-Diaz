@@ -1,7 +1,8 @@
 'use client';
 
 import { Photo } from '@/components/ui/Photo';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { error as haptic } from '@/lib/haptics';
 import { DEFAULT_PIN, usesDefaultPin, verifyPin } from '@/lib/settings';
 import { useTheme } from '@/hooks/useTheme';
 import { accentFor, accentStyle } from '@/lib/profiles';
@@ -31,6 +32,19 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
 
   useEffect(() => setIsDefaultPin(usesDefaultPin()), []);
 
+  /** Para que la caja tiemble otra vez en cada fallo, no sólo en el primero. */
+  const [shakes, setShakes] = useState(0);
+  /** Lo último tecleado: una comprobación que llega tarde no vale para otro PIN. */
+  const latest = useRef('');
+
+  const fail = () => {
+    setError(true);
+    setPin('');
+    latest.current = '';
+    setShakes((n) => n + 1);
+    haptic();
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setChecking(true);
@@ -42,8 +56,28 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
       return;
     }
 
-    setError(true);
-    setPin('');
+    fail();
+  };
+
+  /**
+   * En cuanto lo tecleado es el PIN, se entra: no hace falta buscar el botón.
+   * No se sabe cuánto mide el de la casa —sólo se guarda su huella—, así que
+   * desde la cuarta cifra se prueba en silencio; un fallo aquí no se acusa,
+   * porque puede que falten cifras. Con el de fábrica sí se sabe: cuatro, y
+   * a la cuarta se da por enviado.
+   */
+  const type = (raw: string) => {
+    const next = raw.replace(/\D/g, '');
+    setPin(next);
+    setError(false);
+    latest.current = next;
+    if (next.length < 4) return;
+
+    void verifyPin(next).then((ok) => {
+      if (latest.current !== next) return;
+      if (ok) onUnlock();
+      else if (isDefaultPin && next.length === DEFAULT_PIN.length) fail();
+    });
   };
 
   return (
@@ -85,15 +119,13 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
           autoFocus
           maxLength={8}
           value={pin}
-          onChange={(e) => {
-            setPin(e.target.value.replace(/\D/g, ''));
-            setError(false);
-          }}
+          onChange={(e) => type(e.target.value)}
           placeholder="••••"
           aria-label="PIN"
           aria-invalid={error}
           aria-describedby="pin-error"
-          className="field w-full px-4 py-3 text-center text-2xl tracking-[0.5em]"
+          key={shakes}
+          className={`field w-full px-4 py-3 text-center text-2xl tracking-[0.5em] ${shakes > 0 ? 'shake' : ''}`}
           style={error ? { borderColor: 'var(--danger)' } : undefined}
         />
 
@@ -115,9 +147,10 @@ export function PinLock({ profile, onUnlock, onCancel }: PinLockProps) {
       </form>
 
       {isDefaultPin && (
+        // El PIN de fábrica no se escribe aquí: quien llega a esta pantalla es
+        // justo quien no debería saberlo. Basta con recordar que hay que cambiarlo.
         <p className="mt-6 text-center text-[11px] t-3">
-          PIN por defecto: <span className="font-mono font-bold">{DEFAULT_PIN}</span>. Cámbialo en
-          Ajustes.
+          PIN de fábrica sin cambiar — cámbialo en Ajustes.
         </p>
       )}
     </div>

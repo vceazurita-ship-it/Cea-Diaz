@@ -6,8 +6,10 @@ import { GpsEntry } from '@/components/gps/GpsEntry';
 import { GpsReport } from '@/components/gps/GpsReport';
 import { ComentarioSesion, GpsSeason } from '@/components/gps/GpsSeason';
 import { GpsTrend } from '@/components/gps/GpsTrend';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useGpsSessions } from '@/hooks/useGps';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { formatShort, friendlyDateLabel, todayKey } from '@/lib/dates';
 import {
@@ -59,14 +61,44 @@ interface GpsPanelProps {
   skin: ProfileSkin;
 }
 
-export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
-  const sessions = useGpsSessions(profile.id);
+const FILTROS = ['todo', 'entreno', 'partido'] as const;
+const esFiltro = oneOf(FILTROS);
+
+/** Cuántos meses de la lista se ven de entrada; el resto, al pedirlo. */
+const MESES_A_LA_VISTA = 2;
+
+/** Mientras se leen las sesiones guardadas: el hueco de lo que va a salir. */
+function GpsSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Cargando las sesiones">
+      <div className="skeleton h-10 rounded-2xl" />
+      <div className="skeleton h-32 rounded-2xl" />
+      <div className="skeleton h-48 rounded-2xl" />
+    </div>
+  );
+}
+
+export function GpsPanel(props: GpsPanelProps) {
+  const loaded = useGpsSessions(props.profile.id);
+  // Hasta haber leído lo guardado no se sabe si hay sesiones: un «todavía no
+  // hay ninguna» que dura un parpadeo es peor que un hueco gris.
+  if (loaded === null) return <GpsSkeleton />;
+  return <GpsPanelBody {...props} sessions={loaded} />;
+}
+
+function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & { sessions: GpsSession[] }) {
   const notify = useToast();
   const heading = headingFont(skin);
   const pitch = skin === 'pitch';
 
   /** Qué se está mirando: todo, sólo entrenos o sólo partidos. */
-  const [filter, setFilter] = useState<'todo' | 'entreno' | 'partido'>('todo');
+  const [filter, setFilter] = useRemembered<(typeof FILTROS)[number]>('gps:filtro', 'todo', esFiltro);
+
+  /** La hoja de apuntar una sesión, a mano desde la cabecera. */
+  const [apuntando, setApuntando] = useState(false);
+
+  /** Si la lista enseña todos los meses o sólo los últimos. */
+  const [verTodos, setVerTodos] = useState(false);
 
   /**
    * Las sesiones que se acaban de meter, para poder decir qué dicen juntas.
@@ -135,6 +167,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
 
     saveSessions(profile.id, incoming);
     setBatch(incoming.map((item) => item.id));
+    setApuntando(false);
 
     notify({
       message:
@@ -224,6 +257,8 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
     else porMes.push([key, [session]]);
   }
   const masVieja = shown[shown.length - 1];
+  const mesesVisibles = verTodos ? porMes : porMes.slice(0, MESES_A_LA_VISTA);
+  const ocultas = porMes.slice(mesesVisibles.length).reduce((sum, [, list]) => sum + list.length, 0);
 
   return (
     <div className="space-y-4">
@@ -236,6 +271,14 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
             {sessions.length === 0 ? `sin sesiones · ${TRACKER}` : `${sessions.length} en total · ${TRACKER}`}
           </span>
         </div>
+
+        {/* Apuntar está arriba: antes había que bajar la temporada entera
+            para llegar a la caja. */}
+        {sessions.length > 0 && (
+          <button type="button" onClick={() => setApuntando(true)} className="btn-primary w-full text-sm">
+            📥 Apuntar una sesión
+          </button>
+        )}
 
         {sessions.length > 0 && (
           <>
@@ -252,6 +295,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
                     onClick={() => {
                       setPeriodoId(id);
                       setAbierta(null);
+                      setVerTodos(false);
                     }}
                     className={`min-w-0 rounded-xl px-2.5 py-2 text-left transition-colors ${activo ? 'bg-accent t-on-accent shadow' : 't-2 hover-soft'}`}
                   >
@@ -267,7 +311,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
             </div>
 
             <div className="flex gap-1.5">
-              {(['todo', 'entreno', 'partido'] as const).map((option) => (
+              {FILTROS.map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -388,7 +432,7 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
           <section className={card}>
             <h3 className="text-sm font-bold t-1">📜 Las sesiones ({shown.length})</h3>
             <p className="mb-1 text-[11px] t-3">Cada una con su comentario frente a su temporada. Tócala para ver todas sus cifras.</p>
-            {porMes.map(([key, list]) => (
+            {mesesVisibles.map(([key, list]) => (
               <div key={key}>
                 <p className="mb-1.5 mt-3 text-[11px] font-black uppercase tracking-wide t-3">
                   {new Date(`${key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} · {list.length}
@@ -409,11 +453,27 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
                 </ul>
               </div>
             ))}
+            {ocultas > 0 && (
+              <button type="button" onClick={() => setVerTodos(true)} className="btn-ghost mt-3 w-full text-xs">
+                Ver más ({ocultas})
+              </button>
+            )}
           </section>
         </>
       )}
 
-      <GpsEntry profileId={profile.id} name={profile.name} kid={kid} onSave={add} />
+      {/* Sin ninguna sesión todavía, la caja va a la vista: es lo único que
+          hay que hacer. Con sesiones, se abre en una hoja desde arriba. La
+          clave del niño hace que un borrador de uno no se guarde en el otro. */}
+      {sessions.length === 0 && (
+        <GpsEntry key={profile.id} profileId={profile.id} name={profile.name} kid={kid} onSave={add} />
+      )}
+      {apuntando && (
+        // Fuera no cierra: un dedo que se escapa no puede tirar las fotos leídas.
+        <Modal title="📥 Apuntar una sesión" onClose={() => setApuntando(false)} size="lg" dismissible={false}>
+          <GpsEntry key={profile.id} profileId={profile.id} name={profile.name} kid={kid} onSave={add} plain />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -424,11 +484,11 @@ export function GpsPanel({ profile, store, kid, skin }: GpsPanelProps) {
  * ------------------------------------------------------------------------- */
 
 const TONO_TEXTO: Record<Comentario['tono'], string> = {
-  record: 'text-amber-500 font-bold',
-  sube: 'text-emerald-500 font-semibold',
+  record: 't-warn font-bold',
+  sube: 't-ok font-semibold',
   normal: 't-2',
   baja: 't-3',
-  inicio: 'text-sky-500',
+  inicio: 't-info',
 };
 
 function SesionFila({
@@ -453,7 +513,7 @@ function SesionFila({
   const dia = new Date(`${session.date}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
-    <li className={`overflow-hidden rounded-2xl border ${comentario?.tono === 'record' ? 'border-amber-400/50' : 'hairline'} surf-1`}>
+    <li className={`overflow-hidden rounded-2xl border ${comentario?.tono === 'record' ? 'border-warn' : 'hairline'} surf-1`}>
       <button type="button" onClick={onToggle} aria-expanded={abierta} className="block w-full px-3 py-2.5 text-left">
         <div className="flex items-center gap-2.5">
           <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-xl surf-2 text-lg">
@@ -496,7 +556,7 @@ function SesionFila({
               if (value === undefined) return null;
               return (
                 <div key={field.id} className="min-w-0 rounded-xl px-2 py-1.5 surf-2">
-                  <p className="truncate text-[9px] font-bold uppercase tracking-wide t-3">
+                  <p className="truncate text-[11px] font-bold t-3">
                     {field.icon} {field.short}
                   </p>
                   <p className="truncate text-[13px] font-black tabular-nums t-1">{formatValue(field.id, value)}</p>
@@ -736,7 +796,7 @@ function LastSession({
               ) : Math.abs(pct) < 3 ? (
                 <p className="text-[11px] t-3">= en su media</p>
               ) : (
-                <p className={`text-[11px] tabular-nums ${up ? 'text-emerald-500' : 't-3'}`}>
+                <p className={`text-[11px] tabular-nums ${up ? 't-ok' : 't-3'}`}>
                   {up ? '▲' : '▼'} {Math.abs(pct)} % que su media
                 </p>
               )}

@@ -10,6 +10,7 @@ import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { GpsPanel } from '@/components/gps/GpsPanel';
 import { Modal } from '@/components/ui/Modal';
 import { useGpsSessions } from '@/hooks/useGps';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { reportsFor } from '@/lib/academics';
 import { testsFor } from '@/lib/fitness';
@@ -37,13 +38,27 @@ interface RendimientoPanelProps {
   skin: ProfileSkin;
 }
 
-type Area = 'partidos' | 'fisico' | 'colegio';
+const AREAS = ['partidos', 'fisico', 'colegio'] as const;
+type Area = (typeof AREAS)[number];
+const esArea = oneOf(AREAS);
+
+/** Mientras se leen las sesiones guardadas: el hueco de lo que va a salir. */
+function RendimientoSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Cargando">
+      <div className="skeleton h-24 rounded-2xl" />
+      <div className="skeleton h-40 rounded-2xl" />
+    </div>
+  );
+}
 
 export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanelProps) {
-  const [area, setArea] = useState<Area>('partidos');
+  // Cada aparato recuerda en qué área se miró la última vez.
+  const [area, setArea] = useRemembered<Area>('rendimiento:area', 'partidos', esArea);
   const [subiendo, setSubiendo] = useState(false);
   const [exportando, setExportando] = useState(false);
-  const sessions = useGpsSessions(profile.id);
+  const loaded = useGpsSessions(profile.id);
+  const sessions = loaded ?? [];
   const tabsId = useId();
 
   const tests = useMemo(() => testsFor(store.entries, profile.id), [store.entries, profile.id]);
@@ -55,7 +70,7 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
   };
 
   const areas: { id: Area; label: string; icon: string; count: number }[] = [
-    { id: 'partidos', label: 'Partidos', icon: '🛰️', count: sessions.length },
+    { id: 'partidos', label: 'Partidos', icon: '🛰️', count: loaded === null ? -1 : sessions.length },
     { id: 'fisico', label: 'Físico', icon: '💪', count: tests.length },
     { id: 'colegio', label: 'Colegio', icon: '📚', count: reports.length },
   ];
@@ -107,8 +122,10 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
                 {item.icon}
               </span>
               <span className="mt-1 block text-[11px] font-black leading-tight">{item.label}</span>
-              <span className={`block text-[10px] leading-tight ${activa ? 't-on-accent opacity-70' : 't-3'}`}>
-                {item.count === 0 ? 'vacío' : item.count}
+              {/* Sin velo sobre la pestaña marcada: a 10 px, el texto encima
+                  del acento al 70 % se quedaba en 3,3:1 y no se leía. */}
+              <span className={`block text-[10px] leading-tight ${activa ? 't-on-accent' : 't-3'}`}>
+                {item.count < 0 ? '…' : item.count === 0 ? 'vacío' : item.count}
               </span>
             </button>
           );
@@ -121,8 +138,11 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
         aria-labelledby={`${tabsId}-tab-${area}`}
         className="space-y-4"
       >
-        {area === 'partidos' && <GpsPanel profile={profile} store={store} kid={kid} skin={skin} />}
-        {area === 'fisico' && (
+        {/* Con la clave del niño: un borrador o un filtro de Leo no se queda
+            puesto al pasar a Hugo. */}
+        {area === 'partidos' && <GpsPanel key={profile.id} profile={profile} store={store} kid={kid} skin={skin} />}
+        {area === 'fisico' && loaded === null && <RendimientoSkeleton />}
+        {area === 'fisico' && loaded !== null && (
           <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
         )}
         {area === 'colegio' && (
@@ -132,7 +152,7 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
 
       {subiendo && (
         <Modal title="Subir informes" onClose={() => setSubiendo(false)}>
-          <SubirInforme profile={profile} onSave={guardar} onClose={() => setSubiendo(false)} />
+          <SubirInforme profile={profile} onSave={guardar} entries={store.entries} onClose={() => setSubiendo(false)} />
         </Modal>
       )}
 

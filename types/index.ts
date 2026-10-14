@@ -1072,6 +1072,45 @@ export type LedgerId = 'ingresos' | 'gastos' | 'cuentas' | 'inversiones' | 'cobr
 export type SpendTier = 'base' | 'hijos' | 'pareja' | 'familia' | 'calidad' | 'otros';
 
 /**
+ * Una línea del extracto de un mes: lo que de verdad entró o salió de la
+ * cuenta por un concepto. Es la fila de la pestaña del mes en la hoja del año.
+ */
+export interface FinanceMonthLine {
+  id: string;
+  /** «Alquiler», «SUPERMERCADOS»… tal cual viene de la hoja. */
+  label: string;
+  income: number;
+  expense: number;
+  /**
+   * El concepto de la libreta de gastos al que pertenece —por su `label`—,
+   * que es lo que permite ponerlo contra lo previsto. Vacío: sin casilla.
+   */
+  category?: string;
+  /**
+   * Un gasto que no se repite —el dentista, la reparación del coche—. Cuenta
+   * en el saldo, pero se aparta al juzgar si el mes fue normal.
+   */
+  oneOff?: boolean;
+}
+
+/**
+ * Un mes cerrado: el extracto real, no el mes tipo.
+ *
+ * Las libretas dicen cómo debería ser un mes; esto, cómo fue. El saldo final
+ * no se guarda: se deduce del inicial y de las líneas, igual que en la hoja.
+ */
+export interface FinanceMonth {
+  /** «2026-09». */
+  month: string;
+  /** Lo que había en la cuenta el último día del mes anterior. */
+  opening: number;
+  lines: FinanceMonthLine[];
+  /** De dónde salió: el nombre del archivo, para saber qué se trajo. */
+  source?: string;
+  importedAt: string;
+}
+
+/**
  * Una foto mensual de las cuentas.
  *
  * Sin esto la sección sólo sabe decir cómo van hoy, y «cómo van» sin «de
@@ -1166,6 +1205,8 @@ export interface FinanceBook {
   ledgers: Record<LedgerId, FinanceItem[]>;
   /** Una foto por mes, de la más vieja a la más nueva. */
   history: FinanceSnapshot[];
+  /** Los meses cerrados con su extracto real, del más viejo al más nuevo. */
+  closings?: FinanceMonth[];
   /** Con qué cifras se juzga la independencia financiera. */
   goals: FinanceGoals;
   updatedAt: string;

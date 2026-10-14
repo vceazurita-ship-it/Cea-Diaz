@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { useToast } from '@/components/ui/Toast';
 import * as calendar from '@/lib/calendar';
 import type { CalendarLink, CalendarOption, Profile } from '@/types';
@@ -199,7 +200,7 @@ export function CalendarAccount({
     <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`chip text-[10px] uppercase tracking-wide
+          className={`chip text-[11px] uppercase tracking-wide
             ${broken ? 'chip-soft t-danger' : 'chip-accent'}`}
         >
           {broken ? '⚠️ Hay que reconectar' : '📆 Conectado'}
@@ -254,14 +255,20 @@ export function CalendarAccount({
           🩺 Comprobar
         </button>
 
-        <button
-          type="button"
-          onClick={disconnect}
-          disabled={busy}
-          className="btn-ghost t-danger ml-auto px-2.5 py-1.5 text-[11px]"
-        >
-          🔌 Desconectar
-        </button>
+        {/* Desconectar se pregunta en el sitio: un toque de más al lado de
+            «Comprobar» dejaba al perfil sin calendario y había que volver a
+            pasar por Google para recuperarlo. */}
+        <span className="ml-auto">
+          <ConfirmButton
+            question={`¿Desconectar el Google de ${profile.name}?`}
+            onConfirm={() => void disconnect()}
+            confirmLabel="Sí, desconectar"
+            disabled={busy}
+            className="btn-ghost t-danger px-2.5 py-1.5 text-[11px]"
+          >
+            🔌 Desconectar
+          </ConfirmButton>
+        </span>
       </div>
 
       {options && (

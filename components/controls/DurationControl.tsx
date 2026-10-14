@@ -1,6 +1,7 @@
 'use client';
 
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { useToast } from '@/components/ui/Toast';
 import { isCeiling, metricRatio, targetWord } from '@/lib/scoring';
 import type { DurationMetric } from '@/types';
 import type { ControlProps } from './types';
@@ -30,6 +31,19 @@ export function DurationControl({
   const set = (next: number) => {
     const clamped = Math.max(metric.min, Math.min(metric.max, snap(next, metric.step)));
     onChange(clamped);
+  };
+
+  const notify = useToast();
+
+  /** Como en el contador: limpiar es un toque y se deshace con otro. */
+  const clear = () => {
+    const before = value;
+    onChange(undefined);
+    notify({
+      message: `«${metric.label}», sin registrar.`,
+      icon: '↩️',
+      action: { label: 'Deshacer', onClick: () => onChange(before) },
+    });
   };
 
   if (variant === 'kid') {
@@ -86,7 +100,7 @@ export function DurationControl({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onChange(undefined)}
+              onClick={clear}
               className="btn-ghost px-2.5 py-1 text-[11px]"
               aria-label={`Borrar el registro de ${metric.label}`}
             >
@@ -145,7 +159,7 @@ export function DurationControl({
         <button
           type="button"
           disabled={disabled || !registered}
-          onClick={() => onChange(undefined)}
+          onClick={clear}
           className="flex h-10 shrink-0 items-center rounded-lg px-2.5 text-[11px] font-semibold
                      t-3 transition-colors hover-soft hover:t-2 disabled:invisible"
           title="Borrar registro"

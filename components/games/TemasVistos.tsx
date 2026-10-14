@@ -75,26 +75,49 @@ export function TemasVistos({ profile, curso, date, ajuste, onSave, onClose }: T
                   const visto = estaVisto(tema, date, borrador);
                   const porFecha = tema.desde <= date;
                   return (
-                    <li key={tema.id} className="flex items-center gap-2">
+                    <li key={tema.id} className="flex items-start gap-2">
                       <span className="shrink-0" aria-hidden>
                         {visto ? '✅' : '⬜'}
                       </span>
+                      {/* Los tres botones van debajo del título, no a su lado:
+                          en el móvil el título se cortaba y los botones no
+                          daban para el dedo. */}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-semibold t-1">{tema.titulo}</span>
-                        <span className="block text-[10px] t-3">
+                        <span className="block text-[12px] font-semibold leading-snug t-1">{tema.titulo}</span>
+                        <span className="block text-[11px] t-3">
                           {marca === 'si' ? 'marcado como visto' : marca === 'no' ? 'marcado como aún no' : `por fecha: ${porFecha ? 'visto' : 'aún no'} (desde el ${cuando(tema.desde)})`}
                         </span>
-                      </span>
-                      <span className="flex shrink-0 overflow-hidden rounded-lg border hairline text-[10px] font-black">
-                        <button type="button" onClick={() => marcar(tema.id, 'si')} className={`px-2 py-1 ${marca === 'si' ? 'bg-emerald-500 text-white' : 't-2'}`}>
-                          Visto
-                        </button>
-                        <button type="button" onClick={() => marcar(tema.id, null)} className={`border-x px-2 py-1 hairline ${marca === null ? 'bg-accent text-white' : 't-2'}`} title="Como diga el temario">
-                          Fecha
-                        </button>
-                        <button type="button" onClick={() => marcar(tema.id, 'no')} className={`px-2 py-1 ${marca === 'no' ? 'bg-rose-500 text-white' : 't-2'}`}>
-                          Aún no
-                        </button>
+                        <span
+                          role="group"
+                          aria-label={`¿Visto en clase? ${tema.titulo}`}
+                          className="mt-1.5 grid grid-cols-3 overflow-hidden rounded-lg border hairline text-[12px] font-black"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => marcar(tema.id, 'si')}
+                            aria-pressed={marca === 'si'}
+                            className={`min-h-[36px] px-2 ${marca === 'si' ? 'bg-ok-soft t-ok' : 't-2'}`}
+                          >
+                            Visto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => marcar(tema.id, null)}
+                            aria-pressed={marca === null}
+                            className={`min-h-[36px] border-x px-2 hairline ${marca === null ? 'bg-accent t-on-accent' : 't-2'}`}
+                            title="Como diga el temario"
+                          >
+                            Fecha
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => marcar(tema.id, 'no')}
+                            aria-pressed={marca === 'no'}
+                            className={`min-h-[36px] px-2 ${marca === 'no' ? 'bg-danger-soft t-danger' : 't-2'}`}
+                          >
+                            Aún no
+                          </button>
+                        </span>
                       </span>
                     </li>
                   );
@@ -120,7 +143,7 @@ export function TemasVistos({ profile, curso, date, ajuste, onSave, onClose }: T
           Guardar
         </button>
       </div>
-      <p className="mt-2 text-[10px] leading-snug t-3">
+      <p className="mt-2 text-[11px] leading-snug t-3">
         Si una asignatura se queda sin ningún tema visto, los retos usan el primero del temario. Los retos de hoy que aún no se han jugado se rehacen con lo nuevo.
       </p>
     </Modal>

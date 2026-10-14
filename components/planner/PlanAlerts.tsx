@@ -77,7 +77,7 @@ export function PlanAlerts({ alerts, skin, onDay }: PlanAlertsProps) {
                 <p className={`text-sm font-bold ${tone.text}`}>
                   {alert.title}
                   {alert.day !== undefined && (
-                    <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide t-3">
+                    <span className="ml-2 align-middle text-[11px] font-semibold uppercase tracking-wide t-3">
                       {DAY_NAMES[alert.day]}
                     </span>
                   )}
@@ -94,7 +94,7 @@ export function PlanAlerts({ alerts, skin, onDay }: PlanAlertsProps) {
                   </button>
                 )}
               </div>
-              <span className="chip-soft shrink-0 text-[10px] uppercase">{tone.label}</span>
+              <span className="chip-soft shrink-0 text-[11px] uppercase">{tone.label}</span>
             </li>
           );
         })}

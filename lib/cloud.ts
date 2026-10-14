@@ -1,3 +1,4 @@
+import { normalizeClosings } from '@/lib/financeMonths';
 import { supabase } from '@/lib/supabase';
 import type { ReplicaMark } from '@/lib/replica';
 import type {
@@ -660,6 +661,7 @@ interface FinanceRow {
   holidays: number | null;
   ledgers: FinanceBook['ledgers'] | null;
   history: FinanceBook['history'] | null;
+  closings: FinanceBook['closings'] | null;
   goals: Partial<FinanceBook['goals']> | null;
   updated_at: string;
 }
@@ -675,12 +677,15 @@ export async function pullFinance(): Promise<Record<string, FinanceBook>> {
   const out: Record<string, FinanceBook> = {};
 
   for (const row of (data ?? []) as FinanceRow[]) {
+    // Los meses cerrados, de su columna; y si la cuenta todavía no la tiene,
+    // de donde los deja `pushFinance` mientras tanto: dentro de las libretas.
+    const { [MESES_EN_LIBRETAS]: tucked, ...ledgers } = (row.ledgers ?? {}) as Record<string, unknown>;
     out[row.profile_id] = {
       season: row.season ?? '',
       months: row.months ?? 12,
       payMonths: row.pay_months ?? undefined,
       holidays: Number(row.holidays ?? 0),
-      ledgers: row.ledgers ?? {
+      ledgers: row.ledgers ? (ledgers as FinanceBook['ledgers']) : {
         ingresos: [],
         gastos: [],
         cuentas: [],
@@ -689,6 +694,7 @@ export async function pullFinance(): Promise<Record<string, FinanceBook>> {
         pagos: [],
       },
       history: row.history ?? [],
+      closings: normalizeClosings(row.closings ?? tucked ?? []),
       goals: {
         withdrawal: row.goals?.withdrawal ?? 4,
         cushion: row.goals?.cushion ?? 12,
@@ -714,6 +720,7 @@ function faltaColumna(message: string): boolean {
     texto.includes('history') ||
     texto.includes('goals') ||
     texto.includes('pay_months') ||
+    texto.includes('closings') ||
     texto.includes('column') ||
     texto.includes('schema cache')
   );
@@ -728,7 +735,10 @@ function faltaColumna(message: string): boolean {
  * también el histórico y los objetivos, que llevaban meses funcionando. Se
  * pierde lo justo, y sólo hasta que se relance el esquema.
  */
-const EXTRAS_FINANCE = ['pay_months', 'goals', 'history'] as const;
+/** Dónde van los meses cerrados en una cuenta sin la columna `closings`. */
+const MESES_EN_LIBRETAS = '_meses';
+
+const EXTRAS_FINANCE = ['closings', 'pay_months', 'goals', 'history'] as const;
 
 export async function pushFinance(
   profileId: string,
@@ -750,6 +760,7 @@ export async function pushFinance(
   };
 
   const extras: Record<string, unknown> = {
+    closings: book.closings ?? [],
     pay_months: book.payMonths ?? null,
     goals: book.goals,
     history: book.history,
@@ -761,6 +772,11 @@ export async function pushFinance(
   for (let soltadas = 0; soltadas <= EXTRAS_FINANCE.length; soltadas += 1) {
     const fila = { ...base };
     for (const columna of EXTRAS_FINANCE.slice(soltadas)) fila[columna] = extras[columna];
+    // Sin columna para los meses cerrados, viajan dentro de las libretas: así
+    // no se quedan en un solo aparato mientras se relanza el esquema.
+    if (soltadas > 0 && book.closings?.length) {
+      fila.ledgers = { ...book.ledgers, [MESES_EN_LIBRETAS]: book.closings };
+    }
 
     const { error } = await client.from('finance').upsert(fila);
     if (!error) return;

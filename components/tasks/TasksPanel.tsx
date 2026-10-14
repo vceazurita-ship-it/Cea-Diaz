@@ -10,6 +10,7 @@ import { TaskItem } from '@/components/tasks/TaskItem';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import * as calendar from '@/lib/calendar';
 import { capitalize, friendlyDateLabel, todayKey } from '@/lib/dates';
 import {
@@ -39,6 +40,9 @@ import type { CalendarLink, DateKey, Profile, ProfileSkin, Task } from '@/types'
  *  móviles de casa.
  * ========================================================================= */
 
+type TaskView = 'lista' | 'calendario';
+const TASK_VIEWS: readonly TaskView[] = ['lista', 'calendario'];
+
 /** Tope de reintentos por tanda: es una casa, no una bandeja de entrada. */
 const RETRY_LIMIT = 25;
 
@@ -66,13 +70,22 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
   const [links, setLinks] = useState<CalendarLink[]>([]);
   const [editing, setEditing] = useState<Task | null>(null);
   const [busyIds, setBusyIds] = useState<string[]>([]);
-  const [showDone, setShowDone] = useState(false);
+  /**
+   * Ver las hechas y lista o mes: se recuerda en este aparato y por perfil,
+   * que quien lleva sus recados en el calendario no tenga que volver a él
+   * cada vez que entra.
+   */
+  const [showDone, setShowDone] = useRemembered<boolean>(`tareas:${profile.id}:hechas`, false);
   const notify = useToast();
 
   /* --------------------------------------------------- lista o calendario */
 
   /** La lista de siempre, o el mes con lo que cae cada día. */
-  const [view, setView] = useState<'lista' | 'calendario'>('lista');
+  const [view, setView] = useRemembered<TaskView>(
+    `tareas:${profile.id}:vista`,
+    'lista',
+    oneOf(TASK_VIEWS),
+  );
   const [month, setMonth] = useState<DateKey>(() => todayKey());
   const [focusDay, setFocusDay] = useState<DateKey>(() => todayKey());
 
@@ -285,8 +298,53 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
 
     // Al tachar algo puntual, su evento se retira: ya no hay nada que
     // recordar. Las que se repiten conservan su serie y siguen avisando.
+    //
+    // Y como un toque de más en la casilla se llevaba la cita de Google sin
+    // marcha atrás, el aviso trae «Deshacer»: la tarea vuelve como estaba y
+    // su evento se vuelve a poner.
     if (task.calendar && next.done && next.repeat === 'none') {
-      await unlink(next);
+      mark(task.id, true);
+      let dropped = true;
+      try {
+        await calendar.dropTask(next);
+      } catch {
+        dropped = false;
+      } finally {
+        mark(task.id, false);
+      }
+
+      if (!dropped) {
+        notify({ message: 'Hecha. No se ha podido quitar del calendario.', icon: '⚠️', tone: 'danger' });
+        return;
+      }
+
+      store.saveTask({ ...next, calendar: undefined, calendarPending: undefined });
+      notify({
+        message: 'Hecha y quitada del calendario.',
+        icon: '✅',
+        action: {
+          label: 'Deshacer',
+          onClick: () => {
+            const restored: Task = {
+              ...task,
+              calendar: undefined,
+              calendarPending: true,
+              updatedAt: new Date().toISOString(),
+            };
+            store.saveTask(restored);
+            void push(restored, true);
+          },
+        },
+      });
+      return;
+    }
+
+    // Destachar algo puntual con fecha la devuelve al calendario: al tacharla
+    // se quitó, y una tarea pendiente con cuenta enlazada tiene que avisar.
+    if (!next.done && task.done && linked && !next.calendar && next.repeat === 'none' && canGoToCalendar(next)) {
+      const pendingTask: Task = { ...next, calendarPending: true };
+      store.saveTask(pendingTask);
+      await push(pendingTask, true);
     }
   };
 
@@ -455,7 +513,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
         {doneCount > 0 && (
           <button
             type="button"
-            onClick={() => setShowDone((value) => !value)}
+            onClick={() => setShowDone(!showDone)}
             aria-pressed={showDone}
             className={`btn ml-auto border px-3 py-1.5 text-xs font-semibold
               ${showDone ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
@@ -481,7 +539,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
               type="button"
               onClick={() => setView(option.id)}
               aria-pressed={active}
-              className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-colors
+              className={`tap-area flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-colors
                 ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
             >
               <span aria-hidden>{option.icon}</span> {option.label}
@@ -490,10 +548,12 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
         })}
       </div>
 
-      {/* En el calendario, lo nuevo nace en el día que se está mirando; la
-          clave hace que el formulario se rehaga al cambiar de día. */}
+      {/* En el calendario, lo nuevo nace en el día que se está mirando. La
+          clave es sólo la vista: antes llevaba también el día, y picar en otro
+          día del mes borraba la tarea a medio escribir. Ahora el formulario
+          sigue al día él solo mientras no se haya escrito ni tocado la fecha. */}
       <TaskComposer
-        key={view === 'calendario' ? focusDay : 'lista'}
+        key={view}
         kid={kid}
         defaultDue={view === 'calendario' ? focusDay : undefined}
         onSubmit={add}

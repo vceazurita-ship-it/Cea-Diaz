@@ -29,6 +29,7 @@ import { energiaDelFutbol } from '@/lib/retoFutbol';
 import { computeDayScore } from '@/lib/scoring';
 import { loadSettings, subscribeSettings } from '@/lib/settings';
 import { entryKey } from '@/lib/storage';
+import { answerClass } from '@/lib/ui/tone';
 import type {
   DateKey,
   DayEntry,
@@ -477,13 +478,7 @@ export function Question({ question, index, total, chosen, kid, onAnswer, onNext
 
           // Al contestar se marca en verde la buena y en rojo la elegida si
           // no lo era: ver la correcta es la mitad de lo que se aprende.
-          const tone = !chosen
-            ? 'hairline surf-1 hover-soft'
-            : good
-              ? 'border-emerald-400/60 bg-emerald-400/15'
-              : picked
-                ? 'border-rose-400/60 bg-rose-400/15'
-                : 'hairline surf-1 opacity-50';
+          const tone = answerClass(option.id, chosen, question.answer);
 
           return (
             <li key={option.id}>

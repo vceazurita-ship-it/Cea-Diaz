@@ -56,7 +56,22 @@ export function SyncBadge({ cloud, onOpen, className = '' }: SyncBadgeProps) {
     };
   }, []);
 
-  if (!cloud.configured || cloud.status === 'off') return null;
+  // Sin nube no se calla: un aparato que guarda sólo para sí tiene que
+  // decirlo, aunque sea en gris. Tocarlo explica qué falta para compartir.
+  if (!cloud.configured || cloud.status === 'off') {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`chip h-9 max-w-[46vw] border text-[11px] hairline surf-1 t-3 ${className}`}
+        title="Lo registrado se queda en este aparato y no llega a los demás."
+        aria-label="Sólo este aparato: sin cuenta de casa. Abrir ajustes de la nube"
+      >
+        <span aria-hidden>📱</span>
+        <span className="truncate">Sólo este aparato</span>
+      </button>
+    );
+  }
 
   const hace = haceCuanto(cloud.lastSync, now);
   const estado: { icon: string; label: string; tone: 'ok' | 'warn' | 'bad' | 'mute'; title: string } = !online

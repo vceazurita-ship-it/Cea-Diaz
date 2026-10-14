@@ -6,6 +6,7 @@ import { useWeekPlanWithMirrors } from '@/hooks/useWeekPlan';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { friendlyDateLabel, isToday, weekdayIndex } from '@/lib/dates';
 import { SILENT, checkBlock, statusIcon, statusLabel } from '@/lib/planCheck';
+import { STATUS_STYLE } from '@/lib/planStatus';
 import {
   COMPANIONS,
   DAY_NAMES,
@@ -16,7 +17,7 @@ import {
   themeOf,
   timeOf,
 } from '@/lib/planner';
-import type { DateKey, PlanBlockCheck, PlanStatus, Profile } from '@/types';
+import type { DateKey, PlanBlockCheck, Profile } from '@/types';
 
 /* =========================================================================
  *  Lo que la semana tenía previsto para hoy, en la pantalla de registro.
@@ -38,16 +39,6 @@ import type { DateKey, PlanBlockCheck, PlanStatus, Profile } from '@/types';
  *  es sitio para insistir en una sección que todavía no se usa.
  * ========================================================================= */
 
-/** El mismo código de colores que en la cuadrícula de la semana. */
-const STATUS_STYLE: Record<PlanStatus, string> = {
-  cumplido: 'bg-accent t-on-accent',
-  flojo: 'bg-amber-400/30 t-1',
-  excedido: 't-danger',
-  sinDia: 'surf-2 t-3',
-  sinRegistrar: 'surf-3 t-2',
-  futuro: 'surf-2 t-3',
-  sinMetrica: 'surf-2 t-3',
-};
 
 interface TodayPlanCardProps {
   profile: Profile;
@@ -56,9 +47,14 @@ interface TodayPlanCardProps {
   kid: boolean;
   /** Lleva a la sección de la semana, que es donde se edita. */
   onOpenPlan: () => void;
+  /**
+   * Lleva a la casilla de un hábito en el registro de abajo. Sin esto, leer
+   * «entreno: sin registrar» obligaba a bajar a buscar la tarjeta a mano.
+   */
+  onJump?: (metricId: string) => void;
 }
 
-export function TodayPlanCard({ profile, date, store, kid, onOpenPlan }: TodayPlanCardProps) {
+export function TodayPlanCard({ profile, date, store, kid, onOpenPlan, onJump }: TodayPlanCardProps) {
   /* Con los ratos de los peques que le tocan a este perfil dentro: para
      María y para Víctor, «hoy a las seis llevas tú a Leo» es justo lo que
      hace falta leer aquí. En los demás perfiles no cambia nada. */
@@ -182,6 +178,7 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan }: TodayPl
                 now={now}
                 current={running.some((item) => item.block.id === check.block.id)}
                 pitch={kid}
+                onJump={onJump}
               />
             ))}
           </ul>
@@ -222,16 +219,30 @@ function PlanLine({
   now,
   current,
   pitch,
+  onJump,
 }: {
   check: PlanBlockCheck;
   now: number | null;
   current: boolean;
   /** En los paneles de campo las marcas se cuentan como un partido. */
   pitch: boolean;
+  onJump?: (metricId: string) => void;
 }) {
   const done = now !== null && endOf(check.block) <= now;
   /** De un peque, traído a esta agenda porque hoy le toca a quien mira. */
   const mirror = check.block.mirror;
+  /* Sólo se salta a lo que se registra aquí: el rato de un peque se apunta
+     en su panel, no en el de quien lo lleva. */
+  const jump = onJump && !mirror ? onJump : undefined;
+
+  const title = (
+    <>
+      {/* Lo de un peque se anuncia con su cara: es lo que distingue «tu
+          clase de las seis» de «llevar a Leo a las seis». */}
+      {mirror && <span aria-hidden>{mirror.avatar} </span>}
+      <span aria-hidden>{check.block.icon}</span> {check.block.title}
+    </>
+  );
 
   return (
     <li
@@ -240,12 +251,19 @@ function PlanLine({
         ${done && !current ? 'opacity-60' : ''}`}
     >
       <span className="text-xs font-bold tabular-nums t-3">{check.block.start}</span>
-      <span className="text-sm font-semibold t-1">
-        {/* Lo de un peque se anuncia con su cara: es lo que distingue «tu
-            clase de las seis» de «llevar a Leo a las seis». */}
-        {mirror && <span aria-hidden>{mirror.avatar} </span>}
-        <span aria-hidden>{check.block.icon}</span> {check.block.title}
-      </span>
+      {jump && check.metric ? (
+        <button
+          type="button"
+          onClick={() => jump(check.metric!.id)}
+          className="rounded-md text-left text-sm font-semibold t-1 underline decoration-dotted
+            underline-offset-2 hover:decoration-solid"
+          title={`Ir a la casilla de ${check.metric.label.toLowerCase()}`}
+        >
+          {title}
+        </button>
+      ) : (
+        <span className="text-sm font-semibold t-1">{title}</span>
+      )}
       <span className="text-[11px] tabular-nums t-3">{durationLabel(check.block.duration)}</span>
 
       {current && (
@@ -270,7 +288,7 @@ function PlanLine({
 
       {check.metric && (
         <span
-          className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_STYLE[check.status]}`}
+          className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLE[check.status]}`}
           title={check.text}
         >
           {statusIcon(check.status, pitch)} {statusLabel(check.status, pitch)}
@@ -283,16 +301,36 @@ function PlanLine({
           por qué sin tener que ir a buscarlo. */}
       {check.parts.length > 1 && (
         <ul className="flex w-full flex-wrap gap-1 pl-1">
-          {check.parts.map((part) => (
-            <li
-              key={part.metric.id}
-              className={`rounded-full px-1.5 text-[10px] ${STATUS_STYLE[part.status]}`}
-              title={part.text}
-            >
-              <span aria-hidden>{part.metric.icon}</span> {part.metric.label}
-              {!SILENT.has(part.status) && ` ${statusIcon(part.status, pitch)}`}
-            </li>
-          ))}
+          {check.parts.map((part) => {
+            const label = (
+              <>
+                <span aria-hidden>{part.metric.icon}</span> {part.metric.label}
+                {!SILENT.has(part.status) && ` ${statusIcon(part.status, pitch)}`}
+              </>
+            );
+            return (
+              <li key={part.metric.id}>
+                {jump ? (
+                  <button
+                    type="button"
+                    onClick={() => jump(part.metric.id)}
+                    className={`rounded-full px-1.5 text-[10px] hover:ring-1 hover:ring-[var(--accent)]
+                      ${STATUS_STYLE[part.status]}`}
+                    title={`${part.text} · Ir a la casilla`}
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  <span
+                    className={`rounded-full px-1.5 text-[10px] ${STATUS_STYLE[part.status]}`}
+                    title={part.text}
+                  >
+                    {label}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </li>

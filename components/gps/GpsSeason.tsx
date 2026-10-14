@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+
+import { useRemembered } from '@/hooks/useRemembered';
 
 import { formatShort, todayKey } from '@/lib/dates';
 import { fieldOf, formatValue, valueOf, type GpsFieldId } from '@/lib/gps';
@@ -15,6 +17,9 @@ import type { GpsSession } from '@/types';
  *  ver cuánto queda también cuenta.
  * ========================================================================= */
 
+const esCifra = (value: unknown): value is GpsFieldId =>
+  typeof value === 'string' && (PROGRESION as readonly string[]).includes(value);
+
 interface GpsSeasonProps {
   periodo: Periodo;
   /** Las de la temporada, de la más reciente a la más antigua. */
@@ -28,7 +33,7 @@ export function GpsSeason({ periodo, sessions, kid }: GpsSeasonProps) {
     () => PROGRESION.filter((id) => sessions.some((s) => (valueOf(s, id) ?? 0) > 0)),
     [sessions],
   );
-  const [elegida, setElegida] = useState<GpsFieldId>('topSpeed');
+  const [elegida, setElegida] = useRemembered<GpsFieldId>('gps:temporada:cifra', 'topSpeed', esCifra);
   const cifra = disponibles.includes(elegida) ? elegida : disponibles[0];
 
   const meses = useMemo(() => (cifra ? mesesDeTemporada(sessions, periodo, cifra, hoy) : []), [sessions, periodo, cifra, hoy]);
@@ -74,7 +79,7 @@ export function GpsSeason({ periodo, sessions, kid }: GpsSeasonProps) {
                 <span
                   key={e.id}
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
-                    !e.cuenta ? 'surf-2 t-2' : e.sube ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
+                    !e.cuenta ? 'surf-2 t-2' : e.sube ? 'bg-ok-soft t-ok' : 'bg-warn-soft t-warn'
                   }`}
                   title={`${fieldOf(e.id).label}: de ${formatValue(e.id, e.antes)} a ${formatValue(e.id, e.ahora)}`}
                 >
@@ -104,13 +109,15 @@ export function GpsSeason({ periodo, sessions, kid }: GpsSeasonProps) {
               ))}
             </div>
 
-            <div className="rounded-2xl border p-2.5 hairline surf-1">
-              <div className="grid h-36 grid-cols-10 items-end gap-1" role="img" aria-label={`${fieldOf(cifra).label} mes a mes en la temporada`}>
+            {/* Diez meses no caben en 360 px con rótulos legibles: la gráfica
+                tiene su ancho mínimo y se desliza de lado si hace falta. */}
+            <div className="overflow-x-auto rounded-2xl border p-2.5 hairline surf-1">
+              <div className="grid h-36 min-w-[400px] grid-cols-10 items-end gap-1" role="img" aria-label={`${fieldOf(cifra).label} mes a mes en la temporada`}>
                 {meses.map((m) => {
                   const actual = m.key === mesActual;
                   return (
                     <div key={m.key} className="flex h-full min-w-0 flex-col items-center justify-end gap-1">
-                      <span className="h-3 w-full truncate text-center text-[9px] font-black tabular-nums leading-3 t-1">
+                      <span className="h-3 w-full truncate text-center text-[10px] font-black tabular-nums leading-3 t-1">
                         {m.valor === undefined ? '' : corto(cifra, m.valor)}
                       </span>
                       <div className="flex w-full flex-1 items-end justify-center">
@@ -129,8 +136,8 @@ export function GpsSeason({ periodo, sessions, kid }: GpsSeasonProps) {
                           />
                         )}
                       </div>
-                      <span className={`text-[9px] font-bold uppercase ${actual ? 't-accent' : 't-3'}`}>{m.label}</span>
-                      <span className="text-[8px] tabular-nums t-3">{m.sesiones || ''}</span>
+                      <span className={`text-[11px] font-bold uppercase ${actual ? 't-accent' : 't-3'}`}>{m.label}</span>
+                      <span className="text-[10px] tabular-nums t-3">{m.sesiones || ''}</span>
                     </div>
                   );
                 })}
@@ -159,9 +166,9 @@ function corto(id: GpsFieldId, v: number): string {
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="min-w-0 rounded-2xl border px-2.5 py-2 hairline surf-1">
-      <p className="truncate text-[9px] font-black uppercase tracking-wide t-3">{label}</p>
+      <p className="truncate text-[11px] font-black uppercase t-3">{label}</p>
       <p className="truncate text-base font-black tabular-nums leading-tight t-1">{value}</p>
-      {hint && <p className="truncate text-[9px] t-3">{hint}</p>}
+      {hint && <p className="truncate text-[11px] t-3">{hint}</p>}
     </div>
   );
 }
@@ -171,11 +178,11 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
  * ------------------------------------------------------------------------- */
 
 const TONO: Record<Comentario['tono'], string> = {
-  record: 'border-amber-400/60 bg-amber-400/10',
-  sube: 'border-emerald-500/50 bg-emerald-500/10',
+  record: 'border-warn bg-warn-soft',
+  sube: 'border-ok bg-ok-soft',
   normal: 'hairline surf-1',
   baja: 'hairline surf-1',
-  inicio: 'border-sky-500/40 bg-sky-500/10',
+  inicio: 'border-info bg-info-soft',
 };
 
 /** El titular y sus detalles, en una cajita del color de cómo fue. */

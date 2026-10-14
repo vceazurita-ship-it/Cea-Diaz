@@ -2,36 +2,14 @@
 
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { formatShort } from '@/lib/dates';
-import { albumCopyOf, rarityLabel } from '@/lib/rewards';
+import { RARITY_GRADIENT, albumCopyOf, rarityLabel } from '@/lib/rewards';
 import type { CromoReward, FraseReward, ProfileId, RewardKind, UnlockedReward } from '@/types';
 
 /* -------------------------------------------------------------------------
  * Estilo por rareza: el mismo lenguaje visual para cromos y frases.
  * ----------------------------------------------------------------------- */
 
-const RARITY_STYLE: Record<string, string> = {
-  // Los tres mazos de fútbol: la cantera en violeta, LaLiga en azul, la
-  // Premier en fucsia y las leyendas en oro.
-  castilla: 'from-violet-400/25 to-indigo-500/20 border-violet-300/35',
-  liga: 'from-sky-400/25 to-indigo-500/20 border-sky-300/30',
-  premier: 'from-fuchsia-400/25 to-rose-500/20 border-fuchsia-300/30',
-  leyenda: 'from-amber-300/35 to-orange-500/25 border-amber-300/45',
-  // El álbum de música de María: la radio de diario en rosa, los 90 en
-  // violeta, los 2000 en turquesa y las leyendas en oro, como en el de ellos.
-  radio: 'from-pink-400/25 to-rose-500/20 border-pink-300/35',
-  noventa: 'from-violet-400/25 to-purple-600/20 border-violet-300/35',
-  dosmil: 'from-cyan-400/25 to-sky-600/20 border-cyan-300/30',
-  leyenda_pop: 'from-amber-300/35 to-yellow-600/25 border-amber-300/45',
-  chispa: 'from-rose-300/25 to-orange-300/20 border-rose-300/35',
-  fuerza: 'from-fuchsia-400/25 to-violet-500/20 border-fuchsia-300/35',
-  oro: 'from-amber-300/35 to-rose-400/25 border-amber-300/45',
-  // Los de la casa: verdes y cálidos, para distinguirlos de los de fútbol.
-  casa: 'from-emerald-300/25 to-teal-500/20 border-emerald-300/35',
-  equipo: 'from-teal-400/25 to-cyan-500/20 border-teal-300/35',
-  leyenda_casa: 'from-amber-300/35 to-emerald-400/25 border-amber-300/45',
-  // La técnica de la semana: fuego de anime, para que se note que es otra cosa.
-  tecnica: 'from-orange-400/35 to-rose-600/25 border-orange-300/50',
-};
+const RARITY_STYLE = RARITY_GRADIENT;
 
 const THEME_LABEL: Record<FraseReward['theme'], string> = {
   familia: '🏡 Familia',
@@ -52,7 +30,7 @@ function CromoCard({ cromo, label, footer }: { cromo: CromoReward; label: string
       className={`flex flex-col gap-1 rounded-2xl border bg-gradient-to-br p-3 text-center
         ${RARITY_STYLE[cromo.rarity]}`}
     >
-      <span className="text-[9px] font-black uppercase tracking-[0.12em] t-3">{label}</span>
+      <span className="text-[11px] font-black uppercase tracking-wide t-3">{label}</span>
 
       <CromoPortrait cromo={cromo} size="lg" className="mx-auto" />
 
@@ -63,7 +41,7 @@ function CromoCard({ cromo, label, footer }: { cromo: CromoReward; label: string
       <p className="mt-1 border-t pt-1.5 text-[10px] leading-snug t-2 hairline">{cromo.dato}</p>
       <p className="text-[10px] font-semibold italic leading-snug t-1">«{cromo.lema}»</p>
 
-      <p className="mt-auto pt-1.5 text-[9px] t-3">{footer}</p>
+      <p className="mt-auto pt-1.5 text-[11px] t-3">{footer}</p>
     </li>
   );
 }
@@ -79,7 +57,7 @@ function FraseCard({ frase, label, footer }: { frase: FraseReward; label: string
         ${RARITY_STYLE[frase.rarity]}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[9px] font-black uppercase tracking-[0.12em] t-3">{label}</span>
+        <span className="text-[11px] font-black uppercase tracking-wide t-3">{label}</span>
         <span className="text-[10px] font-semibold t-3">{THEME_LABEL[frase.theme]}</span>
       </div>
 

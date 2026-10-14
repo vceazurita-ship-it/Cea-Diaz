@@ -295,6 +295,7 @@ const COLUMNAS = [
   ['finance', 'history', 'la serie mensual de las cuentas'],
   ['finance', 'goals', 'las cifras con las que se juzga el objetivo'],
   ['finance', 'pay_months', 'los meses que de verdad se cobra'],
+  ['finance', 'closings', 'los meses cerrados con su extracto'],
   ['gps', 'removed', 'las sesiones del GPS que se han borrado'],
 ];
 

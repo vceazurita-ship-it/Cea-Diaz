@@ -17,6 +17,7 @@ import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/lib/challenges';
 import { formatShort, friendlyDateLabel } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
+import { prefersReducedMotion } from '@/lib/haptics';
 import { cursoDe, type RetoResult } from '@/lib/retoCole';
 import type { FutbolResult } from '@/lib/retoFutbol';
 import { challengeLink } from '@/lib/planLink';
@@ -44,8 +45,9 @@ import type {
   ScoredChallenge,
 } from '@/types';
 
-/** Clave con la que se guarda lo que se apunta desde este panel. */
-export const CHALLENGE_NOTE_KEY = 'retos';
+/** Clave con la que se guarda lo que se apunta desde este panel; vive en
+ *  `lib/challenges` para que leerla no obligue a cargar el panel entero. */
+export { CHALLENGE_NOTE_KEY } from '@/lib/challenges';
 
 interface ChallengesPanelProps {
   profile: Profile;
@@ -166,7 +168,7 @@ function ChallengeCard({
                   {[0, 1, 2, 3, 4, 5, 6].map((day) => (
                     <span
                       key={day}
-                      className={`grid h-4 w-4 place-items-center rounded text-[8px] font-bold
+                      className={`grid h-5 w-5 place-items-center rounded text-[11px] font-bold leading-none
                         ${link.days.includes(day) ? 'bg-accent t-on-accent' : 'surf-3 t-3 opacity-60'}`}
                     >
                       {DAY_SHORT[day][0]}
@@ -376,11 +378,12 @@ export function ChallengesPanel({
               <button
                 key={s.id}
                 type="button"
-                onClick={() =>
-                  s.id === 'hoy'
-                    ? window.scrollTo({ top: 0, behavior: 'smooth' })
-                    : document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }
+                onClick={() => {
+                  // Con «reducir movimiento», salto directo en vez de deslizar.
+                  const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth';
+                  if (s.id === 'hoy') window.scrollTo({ top: 0, behavior });
+                  else document.getElementById(s.id)?.scrollIntoView({ behavior, block: 'start' });
+                }}
                 className="chip h-9 shrink-0 border text-[11px] backdrop-blur-md hairline surf-raised t-1"
               >
                 {s.label}
@@ -393,7 +396,10 @@ export function ChallengesPanel({
           luego se tira en la tanda del juego del día. Después el de fútbol
           y, con ellos, el juego del día. Los retos van a semana vista. */}
       {onColeResult && cursoDe(profile.id) && (
+        // Con la clave de niño y día: un examen a medias de ayer, o de su
+        // hermano, no se queda puesto al cambiar.
         <RetoColeCard
+          key={`${profile.id}:${date}`}
           profile={profile}
           curso={cursoDe(profile.id)!}
           date={date}
@@ -408,6 +414,7 @@ export function ChallengesPanel({
       {/* El de fútbol, todos los días: lo de la última tecnificación. */}
       {onFutbolResult && cursoDe(profile.id) && (
         <FutbolRetoCard
+          key={`${profile.id}:${date}`}
           profile={profile}
           date={date}
           entries={entries}
@@ -419,6 +426,7 @@ export function ChallengesPanel({
 
       {onGameResult && gameEnabledFor(profile) && (
         <DailyGameCard
+          key={`${profile.id}:${date}`}
           profile={profile}
           date={date}
           entries={entries}

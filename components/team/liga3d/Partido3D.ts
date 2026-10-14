@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import { prefersReducedMotion } from '@/lib/haptics';
+
 import { clamp01, crearMuneco, lerp, posar, suave, type Muneco, type Pose } from '@/components/games/penalty3d/muneco';
 import {
   azar,
@@ -215,6 +217,10 @@ export class Partido3D {
   private finalDe: 'gana' | 'empata' | 'pierde' | null = null;
   /** De escaparate: la cámara gira cerca de los de casa, que son lo que se enseña. */
   private escaparate = false;
+  /** «Reducir movimiento»: sin giro de cámara ni temblores. */
+  private reducido = false;
+  /** En el escaparate quieto, si ya está pintado el fotograma que se enseña. */
+  private pintado = false;
 
   /**
    * `ligera`: para el escaparate de la tarjeta, que vive mientras se mira
@@ -223,6 +229,7 @@ export class Partido3D {
   constructor(host: HTMLElement, private reparto: Reparto3D, opts: { ligera?: boolean; escaparate?: boolean } = {}) {
     this.host = host;
     this.escaparate = Boolean(opts.escaparate);
+    this.reducido = prefersReducedMotion();
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: opts.ligera ? 'default' : 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.ligera ? 1.5 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -251,15 +258,40 @@ export class Partido3D {
     this.preparar('previa');
 
     this.ajustar();
-    this.observador = new ResizeObserver(() => this.ajustar());
+    this.observador = new ResizeObserver(() => {
+      this.ajustar();
+      // Con otro tamaño, el fotograma quieto hay que volver a pintarlo.
+      this.pintado = false;
+    });
     this.observador.observe(host);
 
-    const bucle = () => {
+    // El escaparate es un adorno de la tarjeta: a 30 fotogramas basta y la
+    // batería lo agradece. Con «reducir movimiento» se pinta un fotograma
+    // quieto y ya. Y con la pestaña escondida no se pinta nada.
+    // Los dorsales y las caras llegan un poco después (son imágenes): en el
+    // modo quieto se repinta de vez en cuando los primeros segundos.
+    let ultimo = -Infinity;
+    const asentado = performance.now() + 3000;
+    const bucle = (ahora: number) => {
       if (!this.vivo) return;
       this.frame = requestAnimationFrame(bucle);
+      if (typeof document !== 'undefined' && document.hidden) {
+        this.reloj.getDelta();
+        return;
+      }
+      if (this.escaparate) {
+        if (this.reducido) {
+          const asentando = ahora < asentado && ahora - ultimo >= 400;
+          if (this.pintado && !asentando) return;
+          this.pintado = true;
+        } else if (ahora - ultimo < 1000 / 30 - 2) {
+          return;
+        }
+        ultimo = ahora;
+      }
       this.paso();
     };
-    bucle();
+    bucle(performance.now());
   }
 
   /* ---------------------------------------------------------------- montaje */
@@ -1466,7 +1498,7 @@ export class Partido3D {
     const aspect = this.camera.aspect || 1;
     const estrecha = aspect < 1.1 ? 1.35 / Math.max(0.6, aspect) : 1;
     if (this.escena === 'previa' && !this.guion.length) {
-      this.cam.orbita += dt * (this.finalDe ? 0.18 : this.escaparate ? 0.12 : 0.07);
+      if (!this.reducido) this.cam.orbita += dt * (this.finalDe ? 0.18 : this.escaparate ? 0.12 : 0.07);
       const cerca = this.escaparate && !this.finalDe;
       const R = (this.finalDe ? 34 : cerca ? 40 : 64) * Math.min(1.6, estrecha);
       const alto = this.finalDe ? 14 : cerca ? 19 : 30;
@@ -1486,7 +1518,7 @@ export class Partido3D {
     this.cam.dist = lerp(this.cam.dist, this.camMeta.dist * estrecha, 1 - Math.pow(0.1, dt));
     const f = this.cam.foco;
     const d = this.cam.dist;
-    const shake = this.temblor;
+    const shake = this.reducido ? 0 : this.temblor;
     this.temblor = Math.max(0, this.temblor - dt * 1.5);
     this.camera.position.set(
       f.x * 0.9 + (Math.random() - 0.5) * shake,

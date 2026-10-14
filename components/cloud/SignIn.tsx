@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import type { HabitStore } from '@/hooks/useHabitStore';
 
 /* =========================================================================
@@ -15,9 +16,32 @@ interface SignInProps {
   store: HabitStore;
 }
 
+/**
+ * Lo que contesta Supabase viene en inglés y en idioma de programador
+ * («Invalid login credentials»). Aquí se traduce a lo que le pasa a quien
+ * está delante; lo que no se reconoce se deja tal cual, que algo dice.
+ */
+const ERRORES: Array<[RegExp, string]> = [
+  [/invalid login credentials/i, 'El correo o la contraseña no coinciden.'],
+  [/email not confirmed/i, 'Falta confirmar el correo: abre el enlace que os llegó y vuelve aquí.'],
+  [/already registered|already exists/i, 'Ese correo ya tiene cuenta. Entra con él en vez de crearla.'],
+  [/password should be at least|password.*(short|characters)/i, 'La contraseña tiene que tener al menos 6 caracteres.'],
+  [/invalid format|unable to validate email|invalid email/i, 'Ese correo no parece bien escrito.'],
+  [/rate limit|too many|only request this after/i, 'Demasiados intentos seguidos. Espera un minuto y vuelve a probar.'],
+  [/signups? not allowed|signup is disabled/i, 'En esta casa no se pueden crear cuentas nuevas. Entra con la que ya hay.'],
+  [/failed to fetch|network|load failed/i, 'No hay conexión con la nube. Mira la cobertura y vuelve a probar.'],
+];
+
+function enCastellano(cause: unknown, fallback: string): string {
+  const message = cause instanceof Error ? cause.message : '';
+  if (!message) return fallback;
+  return ERRORES.find(([pattern]) => pattern.test(message))?.[1] ?? message;
+}
+
 export function SignIn({ store }: SignInProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +68,7 @@ export function SignIn({ store }: SignInProps) {
         `Enviado a ${email.trim()}. Abre el enlace desde este mismo aparato y la app te pedirá una contraseña nueva.`,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se ha podido enviar el correo.');
+      setError(enCastellano(cause, 'No se ha podido enviar el correo.'));
     } finally {
       setBusy(false);
     }
@@ -67,7 +91,7 @@ export function SignIn({ store }: SignInProps) {
         await store.signIn(email.trim(), password);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se ha podido entrar.');
+      setError(enCastellano(cause, 'No se ha podido entrar.'));
     } finally {
       setBusy(false);
     }
@@ -106,28 +130,51 @@ export function SignIn({ store }: SignInProps) {
             <label htmlFor="clave" className="mb-1 block text-xs font-semibold uppercase t-3">
               Contraseña
             </label>
-            <input
-              id="clave"
-              type="password"
-              required
-              minLength={6}
-              autoComplete={creating ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="field w-full"
-              placeholder="••••••••"
-            />
+            {/* Con el teclado del móvil, una contraseña a ciegas se equivoca
+                mucho: se puede ver antes de enviarla. */}
+            <div className="relative">
+              <input
+                id="clave"
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                autoComplete={creating ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="field w-full pr-12"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Ocultar la contraseña' : 'Ver la contraseña'}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl t-3 hover:t-1"
+              >
+                <span aria-hidden>{showPassword ? '🙈' : '👁️'}</span>
+              </button>
+            </div>
           </div>
 
-          {error && <p className="text-xs t-danger">⚠️ {error}</p>}
-          {notice && <p className="text-xs t-accent">✅ {notice}</p>}
+          {error && (
+            <p role="alert" className="text-xs t-danger">
+              ⚠️ {error}
+            </p>
+          )}
+          {notice && (
+            <p role="status" className="text-xs t-accent">
+              ✅ {notice}
+            </p>
+          )}
 
           <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 text-sm">
             {busy ? '⏳ Un momento…' : creating ? 'Crear la cuenta de casa' : 'Entrar'}
           </button>
         </form>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+        {/* Enlaces con alto de dedo: con `text-xs` a secas se quedaban en
+            dieciséis píxeles y había que acertar con la uña. */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
           <button
             type="button"
             onClick={() => {
@@ -135,18 +182,22 @@ export function SignIn({ store }: SignInProps) {
               setError(null);
               setNotice(null);
             }}
-            className="t-accent font-semibold underline-offset-2 hover:underline"
+            className="min-h-[44px] t-accent font-semibold underline-offset-2 hover:underline"
           >
             {creating ? 'Ya tengo cuenta' : 'Crear la cuenta la primera vez'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => store.setLocalOnly(true)}
-            className="t-3 underline-offset-2 hover:underline"
+          {/* Quedarse sin nube no se deshace desde aquí —esta pantalla ya no
+              vuelve a salir—, así que se pregunta antes. */}
+          <ConfirmButton
+            question="¿Sin cuenta de casa? No se verá en otros móviles."
+            confirmLabel="Sí, sólo aquí"
+            confirmClassName="btn-primary px-3 py-1.5 text-xs"
+            onConfirm={() => store.setLocalOnly(true)}
+            className="min-h-[44px] t-3 underline-offset-2 hover:underline"
           >
             Trabajar sólo en este móvil
-          </button>
+          </ConfirmButton>
         </div>
 
         {/* Sólo al entrar: quien está creando la cuenta no tiene nada que
@@ -156,7 +207,7 @@ export function SignIn({ store }: SignInProps) {
             type="button"
             onClick={() => void recover()}
             disabled={busy}
-            className="mt-3 text-xs t-3 underline-offset-2 hover:underline disabled:opacity-50"
+            className="mt-1 min-h-[44px] text-sm t-3 underline-offset-2 hover:underline disabled:opacity-50"
           >
             No me acuerdo de la contraseña
           </button>

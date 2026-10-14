@@ -60,6 +60,13 @@ export function NoteField({
   const commit = useRef(onChange);
   commit.current = onChange;
 
+  /**
+   * En qué punto está lo escrito, para decirlo bajo el campo: «Guardando…»
+   * mientras espera y «✓ Guardado» cuando ya ha bajado. Antes la tarjeta del
+   * día decía «Guardado» con la frase todavía en el aire.
+   */
+  const [state, setState] = useState<'idle' | 'pending' | 'saved'>('idle');
+
   const flush = useCallback(() => {
     window.clearTimeout(timer.current);
     const text = waiting.current;
@@ -68,13 +75,39 @@ export function NoteField({
     waiting.current = null;
     sent.current = text;
     commit.current(text);
+    setState('saved');
   }, []);
+
+  // El «✓ Guardado» se dice y se retira: un aviso fijo deja de leerse.
+  useEffect(() => {
+    if (state !== 'saved') return;
+    const fade = window.setTimeout(() => setState('idle'), 2500);
+    return () => window.clearTimeout(fade);
+  }, [state]);
+
+  // Cerrar la pestaña o mandar la app al fondo en el móvil no avisa al campo
+  // de que pierde el foco: se vuelca lo pendiente antes de que el sistema la
+  // congele, que puede ser para siempre.
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+  }, [flush]);
 
   // Un valor que llega de fuera —otro día, otro perfil, lo que baje de la
   // nube— sustituye a lo que hubiera. El eco de lo que acaba de entregar este
   // mismo campo se ignora: adoptarlo pisaría las teclas de mientras.
   useEffect(() => {
     if (value === sent.current) return;
+    // Con teclas por bajar, lo de fuera espera: adoptarlo borraría lo que se
+    // acaba de escribir. Al volcarse, lo escrito manda.
+    if (waiting.current !== null) return;
     sent.current = value;
     waiting.current = null;
     window.clearTimeout(timer.current);
@@ -87,6 +120,7 @@ export function NoteField({
   const write = (text: string) => {
     setDraft(text);
     waiting.current = text;
+    setState('pending');
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(flush, COMMIT_MS);
   };
@@ -115,6 +149,10 @@ export function NoteField({
         placeholder={placeholder}
         className="field w-full resize-y p-3"
       />
+
+      <p className="mt-1 min-h-[1rem] text-xs t-3" aria-live="polite">
+        {state === 'pending' ? 'Guardando…' : state === 'saved' ? '✓ Guardado' : ''}
+      </p>
 
       {hint && <p className="mt-1.5 text-[11px] leading-relaxed t-3">{hint}</p>}
     </div>

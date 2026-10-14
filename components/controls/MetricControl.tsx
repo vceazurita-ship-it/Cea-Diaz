@@ -1,6 +1,7 @@
 'use client';
 
-import type { Metric } from '@/types';
+import { tap } from '@/lib/haptics';
+import type { Metric, MetricValue } from '@/types';
 import { ChoiceControl } from './ChoiceControl';
 import { CounterControl } from './CounterControl';
 import { DurationControl } from './DurationControl';
@@ -12,8 +13,26 @@ import type { ControlProps } from './types';
  * Punto único de despacho: la UI no conoce las métricas concretas, sólo su
  * tipo. Añadir una métrica nueva al catálogo no requiere tocar componentes.
  */
-export function MetricControl(props: ControlProps<Metric>) {
-  const { metric } = props;
+/** Último toque en la mano, para no zumbar en cada paso de un deslizador. */
+let lastTap = 0;
+
+export function MetricControl(incoming: ControlProps<Metric>) {
+  const { metric } = incoming;
+
+  // Cada respuesta se nota en la mano, sea del control que sea. Arrastrando
+  // el deslizador llegan decenas por segundo: con una cada tanto basta para
+  // que se sienta como los dientes de una rueda, no como un zumbido.
+  const props: ControlProps<Metric> = {
+    ...incoming,
+    onChange: (value: MetricValue | undefined) => {
+      const now = Date.now();
+      if (now - lastTap > 120) {
+        lastTap = now;
+        tap();
+      }
+      incoming.onChange(value);
+    },
+  };
 
   switch (metric.type) {
     case 'toggle':

@@ -42,8 +42,26 @@ export function TopBar({
     activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }, [activeId]);
 
+  // Lo que mide la barra se publica en `--topbar-h`: lo que quiera pegarse
+  // justo debajo —la pastilla del día del registro— no tiene que adivinarlo.
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const node = bar.current;
+    if (!node) return;
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty('--topbar-h', `${node.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--topbar-h');
+    };
+  }, []);
+
   return (
     <nav
+      ref={bar}
       aria-label="Perfiles"
       className="sticky top-0 z-30 border-b hairline bg-[var(--bg)]/85 backdrop-blur-md"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}

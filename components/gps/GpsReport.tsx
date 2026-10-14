@@ -48,26 +48,27 @@ const oneDecimal = (v: number) => v.toFixed(1).replace('.', ',');
  * media ancha, por encima del 75 y el 10 % de arriba.
  */
 function band(p: number) {
-  if (p >= 90) return { label: 'Top 10 %', text: 'text-emerald-500', bg: 'bg-emerald-500', soft: 'bg-emerald-500/15' };
-  if (p >= 75) return { label: 'Por encima', text: 'text-sky-500', bg: 'bg-sky-500', soft: 'bg-sky-500/15' };
-  if (p >= 25) return { label: 'En la media', text: 't-2', bg: 'bg-accent', soft: 'bg-accent-soft' };
-  return { label: 'Por debajo', text: 'text-amber-500', bg: 'bg-amber-500', soft: 'bg-amber-500/15' };
+  // Los colores son los de estado de la casa: se leen igual de día y de noche.
+  if (p >= 90) return { label: 'Top 10 %', text: 't-ok', soft: 'bg-ok-soft' };
+  if (p >= 75) return { label: 'Por encima', text: 't-info', soft: 'bg-info-soft' };
+  if (p >= 25) return { label: 'En la media', text: 't-2', soft: 'bg-accent-soft' };
+  return { label: 'Por debajo', text: 't-warn', soft: 'bg-warn-soft' };
 }
 
 const TIER_STYLE: Record<Tier, string> = {
-  general: 'border-sky-500/40 text-sky-500',
-  club: 'border-emerald-500/40 text-emerald-500',
-  elite: 'border-amber-500/50 text-amber-500',
+  general: 'border-info t-info',
+  club: 'border-ok t-ok',
+  elite: 'border-warn t-warn',
 };
 
 /** La pista de 0 a 100 con sus cuatro franjas pintadas de fondo. */
 function Zones() {
   return (
     <>
-      <span className="absolute inset-y-0 left-0 w-1/4 rounded-l-full bg-amber-500/15" />
+      <span className="absolute inset-y-0 left-0 w-1/4 rounded-l-full bg-warn-soft" />
       <span className="absolute inset-y-0 left-1/4 w-1/2 surf-2" />
-      <span className="absolute inset-y-0 left-3/4 w-[15%] bg-sky-500/15" />
-      <span className="absolute inset-y-0 right-0 w-[10%] rounded-r-full bg-emerald-500/20" />
+      <span className="absolute inset-y-0 left-3/4 w-[15%] bg-info-soft" />
+      <span className="absolute inset-y-0 right-0 w-[10%] rounded-r-full bg-ok-soft" />
     </>
   );
 }
@@ -150,7 +151,7 @@ function StudyCard({ placed }: { placed: Placed }) {
           </span>
         )}
       </div>
-      <div className="mt-1 flex justify-between text-[9px] font-bold tabular-nums t-3" aria-hidden>
+      <div className="mt-1 flex justify-between text-[10px] font-bold tabular-nums t-3" aria-hidden>
         {[0, 25, 50, 75, 100].map((x) => (
           <span key={x}>{x}</span>
         ))}
@@ -160,7 +161,7 @@ function StudyCard({ placed }: { placed: Placed }) {
         {comparison.detail} Con {placed.basis} sesiones.
       </p>
       {comparison.caveat && (
-        <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2 py-1 text-[11px] font-bold text-amber-500">
+        <p className="banner banner-warn mt-1.5 rounded-lg px-2 py-1 text-[11px] font-bold t-1">
           ⚠️ {comparison.caveat}
         </p>
       )}
@@ -467,7 +468,7 @@ export function GpsReport({
                     {diff !== undefined && Math.abs(diff) >= 5 && (
                       <span
                         className={`rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums ${
-                          diff > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
+                          diff > 0 ? 'bg-ok-soft t-ok' : 'bg-warn-soft t-warn'
                         }`}
                       >
                         {diff > 0 ? '+' : ''}
@@ -512,10 +513,10 @@ export function GpsReport({
               <span className="h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-current t-1" /> la última
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-5 rounded-full bg-amber-500/30" />
+              <span className="h-2 w-5 rounded-full border border-warn bg-warn-soft" />
               <span className="h-2 w-5 rounded-full surf-2" />
-              <span className="h-2 w-5 rounded-full bg-sky-500/30" />
-              <span className="h-2 w-5 rounded-full bg-emerald-500/40" /> por debajo · media · encima · top 10
+              <span className="h-2 w-5 rounded-full border border-info bg-info-soft" />
+              <span className="h-2 w-5 rounded-full border border-ok bg-ok-soft" /> por debajo · media · encima · top 10
             </span>
           </div>
           {tiers.map((tier) => {

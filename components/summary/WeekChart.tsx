@@ -37,7 +37,7 @@ export function WeekChart({ days, onSelectDay }: WeekChartProps) {
                 ratón encima», así que esconderlo tras un :hover lo dejaba
                 inalcanzable justo en el aparato desde el que más se consulta.
                 En pantalla grande se refuerza al recorrer las barras. */}
-            <span className="h-3 text-[10px] font-semibold tabular-nums t-3 transition-colors group-hover:t-1 group-focus-visible:t-1">
+            <span className="h-3 text-[11px] font-semibold tabular-nums t-3 transition-colors group-hover:t-1 group-focus-visible:t-1">
               {day.empty ? '—' : percent(day.ratio)}
             </span>
             <div className="flex w-full flex-1 items-end">
@@ -50,7 +50,7 @@ export function WeekChart({ days, onSelectDay }: WeekChartProps) {
                 }}
               />
             </div>
-            <span className="text-[10px] font-bold uppercase t-3">
+            <span className="text-[11px] font-bold uppercase t-3">
               {WEEKDAY_LABELS[weekdayIndex(day.date)]}
             </span>
           </button>

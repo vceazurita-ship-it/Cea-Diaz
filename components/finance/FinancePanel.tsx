@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FinanceAdvice } from '@/components/finance/FinanceAdvice';
+import { FinanceMonths } from '@/components/finance/FinanceMonths';
 import { FinancePlan } from '@/components/finance/FinancePlan';
 import { FinanceStats } from '@/components/finance/FinanceStats';
 import { LedgerCard } from '@/components/finance/LedgerCard';
@@ -41,6 +42,7 @@ import {
   ledgerTotal,
 } from '@/lib/finance';
 import { financeAlerts, financeNotes } from '@/lib/financeExperts';
+import { monthLabel, monthTotals } from '@/lib/financeMonths';
 import { planCount } from '@/lib/financePlan';
 import type { FinanceBook, FinanceItem, LedgerId, Profile } from '@/types';
 
@@ -75,7 +77,7 @@ interface FinancePanelProps {
  * El plan va antes que el consejo a propósito: el consejo describe y el plan
  * manda, y de las dos cosas la que se busca al abrir esto es la segunda.
  */
-type View = 'resumen' | 'plan' | 'consejo' | 'estadisticas' | 'libretas';
+type View = 'resumen' | 'meses' | 'plan' | 'consejo' | 'estadisticas' | 'libretas';
 
 export function FinancePanel({ profile }: FinancePanelProps) {
   const notify = useToast();
@@ -104,6 +106,8 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   const alerts = useMemo(() => financeAlerts(book), [book]);
   const todo = useMemo(() => planCount(book), [book]);
   const top = notes.find((note) => note.tone === 'grave' || note.tone === 'aviso');
+  const lastClosing = book.closings?.length ? book.closings[book.closings.length - 1] : null;
+  const lastTotals = lastClosing ? monthTotals(lastClosing) : null;
 
   /* ------------------------------------------------------------ acciones */
 
@@ -285,6 +289,31 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           </button>
         )}
 
+        {/* El último mes de verdad, que es con lo que se contrasta lo de arriba */}
+        {lastClosing && (
+          <button
+            type="button"
+            onClick={() => setView('meses')}
+            className="mt-3 flex w-full items-center gap-2 rounded-xl border p-2.5 text-left hairline hover-soft"
+          >
+            <span aria-hidden className="text-base">
+              🗓️
+            </span>
+            <span className="min-w-0 flex-1 text-xs leading-snug t-2">
+              <span className="font-bold t-1">{monthLabel(lastClosing.month).replace(/^./, (c) => c.toUpperCase())}</span>: la
+              cuenta acabó en{' '}
+              <strong className="tabular-nums t-1">{euros(lastTotals!.closing)}</strong>{' '}
+              <span className={`tabular-nums ${lastTotals!.result < 0 ? 't-danger' : ''}`}>
+                ({lastTotals!.result > 0 ? '+' : ''}
+                {euros(lastTotals!.result)})
+              </span>
+            </span>
+            <span aria-hidden className="t-3">
+              ›
+            </span>
+          </button>
+        )}
+
         {/* En qué se va el mes */}
         {shares.length > 1 && (
           <div className="mt-3 border-t pt-3 hairline">
@@ -369,6 +398,10 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           {(
             [
               { id: 'resumen', label: '📊 Resumen' },
+              {
+                id: 'meses',
+                label: book.closings?.length ? `🗓️ Meses · ${book.closings.length}` : '🗓️ Meses',
+              },
               { id: 'plan', label: todo > 0 ? `🧭 Plan · ${todo}` : '🧭 Plan' },
               { id: 'consejo', label: alerts > 0 ? `🧠 Consejo · ${alerts}` : '🧠 Consejo' },
               { id: 'estadisticas', label: '📈 Estadísticas' },
@@ -394,7 +427,9 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         </button>
       </div>
 
-      {view === 'plan' ? (
+      {view === 'meses' ? (
+        <FinanceMonths book={book} onChange={commit} />
+      ) : view === 'plan' ? (
         <FinancePlan book={book} />
       ) : view === 'consejo' ? (
         <FinanceAdvice book={book} />

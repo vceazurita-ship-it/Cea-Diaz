@@ -1,0 +1,39 @@
+# Dependabot: avisa de versiones nuevas y de fallos de seguridad en las
+# dependencias, y abre la petición de cambios ya hecha. Gratis en GitHub.
+#
+# Las subidas menores y de parche van juntas en una sola petición por semana,
+# para no llenar la bandeja; las mayores —que pueden romper algo, como un Next
+# o un three.js nuevos— llegan cada una por su lado, para mirarlas con calma.
+# La CI de .github/workflows/ci.yml comprueba cada una antes de fusionarla.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'deps'
+    groups:
+      menores-y-parches:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    commit-message:
+      prefix: 'ci'
+    groups:
+      acciones:
+        update-types:
+          - minor
+          - patch

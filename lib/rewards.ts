@@ -4101,6 +4101,58 @@ export function albumCopyOf(profileId: ProfileId): Deck['album'] | null {
   return DECKS[profileId]?.album ?? null;
 }
 
+/* -------------------------------------------------------------------------
+ * El color de cada rareza: el mismo en el álbum, en el campograma y donde
+ * salga un cromo. Antes había dos copias que se habían ido separando.
+ * Son clases enteras (degradado + borde) para que Tailwind las encuentre.
+ * ----------------------------------------------------------------------- */
+
+export const RARITY_GRADIENT: Record<string, string> = {
+  // Los tres mazos de fútbol: la cantera en violeta, LaLiga en azul, la
+  // Premier en fucsia y las leyendas en oro.
+  castilla: 'from-violet-400/25 to-indigo-500/20 border-violet-300/35',
+  liga: 'from-sky-400/25 to-indigo-500/20 border-sky-300/30',
+  premier: 'from-fuchsia-400/25 to-rose-500/20 border-fuchsia-300/30',
+  leyenda: 'from-amber-300/35 to-orange-500/25 border-amber-300/45',
+  // El álbum de música: la radio de diario en rosa, los 90 en violeta, los
+  // 2000 en turquesa y las leyendas en oro, como en el de fútbol.
+  radio: 'from-pink-400/25 to-rose-500/20 border-pink-300/35',
+  noventa: 'from-violet-400/25 to-purple-600/20 border-violet-300/35',
+  dosmil: 'from-cyan-400/25 to-sky-600/20 border-cyan-300/30',
+  leyenda_pop: 'from-amber-300/35 to-yellow-600/25 border-amber-300/45',
+  chispa: 'from-rose-300/25 to-orange-300/20 border-rose-300/35',
+  fuerza: 'from-fuchsia-400/25 to-violet-500/20 border-fuchsia-300/35',
+  oro: 'from-amber-300/35 to-rose-400/25 border-amber-300/45',
+  // Los de la casa: verdes y cálidos, para distinguirlos de los de fútbol.
+  casa: 'from-emerald-300/25 to-teal-500/20 border-emerald-300/35',
+  equipo: 'from-teal-400/25 to-cyan-500/20 border-teal-300/35',
+  leyenda_casa: 'from-amber-300/35 to-emerald-400/25 border-amber-300/45',
+  // La técnica de la semana: fuego de anime, para que se note que es otra cosa.
+  tecnica: 'from-orange-400/35 to-rose-600/25 border-orange-300/50',
+};
+
+/**
+ * La misma rareza, más marcada: para una ficha pequeña sobre el césped,
+ * donde el velo suave del álbum apenas se distingue.
+ */
+export const RARITY_GRADIENT_STRONG: Record<string, string> = {
+  castilla: 'from-violet-400/30 to-indigo-500/25 border-violet-300/40',
+  liga: 'from-sky-400/30 to-indigo-500/25 border-sky-300/40',
+  premier: 'from-fuchsia-400/30 to-rose-500/25 border-fuchsia-300/40',
+  leyenda: 'from-amber-300/40 to-orange-500/30 border-amber-300/50',
+  radio: 'from-pink-400/30 to-rose-500/25 border-pink-300/40',
+  noventa: 'from-violet-400/30 to-purple-600/25 border-violet-300/40',
+  dosmil: 'from-cyan-400/30 to-sky-600/25 border-cyan-300/40',
+  leyenda_pop: 'from-amber-300/40 to-yellow-600/30 border-amber-300/50',
+  chispa: 'from-rose-300/30 to-orange-300/25 border-rose-300/40',
+  fuerza: 'from-fuchsia-400/30 to-violet-500/25 border-fuchsia-300/40',
+  oro: 'from-amber-300/40 to-rose-400/30 border-amber-300/50',
+  casa: 'from-emerald-300/30 to-teal-500/25 border-emerald-300/40',
+  equipo: 'from-teal-400/30 to-cyan-500/25 border-teal-300/40',
+  leyenda_casa: 'from-amber-300/40 to-emerald-400/30 border-amber-300/50',
+  tecnica: 'from-orange-400/40 to-rose-600/30 border-orange-300/55',
+};
+
 /** Cómo llama este perfil a esa rareza («Cromo de leyenda», «Aforismo de oro»). */
 export function rarityLabel(profileId: ProfileId, rarity: string): string {
   return DECKS[profileId]?.labels[rarity] ?? SHARED_LABELS[rarity] ?? rarity;

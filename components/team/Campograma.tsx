@@ -18,7 +18,7 @@ import {
   switchFormation,
   updateLineup,
 } from '@/lib/lineup';
-import { rarityLabel } from '@/lib/rewards';
+import { RARITY_GRADIENT_STRONG, rarityLabel } from '@/lib/rewards';
 import type {
   CromoLine,
   CromoReward,
@@ -43,15 +43,8 @@ import type {
  *  Esa regla vive en `lib/lineup.ts` y aquí sólo se pinta.
  * ========================================================================= */
 
-/** Colores del cromo según su mazo. Los mismos que en el álbum. */
-const RARITY_CHIP: Record<string, string> = {
-  castilla: 'from-violet-400/30 to-indigo-500/25 border-violet-300/40',
-  liga: 'from-sky-400/30 to-indigo-500/25 border-sky-300/40',
-  premier: 'from-fuchsia-400/30 to-rose-500/25 border-fuchsia-300/40',
-  leyenda: 'from-amber-300/40 to-orange-500/30 border-amber-300/50',
-};
-
-const chipStyle = (rarity: string) => RARITY_CHIP[rarity] ?? 'hairline surf-2';
+/** Colores del cromo según su mazo: los del álbum, un punto más marcados. */
+const chipStyle = (rarity: string) => RARITY_GRADIENT_STRONG[rarity] ?? 'hairline surf-2';
 
 /* -------------------------------------------------------------------------
  * Ficha dentro del campo
@@ -97,8 +90,8 @@ function Spot({ slot, cromo, captain, onPick }: SpotProps) {
           {/* La chincheta de «aquí está apañándose»: su puesto de verdad. */}
           {adapted && (
             <span
-              className="absolute -right-1 -top-1 rounded-full bg-amber-300 px-1 text-[8px]
-                         font-black uppercase leading-[1.4] text-amber-950 shadow"
+              className="absolute -right-1.5 -top-1.5 rounded-full bg-amber-300 px-1 text-[11px]
+                         font-black uppercase leading-[1.3] text-amber-950 shadow"
               title={`Fuera de su puesto: es ${cromo.position}`}
             >
               {cromo.position}
@@ -116,8 +109,8 @@ function Spot({ slot, cromo, captain, onPick }: SpotProps) {
         </span>
       )}
 
-      <span className="rounded-full bg-black/45 px-1.5 text-[9px] font-black uppercase
-                       tracking-wider text-white/80">
+      <span className="rounded-full bg-black/45 px-1.5 text-[11px] font-black uppercase
+                       leading-tight text-white/85">
         {slot.label}
       </span>
 
@@ -156,7 +149,7 @@ function Tag({
       <CromoPortrait cromo={cromo} size="xs" round />
       <span className="min-w-0">
         <span className="block truncate text-[11px] font-bold leading-tight t-1">{cromo.name}</span>
-        <span className="block truncate text-[9px] uppercase tracking-wide t-3">
+        <span className="block truncate text-[11px] uppercase t-3">
           {cromo.position}
         </span>
       </span>
@@ -201,7 +194,7 @@ function PickList({ cromos, profileId, adapted, onPick }: PickListProps) {
                 {cromo.team} · {cromo.position}
               </span>
             </span>
-            <span className="shrink-0 text-[9px] font-black uppercase tracking-wide t-3">
+            <span className="shrink-0 text-[11px] font-black uppercase t-3">
               {adapted ? '🔁' : rarityLabel(profileId, cromo.rarity)}
             </span>
           </button>

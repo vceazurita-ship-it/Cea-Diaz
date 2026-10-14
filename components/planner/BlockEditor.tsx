@@ -91,6 +91,12 @@ interface BlockEditorProps {
   /** Devuelve la agenda a como estaba al abrir el editor. */
   onRevert?: () => void;
   onCancel: () => void;
+  /**
+   * Aquí se deja la forma de escribir ya lo que espera al autoguardado. Lo
+   * usa quien cierra la hoja para saber qué ha quedado antes de ofrecerlo
+   * al hermano o de decir «Guardado».
+   */
+  flushRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function BlockEditor({
@@ -105,6 +111,7 @@ export function BlockEditor({
   onCopy,
   onRevert,
   onCancel,
+  flushRef,
 }: BlockEditorProps) {
   const [draft, setDraft] = useState<PlanBlock>(block);
   /** Días en los que se apartará. Editando uno que ya existe, siempre el suyo. */
@@ -208,6 +215,8 @@ export function BlockEditor({
 
   /** Lo último que se dejó guardado, para no repetir la misma escritura. */
   const written = useRef('');
+  /** Lo que espera al reloj del autoguardado, con su firma. */
+  const pending = useRef<{ block: PlanBlock; targets: number[]; signature: string } | null>(null);
 
   useEffect(() => {
     if (!save.current) return;
@@ -217,6 +226,10 @@ export function BlockEditor({
       return;
     }
 
+    // Lo pendiente es siempre lo de ahora: si se ha borrado el nombre, no
+    // queda nada por escribir aunque antes lo hubiera.
+    pending.current = null;
+
     const title = draft.title.trim();
     if (!title) return;
 
@@ -224,13 +237,48 @@ export function BlockEditor({
     const signature = JSON.stringify([draft, targets]);
     if (signature === written.current) return;
 
+    // Lo que está por guardar se queda aquí mientras corre el reloj: si la
+    // hoja se cierra antes de los novecientos milisegundos, se guarda al
+    // desmontar en vez de perderse con el reloj.
+    pending.current = { block: { ...draft, title }, targets, signature };
+
     const timer = window.setTimeout(() => {
       written.current = signature;
+      pending.current = null;
       save.current?.({ ...draft, title }, targets);
     }, 900);
 
     return () => window.clearTimeout(timer);
   }, [draft, days, isNew]);
+
+  /**
+   * Al cerrar la hoja —la X, fuera, Escape— se escribe lo que quedaba
+   * pendiente. Antes el reloj se cancelaba al desmontar y lo último tecleado
+   * se iba con él: justo lo que el autoguardado venía a evitar.
+   */
+  const flush = useRef(() => {
+    const last = pending.current;
+    if (!last || last.signature === written.current) return;
+    written.current = last.signature;
+    pending.current = null;
+    save.current?.(last.block, last.targets);
+  });
+
+  // Quien abre el editor puede pedir el guardado antes de cerrarlo, para
+  // saber qué ha quedado; y si no lo pide, se hace igual al desmontar.
+  useEffect(() => {
+    const run = flush.current;
+    if (flushRef) flushRef.current = run;
+    return () => {
+      run();
+      if (flushRef) flushRef.current = null;
+    };
+  }, [flushRef]);
+
+  /** Cancelar, deshacer o quitar: lo pendiente no se escribe al cerrar. */
+  const discard = () => {
+    pending.current = null;
+  };
 
   const counts = useMemo(
     () => [0, 1, 2, 3, 4, 5, 6].map((day) => plan.blocks.filter((item) => item.day === day).length),
@@ -280,6 +328,8 @@ export function BlockEditor({
     if (!title) return;
 
     const targets = isNew ? (days.length > 0 ? days : [draft.day]) : [draft.day];
+    // «Listo» ya escribe: lo pendiente del autoguardado sobra.
+    discard();
     onSave({ ...draft, title, day: targets[0] }, targets);
   };
 
@@ -716,11 +766,25 @@ export function BlockEditor({
           {/* Con autoguardado, «cancelar» ya no es no guardar: es deshacer. Se
               dice con esa palabra para no prometer algo que no se cumple. */}
           {onAutoSave && savedAt && onRevert ? (
-            <button type="button" onClick={onRevert} className="btn-ghost px-3 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                discard();
+                onRevert();
+              }}
+              className="btn-ghost px-3 text-sm"
+            >
               ↩️ Deshacer los cambios
             </button>
           ) : (
-            <button type="button" onClick={onCancel} className="btn-ghost px-3 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                discard();
+                onCancel();
+              }}
+              className="btn-ghost px-3 text-sm"
+            >
               Cancelar
             </button>
           )}
@@ -732,7 +796,14 @@ export function BlockEditor({
           )}
 
           {onDelete && (
-            <button type="button" onClick={onDelete} className="btn-danger ml-auto px-3 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                discard();
+                onDelete();
+              }}
+              className="btn-danger ml-auto px-3 text-sm"
+            >
               🗑️ Quitar
             </button>
           )}
@@ -780,7 +851,7 @@ function LinkRow({ link, metric, main, duration, onChange, onRemove, onPromote }
             {metric?.label ?? 'Hábito que ya no existe'}
           </span>
           {main && (
-            <span className="block text-[10px] uppercase tracking-wide t-3">
+            <span className="block text-[11px] uppercase tracking-wide t-3">
               Principal · da nombre al rato
             </span>
           )}
@@ -837,7 +908,7 @@ function LinkRow({ link, metric, main, duration, onChange, onRemove, onPromote }
 
           {clock && (
             <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px]
+              className={`rounded-full px-1.5 py-0.5 text-[11px]
                 ${link.amountLock ? 'surf-3 t-2' : 'bg-accent-soft t-1'}`}
             >
               {link.amountLock ? '✏️ a mano' : '⏱️ lo lleva el reloj'}

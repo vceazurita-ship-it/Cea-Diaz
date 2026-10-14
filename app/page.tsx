@@ -1,18 +1,41 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ambient } from '@/components/Ambient';
 import { SignIn } from '@/components/cloud/SignIn';
 import { SyncBadge } from '@/components/cloud/SyncBadge';
-import { Dashboard } from '@/components/Dashboard';
 import { PinLock } from '@/components/PinLock';
 import { ProfileSelector, type ProfileGlance } from '@/components/ProfileSelector';
-import { SettingsPanel } from '@/components/SettingsPanel';
 import type { CalendarNotice } from '@/components/tasks/TasksPanel';
 import { TopBar } from '@/components/TopBar';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ToastProvider } from '@/components/ui/Toast';
-import { AppearanceEditor } from '@/components/appearance/AppearanceEditor';
+
+/* La portada sólo necesita el selector. El panel del perfil, los ajustes y el
+ * editor de aspecto se piden aparte: el primero en cuanto alguien toca una
+ * tarjeta, los otros dos al abrirlos. Antes viajaba todo en el mismo paquete
+ * y el móvil tenía que analizar el código de las seis pestañas para pintar
+ * cuatro fotos; Lighthouse lo medía en casi un segundo de pantalla congelada.
+ * Mientras llega el panel se ve el mismo esqueleto que mientras se lee lo
+ * guardado, así que entrar no salta ni parpadea. */
+function DashboardLoading() {
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-4 px-4 pt-4" aria-busy="true" aria-label="Cargando">
+      <div className="skeleton h-40 rounded-3xl" />
+      <div className="skeleton h-12 rounded-2xl" />
+      <div className="skeleton h-28 rounded-2xl" />
+      <div className="skeleton h-48 rounded-2xl" />
+    </div>
+  );
+}
+const Dashboard = dynamic(() => import('@/components/Dashboard').then((m) => m.Dashboard), {
+  loading: DashboardLoading,
+});
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel').then((m) => m.SettingsPanel));
+const AppearanceEditor = dynamic(() =>
+  import('@/components/appearance/AppearanceEditor').then((m) => m.AppearanceEditor),
+);
 import { AppearanceProvider, useAppearance } from '@/hooks/useAppearance';
 import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
@@ -191,6 +214,22 @@ function Home() {
   // Nadie quiere música sonando en una pestaña que ya no mira.
   useEffect(() => stopAnthem, []);
 
+  // El panel del perfil se trae en cuanto la portada está pintada y el móvil
+  // descansa: así no frena la primera pantalla, pero al tocar una tarjeta ya
+  // está en caché y se entra sin esqueleto. Sin `requestIdleCallback`
+  // (Safari antiguo) basta un temporizador.
+  useEffect(() => {
+    const prefetch = () => void import('@/components/Dashboard');
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    const timer = window.setTimeout(() => {
+      if (w.requestIdleCallback) w.requestIdleCallback(prefetch, { timeout: 4000 });
+      else prefetch();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // Vuelta desde Google Calendar. El consentimiento saca de la app y devuelve
   // a la raíz, así que hay que reconstruir dónde estaba quien lo pidió: se
   // vuelve a su perfil, directamente a sus tareas, y allí se le cuenta cómo
@@ -250,7 +289,13 @@ function Home() {
   useEffect(() => {
     if (!profile) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !settingsOpen) goHome();
+      if (event.key !== 'Escape' || settingsOpen) return;
+      // Escape mientras se escribe es «suelta el campo», no «sal del perfil»;
+      // y con un diálogo abierto, lo que se cierra es el diálogo.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      goHome();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -371,14 +416,12 @@ function Home() {
           ) : !store.hydrated ? (
             // Hasta que lo guardado está leído, un panel vacío diría «0 %» y
             // «aún no hay registros» a quien sí los tiene: mejor un esqueleto.
-            <div className="mx-auto w-full max-w-5xl space-y-4 px-4 pt-4" aria-busy="true" aria-label="Cargando">
-              <div className="skeleton h-40 rounded-3xl" />
-              <div className="skeleton h-12 rounded-2xl" />
-              <div className="skeleton h-28 rounded-2xl" />
-              <div className="skeleton h-48 rounded-2xl" />
-            </div>
+            <DashboardLoading />
           ) : (
             <Dashboard
+              // Cada perfil, un panel nuevo: sin la llave, pasar de Víctor a
+              // María desde la barra conservaba la pestaña y la economía abierta.
+              key={profile.id}
               profile={profile}
               date={date}
               onDateChange={setDate}
@@ -409,7 +452,10 @@ function Home() {
                   ? 'Guardado en este navegador; la nube no responde.'
                   : store.cloud.status === 'signed-out'
                     ? 'Guardado sólo en este navegador: entra en la cuenta de casa para compartirlo.'
-                    : 'Guardado en este navegador.'}
+                    : store.cloud.status === 'syncing'
+                      ? 'Guardado en este navegador; subiendo a la cuenta de casa.'
+                      : // Sin nube, lo mismo que dice su chip y Ajustes → Nube.
+                        'Este aparato guarda sólo aquí: para compartir entre móviles hace falta la cuenta de casa.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -434,7 +480,12 @@ function Home() {
             className="chip-accent fixed right-4 z-40 min-h-[2.5rem] shadow-lg"
             // Con el panel abierto, en el móvil la barra de pestañas ocupa el
             // borde de abajo: el botón sube para no quedar tapado.
-            style={{ bottom: dressedUp ? 'calc(4.5rem + env(safe-area-inset-bottom))' : 'max(1rem, env(safe-area-inset-bottom))' }}
+            // El alto lo publica la propia barra en `--tabbar-h` (cero fuera
+            // del panel y en tableta), así que no hay que adivinarlo aquí.
+            style={{
+              bottom:
+                'max(calc(var(--tabbar-h, 0px) + 0.5rem), calc(env(safe-area-inset-bottom) + 1rem))',
+            }}
           >
             🔇 {nowPlaying.anthemLabel ?? 'Silenciar'}
           </button>

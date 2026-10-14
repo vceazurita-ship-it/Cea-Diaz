@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BlockEditor } from '@/components/planner/BlockEditor';
+import { BlockPills, StatusPill } from '@/components/planner/BlockPills';
 import { CopyWeekPicker } from '@/components/planner/CopyWeekPicker';
 import { PlanAlerts } from '@/components/planner/PlanAlerts';
 import { PlanChallengesCard } from '@/components/planner/PlanChallengesCard';
@@ -15,6 +16,7 @@ import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import { useWeekPlan, useWeekPlanWithMirrors } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek } from '@/lib/challenges';
 import { formatShort, weekKeys, weekdayIndex } from '@/lib/dates';
@@ -23,9 +25,7 @@ import {
   companionShare,
   mirrorAlerts,
   reviewWeek,
-  statusIcon,
   statusLabel,
-  statusShort,
 } from '@/lib/planCheck';
 import {
   COMPANIONS,
@@ -33,7 +33,6 @@ import {
   DAY_SHORT,
   PLAN_KINDS,
   addPlanBlocks,
-  blockLinks,
   blockPalette,
   blocksOfDay,
   clearDayPlan,
@@ -126,16 +125,7 @@ import type {
 /** Las dos maneras de mirar la misma semana. */
 type PlanView = 'completa' | 'dias';
 
-/** Cómo se pinta el desenlace de un rato en su pastilla. */
-const STATUS_STYLE: Record<PlanStatus, string> = {
-  cumplido: 'bg-accent t-on-accent',
-  flojo: 'bg-amber-400/30 t-1',
-  excedido: 't-danger',
-  sinDia: 'surf-2 t-3',
-  sinRegistrar: 'surf-3 t-2',
-  futuro: 'surf-2 t-3',
-  sinMetrica: 'surf-2 t-3',
-};
+const PLAN_VIEWS: readonly PlanView[] = ['completa', 'dias'];
 
 const ZOOMS: Array<{ id: TimetableZoom; label: string; icon: string }> = [
   { id: 'compacta', label: 'Vista compacta', icon: '⊟' },
@@ -186,16 +176,40 @@ export function WeekPlanner({
   const plan = useWeekPlan(profile.id);
   const notify = useToast();
   const [editing, setEditing] = useState<{ block: PlanBlock; isNew: boolean } | null>(null);
-  const [view, setView] = useState<PlanView>('completa');
+  /**
+   * Cómo se mira la semana —entera o día a día, el alto de la hora y cuántos
+   * días— se recuerda en este aparato y por perfil: quien abre la agenda de
+   * Víctor siempre en «L–V» compacta no tiene que volver a elegirlo cada vez.
+   */
+  const [view, setView] = useRemembered<PlanView>(
+    `agenda:${profile.id}:vista`,
+    'completa',
+    oneOf(PLAN_VIEWS),
+  );
   /** Semanas ajenas ofrecidas para copiar, o `null` con el diálogo cerrado. */
   const [copying, setCopying] = useState<WeekSource[] | null>(null);
   /** Lo que se está copiando o moviendo: un rato, un día, o nada. */
   const [sheet, setSheet] = useState<CopyTarget | null>(null);
-  const [zoom, setZoom] = useState<TimetableZoom>('normal');
+  const [zoom, setZoom] = useRemembered<TimetableZoom>(
+    `agenda:${profile.id}:zoom`,
+    'normal',
+    oneOf(ZOOMS.map((item) => item.id)),
+  );
   /** Tipo resaltado en la cuadrícula; el resto se apaga. */
   const [focus, setFocus] = useState<PlanKind | null>(null);
   /** Cuántos días se miran, y cuál cuando se mira uno solo. */
-  const [range, setRange] = useState<DayRange>('semana');
+  /**
+   * `auto` es «nadie ha elegido todavía»: no se guarda nunca —el validador no
+   * lo deja pasar—, y mientras siga así manda la pantalla (ver `narrow`).
+   */
+  const [chosenRange, setRange] = useRemembered<DayRange | 'auto'>(
+    `agenda:${profile.id}:dias`,
+    'auto',
+    oneOf(RANGES.map((item) => item.id)),
+  );
+  /** Pantalla estrecha o de dedo: ahí, sin elección guardada, se entra por un día. */
+  const [narrow, setNarrow] = useState(false);
+  const range: DayRange = chosenRange === 'auto' ? (narrow ? 'dia' : 'semana') : chosenRange;
   const [soloDay, setSoloDay] = useState<number | null>(null);
   /** Lo tecleado en el buscador: lo que no lo lleve se apaga en la cuadrícula. */
   const [query, setQuery] = useState('');
@@ -243,19 +257,16 @@ export function WeekPlanner({
     setEditing({ block: seed, isNew: true });
     setView('completa');
     onSeedUsed?.();
-  }, [seed, onSeedUsed]);
+  }, [seed, onSeedUsed, setView]);
 
   /**
    * En una pantalla estrecha —o de dedo, que para la cuadrícula es lo mismo—
    * la semana entera no se lee, así que se entra por un día. Se decide una
-   * sola vez y tras montar —en el servidor no hay ventana—, y a partir de ahí
-   * manda lo que elija quien mira.
+   * sola vez y tras montar —en el servidor no hay ventana—, y sólo vale
+   * mientras no haya nada recordado: en cuanto quien mira elige, manda eso.
    */
-  const chosen = useRef(false);
   useEffect(() => {
-    if (chosen.current) return;
-    chosen.current = true;
-    if (window.matchMedia('(max-width: 639px), (pointer: coarse)').matches) setRange('dia');
+    setNarrow(window.matchMedia('(max-width: 639px), (pointer: coarse)').matches);
   }, []);
 
   const review = useMemo(
@@ -303,6 +314,68 @@ export function WeekPlanner({
     if (range === 'dia') return [soloDay ?? today];
     return RANGES.find((item) => item.id === range)?.days ?? [0, 1, 2, 3, 4, 5, 6];
   }, [range, soloDay, today]);
+  /* ------------------------------------------------------ atajos de teclado */
+
+  /** El buscador de la semana, para llegar a él con «/». */
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Los atajos de la agenda: ← y → cambian de día mirando uno solo, N aparta
+   * un rato nuevo, 1, 2 y 3 cambian el alto de la hora y / lleva al buscador.
+   *
+   * Con las mismas cautelas que los del registro: nada mientras se escribe,
+   * nada con un diálogo delante —una flecha cambiaría el día de debajo sin
+   * que se viera— y nada con Alt, Control o Cmd, que son los de los ratos de
+   * la cuadrícula y los del navegador.
+   */
+  const keysRef = useRef<(event: KeyboardEvent) => void>(() => {});
+  keysRef.current = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+    if (target?.closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
+    if (editing || sheet || copying || ask) return;
+
+    const grid = shown === 'completa';
+    const key = event.key;
+
+    if (grid && range === 'dia' && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+      // Con el foco en un rato las flechas solas no hacen nada allí, pero
+      // un rato es un botón y no se le quita la tecla a quien la espere.
+      if (target?.closest('.rato')) return;
+      event.preventDefault();
+      const current = soloDay ?? today;
+      setSoloDay((current + (key === 'ArrowLeft' ? -1 : 1) + 7) % 7);
+      return;
+    }
+
+    if (event.shiftKey) return;
+
+    if (key === 'n' || key === 'N') {
+      event.preventDefault();
+      const day = grid && range === 'dia' ? (soloDay ?? today) : today;
+      setEditing({ block: emptyBlock(day), isNew: true });
+      return;
+    }
+
+    if (grid && defined && (key === '1' || key === '2' || key === '3')) {
+      event.preventDefault();
+      setZoom(ZOOMS[Number(key) - 1].id);
+      return;
+    }
+
+    if (grid && defined && key === '/' && searchRef.current) {
+      event.preventDefault();
+      searchRef.current.focus();
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => keysRef.current(event);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   /** Los dos paneles de campo hablan de partidos: goles, palos y actas. */
   const pitch = skin === 'pitch';
   const heading = headingFont(skin);
@@ -368,11 +441,20 @@ export function WeekPlanner({
   const baseline = useRef<PlanBlock[] | null>(null);
   const autoIds = useRef<string[]>([]);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  /**
+   * Si el autoguardado ha escrito algo desde que se abrió el editor. Va en
+   * una caja y no en `savedAt` porque al cerrar hay que saberlo en el acto,
+   * sin esperar a la siguiente pintada.
+   */
+  const dirty = useRef(false);
+  /** El «guarda ya lo pendiente» del editor abierto. */
+  const flushEditor = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!editing) return;
     baseline.current = planOf(profile.id).blocks;
     autoIds.current = [];
+    dirty.current = false;
     setSavedAt(null);
     // Se rearma con cada rato que se abre, no con cada tecla.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,6 +473,7 @@ export function WeekPlanner({
       savePlanBlock(profile.id, block);
     }
 
+    dirty.current = true;
     setSavedAt(Date.now());
   };
 
@@ -411,6 +494,7 @@ export function WeekPlanner({
   const revert = () => {
     if (baseline.current) updatePlan(profile.id, baseline.current);
     autoIds.current = [];
+    dirty.current = false;
     setEditing(null);
     notify({ message: 'Como estaba.', icon: '↩️' });
   };
@@ -512,6 +596,7 @@ export function WeekPlanner({
     // acaba de confirmar, y si no, el rato saldría dos veces.
     const auto = autoIds.current;
     autoIds.current = [];
+    dirty.current = false;
     setEditing(null);
 
     if (!isNew) {
@@ -559,6 +644,7 @@ export function WeekPlanner({
     const before = planOf(profile.id).blocks;
     removePlanBlock(profile.id, block.id);
     autoIds.current = [];
+    dirty.current = false;
     setEditing(null);
     notify({
       message: `«${block.title}» fuera de la semana.`,
@@ -567,6 +653,46 @@ export function WeekPlanner({
       action: { label: 'Deshacer', onClick: undoTo(before) },
     });
     propagate({ remove: [block], what: `quitar «${block.title}»` });
+  };
+
+  /**
+   * Cerrar la hoja sin darle a «Listo»: la X, picar fuera, Escape.
+   *
+   * Con el autoguardado eso ya no pierde nada, pero se quedaba a medias: lo
+   * último tecleado se iba con el reloj y la pregunta de la semana del
+   * hermano sólo salía con «Listo». Ahora se escribe lo pendiente, se dice
+   * «Guardado» con su deshacer —que devuelve la agenda a como estaba al
+   * abrir— y se ofrece al hermano lo que ha quedado, igual que al guardar.
+   */
+  const closeEditor = () => {
+    const open = editing;
+    flushEditor.current?.();
+
+    if (open && dirty.current) {
+      const before = baseline.current;
+      const now = planOf(profile.id).blocks;
+      const saved = open.isNew
+        ? now.filter((item) => autoIds.current.includes(item.id))
+        : now.filter((item) => item.id === open.block.id);
+      const title = saved[0]?.title || open.block.title || 'El rato';
+
+      notify({
+        message: 'Guardado.',
+        icon: '💾',
+        action: before ? { label: 'Deshacer', onClick: undoTo(before) } : undefined,
+      });
+
+      if (saved.length > 0) {
+        propagate({
+          upsert: saved,
+          what: saved.length === 1 ? `«${title}»` : `«${title}» en ${saved.length} días`,
+        });
+      }
+    }
+
+    autoIds.current = [];
+    dirty.current = false;
+    setEditing(null);
   };
 
   /**
@@ -1104,7 +1230,7 @@ export function WeekPlanner({
         <div className="flex flex-wrap items-center gap-2">
           <div
             className="flex gap-1 rounded-full p-1 surf-2"
-            role="tablist"
+            role="group"
             aria-label="Cómo ver la semana"
           >
             {(
@@ -1116,8 +1242,7 @@ export function WeekPlanner({
               <button
                 key={option.id}
                 type="button"
-                role="tab"
-                aria-selected={shown === option.id}
+                aria-pressed={shown === option.id}
                 onClick={() => setView(option.id)}
                 className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold transition
                   ${shown === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
@@ -1175,8 +1300,16 @@ export function WeekPlanner({
             <label className="ml-auto min-w-0 flex-1 sm:max-w-[190px]">
               <span className="sr-only">Buscar un rato en la semana</span>
               <input
+                ref={searchRef}
+                type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape' && query) {
+                    event.preventDefault();
+                    setQuery('');
+                  }
+                }}
                 placeholder="🔎 Buscar en la semana…"
                 className="field w-full py-1.5 text-xs"
               />
@@ -1208,7 +1341,9 @@ export function WeekPlanner({
       {anything && shown === 'completa' && range === 'dia' && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Qué día">
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
-            const count = blocksOfDay(plan, day).length;
+            // Lo que sale en la cuadrícula, prestado de los peques incluido:
+            // si no, el chip decía «3» y al entrar en el día había cinco.
+            const count = blocksOfDay(shownPlan, day).length;
             const active = (soloDay ?? today) === day;
             return (
               <button
@@ -1265,6 +1400,18 @@ export function WeekPlanner({
             <kbd className="font-mono font-bold">Alt</kbd> +{' '}
             <kbd className="font-mono font-bold">D</kbd> repite ·{' '}
             <kbd className="font-mono font-bold">Supr</kbd> quita
+            <br />
+            <kbd className="font-mono font-bold">N</kbd> aparta un rato ·{' '}
+            <kbd className="font-mono font-bold">1</kbd>{' '}
+            <kbd className="font-mono font-bold">2</kbd>{' '}
+            <kbd className="font-mono font-bold">3</kbd> cambian el alto ·{' '}
+            <kbd className="font-mono font-bold">/</kbd> busca
+            {range === 'dia' && (
+              <>
+                {' '}
+                · <kbd className="font-mono font-bold">←→</kbd> cambia de día
+              </>
+            )}
           </p>
         </section>
       )}
@@ -1298,7 +1445,7 @@ export function WeekPlanner({
                   </h3>
 
                   {hoy && (
-                    <span className="chip-accent px-2 py-0.5 text-[10px] uppercase">Hoy</span>
+                    <span className="chip-accent px-2 py-0.5 text-[11px] uppercase">Hoy</span>
                   )}
 
                   <span className="ml-auto text-[11px] tabular-nums t-3">
@@ -1316,7 +1463,6 @@ export function WeekPlanner({
                   <ul className="space-y-1.5">
                     {blocks.map((block) => {
                       const check = checkById.get(block.id);
-                      const status = check?.status ?? 'sinMetrica';
 
                       return (
                         <li key={block.id} className="flex items-stretch gap-1">
@@ -1344,48 +1490,11 @@ export function WeekPlanner({
                               </span>
 
                               <span className="mt-0.5 flex flex-wrap items-center gap-1">
-                                <span className="text-[10px] tabular-nums t-3">
+                                <span className="text-[11px] tabular-nums t-3">
                                   {durationLabel(block.duration)}
                                 </span>
 
-                                {block.companion && (
-                                  <span className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-2">
-                                    <span aria-hidden>{COMPANIONS[block.companion].icon}</span>{' '}
-                                    {COMPANIONS[block.companion].short}
-                                  </span>
-                                )}
-
-                                {block.metricId && !SILENT.has(status) && (
-                                  <span
-                                    className={`rounded-full px-1.5 text-[10px] font-bold ${STATUS_STYLE[status]}`}
-                                    title={check?.text}
-                                  >
-                                    {statusIcon(status, pitch)} {statusShort(status, pitch)}
-                                  </span>
-                                )}
-
-                                {/* Un rato puede alimentar varios hábitos. Al
-                                    pasar por encima se dice qué ha pasado con
-                                    cada uno, que es donde se ve cuál de los
-                                    tres falló. */}
-                                {blockLinks(block).length > 1 && (
-                                  <span
-                                    className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-2"
-                                    title={
-                                      check?.parts
-                                        .map((part) => `${part.metric.icon} ${part.text}`)
-                                        .join('\n') ?? undefined
-                                    }
-                                  >
-                                    🔗 {blockLinks(block).length} hábitos
-                                  </span>
-                                )}
-
-                                {!block.metricId && (
-                                  <span className="rounded-full px-1.5 text-[10px] font-semibold surf-2 t-3">
-                                    sin atar
-                                  </span>
-                                )}
+                                <BlockPills block={block} check={check} pitch={pitch} />
                               </span>
                             </span>
                           </button>
@@ -1441,7 +1550,7 @@ export function WeekPlanner({
                         <span className="min-w-0 flex-1 truncate text-[11px] t-2">
                           <span aria-hidden>{block.icon}</span> {block.title}
                         </span>
-                        <span className="shrink-0 text-[10px] tabular-nums t-3">
+                        <span className="shrink-0 text-[11px] tabular-nums t-3">
                           {durationLabel(block.duration)}
                         </span>
                       </li>
@@ -1575,11 +1684,7 @@ export function WeekPlanner({
           {(['cumplido', 'flojo', 'excedido', 'sinRegistrar', 'futuro'] as PlanStatus[]).map(
             (status) => (
               <span key={status} className="inline-flex items-center gap-1">
-                <span
-                  className={`rounded-full px-1.5 text-[10px] font-bold ${STATUS_STYLE[status]}`}
-                >
-                  {statusIcon(status, pitch)}
-                </span>
+                <StatusPill status={status} pitch={pitch} iconOnly />
                 {statusLabel(status, pitch)}
               </span>
             ),
@@ -1620,10 +1725,14 @@ export function WeekPlanner({
       {editing && (
         <Modal
           title={editing.isNew ? 'Apartar un rato' : 'Editar el rato'}
-          onClose={() => setEditing(null)}
+          onClose={closeEditor}
           size="lg"
         >
           <BlockEditor
+            /* Un editor por rato: abrir otro sin cerrar no puede heredar el
+               borrador ni el reloj del anterior. */
+            key={editing.block.id}
+            flushRef={flushEditor}
             profile={profile}
             block={editing.block}
             isNew={editing.isNew}
@@ -1634,14 +1743,16 @@ export function WeekPlanner({
             onAutoSave={autoSave}
             savedAt={savedAt}
             onRevert={revert}
-            onCancel={() => setEditing(null)}
+            onCancel={closeEditor}
             onDelete={editing.isNew ? undefined : () => remove(editing.block)}
             onCopy={
               editing.isNew
                 ? undefined
                 : () => {
-                    const block = editing.block;
-                    setEditing(null);
+                    // Se copia el rato como ha quedado, no como se abrió.
+                    const id = editing.block.id;
+                    closeEditor();
+                    const block = planOf(profile.id).blocks.find((item) => item.id === id) ?? editing.block;
                     setSheet({ kind: 'block', block });
                   }
             }
@@ -1689,7 +1800,7 @@ function Tile({ value, label, heading }: { value: string; label: string; heading
   return (
     <div className="rounded-xl border p-2 text-center hairline surf-2">
       <p className={`text-lg font-bold tabular-nums t-1 ${heading}`}>{value}</p>
-      <p className="text-[10px] leading-tight t-3">{label}</p>
+      <p className="text-[11px] leading-tight t-3">{label}</p>
     </div>
   );
 }
@@ -1842,7 +1953,7 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
             significa nada: se dice que el partido no ha empezado. */}
         {pitch && (
           <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
-            <span className="text-[9px] font-bold uppercase tracking-[0.2em] t-3">
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] t-3">
               Marcador
             </span>
             {score && score.kept + score.missed > 0 ? (
@@ -1850,17 +1961,17 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
                 {score.kept}–{score.missed}
               </span>
             ) : (
-              <span className="scoreboard rounded-lg border px-3 py-1 font-display text-[10px] uppercase">
+              <span className="scoreboard rounded-lg border px-3 py-1 font-display text-[11px] uppercase">
                 Por jugar
               </span>
             )}
-            <span className="text-[9px] uppercase tracking-wide t-3">Goles · fallos</span>
+            <span className="text-[11px] uppercase tracking-wide t-3">Goles · fallos</span>
           </div>
         )}
       </div>
 
       {pitch && (
-        <p className="relative mt-3 text-[10px] font-semibold uppercase tracking-[0.2em] t-3">
+        <p className="relative mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] t-3">
           ⚪ Hala Madrid · el balón es tu amigo
         </p>
       )}

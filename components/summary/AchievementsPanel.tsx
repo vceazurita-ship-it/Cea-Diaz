@@ -49,7 +49,7 @@ export function AchievementsPanel({ achievements, playful = false }: Achievement
                       style={{ width: `${Math.round(achievement.progress * 100)}%` }}
                     />
                   </span>
-                  <span className="shrink-0 text-[10px] tabular-nums t-3">
+                  <span className="shrink-0 text-[11px] tabular-nums t-3">
                     {Math.round(achievement.progress * 100)} %
                   </span>
                 </div>

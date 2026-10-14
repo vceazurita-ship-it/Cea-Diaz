@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { MetricControl } from '@/components/controls/MetricControl';
 import { PlanHint } from '@/components/controls/PlanHint';
 import { UsualHint } from '@/components/controls/UsualHint';
@@ -10,6 +10,7 @@ import { SportsPanel } from '@/components/SportsPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
+import { prefersReducedMotion, success } from '@/lib/haptics';
 import { isFolded, usualFills, type Habitual, type UsualFill } from '@/lib/habitual';
 import type { PlannedMetric } from '@/lib/planToday';
 import { computeCategoryScore, percent } from '@/lib/scoring';
@@ -50,6 +51,20 @@ interface CategoryCardProps {
   habitual?: Habitual;
   /** Poner de golpe lo de siempre; quien lo llama ofrece deshacerlo. */
   onFillUsual?: (fills: UsualFill[], where: string) => void;
+  /**
+   * Una casilla a la que hay que llevar la vista —se ha tocado su línea en
+   * lo previsto de hoy—. Si es de esta tarjeta, se abre, se baja hasta ella y
+   * se resalta un momento; después se avisa con `onFocused` para olvidarla.
+   */
+  focusMetric?: string | null;
+  onFocused?: () => void;
+  /**
+   * Que se abra porque otra la ha dejado completa: en el panel de los peques
+   * se va de una tarjeta a la siguiente sin tener que buscarla.
+   */
+  requestOpen?: boolean;
+  /** Avisa cuando la tarjeta pasa de tener algo pendiente a estar completa. */
+  onComplete?: () => void;
 }
 
 export function CategoryCard({
@@ -66,6 +81,10 @@ export function CategoryCard({
   planned,
   habitual,
   onFillUsual,
+  focusMetric,
+  onFocused,
+  requestOpen,
+  onComplete,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showWhy, setShowWhy] = useState(false);
@@ -126,14 +145,104 @@ export function CategoryCard({
     return { total: ids.length, done: ids.filter((id) => values[id] !== undefined).length };
   }, [category.metrics, planned, values]);
 
+  /* ------------------------------------------- llevar la vista a una casilla
+   *
+   * Se hace en dos tiempos: primero se abre lo que haga falta —la tarjeta y,
+   * si la casilla es de las plegadas, las poco usadas— y, ya pintado, se baja
+   * hasta ella. Hacerlo de una vez buscaba un elemento que aún no existía.
+   */
+  const sectionRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const ownsFocus = !!focusMetric && category.metrics.some((metric) => metric.id === focusMetric);
+  const targetFolded = ownsFocus && folded.some((metric) => metric.id === focusMetric);
+
+  useEffect(() => {
+    if (!ownsFocus || !focusMetric) return;
+    if (!open) {
+      setOpen(true);
+      return;
+    }
+    if (targetFolded && !showRare) {
+      setShowRare(true);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const target =
+        document.getElementById(`metric-${focusMetric}`) ?? panelRef.current ?? sectionRef.current;
+      target?.scrollIntoView({
+        block: 'center',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      });
+      target?.querySelector<HTMLElement>('button, input, select, textarea')?.focus({ preventScroll: true });
+      setHighlight(focusMetric);
+      onFocused?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [ownsFocus, focusMetric, open, targetFolded, showRare, onFocused]);
+
+  // El resalte dura lo justo para que el ojo lo encuentre.
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = window.setTimeout(() => setHighlight(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [highlight]);
+
+  /* ------------------------------------------------ al completar la tarjeta
+   *
+   * Sólo cuenta lo que se ha tocado aquí dentro: si la tarjeta se completa
+   * porque ha llegado la nube o se ha copiado el día anterior, celebrarlo y
+   * plegarla bajo el dedo sería un susto, no un premio.
+   */
+  const touched = useRef(false);
+  const wasComplete = useRef(complete);
+  const [pop, setPop] = useState(false);
+
+  useEffect(() => {
+    if (complete && !wasComplete.current && touched.current) {
+      success();
+      setPop(true);
+      // A los peques se les pliega y se les abre la siguiente: un paso cada vez.
+      if (kid) setOpen(false);
+      onComplete?.();
+    }
+    wasComplete.current = complete;
+    // Sólo importa el cambio de «a medias» a «completa».
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complete]);
+
+  // La siguiente tarjeta de los peques, abierta y a la vista.
+  useEffect(() => {
+    if (!requestOpen) return;
+    setOpen(true);
+    const frame = window.requestAnimationFrame(() =>
+      sectionRef.current?.scrollIntoView({
+        block: 'nearest',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      }),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [requestOpen]);
+
+  const change = (metricId: string, value: MetricValue | undefined) => {
+    touched.current = true;
+    onChange(metricId, value);
+  };
+
   function renderMetric(metric: Metric) {
     const plannedHere = planned?.[metric.id];
     return (
-      <div key={metric.id}>
+      <div
+        key={metric.id}
+        id={`metric-${metric.id}`}
+        className={`scroll-mt-24 transition-shadow ${
+          highlight === metric.id ? 'rounded-xl ring-2 ring-[var(--accent)]' : ''
+        }`}
+      >
         <MetricControl
           metric={metric}
           value={values[metric.id]}
-          onChange={(value) => onChange(metric.id, value)}
+          onChange={(value) => change(metric.id, value)}
           variant={variant}
         />
         {/* Y debajo, lo que la semana decía de esta casilla; si la semana no
@@ -143,7 +252,7 @@ export function CategoryCard({
             metric={metric}
             planned={plannedHere}
             value={values[metric.id]}
-            onFill={(value) => onChange(metric.id, value)}
+            onFill={(value) => change(metric.id, value)}
             kid={kid}
           />
         ) : (
@@ -151,7 +260,7 @@ export function CategoryCard({
             metric={metric}
             stat={habitual?.stats[metric.id]}
             value={values[metric.id]}
-            onFill={(value) => onChange(metric.id, value)}
+            onFill={(value) => change(metric.id, value)}
             kid={kid}
           />
         )}
@@ -160,7 +269,10 @@ export function CategoryCard({
   }
 
   return (
-    <section className={`relative ${kid ? 'card-kid overflow-hidden' : 'card overflow-hidden'}`}>
+    <section
+      ref={sectionRef}
+      className={`relative scroll-mt-24 ${kid ? 'card-kid overflow-hidden' : 'card overflow-hidden'}`}
+    >
       {/* El hilo de oro rosa que cose la sección de María: aquí también, que
           es donde pasa la mitad del tiempo. */}
       {royal && <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[2px]" />}
@@ -231,7 +343,10 @@ export function CategoryCard({
           )}
 
           <span className="text-right">
-            <span className="block text-sm font-bold tabular-nums t-accent">
+            <span
+              className={`block text-sm font-bold tabular-nums t-accent ${pop ? 'animate-pop' : ''}`}
+              onAnimationEnd={() => setPop(false)}
+            >
               {percent(score.ratio)}
             </span>
             <span className="block text-[11px] t-3">
@@ -256,13 +371,16 @@ export function CategoryCard({
       </div>
 
       {open && (
-        <div id={panelId} className="animate-floatUp">
+        <div id={panelId} ref={panelRef} className="animate-floatUp">
           {/* Todo lo que en esta tarjeta se contesta siempre igual, de un toque. */}
           {fills.length > 1 && onFillUsual && (
             <div className="flex items-center gap-2 px-4 pt-3">
               <button
                 type="button"
-                onClick={() => onFillUsual(fills, category.label)}
+                onClick={() => {
+                  touched.current = true;
+                  onFillUsual(fills, category.label);
+                }}
                 className="usual-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5
                   text-xs font-semibold t-1"
                 title={fills.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
@@ -282,7 +400,7 @@ export function CategoryCard({
               <SportsPanel
                 category={category}
                 values={values}
-                onChange={onChange}
+                onChange={change}
                 variant={variant}
                 skin={skin}
                 hints={hints}

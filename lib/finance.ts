@@ -7,6 +7,8 @@ import type {
   SpendTier,
 } from '@/types';
 
+import { monthLabel, monthTotals, normalizeClosings } from '@/lib/financeMonths';
+
 /* =========================================================================
  *  Economía: las cuentas de Víctor.
  *
@@ -350,6 +352,7 @@ export function emptyBook(): FinanceBook {
     holidays: 0,
     ledgers: { ingresos: [], gastos: [], cuentas: [], inversiones: [], cobros: [], pagos: [] },
     history: [],
+    closings: [],
     goals: defaultGoals(),
     updatedAt: NEVER,
   };
@@ -1015,6 +1018,7 @@ function normalize(value: unknown): FinanceBook {
     holidays: Number.isFinite(holidays) ? holidays : 0,
     ledgers,
     history,
+    closings: normalizeClosings(raw.closings),
     goals: {
       withdrawal: Number.isFinite(withdrawal) ? Math.max(1, Math.min(10, withdrawal)) : 4,
       cushion: Number.isFinite(cushion) ? Math.max(1, Math.min(36, Math.round(cushion))) : 12,
@@ -1171,6 +1175,15 @@ export function bookAsText(book: FinanceBook): string {
     `Patrimonio: ${euros(netWorth(book))}`,
     runway === null ? 'Autonomía: sin gastos apuntados' : `Autonomía: ${runwayLabel(runway)}`,
   );
+
+  const closings = book.closings ?? [];
+  if (closings.length > 0) lines.push('', '🗓️ MESES CERRADOS');
+  for (const month of closings) {
+    const totals = monthTotals(month);
+    lines.push(
+      `  ${monthLabel(month.month)}: empieza ${euros(month.opening, 2)}, entra ${euros(totals.income, 2)}, sale ${euros(totals.expense, 2)}, acaba ${euros(totals.closing, 2)}`,
+    );
+  }
 
   return lines.join('\n');
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { hashSeed } from '@/lib/challenges';
 import { barajar, makeRand } from '@/lib/temario';
+import { feedbackClass } from '@/lib/ui/tone';
 import type { GameQuestion, Juego } from '@/types';
 
 /* =========================================================================
@@ -65,7 +66,7 @@ function Comprobar({ disabled, onClick }: { disabled: boolean; onClick: () => vo
 
 /** El tono de una ficha ya resuelta. */
 const tono = (chosen: string | null, bien: boolean | null) =>
-  !chosen || bien === null ? 'hairline surf-1 hover-soft t-1' : bien ? 'border-emerald-400/60 bg-emerald-400/15 t-1' : 'border-rose-400/60 bg-rose-400/15 t-1';
+  `${feedbackClass(!chosen ? null : bien, 'hairline surf-1 hover-soft')} t-1`;
 
 /* ------------------------------------------------------------ escribir */
 
@@ -87,7 +88,7 @@ function EscribeNumeros({ question, chosen, onAnswer }: JuegoProps) {
   return (
     <div className="space-y-3">
       <div
-        className={`flex min-h-[56px] items-center justify-end rounded-xl border px-4 font-display text-3xl font-black tabular-nums ${chosen ? (acierto ? 'border-emerald-400/60 bg-emerald-400/15' : 'border-rose-400/60 bg-rose-400/15') : 'hairline surf-1'} t-1`}
+        className={`flex min-h-[56px] items-center justify-end rounded-xl border px-4 font-display text-3xl font-black tabular-nums ${feedbackClass(chosen ? acierto : null)} t-1`}
         aria-live="polite"
       >
         {bonito || <span className="t-3">…</span>}
@@ -160,7 +161,7 @@ function EscribeLetras({ question, chosen, onAnswer }: JuegoProps) {
   return (
     <div className="space-y-3">
       {/* Lo escrito hasta ahora: se toca una letra para devolverla. */}
-      <div className={`flex min-h-[64px] flex-wrap items-center gap-1 rounded-xl border p-2 ${chosen ? (acierto ? 'border-emerald-400/60 bg-emerald-400/10' : 'border-rose-400/60 bg-rose-400/10') : 'hairline surf-1'}`} aria-live="polite">
+      <div className={`flex min-h-[64px] flex-wrap items-center gap-1 rounded-xl border p-2 ${feedbackClass(chosen ? acierto : null)}`} aria-live="polite">
         {usadas.length === 0 && <span className="px-2 text-sm t-3">Toca las letras para escribirla…</span>}
         {usadas.map((i, pos) => (
           <Ficha key={`${i}-${pos}`} letra={fichas[i]} onClick={chosen ? undefined : () => setUsadas((u) => u.filter((_, k) => k !== pos))} bien={chosen ? fichas[i] === ok.toLowerCase()[pos] : null} />
@@ -203,7 +204,7 @@ function Ordena({ question, chosen, juego, onAnswer }: JuegoProps & { juego: Ext
 
   return (
     <div className="space-y-3">
-      <div className={`min-h-[56px] rounded-xl border p-2 ${chosen ? (acierto ? 'border-emerald-400/60 bg-emerald-400/10' : 'border-rose-400/60 bg-rose-400/10') : 'hairline surf-1'}`}>
+      <div className={`min-h-[56px] rounded-xl border p-2 ${feedbackClass(chosen ? acierto : null)}`}>
         <p className="mb-1 text-[10px] font-black uppercase tracking-wider t-3">Tu orden</p>
         <ol className="flex flex-wrap gap-1.5">
           {puestos.length === 0 && <li className="text-sm t-3">Toca las fichas de abajo en orden…</li>}

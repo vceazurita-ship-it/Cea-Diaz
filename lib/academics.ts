@@ -47,6 +47,27 @@ export const GRADE_COLOR: Record<Grade, string> = {
   SB: '#0ea5e9',
 };
 
+/*
+ * GRADE_COLOR es para rellenar (una celda, una barra). Para escribir con él
+ * hace falta otro tono: el amarillo del «bien» sobre papel no se lee. Se
+ * mezcla con el color del texto, así que de día sale más oscuro y de noche
+ * más claro, y se lee en los dos.
+ */
+export const GRADE_TEXT: Record<Grade, string> = {
+  IN: 'color-mix(in srgb, #ef4444 62%, var(--text))',
+  SU: 'color-mix(in srgb, #f97316 55%, var(--text))',
+  BI: 'color-mix(in srgb, #eab308 45%, var(--text))',
+  NT: 'color-mix(in srgb, #22c55e 50%, var(--text))',
+  SB: 'color-mix(in srgb, #0ea5e9 55%, var(--text))',
+};
+
+/** El texto encima de una celda pintada con GRADE_COLOR: todos son claros. */
+export const GRADE_ON_FILL = '#0b0f14';
+
+/** Relleno y texto para lo que aún no tiene nota. */
+export const NO_GRADE_COLOR = '#94a3b8';
+export const NO_GRADE_TEXT = 'var(--text-3)';
+
 /** De la palabra entera a la sigla: los boletines usan las dos. */
 export function gradeOf(text: string): Grade | null {
   const clean = text

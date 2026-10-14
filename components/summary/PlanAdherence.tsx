@@ -43,6 +43,10 @@ interface PlanAdherenceProps {
   skin: ProfileSkin;
   kid: boolean;
   headingClass: string;
+  /** Si el periodo es el que se está viviendo; si no, se rotula con su nombre. */
+  isCurrent: boolean;
+  /** Cómo se llama el periodo mirado: «6 oct – 12 oct», «Septiembre 2026». */
+  periodLabel: string;
   /** Lleva a la agenda, que es donde esto se arregla. */
   onOpenPlan?: () => void;
 }
@@ -55,6 +59,8 @@ export function PlanAdherence({
   skin,
   kid,
   headingClass,
+  isCurrent,
+  periodLabel,
   onOpenPlan,
 }: PlanAdherenceProps) {
   const plan = useWeekPlan(profile.id);
@@ -113,9 +119,12 @@ export function PlanAdherence({
     <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
       <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className={`${headingClass} mb-0`}>Lo planificado, ¿pasó?</h3>
+        {/* «Esta semana» sólo cuando lo es: repasando la de hace un mes, el
+            rótulo decía lo mismo y parecía que se hablaba de la de ahora. */}
         <span className="text-[11px] t-3">
-          {range === 'week' ? 'esta semana' : 'este mes'} · {data.blocks} {theme.blockWords},{' '}
-          {data.linked} atados a un hábito
+          {isCurrent ? (range === 'week' ? 'esta semana' : 'este mes') : periodLabel} ·{' '}
+          {data.blocks} {data.blocks === 1 ? theme.blockWord : theme.blockWords}, {data.linked}{' '}
+          atados a un hábito
         </span>
         {onOpenPlan && (
           <button
@@ -131,7 +140,7 @@ export function PlanAdherence({
       {data.judged === 0 ? (
         <p className="text-sm leading-relaxed t-3">
           {data.linked === 0
-            ? 'Ningún rato de la semana está atado a un hábito, así que no hay nada que comprobar. Átalos desde la semana y esto empezará a decir algo.'
+            ? `Nada de la semana tipo está atado a un hábito, así que no hay nada que comprobar. Ata tus ${theme.blockWords} desde la semana y esto empezará a decir algo.`
             : 'Todavía no ha pasado ningún día del periodo con algo previsto. Se irá midiendo según avance.'}
         </p>
       ) : (
@@ -142,14 +151,15 @@ export function PlanAdherence({
                 {Math.round(ratio * 100)}
                 <span className="text-xs">%</span>
               </span>
-              <span className="text-[10px] uppercase tracking-wide t-3">cumplido</span>
+              <span className="text-[11px] uppercase tracking-wide t-3">cumplido</span>
             </ProgressRing>
 
             <div className="min-w-[190px] flex-1 space-y-2">
               <p className="text-sm leading-relaxed t-2">
-                De <strong className="tabular-nums t-1">{data.judged}</strong> ratos previstos que
-                ya han pasado, <strong className="tabular-nums t-1">{data.kept}</strong> se
-                cumplieron.
+                De <strong className="tabular-nums t-1">{data.judged}</strong>{' '}
+                {data.judged === 1 ? theme.blockWord : theme.blockWords} que ya tocaban,{' '}
+                <strong className="tabular-nums t-1">{data.kept}</strong>{' '}
+                {data.kept === 1 ? 'se cumplió' : 'se cumplieron'}.
               </p>
 
               <div className="flex flex-wrap gap-1.5 text-xs">
@@ -196,8 +206,8 @@ export function PlanAdherence({
                       <div className="w-full" />
                     )}
                   </div>
-                  <span className="text-[10px] font-bold uppercase t-3">{DAY_SHORT[row.day]}</span>
-                  <span className="text-[9px] tabular-nums t-3">
+                  <span className="text-[11px] font-bold uppercase t-3">{DAY_SHORT[row.day]}</span>
+                  <span className="text-[11px] tabular-nums t-3">
                     {row.judged > 0 ? `${row.kept}/${row.judged}` : '—'}
                   </span>
                 </div>

@@ -67,7 +67,9 @@ export function DayNoteCard({ profile, date, store, kid, filled }: DayNoteCardPr
               ? '⏳ Guardando…'
               : store.status === 'error'
                 ? '⚠️ No se ha podido guardar en este navegador.'
-                : `✓ Guardado aquí · ${filled} ${filled === 1 ? 'registro' : 'registros'}${nube}`}
+                : // Sin «Guardado»: con la nota a medio escribir aún no lo
+                  // estaba. De la nota ya da cuenta el propio campo.
+                  `${filled} ${filled === 1 ? 'registro' : 'registros'} en este aparato${nube}`}
         </p>
 
         {entry && (

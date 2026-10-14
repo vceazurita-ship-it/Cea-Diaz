@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import {
@@ -249,7 +250,7 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
       {problem && (
         <div
           role="alert"
-          className="rounded-xl border border-red-400/50 bg-red-400/10 p-3 text-xs leading-relaxed t-2"
+          className="banner banner-danger t-2"
         >
           <p>⚠️ {problem.message}</p>
           {problem.retry && (
@@ -263,7 +264,7 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
       {status === null ? (
         <p className="text-xs t-3">Mirando la conexión…</p>
       ) : !status.configured ? (
-        <p className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-xs leading-relaxed t-2">
+        <p className="banner banner-warn t-2">
           ⚙️ {status.reason ?? 'Footbar no está disponible ahora mismo.'}
         </p>
       ) : (
@@ -304,7 +305,7 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
                     <button
                       type="button"
                       onClick={() => bajarTodo(kid.id, kid.name)}
-                      className="mt-1.5 w-full rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1.5 text-left text-[11px] font-bold leading-snug t-1"
+                      className="mt-1.5 w-full rounded-lg border border-info bg-info-soft px-2 py-1.5 text-left text-[11px] font-bold leading-snug t-1"
                     >
                       📥 Bajar todo lo que se pueda ahora
                       <span className="block font-normal t-3">
@@ -355,14 +356,12 @@ export function FootbarSettings({ store }: { store: HabitStore }) {
 /** Cómo va el historial de un peque: una barra con las que ya están en casa. */
 function Historial({ tengo, total, completo }: { tengo: number; total?: number; completo: boolean }) {
   if (completo || (total !== undefined && tengo >= total)) {
-    return <p className="mt-0.5 text-[11px] font-bold text-emerald-600">📚 Historial al día: {tengo} sesiones.</p>;
+    return <p className="mt-0.5 text-[11px] font-bold t-ok">📚 Historial al día: {tengo} sesiones.</p>;
   }
   const parte = total ? Math.min(1, tengo / total) : 0;
   return (
     <div className="mt-1">
-      <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
-        <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.round(parte * 100)}%` }} />
-      </div>
+      <ProgressBar ratio={parte} color="var(--info)" ariaLabel="Historial bajado de Footbar" />
       <p className="mt-0.5 text-[11px] leading-snug t-3">
         📚 Historial: {tengo}
         {total ? ` de ${total}` : ''} sesiones. El resto entra solo, poco a poco, cada noche.
@@ -378,7 +377,7 @@ function Cupo({ usadas, libres, cortadoHasta }: { usadas: number; libres: number
       new Date(cortadoHasta),
     );
     return (
-      <p className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed t-2">
+      <p className="banner banner-warn p-2.5 text-[11px] t-2">
         ⏸️ Footbar ha cortado por esta semana. Vuelve a dejar el <b>{cuando}</b> y entonces sigue sola, sin perder ninguna.
       </p>
     );

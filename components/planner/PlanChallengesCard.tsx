@@ -86,7 +86,7 @@ export function PlanChallengesCard({
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-baseline gap-x-2 text-sm font-bold t-1">
                   <span className="truncate">{challenge.title}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide t-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide t-3">
                     {TIER_LABEL[challenge.tier]}
                   </span>
                 </p>
@@ -102,7 +102,7 @@ export function PlanChallengesCard({
                   {[0, 1, 2, 3, 4, 5, 6].map((day) => (
                     <span
                       key={day}
-                      className={`grid h-5 w-5 place-items-center rounded text-[9px] font-bold
+                      className={`grid h-5 w-5 place-items-center rounded text-[11px] font-bold
                         ${
                           link.days.includes(day)
                             ? 'bg-accent t-on-accent'

@@ -39,6 +39,7 @@ import {
 import { manga } from '@/components/games/mangaFont';
 import { colorDe, kitDeCasa } from '@/components/team/liga3d/colores';
 import type { AccionId, Partido3D } from '@/components/team/liga3d/Partido3D';
+import { prefersReducedMotion } from '@/lib/haptics';
 import { playCue } from '@/lib/sound';
 import type { CromoReward, DateKey, Lineup, ProfileId, UnlockedReward } from '@/types';
 
@@ -81,7 +82,10 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
   const [jugando, setJugando] = useState<{ oficial: boolean; rival: Rival; semilla: string; jornada: number } | null>(null);
   const [amistosos, setAmistosos] = useState(0);
 
-  const rival = rivalDe(liga.jornada, liga.temporada);
+  // Memorizado: `rivalDe` da un objeto nuevo en cada llamada, y el
+  // escaparate en 3D, que depende de él, se desmontaba y volvía a montar el
+  // WebGL entero en cada pintado.
+  const rival = useMemo(() => rivalDe(liga.jornada, liga.temporada), [liga.jornada, liga.temporada]);
   const oficialHoy = liga.ultima !== date;
   const equipo = lineup.teamName?.trim() || `${name} F.C.`;
   const colores = useMemo(() => kitDeCasa(profileId, rival), [profileId, rival]);
@@ -126,7 +130,7 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
                   ${estado === 'ahora' ? 'bg-amber-300/20 ring-amber-300' : estado === 'gana' ? 'bg-emerald-500/25 ring-emerald-400/60' : estado === 'empata' ? 'bg-slate-400/20 ring-slate-300/40' : estado === 'pierde' ? 'bg-rose-500/20 ring-rose-400/50' : 'bg-white/5 ring-white/10'}`}
               >
                 <span className="text-base leading-none">{r.escudo}</span>
-                <span className="mt-0.5 text-[9px] font-black leading-none">{res ? `${res.gf}-${res.gc}` : i + 1}</span>
+                <span className="mt-0.5 text-[10px] font-black tabular-nums leading-none">{res ? `${res.gf}-${res.gc}` : i + 1}</span>
               </li>
             );
           })}
@@ -147,7 +151,7 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
             type="button"
             onClick={() => setVerTabla((v) => !v)}
             aria-expanded={verTabla}
-            className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 ring-1 ring-white/20"
+            className="tap-area shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 ring-1 ring-white/20"
           >
             📊 {verTabla ? 'Cerrar' : 'Clasificación'}
           </button>
@@ -369,7 +373,7 @@ function Clasificacion({ filas, oscura, antes }: { filas: Fila[]; oscura?: boole
   return (
     <table className={`w-full border-collapse text-[11px] ${texto}`}>
       <thead>
-        <tr className={`text-[9px] font-black uppercase tracking-wider ${suave}`}>
+        <tr className={`text-[11px] font-black uppercase ${suave}`}>
           <th className="w-5 py-1 text-left">#</th>
           <th className="py-1 text-left">Equipo</th>
           <th className="w-6 py-1 text-center">PJ</th>
@@ -390,7 +394,7 @@ function Clasificacion({ filas, oscura, antes }: { filas: Fila[]; oscura?: boole
             >
               <td className="rounded-l-lg py-1 pl-1 tabular-nums">
                 {f.puesto === 1 ? '🏆' : f.puesto}
-                {sube !== 0 && <span className={`ml-0.5 text-[9px] ${sube > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{sube > 0 ? '▲' : '▼'}</span>}
+                {sube !== 0 && <span className={`ml-0.5 text-[10px] ${sube > 0 ? 't-ok' : 't-danger'}`} aria-label={sube > 0 ? 'sube' : 'baja'}>{sube > 0 ? '▲' : '▼'}</span>}
               </td>
               <td className="py-1">
                 <span className="flex items-center gap-1.5">
@@ -429,7 +433,7 @@ function Pichichi({ liga, plantilla, oscura }: { liga: Liga; plantilla: Map<stri
   if (!top.length) return null;
   return (
     <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${oscura ? 'text-white' : 't-1'}`}>
-      <span className={`text-[9px] font-black uppercase tracking-wider ${oscura ? 'text-amber-300' : 't-3'}`}>⚽ Goleadores</span>
+      <span className={`text-[11px] font-black uppercase tracking-wide ${oscura ? 'text-amber-300' : 't-3'}`}>⚽ Goleadores</span>
       {top.map(({ cromo, goles }, i) => (
         <span key={cromo.id} className={`flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 ${oscura ? 'bg-white/10' : 'surf-2'}`}>
           <CromoPortrait cromo={cromo} size="xs" round />
@@ -444,7 +448,7 @@ function Pichichi({ liga, plantilla, oscura }: { liga: Liga; plantilla: Map<stri
 function Dato({ titulo, valor, grande }: { titulo: string; valor: number | string; grande?: boolean }) {
   return (
     <div className="rounded-xl surf-2 px-1 py-1.5">
-      <p className="text-[9px] font-black uppercase tracking-[0.12em] t-3">{titulo}</p>
+      <p className="text-[11px] font-black uppercase tracking-wide t-3">{titulo}</p>
       <p className={`font-black leading-tight ${grande ? 'text-2xl text-amber-500' : 'text-lg'}`}>{valor}</p>
     </div>
   );
@@ -465,7 +469,7 @@ function Comparar({ once, rival }: { once: Once; rival: Rival }) {
           <span className="h-2 overflow-hidden rounded-full surf-2">
             <span className="float-right block h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(8, (a - 50) * 2)}%` }} />
           </span>
-          <span className="text-center text-[9px] uppercase tracking-wide t-3">{k}</span>
+          <span className="text-center text-[11px] uppercase t-3">{k}</span>
           <span className="h-2 overflow-hidden rounded-full surf-2">
             <span className="block h-full rounded-full bg-rose-500" style={{ width: `${Math.max(8, (b - 50) * 2)}%` }} />
           </span>
@@ -547,20 +551,20 @@ function Ficha({ j, brilla, apagada }: { j: Jugador; brilla?: boolean; apagada?:
     >
       <div className={`relative rounded-full ring-2 ${brilla ? 'ring-amber-300 shadow-[0_0_16px_#fbbf24]' : j.fuera ? 'ring-amber-500' : 'ring-white/80'}`}>
         <CromoPortrait cromo={j.cromo} size="xs" round />
-        <span className="absolute -bottom-1 -right-2 rounded-md bg-[#0b1220] px-1 text-[9px] font-black leading-tight text-amber-300 ring-1 ring-white/30">
+        <span className="absolute -bottom-1 -right-2 rounded-md bg-[#0b1220] px-1 text-[10px] font-black tabular-nums leading-tight text-amber-300 ring-1 ring-white/30">
           {j.media}
         </span>
         {j.capitan && (
-          <span className="absolute -left-1.5 -top-1 grid h-4 w-4 place-items-center rounded-full bg-amber-300 text-[8px] font-black text-[#241a14]">
+          <span className="absolute -left-1.5 -top-1 grid h-5 w-5 place-items-center rounded-full bg-amber-300 text-[11px] font-black leading-none text-[#241a14]">
             C
           </span>
         )}
       </div>
-      <span className="mt-0.5 max-w-full truncate rounded bg-black/55 px-1 text-[9px] font-bold leading-tight text-white">
+      <span className="mt-0.5 max-w-full truncate rounded bg-black/55 px-1 text-[11px] font-bold leading-tight text-white">
         {corto(j.cromo.name)}
       </span>
       {j.quimica > 0 && (
-        <span className="text-[8px] leading-none text-emerald-200" aria-label={`química ${j.quimica}`}>
+        <span className="text-[10px] leading-none text-emerald-200" aria-label={`química ${j.quimica}`}>
           {'●'.repeat(j.quimica)}
         </span>
       )}
@@ -918,7 +922,7 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
         {(fase === 'jugada' || fase === 'pulso' || fase === 'accion') && jugada && (
           <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center sm:inset-x-3 sm:bottom-3">
             <p className="max-w-full animate-floatUp rounded-xl bg-[#0b1220]/85 px-3 py-1.5 text-center text-[12px] font-bold leading-snug text-white shadow-lg ring-1 ring-white/10 backdrop-blur sm:text-[13px]">
-              <span className={`mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${jugada.tipo === 'ataque' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+              <span className={`mr-1.5 rounded px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${jugada.tipo === 'ataque' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
                 {jugada.tipo === 'ataque' ? 'Atacas' : 'Defiendes'}
               </span>
               {fase === 'pulso' && elegida
@@ -948,7 +952,7 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
         {fase === 'previa' && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-10 text-white">
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-300">{oficial ? 'Partido de liga' : 'Amistoso'}</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-amber-300">{oficial ? 'Partido de liga' : 'Amistoso'}</p>
               <p className="text-[12px] font-bold text-white/85">
                 <span className="text-emerald-300">━</span> líneas verdes: química entre vecinos del mismo club
               </p>
@@ -1080,7 +1084,7 @@ function Partido({ profileId, once, rival, semilla, equipo, tecnicas, oficial, o
                     </span>
                     <span className="rounded-xl px-2 py-1 text-center text-[11px] font-black leading-tight text-white" style={{ background: color }}>
                       {Math.round(p * 100)}%
-                      <span className="block text-[9px] font-bold opacity-90">{nivel}</span>
+                      <span className="block text-[11px] font-bold opacity-90">{nivel}</span>
                     </span>
                   </span>
                 </button>
@@ -1242,10 +1246,13 @@ function Pulso({
 
   useEffect(() => {
     const t0 = performance.now();
+    // Es un juego de reflejos y no se quita; con «reducir movimiento» la
+    // aguja va más despacio, que se siga con la vista sin marear.
+    const periodo = prefersReducedMotion() ? PERIODO_PULSO * 1.6 : PERIODO_PULSO;
     let raf = 0;
     const bucle = (t: number) => {
       if (parado.current) return;
-      const k = ((t - t0) / PERIODO_PULSO) % 2;
+      const k = ((t - t0) / periodo) % 2;
       pos.current = k < 1 ? k : 2 - k;
       if (aguja.current) aguja.current.style.left = `${pos.current * 100}%`;
       raf = requestAnimationFrame(bucle);

@@ -95,7 +95,7 @@ export function DayChips({
             >
               <span>{DAY_SHORT[day]}</span>
               {counts && (
-                <span className={`text-[9px] font-semibold tabular-nums ${on ? '' : 't-3'}`}>
+                <span className={`text-[11px] font-semibold tabular-nums ${on ? '' : 't-3'}`}>
                   {load > 0 ? load : '—'}
                 </span>
               )}

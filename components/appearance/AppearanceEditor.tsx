@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 
 import { useAppearance } from '@/hooks/useAppearance';
 import { photoMaxSide, slotKey, type PhotoSlot, type Slot } from '@/lib/appearance';
@@ -102,6 +103,17 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
       setBusy(null);
     }
   };
+
+  // Cerrar el editor con la prueba sonando la dejaba sonar sola por detrás.
+  // Sólo se corta la de prueba: la del perfil, si sonaba, no es cosa de aquí.
+  const previewing = useRef(false);
+  previewing.current = preview;
+  useEffect(
+    () => () => {
+      if (previewing.current) stopAnthem();
+    },
+    [],
+  );
 
   /** Escucha la sintonía tal y como sonará al entrar en el perfil. */
   const audition = () => {
@@ -208,19 +220,20 @@ export function AppearanceEditor({ profile, onClose }: AppearanceEditorProps) {
               </button>
             )}
 
+            {/* Volver a lo original borra la que se subió: se pregunta antes. */}
             {custom('anthem') && (
-              <button
-                type="button"
+              <ConfirmButton
+                question="¿Quitar la canción subida?"
+                confirmLabel="Sí, quitarla"
                 disabled={busy === 'anthem'}
-                onClick={() => {
+                onConfirm={() => {
                   stopAnthem();
                   setPreview(false);
                   void run('anthem', () => reset(profile.id, 'anthem'), 'Sintonía restaurada.');
                 }}
-                className="btn-ghost px-3 py-1.5 text-xs"
               >
                 ↩️ Volver a la original
-              </button>
+              </ConfirmButton>
             )}
           </div>
         </section>
@@ -321,14 +334,14 @@ function PhotoField({
             onPick={onPick}
           />
           {customName && (
-            <button
-              type="button"
+            <ConfirmButton
+              question="¿Quitar la foto subida?"
+              confirmLabel="Sí, quitarla"
               disabled={busy}
-              onClick={onReset}
-              className="btn-ghost px-3 py-1.5 text-xs"
+              onConfirm={onReset}
             >
               ↩️ Original
-            </button>
+            </ConfirmButton>
           )}
         </div>
       </div>

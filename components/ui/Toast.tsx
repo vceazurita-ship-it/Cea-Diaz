@@ -64,7 +64,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex flex-col items-center
                    gap-2 p-4"
-        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        // Por encima de la barra de pestañas del móvil, que publica su alto en
+        // `--tabbar-h`: tapaba justo el «Deshacer» que se acababa de ofrecer.
+        style={{
+          paddingBottom:
+            'max(calc(var(--tabbar-h, 0px) + 0.75rem), calc(env(safe-area-inset-bottom) + 0.75rem))',
+        }}
         aria-live="polite"
         aria-atomic="true"
       >

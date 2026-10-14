@@ -1,0 +1,56 @@
+# Comprobación de cada cambio antes de que Vercel lo publique.
+#
+# Vercel despliega solo al empujar a main, así que esto no frena nada: avisa.
+# Si una subida rompe los tipos, el lint o la compilación, GitHub lo marca en
+# rojo en el commit y en la petición de cambios, y se ve antes de abrir la app
+# en el móvil y encontrársela en blanco.
+#
+# Es gratis: el repositorio es público y los minutos de Actions no cuentan.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Una subida nueva cancela la comprobación anterior de la misma rama: sólo
+# importa el último estado.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  comprobar:
+    name: Tipos, lint y compilación
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # La nube es opcional y el cliente se crea al usarse, no al compilar:
+      # con valores de mentira la compilación sale igual que en Vercel sin
+      # tocar ninguna cuenta. Ningún secreto de verdad entra aquí.
+      NEXT_PUBLIC_SUPABASE_URL: https://ejemplo.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: clave-de-mentira-para-compilar
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (tsc)
+        run: npm run typecheck
+
+      - name: Lint (next lint)
+        run: npm run lint
+
+      - name: Compilar (next build)
+        run: npm run build

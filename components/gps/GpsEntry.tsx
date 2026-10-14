@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { GpsPhotos } from '@/components/gps/GpsPhotos';
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import {
   GPS_FIELDS,
   KIND_META,
@@ -44,6 +45,8 @@ interface GpsEntryProps {
   name: string;
   kid: boolean;
   onSave: (sessions: GpsSession[]) => void;
+  /** Dentro de una hoja modal: sin tarjeta ni título propio, que ya los pone la hoja. */
+  plain?: boolean;
 }
 
 const MODES = [
@@ -53,16 +56,17 @@ const MODES = [
 ] as const;
 
 type Mode = (typeof MODES)[number]['id'];
+const esMode = oneOf(MODES.map((option) => option.id));
 
-export function GpsEntry({ profileId, name, kid, onSave }: GpsEntryProps) {
+export function GpsEntry({ profileId, name, kid, onSave, plain = false }: GpsEntryProps) {
   // La foto va primero porque es la que menos pide: la captura ya existe,
-  // sólo hay que adjuntarla.
-  const [mode, setMode] = useState<Mode>('foto');
+  // sólo hay que adjuntarla. Luego, cada aparato recuerda el camino que usa.
+  const [mode, setMode] = useRemembered<Mode>('gps:entrada', 'foto', esMode);
 
   return (
-    <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
+    <section className={plain ? '' : `${kid ? 'card-kid' : 'card'} p-4`}>
       <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-bold t-1">📥 Apuntar una sesión</h3>
+        {!plain && <h3 className="text-sm font-bold t-1">📥 Apuntar una sesión</h3>}
         <span className="text-[11px] t-3">
           Los números de {TRACKER}, tal y como los enseña la aplicación
         </span>
@@ -74,7 +78,7 @@ export function GpsEntry({ profileId, name, kid, onSave }: GpsEntryProps) {
               type="button"
               onClick={() => setMode(option.id)}
               aria-pressed={mode === option.id}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors
+              className={`tap-area rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors
                 ${mode === option.id ? 'bg-accent t-on-accent' : 't-3 hover-soft'}`}
             >
               {option.label}
@@ -83,13 +87,18 @@ export function GpsEntry({ profileId, name, kid, onSave }: GpsEntryProps) {
         </div>
       </header>
 
-      {mode === 'foto' ? (
+      {/* Los tres caminos se quedan montados y sólo se esconde el que no se
+          usa: cambiar de pestaña a media lectura de fotos no puede tirar lo
+          que ya se había leído, ni lo tecleado a mano. */}
+      <div hidden={mode !== 'foto'}>
         <GpsPhotos profileId={profileId} name={name} onSave={onSave} />
-      ) : mode === 'pegar' ? (
+      </div>
+      <div hidden={mode !== 'pegar'}>
         <PasteBox profileId={profileId} name={name} onSave={onSave} />
-      ) : (
+      </div>
+      <div hidden={mode !== 'mano'}>
         <ByHand profileId={profileId} onSave={onSave} />
-      )}
+      </div>
     </section>
   );
 }

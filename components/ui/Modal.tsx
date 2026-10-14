@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useDialog } from '@/components/ui/useDialog';
+import { prefersReducedMotion } from '@/lib/haptics';
 
 interface ModalProps {
   title: string;
@@ -22,9 +24,6 @@ const WIDTH: Record<NonNullable<ModalProps['size']>, string> = {
   lg: 'sm:max-w-2xl',
 };
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 /**
  * Diálogo modal accesible: se cierra con Escape, atrapa el tabulador dentro
  * del panel, bloquea el desplazamiento del fondo y devuelve el foco a donde
@@ -33,7 +32,6 @@ const FOCUSABLE =
 export function Modal({ title, onClose, children, size = 'md', dismissible = true }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);
-  const restoreTo = useRef<HTMLElement | null>(null);
 
   // Lo que mide la cabecera se publica como variable: lo que dentro quiera
   // pegarse debajo de ella (la tira de apartados de Ajustes) la usa como
@@ -49,75 +47,82 @@ export function Modal({ title, onClose, children, size = 'md', dismissible = tru
     return () => observer.disconnect();
   }, []);
 
-  // Foco inicial dentro del panel + devolución al cerrar.
-  useEffect(() => {
-    restoreTo.current = document.activeElement as HTMLElement | null;
-    const first = panel.current?.querySelector<HTMLElement>(FOCUSABLE);
-    // Sin nada enfocable dentro, el foco va al propio panel: así Escape y el
-    // atrapado del tabulador siguen funcionando.
-    (first ?? panel.current)?.focus();
-    return () => restoreTo.current?.focus?.();
-  }, []);
+  // El foco, el tabulador y el fondo quieto: lo de todos los diálogos.
+  const onKeyDown = useDialog(panel, onClose);
 
-  // El fondo no debe desplazarse mientras el diálogo está abierto.
-  //
-  // `overflow: hidden` a secas no basta en Safari de iPhone: la página sigue
-  // arrastrándose por detrás de la hoja y se vuelve al principio al cerrar.
-  // Se fija el <body> a la posición exacta en que estaba y se restituye el
-  // desplazamiento al salir, que es lo único que funciona en los dos sitios.
-  useEffect(() => {
-    const { body } = document;
-    const scrollY = window.scrollY;
-    const previous = {
-      position: body.style.position,
-      top: body.style.top,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    };
+  /**
+   * Un toque fuera de la hoja la cierra, pero sólo si empezó fuera. Arrastrar
+   * un deslizador y soltar el dedo ya sobre el fondo contaba como un toque en
+   * el fondo, y la hoja se cerraba con todo lo que se estaba poniendo.
+   */
+  const pressedOutside = useRef(false);
 
-    body.style.position = 'fixed';
-    body.style.top = `-${scrollY}px`;
-    body.style.width = '100%';
-    body.style.overflow = 'hidden';
+  /* ------------------------------------------- deslizar hacia abajo (móvil)
+   *
+   * La hoja del móvil tiene asidero, y un asidero invita a tirar de él. Se
+   * arrastra desde la cabecera —no desde el contenido, que se desplaza— y se
+   * cierra si baja lo bastante o con un tirón rápido; si no, vuelve a su sitio.
+   */
+  const drag = useRef<{ y: number; t: number; dy: number } | null>(null);
 
-    return () => {
-      Object.assign(body.style, previous);
-      window.scrollTo(0, scrollY);
-    };
-  }, []);
+  const onHeadTouchStart = (event: React.TouchEvent) => {
+    const box = panel.current;
+    const touch = event.touches[0];
+    if (!dismissible || !box || !touch || event.touches.length > 1) return;
+    if (!window.matchMedia('(max-width: 639px)').matches) return;
+    // La animación de entrada fija su `transform` al acabar; sin quitarla, el
+    // arrastre no movería la hoja.
+    box.style.animation = 'none';
+    box.style.transition = 'none';
+    drag.current = { y: touch.clientY, t: performance.now(), dy: 0 };
+  };
 
-  const onKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
+  const onHeadTouchMove = (event: React.TouchEvent) => {
+    const box = panel.current;
+    const touch = event.touches[0];
+    if (!drag.current || !box || !touch) return;
+    const dy = Math.max(0, touch.clientY - drag.current.y);
+    drag.current.dy = dy;
+    box.style.transform = `translateY(${dy}px)`;
+  };
+
+  const onHeadTouchEnd = () => {
+    const box = panel.current;
+    const start = drag.current;
+    drag.current = null;
+    if (!start || !box) return;
+
+    const elapsed = Math.max(1, performance.now() - start.t);
+    const fast = start.dy / elapsed > 0.5;
+    const calm = prefersReducedMotion();
+
+    if (start.dy > 100 || (fast && start.dy > 10)) {
+      if (calm) {
         onClose();
         return;
       }
-      if (event.key !== 'Tab') return;
+      box.style.transition = 'transform 180ms ease-in';
+      box.style.transform = 'translateY(100%)';
+      window.setTimeout(onClose, 170);
+      return;
+    }
 
-      const items = Array.from(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
-      if (items.length === 0) return;
-
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    },
-    [onClose],
-  );
+    box.style.transition = calm ? 'none' : 'transform 200ms ease-out';
+    box.style.transform = '';
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm
                  sm:items-center sm:p-4"
-      onClick={dismissible ? onClose : undefined}
+      onPointerDown={(event) => {
+        pressedOutside.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        const outside = pressedOutside.current && event.target === event.currentTarget;
+        pressedOutside.current = false;
+        if (dismissible && outside) onClose();
+      }}
       onKeyDown={onKeyDown}
     >
       <div
@@ -138,7 +143,15 @@ export function Modal({ title, onClose, children, size = 'md', dismissible = tru
         {/* La cabecera va pegada arriba: en una hoja larga la ✕ se iba con el
             desplazamiento y cerrar era buscar. El asidero del móvil —el
             tirador que delata que la hoja se cierra— va dentro de ella. */}
-        <div ref={head} className="sticky top-0 z-10 -mx-5 mb-4 px-5 pt-5 surf-raised">
+        <div
+          ref={head}
+          className={`sticky top-0 z-10 -mx-5 mb-4 px-5 pt-5 surf-raised
+            ${dismissible ? 'touch-none sm:touch-auto' : ''}`}
+          onTouchStart={onHeadTouchStart}
+          onTouchMove={onHeadTouchMove}
+          onTouchEnd={onHeadTouchEnd}
+          onTouchCancel={onHeadTouchEnd}
+        >
           <span
             aria-hidden
             className="mx-auto mb-3 block h-1 w-10 rounded-full surf-3 sm:hidden"

@@ -1084,13 +1084,23 @@ export function SettingsPanel({ store, onClose, initialSection }: SettingsPanelP
             aparato no llega a los demás. Más vale decirlo. */}
         {section === 'nube' && !store.cloud.configured && (
           <section className="rounded-2xl border hairline surf-1 p-3">
-            <h3 className="mb-1 font-bold t-1">Sin nube configurada</h3>
+            <h3 className="mb-1 font-bold t-1">📱 Sólo en este aparato</h3>
             <p className="text-xs leading-relaxed t-3">
-              Lo que se registre aquí se queda sólo en este aparato y no se ve en el resto. Hay
-              que definir <code>NEXT_PUBLIC_SUPABASE_URL</code> y{' '}
-              <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> y volver a desplegar, porque esas dos se
-              incrustan al compilar.
+              Este aparato guarda sólo aquí. Para compartir entre móviles hace falta activar la
+              cuenta de casa: quien montó la app tiene que encenderla una vez, y a partir de ahí
+              cada móvil entra con el mismo correo. Mientras tanto, conviene exportar una copia de
+              vez en cuando desde Datos.
             </p>
+            {/* Lo técnico, plegado: a quien registra no le dice nada, y a quien
+                despliega le ahorra buscarlo. */}
+            <details className="mt-2 text-xs t-3">
+              <summary className="cursor-pointer font-semibold t-2">Para quien despliega</summary>
+              <p className="mt-1 leading-relaxed">
+                Hay que definir <code>NEXT_PUBLIC_SUPABASE_URL</code> y{' '}
+                <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> y volver a desplegar, porque esas dos
+                se incrustan al compilar.
+              </p>
+            </details>
           </section>
         )}
 

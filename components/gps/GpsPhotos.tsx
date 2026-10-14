@@ -374,15 +374,19 @@ export function GpsPhotos({ profileId, name, onSave }: GpsPhotosProps) {
         guardar nada se enseña lo que se ha entendido, y todo se puede corregir.
       </p>
 
-      {busy > 0 && (
-        <p className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold
-                      hairline surf-1 t-2">
-          <span className="animate-pulse" aria-hidden>
-            🔎
-          </span>
-          Leyendo {busy === 1 ? 'la foto' : `${busy} fotos`}…
-        </p>
-      )}
+      {/* La región de aviso está siempre puesta, aunque vacía: un lector de
+          pantalla sólo anuncia los cambios de una que ya existía. */}
+      <div role="status" aria-live="polite">
+        {busy > 0 && (
+          <p className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold
+                        hairline surf-1 t-2">
+            <span className="animate-pulse" aria-hidden>
+              🔎
+            </span>
+            Leyendo {busy === 1 ? 'la foto' : `${busy} fotos`}…
+          </p>
+        )}
+      </div>
 
       {/* El día de las que no lo traen. Es lo que permite volcar un puñado de
           capturas viejas sin fecha sin tener que corregirlas una a una. */}

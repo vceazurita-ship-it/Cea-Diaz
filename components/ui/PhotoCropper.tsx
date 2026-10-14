@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialog } from '@/components/ui/useDialog';
 
 /* =========================================================================
  *  Elegir el trozo de la foto que se va a ver.
@@ -52,6 +53,12 @@ export function PhotoCropper({
 
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  // Como cualquier diálogo: el foco dentro, el tabulador atrapado y el fondo
+  // quieto. Escape lo lleva el escuchador de más abajo, que va en captura
+  // para ganarle a la hoja sobre la que se abre.
+  const dialog = useRef<HTMLDivElement>(null);
+  const trapKeys = useDialog(dialog);
 
   /* ------------------------------------------------------------- la foto */
 
@@ -243,11 +250,14 @@ export function PhotoCropper({
     // Cuelga del <body> a propósito: el panel que lo abre lleva una animación
     // con `transform`, y eso encerraría lo `fixed` dentro de su caja.
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-sm
-                 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 outline-none
+                 backdrop-blur-sm sm:items-center sm:p-4"
+      ref={dialog}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      onKeyDown={trapKeys}
     >
       <div
         className="flex w-full flex-col rounded-t-3xl border hairline surf-raised p-4

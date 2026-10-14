@@ -205,8 +205,15 @@ export class Estadio3D {
   private camMira = new THREE.Vector3();
   private publicoSalta = 0;
 
-  constructor(host: HTMLElement, private reparto: Reparto) {
+  /**
+   * Con «reducir movimiento» (lo decide quien lo monta): sin temblores ni
+   * golpes de zoom, y la cámara salta a su sitio en vez de perseguir el balón.
+   */
+  private reducido = false;
+
+  constructor(host: HTMLElement, private reparto: Reparto, opts: { reducido?: boolean } = {}) {
     this.host = host;
+    this.reducido = Boolean(opts.reducido);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -242,9 +249,20 @@ export class Estadio3D {
     const bucle = () => {
       if (!this.vivo) return;
       this.frame = requestAnimationFrame(bucle);
+      // Con la pestaña escondida no se pinta: la batería no se gasta en un
+      // estadio que nadie mira. El reloj se vacía para no dar un salto al volver.
+      if (typeof document !== 'undefined' && document.hidden) {
+        this.reloj.getDelta();
+        return;
+      }
       this.paso();
     };
     bucle();
+  }
+
+  /** Acerca la cámara a su destino: poco a poco, o de golpe si se reduce el movimiento. */
+  private llevar(v: THREE.Vector3, destino: THREE.Vector3, k: number) {
+    v.lerp(destino, this.reducido ? 1 : k);
   }
 
   /* ---------------------------------------------------------------- montaje */
@@ -1508,7 +1526,7 @@ export class Estadio3D {
       f.tick(f.edad / f.vida, dt);
     }
 
-    this.punch = Math.max(0, this.punch - dt * 2.2);
+    this.punch = this.reducido ? 0 : Math.max(0, this.punch - dt * 2.2);
 
     // El tiempo parado oscurece el estadio para que brille lo que importa.
     const exposicion = 1.08 - this.penumbra * 0.45;
@@ -1518,7 +1536,7 @@ export class Estadio3D {
     this.flash.intensity = Math.max(0, this.flash.intensity - dt * 60);
 
     // La cámara, con su temblor.
-    const shake = this.temblor > 0 ? this.temblor : 0;
+    const shake = !this.reducido && this.temblor > 0 ? this.temblor : 0;
     this.temblor = Math.max(0, this.temblor - dt * 1.8);
     this.camera.position.copy(this.camPos).add(
       new THREE.Vector3((Math.random() - 0.5) * shake * 0.3, (Math.random() - 0.5) * shake * 0.3, 0),
@@ -1583,8 +1601,8 @@ export class Estadio3D {
       this.camPos.copy(destino);
       this.camMira.copy(mira);
     } else {
-      this.camPos.lerp(destino, 0.08);
-      this.camMira.lerp(mira, 0.08);
+      this.llevar(this.camPos, destino, 0.08);
+      this.llevar(this.camMira, mira, 0.08);
     }
   }
 
@@ -1711,7 +1729,7 @@ export class Estadio3D {
     // ---- la cámara
     if (j.cam === 'tele') {
       const va = suave(clamp01((e - kick) / (vuelo + 200)));
-      if (cole && e >= kick && !(plan.kind === 'meteorito' && u < 0.55)) {
+      if (!this.reducido && cole && e >= kick && !(plan.kind === 'meteorito' && u < 0.55)) {
         // La cámara de persecución de los del cole: se pega al balón, de lado
         // y un poco por detrás, para que se vea la estela entera; al llegar,
         // se queda mirando la red.
@@ -1723,19 +1741,19 @@ export class Estadio3D {
             : new THREE.Vector3(llegada.x + lado * 2.6, llegada.y + 0.9, 5.2);
         this.camPos.lerp(destino, u < 1 ? 0.14 : 0.05);
         this.camMira.lerp(u < 1 ? bola.clone().lerp(new THREE.Vector3(0, 1, 0), 0.25) : llegada, 0.18);
-      } else if (plan.kind === 'meteorito' && e >= kick && u < 0.55) {
+      } else if (!this.reducido && plan.kind === 'meteorito' && e >= kick && u < 0.55) {
         // La cámara se va con él al cielo, y lo pierde entre las estrellas.
         this.camPos.lerp(new THREE.Vector3(0.4, 1.2, 19.5), 0.08);
         this.camMira.lerp(this.balon.position.clone().setY(Math.min(this.balon.position.y, 16)), 0.1);
       } else {
-        this.camPos.lerp(new THREE.Vector3(lerp(0.55, 0.3, va), lerp(2.1, 1.75, va), lerp(17.8, 15.2, va)), 0.12);
-        this.camMira.lerp(new THREE.Vector3(0, 0.95, 0), plan.kind === 'meteorito' ? 0.06 : 0.1);
+        this.llevar(this.camPos, new THREE.Vector3(lerp(0.55, 0.3, va), lerp(2.1, 1.75, va), lerp(17.8, 15.2, va)), 0.12);
+        this.llevar(this.camMira, new THREE.Vector3(0, 0.95, 0), plan.kind === 'meteorito' ? 0.06 : 0.1);
       }
     } else {
       // La repetición: desde detrás de la portería, a un lado, mirando al punto.
-      this.camPos.lerp(new THREE.Vector3(4.2, 1.9, -6.2), 0.2);
+      this.llevar(this.camPos, new THREE.Vector3(4.2, 1.9, -6.2), 0.2);
       const foco = e < kick ? new THREE.Vector3(0, 0.8, PUNTO_Z) : this.balon.position.clone().lerp(new THREE.Vector3(0, 1, 0), 0.5);
-      this.camMira.lerp(foco, 0.12);
+      this.llevar(this.camMira, foco, 0.12);
       if (this.camera.fov !== 34) {
         this.camera.fov = 34;
         this.camera.updateProjectionMatrix();

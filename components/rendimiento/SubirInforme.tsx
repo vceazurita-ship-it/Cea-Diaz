@@ -2,10 +2,12 @@
 
 import { useMemo, useRef, useState } from 'react';
 
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useToast } from '@/components/ui/Toast';
 import { CLASE_ICON, CLASE_LABEL, leerInforme, type Lectura } from '@/lib/informes';
 import { PROFILES } from '@/lib/profiles';
-import type { DateKey, Profile, ProfileId } from '@/types';
+import { entryKey } from '@/lib/storage';
+import type { DateKey, DayEntry, NoteKey, Profile, ProfileId } from '@/types';
 
 /* =========================================================================
  *  Soltar aquí los informes y que se repartan solos.
@@ -35,10 +37,16 @@ interface SubirInformeProps {
   profile: Profile;
   /** Guarda una línea en las notas del día de quien sea. */
   onSave: (profileId: ProfileId, date: DateKey, key: string, line: string) => void;
+  /**
+   * Lo que ya hay guardado. Con ello, antes de escribir se apunta lo que
+   * había, y el aviso de «guardado» trae un Deshacer que lo devuelve: un
+   * informe subido dos veces, o del niño equivocado, no pisa nada sin vuelta.
+   */
+  entries?: Record<string, DayEntry>;
   onClose: () => void;
 }
 
-export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
+export function SubirInforme({ profile, onSave, entries, onClose }: SubirInformeProps) {
   const toast = useToast();
   const archivosRef = useRef<HTMLInputElement>(null);
   const carpetaRef = useRef<HTMLInputElement>(null);
@@ -103,8 +111,14 @@ export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
 
   const guardar = () => {
     let cuantos = 0;
+    // Lo que había antes en cada sitio que se va a escribir, para deshacer.
+    const antes: { profileId: ProfileId; date: DateKey; key: string; line: string }[] = [];
+    let pisados = 0;
     for (const lectura of lecturas) {
       for (const apunte of lectura.apuntes) {
+        const previa = entries?.[entryKey(apunte.profileId, apunte.date)]?.notes?.[apunte.key as NoteKey] ?? '';
+        if (previa && previa !== apunte.line) pisados++;
+        antes.push({ profileId: apunte.profileId, date: apunte.date, key: apunte.key, line: previa });
         onSave(apunte.profileId, apunte.date, apunte.key, apunte.line);
         cuantos++;
       }
@@ -117,7 +131,17 @@ export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
       icon: '📄',
       message: `Guardado: ${cuantos} ${cuantos === 1 ? 'informe' : 'informes'} en ${porNino
         .map(([id]) => nombreDe(id))
-        .join(' y ')}.`,
+        .join(' y ')}${pisados > 0 ? ` (${pisados} ${pisados === 1 ? 'sustituye' : 'sustituyen'} a lo que había)` : ''}.`,
+      action: entries
+        ? {
+            label: 'Deshacer',
+            onClick: () => {
+              // Al revés, por si el mismo sitio se escribió dos veces.
+              for (const previo of [...antes].reverse()) onSave(previo.profileId, previo.date, previo.key, previo.line);
+              toast({ icon: '↩️', message: 'Informes retirados: queda lo que había.' });
+            },
+          }
+        : undefined,
     });
     onClose();
   };
@@ -175,20 +199,21 @@ export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
 
       {leyendo && (
         <div className="rounded-xl border p-3 hairline surf-1">
-          <p className="text-[12px] font-semibold t-1">
+          <p className="text-[12px] font-semibold t-1" role="status" aria-live="polite">
             Leyendo {progreso.hechos} de {progreso.total}…
           </p>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-[width]"
-              style={{ width: `${progreso.total ? (progreso.hechos / progreso.total) * 100 : 0}%` }}
+          <div className="mt-1.5">
+            <ProgressBar
+              ratio={progreso.total ? progreso.hechos / progreso.total : 0}
+              color="var(--ok)"
+              ariaLabel="Informes leídos"
             />
           </div>
         </div>
       )}
 
       {pideClave && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+        <div className="banner banner-warn">
           <label className="block text-[12px] font-semibold t-1">
             Contraseña de los informes cerrados
             <input
@@ -225,7 +250,7 @@ export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
                   <span aria-hidden>{CLASE_ICON[lectura.clase]}</span> {lectura.file}
                 </p>
                 {lectura.apuntes.length > 0 && lectura.who && (
-                  <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                  <span className="shrink-0 rounded bg-ok-soft px-1.5 py-0.5 text-[11px] font-black t-ok">
                     {nombreDe(lectura.who)}
                   </span>
                 )}
@@ -233,7 +258,7 @@ export function SubirInforme({ profile, onSave, onClose }: SubirInformeProps) {
               <p className="mt-0.5 text-[11px] t-3">{CLASE_LABEL[lectura.clase]}</p>
 
               {lectura.warnings.map((warning) => (
-                <p key={warning} className="mt-1 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                <p key={warning} className="mt-1 text-[11px] leading-snug t-warn">
                   ⚠️ {warning}
                 </p>
               ))}

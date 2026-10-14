@@ -16,6 +16,7 @@ import {
 import { Estadio3D, type Jugada } from '@/components/games/penalty3d/Estadio3D';
 import { manga } from '@/components/games/mangaFont';
 import { hashSeed } from '@/lib/challenges';
+import { prefersReducedMotion } from '@/lib/haptics';
 import { ROPA_FAMILIA, type Casero } from '@/lib/cromoArt';
 import {
   ABANICO,
@@ -246,7 +247,7 @@ export function Tiro3D({
         { texto: 'FLYNET', fondo: '#dc2626', tinta: '#ffffff' },
         { texto: 'CAMPEONES', fondo: '#facc15', tinta: '#0f172a' },
       ],
-    });
+    }, { reducido: prefersReducedMotion() });
     stage.current = escena;
     setReady(true);
     return () => {
@@ -377,7 +378,9 @@ export function Tiro3D({
     };
     if (special) {
       setStep('corte');
-      timers.current.push(window.setTimeout(lanzar, isColeShot(kind) ? CORTE_COLE_MS : CORTE_MS));
+      // Con «reducir movimiento», el corte del tiro especial dura lo justo para leerlo.
+      const corte = isColeShot(kind) ? CORTE_COLE_MS : CORTE_MS;
+      timers.current.push(window.setTimeout(lanzar, prefersReducedMotion() ? Math.min(corte, 600) : corte));
     } else {
       lanzar();
     }

@@ -4,7 +4,8 @@ import { reportsFor, type ReportCard } from '@/lib/academics';
 import { cogFor } from '@/lib/cognitive';
 import { todayKey } from '@/lib/dates';
 import { testsFor } from '@/lib/fitness';
-import { PROFILES } from '@/lib/profiles';
+import { useTheme } from '@/hooks/useTheme';
+import { PROFILES, accentFor } from '@/lib/profiles';
 import type { DateKey, DayEntry, ProfileId } from '@/types';
 
 /* =========================================================================
@@ -114,6 +115,7 @@ function estadoDe(fila: Fila): 'hay' | 'viejo' | 'falta' {
 }
 
 export function Inventario({ entries, onSubir }: InventarioProps) {
+  const { mode } = useTheme();
   const ninos = PROFILES.filter((profile) => profile.kind === 'kid');
   const tablero = ninos.map((profile) => ({ profile, filas: filasDe(entries, profile.id) }));
   const faltan = tablero.reduce(
@@ -125,9 +127,11 @@ export function Inventario({ entries, onSubir }: InventarioProps) {
     <section className={`card p-4 ${faltan > 0 ? 'bg-accent-faint' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-sm font-black t-1">
+          {/* h3: es la primera tarjeta de la pestaña, colgada del h2 de
+              ésta; con h4 el lector de pantalla saltaba un nivel. */}
+          <h3 className="text-sm font-black t-1">
             {faltan === 0 ? '✅ Los informes están todos' : `📥 Faltan ${faltan} por subir`}
-          </h4>
+          </h3>
           <p className="mt-0.5 text-[11px] leading-snug t-3">
             {faltan === 0
               ? 'Lo de los dos niños está cargado. Cuando llegue uno nuevo, se suelta aquí y se coloca solo.'
@@ -142,9 +146,16 @@ export function Inventario({ entries, onSubir }: InventarioProps) {
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {tablero.map(({ profile, filas }) => (
           <div key={profile.id} className="rounded-xl border p-2 hairline surf-1">
-            {/* El nombre va en el color de cada niño y no en el acento del
-                panel: aquí se habla de los dos a la vez. */}
-            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: profile.accentDeep ?? profile.accent }}>
+            {/* Cada niño lleva su color y no el acento del panel: aquí se
+                habla de los dos a la vez. El color va en el punto y no en las
+                letras: el rojo de Hugo sobre la tarjeta verde de Leo se
+                quedaba en 3,5:1 de noche, y el tono de día en 1,5:1. */}
+            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide t-1">
+              <span
+                aria-hidden
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: accentFor(profile, mode) }}
+              />
               {profile.name}
             </p>
             <ul className="mt-1 space-y-1">

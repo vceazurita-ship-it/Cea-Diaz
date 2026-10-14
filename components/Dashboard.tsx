@@ -1,21 +1,61 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
-import { CHALLENGE_NOTE_KEY, ChallengesPanel } from '@/components/challenges/ChallengesPanel';
-import { DateNavigator } from '@/components/DateNavigator';
-import { RendimientoPanel } from '@/components/rendimiento/RendimientoPanel';
+import { DateNavigator, dayPillLabel } from '@/components/DateNavigator';
 import { AttentionCard } from '@/components/experts/AttentionCard';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
 import { FinanceLock } from '@/components/finance/FinanceLock';
-import { FinancePanel } from '@/components/finance/FinancePanel';
 import { DayNoteCard } from '@/components/notes/DayNoteCard';
 import { TodayPlanCard } from '@/components/planner/TodayPlanCard';
-import { WeekPlanner } from '@/components/planner/WeekPlanner';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
-import { SummaryView } from '@/components/summary/SummaryView';
-import { TasksPanel, type CalendarNotice } from '@/components/tasks/TasksPanel';
+import type { CalendarNotice } from '@/components/tasks/TasksPanel';
 import { useToast } from '@/components/ui/Toast';
+import { CHALLENGE_NOTE_KEY } from '@/lib/challenges';
+
+/* -------------------------------------------------------------------------
+ *  Pestañas que se cargan al abrirlas.
+ *
+ *  El registro del día es lo que se ve al entrar y va en el paquete. El resto
+ *  —la semana, los retos con sus juegos y su liga, las estadísticas, los
+ *  recados, el rendimiento y la economía— suma más código que todo lo demás
+ *  junto, y en un móvil de gama media analizarlo de golpe congelaba la
+ *  primera pantalla casi un segundo. Cada una se pide al tocar su pestaña, y
+ *  mientras llega se pinta un esqueleto del mismo tamaño para que nada salte.
+ * ------------------------------------------------------------------------- */
+function TabLoading() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Cargando la sección">
+      <div className="skeleton h-28 rounded-3xl" />
+      <div className="skeleton h-64 rounded-3xl" />
+    </div>
+  );
+}
+const ChallengesPanel = dynamic(
+  () => import('@/components/challenges/ChallengesPanel').then((m) => m.ChallengesPanel),
+  { loading: TabLoading },
+);
+const RendimientoPanel = dynamic(
+  () => import('@/components/rendimiento/RendimientoPanel').then((m) => m.RendimientoPanel),
+  { loading: TabLoading },
+);
+const FinancePanel = dynamic(
+  () => import('@/components/finance/FinancePanel').then((m) => m.FinancePanel),
+  { loading: TabLoading },
+);
+const WeekPlanner = dynamic(
+  () => import('@/components/planner/WeekPlanner').then((m) => m.WeekPlanner),
+  { loading: TabLoading },
+);
+const SummaryView = dynamic(
+  () => import('@/components/summary/SummaryView').then((m) => m.SummaryView),
+  { loading: TabLoading },
+);
+const TasksPanel = dynamic(
+  () => import('@/components/tasks/TasksPanel').then((m) => m.TasksPanel),
+  { loading: TabLoading },
+);
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, markHints } from '@/lib/challenges';
@@ -83,8 +123,19 @@ export function Dashboard({
   calendarNotice,
   onCalendarNoticeSeen,
 }: DashboardProps) {
-  const [tab, setTab] = useState<DashboardTab>(initialTab ?? 'today');
+  const [rawTab, setTabState] = useState<DashboardTab>(initialTab ?? 'today');
   const [onlyPending, setOnlyPending] = useState(false);
+  /**
+   * La casilla a la que llevar la vista, pedida desde lo previsto de hoy. La
+   * tarjeta que la tiene se abre, baja hasta ella y la deja en nulo.
+   */
+  const [focusMetric, setFocusMetric] = useState<string | null>(null);
+  const clearFocus = useCallback(() => setFocusMetric(null), []);
+  /**
+   * En el panel de los peques, la tarjeta que hay que abrir porque la de
+   * antes se ha completado. Va atada al día: en otro día manda lo de siempre.
+   */
+  const [nextOpen, setNextOpen] = useState<{ date: DateKey; id: string } | null>(null);
   /**
    * Un rato montado en otra pestaña —desde un reto sin hueco— que espera a
    * que la agenda lo recoja y abra su editor. Se vacía en cuanto lo hace.
@@ -99,6 +150,61 @@ export function Dashboard({
 
   const kid = profile.kind === 'kid';
   const skin = skinOf(profile);
+
+  // `short` es el nombre para la barra del móvil, donde seis pestañas se
+  // reparten 390 px: «Estadísticas» no cabe, «Datos» sí.
+  const tabs: Array<{ id: DashboardTab; label: string; icon: string; short?: string }> =
+    skin === 'pitch'
+      ? [
+          { id: 'today', label: 'Partido', icon: '⚽' },
+          { id: 'plan', label: 'Semana', icon: '🗓️' },
+          { id: 'challenges', label: 'Retos', icon: '🎯' },
+          { id: 'tasks', label: 'Recados', icon: '📋' },
+          { id: 'summary', label: 'Estadísticas', icon: '📊', short: 'Datos' },
+          /**
+           * Lo que se le mide: los partidos con el rastreador, las pruebas
+           * físicas y el colegio. Sólo está donde hay algo que medir: en los
+           * paneles de Leo y de Hugo.
+           */
+          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'Rendimiento', icon: '📈', short: 'Medidas' }] : []),
+        ]
+      : // El panel de María se lee como un cuento, y sus secciones también:
+        // el día es su jornada, la semana su reino, los retos sus deseos.
+        skin === 'royal'
+        ? [
+            { id: 'today', label: 'Mi día', icon: '👑' },
+            { id: 'plan', label: 'Mi semana', icon: '🏰' },
+            { id: 'challenges', label: 'Deseos', icon: '🌟' },
+            { id: 'tasks', label: 'Recados', icon: '📜' },
+            { id: 'summary', label: 'Mi historia', icon: '📖', short: 'Historia' },
+          ]
+        : [
+          { id: 'today', label: 'Registro', icon: '📝' },
+          { id: 'plan', label: 'Semana', icon: '🗓️' },
+          { id: 'challenges', label: 'Retos', icon: '🎯' },
+          { id: 'tasks', label: 'Tareas', icon: '📋' },
+          { id: 'summary', label: 'Resúmenes', icon: '📊' },
+          /**
+           * La economía es de Víctor y sólo suya, así que la pestaña no
+           * existe en los demás paneles: no hay nada que esconder ni que
+           * explicar donde no toca. Detrás lleva su propia clave.
+           */
+          ...(profile.id === 'victor'
+            ? [{ id: 'economia' as const, label: 'Economía', icon: '💶' }]
+            : []),
+        ];
+
+  /* La pestaña que se pinta es siempre una de las que este perfil tiene: si
+     llegaba otra —la economía de Víctor en el panel de María—, se cae al
+     registro del día en vez de enseñar lo que no toca. */
+  const tab: DashboardTab = tabs.some((option) => option.id === rawTab) ? rawTab : 'today';
+
+  /** Cambiar de pestaña empieza arriba: la nueva no tiene nada que ver con
+      el punto de la anterior en que se estaba. */
+  const setTab = (next: DashboardTab) => {
+    if (next !== tab) window.scrollTo({ top: 0 });
+    setTabState(next);
+  };
 
   const categories = getCategories(profile.id);
   const entry = store.getEntry(profile.id, date);
@@ -247,6 +353,50 @@ export function Dashboard({
     return () => window.removeEventListener('keydown', onKey);
   }, [tab, date, onDateChange]);
 
+  // Del 1 al 6, una pestaña cada uno, desde cualquiera de ellas. Con las
+  // mismas salvedades que las flechas: ni escribiendo ni con un diálogo.
+  const tabIds = tabs.map((option) => option.id).join(',');
+  useEffect(() => {
+    const ids = tabIds.split(',') as DashboardTab[];
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (target?.closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
+
+      const index = Number(event.key) - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= ids.length) return;
+      event.preventDefault();
+      window.scrollTo({ top: 0 });
+      setTabState(ids[index]);
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tabIds]);
+
+  /* --------------------------------------------- el alto de la barra de abajo
+   *
+   * En el móvil las pestañas van fijas abajo y tapaban los avisos —con su
+   * «Deshacer»— y el botón de silenciar. Se mide la barra y se publica en
+   * `--tabbar-h`; a partir de tableta la hoja de estilos la deja en cero,
+   * porque ahí la barra va arriba, en su sitio.
+   */
+  const tabBar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = tabBar.current;
+    if (!bar) return;
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty('--tabbar-h', `${bar.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--tabbar-h');
+    };
+  }, []);
+
   /* ------------------------------------------------------ deslizar
    *
    * En el móvil, un dedo de lado cambia de día, como pasar página: a la
@@ -265,12 +415,50 @@ export function Dashboard({
     const t = event.changedTouches[0];
     if (!start || !t) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('input[type="range"], textarea, [role="dialog"]')) return;
+    // Lo que ya se desliza de lado —la tira de acciones— no pasa página.
+    if (target?.closest('input[type="range"], textarea, [role="dialog"], [data-noswipe]')) return;
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
     if (Math.abs(dx) < 70 || Math.abs(dy) > 50) return;
-    if (dx < 0 && date < todayKey()) onDateChange(addDays(date, 1));
-    if (dx > 0) onDateChange(addDays(date, -1));
+    const next =
+      dx < 0 && date < todayKey() ? addDays(date, 1) : dx > 0 ? addDays(date, -1) : null;
+    if (!next) return;
+    onDateChange(next);
+    // Con el dedo a media pantalla, el navegador de días puede estar lejos:
+    // se dice a qué día se ha pasado, para no apuntar en el que no era.
+    notify({ message: dayPillLabel(next), icon: '📅', duration: 1400 });
+  };
+
+  /* ------------------------------------------- de lo previsto a la casilla */
+
+  /**
+   * Tocar una línea de lo previsto hoy lleva a su casilla. Si el filtro de
+   * pendientes la tenía escondida —ya registrada—, se quita: se ha pedido
+   * verla, precisamente.
+   */
+  const jumpToMetric = (metricId: string) => {
+    const owner = categories.find((category) =>
+      category.metrics.some((metric) => metric.id === metricId),
+    );
+    if (!owner) return;
+    if (onlyPending && !visibleCategories.some((category) => category.id === owner.id)) {
+      setOnlyPending(false);
+    }
+    setFocusMetric(metricId);
+  };
+
+  /**
+   * Una tarjeta de los peques recién completada: se abre la siguiente que
+   * aún tenga algo, mirando primero las de debajo y luego las de arriba.
+   */
+  const openNextPending = (doneId: string) => {
+    const at = categories.findIndex((category) => category.id === doneId);
+    const order = [...categories.slice(at + 1), ...categories.slice(0, Math.max(0, at))];
+    const next = order.find((category) => {
+      const score = scoreById.get(category.id);
+      return score && score.total > 0 && score.filled < score.total;
+    });
+    if (next) setNextOpen({ date, id: next.id });
   };
 
   /* ------------------------------------------------------- acciones */
@@ -370,51 +558,13 @@ export function Dashboard({
     [profile, store.entries, date],
   );
 
-  // `short` es el nombre para la barra del móvil, donde seis pestañas se
-  // reparten 390 px: «Estadísticas» no cabe, «Datos» sí.
-  const tabs: Array<{ id: DashboardTab; label: string; icon: string; short?: string }> =
-    skin === 'pitch'
-      ? [
-          { id: 'today', label: 'Partido', icon: '⚽' },
-          { id: 'plan', label: 'Semana', icon: '🗓️' },
-          { id: 'challenges', label: 'Retos', icon: '🎯' },
-          { id: 'tasks', label: 'Recados', icon: '📋' },
-          { id: 'summary', label: 'Estadísticas', icon: '📊', short: 'Datos' },
-          /**
-           * Lo que se le mide: los partidos con el rastreador, las pruebas
-           * físicas y el colegio. Sólo está donde hay algo que medir: en los
-           * paneles de Leo y de Hugo.
-           */
-          ...(gpsEnabledFor(profile) ? [{ id: 'gps' as const, label: 'Rendimiento', icon: '📈', short: 'Medidas' }] : []),
-        ]
-      : // El panel de María se lee como un cuento, y sus secciones también:
-        // el día es su jornada, la semana su reino, los retos sus deseos.
-        skin === 'royal'
-        ? [
-            { id: 'today', label: 'Mi día', icon: '👑' },
-            { id: 'plan', label: 'Mi semana', icon: '🏰' },
-            { id: 'challenges', label: 'Deseos', icon: '🌟' },
-            { id: 'tasks', label: 'Recados', icon: '📜' },
-            { id: 'summary', label: 'Mi historia', icon: '📖', short: 'Historia' },
-          ]
-        : [
-          { id: 'today', label: 'Registro', icon: '📝' },
-          { id: 'plan', label: 'Semana', icon: '🗓️' },
-          { id: 'challenges', label: 'Retos', icon: '🎯' },
-          { id: 'tasks', label: 'Tareas', icon: '📋' },
-          { id: 'summary', label: 'Resúmenes', icon: '📊' },
-          /**
-           * La economía es de Víctor y sólo suya, así que la pestaña no
-           * existe en los demás paneles: no hay nada que esconder ni que
-           * explicar donde no toca. Detrás lleva su propia clave.
-           */
-          ...(profile.id === 'victor'
-            ? [{ id: 'economia' as const, label: 'Economía', icon: '💶' }]
-            : []),
-        ];
-
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 sm:pb-16">
+    // `data-variant` deja que la hoja de estilos vista de peque cualquier
+    // `.card` de dentro sin tener que repasar componente a componente.
+    <div
+      className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 sm:pb-16"
+      data-variant={kid ? 'kid' : 'adult'}
+    >
       <ProfileHeader
         profile={profile}
         skin={skin}
@@ -432,14 +582,30 @@ export function Dashboard({
         className="fixed inset-x-0 bottom-0 z-40 flex border-t px-1 pt-1 hairline surf-raised
           sm:static sm:mb-4 sm:rounded-2xl sm:border sm:p-1 sm:surf-1"
         style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+        ref={tabBar}
         role="tablist"
         aria-label="Secciones del perfil"
         onKeyDown={(event) => {
-          const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-          if (!delta) return;
-          event.preventDefault();
           const index = tabs.findIndex((option) => option.id === tab);
-          setTab(tabs[(index + delta + tabs.length) % tabs.length].id);
+          const target =
+            event.key === 'ArrowRight'
+              ? (index + 1) % tabs.length
+              : event.key === 'ArrowLeft'
+                ? (index - 1 + tabs.length) % tabs.length
+                : event.key === 'Home'
+                  ? 0
+                  : event.key === 'End'
+                    ? tabs.length - 1
+                    : -1;
+          if (target < 0) return;
+          event.preventDefault();
+          // La flecha es de las pestañas: sin esto llegaba también a la
+          // ventana, y la derecha, además de cambiar de pestaña, pasaba de día.
+          event.stopPropagation();
+          const next = tabs[target].id;
+          setTab(next);
+          // El foco acompaña a la pestaña elegida, como en cualquier tablist.
+          window.requestAnimationFrame(() => document.getElementById(`tab-${next}`)?.focus());
         }}
       >
         {tabs.map((option) => {
@@ -482,6 +648,12 @@ export function Dashboard({
         })}
       </div>
 
+      {/* Título de la pestaña, sólo para el lector de pantalla. La cabecera
+          lleva el h1 con el nombre y cada panel abre sus tarjetas con h3: sin
+          este escalón, quien navega por títulos saltaba del 1 al 3 y no sabía
+          en qué sección estaba. A la vista ya lo dice la pestaña marcada. */}
+      <h2 className="sr-only">{tabs.find((option) => option.id === tab)?.label}</h2>
+
       {tab === 'today' ? (
         <div
           className="space-y-4"
@@ -497,80 +669,92 @@ export function Dashboard({
             weekRatios={weekRatios}
           />
 
-          {/* Barra de acciones del día */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={copyYesterday}
-              className="btn-ghost px-3 py-1.5 text-xs"
-              title={`Traer lo registrado el ${friendlyDateLabel(addDays(date, -1)).toLowerCase()}`}
+          {/* Barra de acciones del día. En el móvil eran tres filas de
+              botones antes de la primera casilla; ahora es una tira que se
+              desliza de lado, con lo que propone la app delante —lo de la
+              semana y lo de siempre, que son los que ahorran trabajo— y
+              copiar el día anterior al final, que es lo menos habitual. La
+              cuenta de lo hecho va en su propia línea. */}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+            <div
+              data-noswipe
+              className="edge-mask-x -mx-4 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-4 py-0.5
+                sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+              style={{ scrollbarWidth: 'none' }}
             >
-              📋 Copiar del día anterior
-            </button>
+              {/* Lo que la semana daba por previsto, puesto de una vez. Sólo
+                  aparece cuando hay algo que poner: un botón que no hace nada
+                  es peor que no tenerlo. */}
+              {fills.length > 0 && (
+                <button
+                  type="button"
+                  onClick={fillFromWeek}
+                  className="btn shrink-0 whitespace-nowrap border bg-accent-soft border-accent px-3 py-1.5 text-xs font-semibold t-1"
+                  title={fills.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+                >
+                  🗓️ Según la semana ({fills.length})
+                </button>
+              )}
 
-            {/* Lo que la semana daba por previsto, puesto de una vez. Sólo
-                aparece cuando hay algo que poner: un botón que no hace nada
-                es peor que no tenerlo. */}
-            {fills.length > 0 && (
+              {/* Lo que se contesta igual casi todos los días, de una vez. */}
+              {usualAll.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => fillUsual(usualAll)}
+                  className="btn shrink-0 whitespace-nowrap border bg-accent-soft border-accent px-3 py-1.5 text-xs font-semibold t-1"
+                  title={usualAll.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+                >
+                  ✨ Como siempre ({usualAll.length})
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={fillFromWeek}
-                className="btn border bg-accent-soft border-accent px-3 py-1.5 text-xs font-semibold t-1"
-                title={fills.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
+                onClick={() => setOnlyPending((v) => !v)}
+                aria-pressed={onlyPending}
+                className={`btn shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-semibold border
+                  ${onlyPending ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
               >
-                🗓️ Según la semana ({fills.length})
+                {onlyPending ? '👁️ Viendo pendientes' : '🔎 Sólo pendientes'}
               </button>
-            )}
 
-            {/* Lo que se contesta igual casi todos los días, de una vez. */}
-            {usualAll.length > 0 && (
-              <button
-                type="button"
-                onClick={() => fillUsual(usualAll)}
-                className="btn usual-chip border px-3 py-1.5 text-xs font-semibold t-1"
-                title={usualAll.map((fill) => `${fill.icon} ${fill.label}`).join(' · ')}
-              >
-                ✨ Como siempre ({usualAll.length})
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setOnlyPending((v) => !v)}
-              aria-pressed={onlyPending}
-              className={`btn px-3 py-1.5 text-xs font-semibold border
-                ${onlyPending ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
-            >
-              {onlyPending ? '👁️ Viendo pendientes' : '🔎 Sólo pendientes'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTab('challenges')}
-              className="btn-ghost px-3 py-1.5 text-xs"
-              title="Ver los retos de esta semana"
-            >
-              🎯 Retos {challengeWeek.done}/{challengeWeek.challenges.length}
-            </button>
-
-            {gamePlays && (
               <button
                 type="button"
                 onClick={() => setTab('challenges')}
-                className={`btn px-3 py-1.5 text-xs font-semibold border
-                  ${gameDone ? 'hairline surf-1 t-2 hover-soft' : 'bg-accent-soft border-accent t-1'}`}
-                title={`${gameMeta.title}: se juega una vez al día y deja cromo`}
+                className="btn-ghost shrink-0 whitespace-nowrap px-3 py-1.5 text-xs"
+                title="Ver los retos de esta semana"
               >
-                {gameMeta.icon}{' '}
-                {gameDone
-                  ? `Juego ${gameResult?.correct}/${gameResult?.total}`
-                  : gameResult
-                    ? 'Juego a medias'
-                    : 'Juego del día'}
+                🎯 Retos {challengeWeek.done}/{challengeWeek.challenges.length}
               </button>
-            )}
 
-            <span className="ml-auto text-xs tabular-nums t-3" aria-live="polite">
+              {gamePlays && (
+                <button
+                  type="button"
+                  onClick={() => setTab('challenges')}
+                  className={`btn-ghost shrink-0 whitespace-nowrap px-3 py-1.5 text-xs
+                    ${gameDone ? '' : 'font-semibold t-1'}`}
+                  title={`${gameMeta.title}: se juega una vez al día y deja cromo`}
+                >
+                  {gameMeta.icon}{' '}
+                  {gameDone
+                    ? `Juego ${gameResult?.correct}/${gameResult?.total}`
+                    : gameResult
+                      ? 'Juego a medias'
+                      : 'Juego del día'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={copyYesterday}
+                className="btn-ghost shrink-0 whitespace-nowrap px-3 py-1.5 text-xs"
+                title={`Traer lo registrado el ${friendlyDateLabel(addDays(date, -1)).toLowerCase()}`}
+              >
+                📋 Copiar del día anterior
+              </button>
+            </div>
+
+            <span className="shrink-0 text-xs tabular-nums t-3 sm:ml-auto" aria-live="polite">
               {planDone.total > 0 && (
                 <span className="mr-2" title="De lo que la semana apartaba para hoy">
                   🗓️ {planDone.done}/{planDone.total} ·
@@ -585,6 +769,8 @@ export function Dashboard({
           {/* Lo que la semana tenía apartado para hoy, ya contrastado con lo
               registrado: es lo que ata la agenda a estas casillas. */}
           <TodayPlanCard
+            key={date}
+            onJump={jumpToMetric}
             profile={profile}
             date={date}
             store={store}
@@ -625,8 +811,14 @@ export function Dashboard({
           ) : (
             visibleCategories.map((category) => (
               <CategoryCard
-                key={category.id}
+                // Con el día en la llave, cada día empieza con sus tarjetas
+                // abiertas o plegadas según lo suyo, no según lo de ayer.
+                key={`${category.id}:${date}`}
                 category={category}
+                focusMetric={focusMetric}
+                onFocused={clearFocus}
+                requestOpen={kid && nextOpen?.date === date && nextOpen.id === category.id}
+                onComplete={kid ? () => openNextPending(category.id) : undefined}
                 profileId={profile.id}
                 values={values}
                 onChange={handleChange}
@@ -657,6 +849,8 @@ export function Dashboard({
             Atajos: <kbd className="font-mono font-bold">←</kbd>{' '}
             <kbd className="font-mono font-bold">→</kbd> cambian de día ·{' '}
             <kbd className="font-mono font-bold">H</kbd> vuelve a hoy ·{' '}
+            <kbd className="font-mono font-bold">1</kbd>–
+            <kbd className="font-mono font-bold">{tabs.length}</kbd> cambian de sección ·{' '}
             <kbd className="font-mono font-bold">Esc</kbd> vuelve a los perfiles
           </p>
         </div>

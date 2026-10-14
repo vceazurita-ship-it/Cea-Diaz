@@ -180,13 +180,13 @@ export function PlanCopySheet({
         {!single && source.length > 0 && (
           <ul className="mt-2 flex flex-wrap gap-1">
             {source.slice(0, 8).map((block) => (
-              <li key={block.id} className="chip-soft text-[10px]">
+              <li key={block.id} className="chip-soft text-[11px]">
                 <span aria-hidden>{block.icon}</span>
                 <span className="tabular-nums">{block.start}</span>
               </li>
             ))}
             {source.length > 8 && (
-              <li className="chip-soft text-[10px]">y {source.length - 8} más</li>
+              <li className="chip-soft text-[11px]">y {source.length - 8} más</li>
             )}
           </ul>
         )}

@@ -191,12 +191,12 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
                   style={e.won ? { background: `${e.meta.color}33`, boxShadow: `inset 0 0 0 2px ${e.meta.color}` } : undefined}
                   title={`${e.meta.nombre}: ${e.tiro.name}`}
                 >
-                  {esHoy && <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-[8px] font-black uppercase tracking-wider text-white">Hoy</span>}
+                  {esHoy && <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-[11px] font-black uppercase leading-4 t-on-accent">Hoy</span>}
                   <span className="text-2xl leading-none">{e.won ? e.tiro.icon : '🔒'}</span>
-                  <span className="mt-1 text-[10px] font-black leading-tight t-1">
+                  <span className="mt-1 text-[11px] font-black leading-tight t-1">
                     {e.meta.icon} {e.meta.nombre}
                   </span>
-                  <span className={`mt-0.5 text-[9px] font-bold leading-tight ${e.won ? 't-1' : 't-3'}`}>
+                  <span className={`mt-0.5 text-[11px] font-bold leading-tight ${e.won ? 't-1' : 't-3'}`}>
                     {e.won
                       ? `✔ ${e.result!.correct}/${e.result!.total}`
                       : e.done
@@ -207,12 +207,16 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
                             ? '▶ jugar'
                             : '—'}
                   </span>
-                  {e.nivel > 0 && <span className="text-[8px] text-amber-400">{'★'.repeat(e.nivel)}</span>}
+                  {e.nivel > 0 && (
+                    <span className="text-[11px] leading-tight t-warn" aria-label={`nivel ${e.nivel}`}>
+                      {'★'.repeat(e.nivel)}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
-          {today && estados.some((e) => e.done) && <p className="mt-2 text-[10px] t-3">🧺 Un reto ya jugado se vuelve a abrir para practicar más, sin nota.</p>}
+          {today && estados.some((e) => e.done) && <p className="mt-2 text-[11px] t-3">🧺 Un reto ya jugado se vuelve a abrir para practicar más, sin nota.</p>}
           {/* Para los mayores: la nota que van sacando en cada asignatura.
               Lo de verdad está en Rendimiento → Colegio, tema a tema. */}
           {!kid && notas.some((n) => n.n > 0) && (
@@ -310,7 +314,7 @@ function AvisoExamen({ plan, date }: { plan: PlanDelDia; date: DateKey }) {
   const e = plan.examen;
   const dias = e ? diasHasta(e.fecha, date) : 0;
   return (
-    <div className={`mb-2 rounded-xl border p-2.5 text-[12px] leading-snug ${plan.modo === 'repasa' ? 'border-rose-400/60 bg-rose-400/10' : 'border-sky-400/50 bg-sky-400/10'}`}>
+    <div className={`banner mb-2 p-2.5 text-[12px] leading-snug ${plan.modo === 'repasa' ? 'banner-danger' : 'banner-info'}`}>
       <p className="font-black t-1">
         {plan.modo === 'repasa' && e
           ? `🔥 Repaso: ${dias <= 1 ? 'mañana' : cuandoEs(e.fecha)} es el examen de ${nombre(e.asignatura)}`
@@ -320,7 +324,7 @@ function AvisoExamen({ plan, date }: { plan: PlanDelDia; date: DateKey }) {
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {plan.pendientes.map((x) => (
-          <span key={x.asignatura} className={`chip-soft text-[10px] ${x === e ? 'ring-2 ring-accent' : ''}`}>
+          <span key={x.asignatura} className={`chip-soft text-[11px] ${x === e ? 'ring-2 ring-accent' : ''}`}>
             {RETO_META[x.asignatura].icon} {nombre(x.asignatura)} · {cuandoEs(x.fecha)}
           </span>
         ))}

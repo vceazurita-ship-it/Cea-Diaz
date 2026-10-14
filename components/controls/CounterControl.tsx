@@ -1,6 +1,8 @@
 'use client';
 
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { useToast } from '@/components/ui/Toast';
+import { success } from '@/lib/haptics';
 import { isCeiling, metricRatio, targetWord } from '@/lib/scoring';
 import type { CounterMetric } from '@/types';
 import type { ControlProps } from './types';
@@ -21,9 +23,25 @@ export function CounterControl({
   const reached = registered && !ceiling && current >= metric.target;
   const overrun = registered && ceiling && current > metric.target;
 
+  const notify = useToast();
+
   const set = (next: number) => {
     const clamped = Math.max(0, Math.min(metric.max, next));
+    // Llegar a la meta se celebra en la mano. Los techos no: rozar el máximo
+    // de pantallas no es ningún logro.
+    if (!ceiling && current < metric.target && clamped >= metric.target) success();
     onChange(clamped === 0 && !registered ? undefined : clamped);
+  };
+
+  /** Borrar es un toque, así que deshacerlo también. */
+  const clear = () => {
+    const before = value;
+    onChange(undefined);
+    notify({
+      message: `«${metric.label}», sin registrar.`,
+      icon: '↩️',
+      action: { label: 'Deshacer', onClick: () => onChange(before) },
+    });
   };
 
   if (variant === 'kid') {
@@ -88,7 +106,7 @@ export function CounterControl({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onChange(undefined)}
+              onClick={clear}
               className="btn-ghost ml-auto shrink-0 px-2.5 py-1 text-[11px]"
               aria-label={`Borrar el registro de ${metric.label}`}
             >
@@ -119,8 +137,8 @@ export function CounterControl({
         <button
           type="button"
           disabled={disabled || !registered}
-          onClick={() => onChange(undefined)}
-          className="mr-1 flex h-10 w-8 items-center justify-center rounded-lg text-[11px] font-semibold t-3
+          onClick={clear}
+          className="mr-2 flex h-10 w-10 items-center justify-center rounded-lg text-[11px] font-semibold t-3
                      transition-colors hover-soft hover:t-2 disabled:invisible"
           aria-label={`Borrar el registro de ${metric.label}`}
           title="Borrar registro"
