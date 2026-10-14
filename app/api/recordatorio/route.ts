@@ -44,7 +44,7 @@ export function GET(request: Request) {
     `DTSTART:${dia}T${dos(hora)}${dos(minuto)}00`,
     'DURATION:PT10M',
     'RRULE:FREQ=DAILY',
-    'SUMMARY:📝 Apuntar el día en Hábitos',
+    'SUMMARY:Apuntar el día en Hábitos',
     `DESCRIPTION:Dos minutos: el registro de hoy y los retos del cole. ${APP}`,
     `URL:${APP}`,
     'TRANSP:TRANSPARENT',
