@@ -1469,8 +1469,9 @@ type Vocab = [string, string][];
 const DIBUJO: Record<string, string> = {
   festival: '🎪', wedding: '💒', fair: '🎡', race: '🏁', team: '👥', winner: '🏆', score: '🔢', player: '⛹️',
   kick: '🦵', skip: '🪢', bounce: '🏀', lake: '🏞️', cliff: '🧗', stream: '💧',
-  packing: '🧳', moving: '🚚', neighbors: '🏘️', 'ice skating': '⛸️', sledding: '🛷', country: '🌄', suburb: '🏡',
-  'shopping mall': '🛍️', hospital: '🏥', factory: '🏭', 'rural area': '🐄', 'urban area': '🏙️',
+  packing: '🧳', moving: '🚚', 'meeting neighbors': '🤝', shopping: '🛒', 'ice skating': '⛸️', fishing: '🎣',
+  'raking leaves': '🍂', dancing: '💃', 'throwing snowballs': '❄️', sledding: '🛷', country: '🗺️', suburb: '🏡',
+  'shopping mall': '🛍️', hospital: '🏥', factory: '🏭', 'rural area': '🐄', 'urban area': '🏙️', university: '🎓', clinic: '🩺', zoo: '🦒',
   ladybug: '🐞', cricket: '🦗', beetle: '🪲', butterfly: '🦋', rhyme: '🎶', verb: '🏃', noun: '🍎', adjective: '🎨', syllable: '👏',
   moon: '🌙', asteroid: '🪨', comet: '☄️', meteorite: '🌠', 'solar system': '☀️', galaxy: '🌌', universe: '✨',
   spacecraft: '🚀', telescope: '🔭', astronomer: '👩‍🔬', gravity: '🍏', orbit: '🪐', surface: '🌑', crater: '🕳️',
@@ -1505,12 +1506,38 @@ const FUN_G: Pregunta[] = [
   p('🎪', 'People dance and eat special food at a…', 'festival', ['cliff', 'stream', 'score'], 'festival = fiesta, festival.'),
   p('🏁', 'The person who finishes first in a race is the…', 'winner', ['player', 'team', 'score'], 'winner = ganador.'),
 ];
-const MOVE_V: Vocab = [['packing', 'hacer las maletas'], ['moving', 'mudarse'], ['neighbors', 'vecinos'], ['ice skating', 'patinaje sobre hielo'], ['sledding', 'ir en trineo'], ['country', 'país / campo'], ['suburb', 'barrio de las afueras'], ['shopping mall', 'centro comercial'], ['hospital', 'hospital'], ['factory', 'fábrica'], ['rural area', 'zona rural'], ['urban area', 'zona urbana']];
+// U3-4 de 3.º, del resumen de la profe: las palabras de las dos láminas
+// (lo que se hace al mudarse y en invierno; los sitios de la ciudad y del
+// campo), can / could y el condicional real con if / when.
+const MOVE_HACER: Vocab = [['packing', 'hacer las maletas'], ['moving', 'mudarse'], ['meeting neighbors', 'conocer a los vecinos'], ['shopping', 'ir de compras'], ['ice skating', 'patinar sobre hielo'], ['fishing', 'pescar'], ['raking leaves', 'rastrillar las hojas'], ['dancing', 'bailar'], ['throwing snowballs', 'tirar bolas de nieve'], ['sledding', 'ir en trineo']];
+const MOVE_SITIOS: Vocab = [['country', 'país'], ['suburb', 'barrio de las afueras'], ['rural area', 'zona rural'], ['urban area', 'zona urbana'], ['shopping mall', 'centro comercial'], ['university', 'universidad'], ['hospital', 'hospital'], ['factory', 'fábrica'], ['clinic', 'clínica, ambulatorio'], ['zoo', 'zoo']];
+const MOVE_V: Vocab = [...MOVE_HACER, ...MOVE_SITIOS];
 const MOVE_G: Pregunta[] = [
-  p('📝', 'When I was five, I ___ swim.', "couldn't", ["can't", "don't", "wasn't"], 'Could / couldn\'t = can in the past.'),
-  p('📝', 'If it rains, we ___ at home.', 'stay', ['stayed', 'staying', 'will stayed'], 'Real conditional: If + present, present.'),
-  p('📝', 'The opposite of «happy» with a prefix is…', 'unhappy', ['dishappy', 'nothappy', 'inhappy'], 'un- means "not": unhappy, unkind.'),
-  p('📝', 'We moved to the city ___ my dad got a new job.', 'because', ['but', 'or', 'so'], 'because = porque.'),
+  p('📝', 'She ___ speak three languages. (it is her skill now)', 'can', ['could', 'cans', 'is'], 'can = skill or ability now. can is the same for I, you, she, they.'),
+  p('📝', 'Help! I ___ breathe!', "can't", ["couldn't", 'can', "don't"], "can't = I am not able to do it now."),
+  p('📝', 'They ___ dance very well. They always fall over!', "can't", ['can', 'could', 'cans'], "can't = not able (general ability)."),
+  p('📝', 'When she was one, she ___ walk.', 'could', ['can', 'cans', 'is'], 'could = can in the past: she was able to.'),
+  p('📝', 'When she was one, she ___ speak. She was a baby!', "couldn't", ["can't", 'could', "don't"], "couldn't = she wasn't able to, in the past."),
+  p('📝', 'When I was five, I ___ swim.', "couldn't", ["can't", "don't", "wasn't"], "Could / couldn't = can / can't in the past."),
+  p('📝', 'Now I am eight and I ___ read long books.', 'can', ['could', "couldn't", 'cans'], 'Now → can. In the past → could.'),
+  p('📝', 'Last winter we ___ go sledding because there was snow.', 'could', ['can', 'cans', 'can to'], 'Last winter is the past → could.'),
+  p('📝', '«Could» is the past of…', 'can', ['cold', 'come', 'cook'], "can → could · can't → couldn't."),
+  p('📝', 'If you mix blue and yellow, you ___ green.', 'get', ['got', 'will got', 'getting'], 'Present real conditional: If + present, present. It is always true.'),
+  p('📝', "If you don't water plants, they ___.", 'die', ['died', 'dying', 'dies'], 'If + present, present: plants die.'),
+  p('📝', 'When it rains, I ___ the bus to school.', 'take', ['took', 'taking', 'takes'], 'When + present, present: something that always happens.'),
+  p('📝', 'I bring a dessert ___ I go to parties.', 'when', ['what', 'who', 'where'], '«if» or «when» can start the sentence or join the two parts.'),
+  p('📝', 'Water ___ if you heat it to 100 degrees.', 'boils', ['boil', 'boiled', 'boiling'], 'Water (it) → boils. If + present, present.'),
+  p('📝', 'If you ___ ice, it melts.', 'heat', ['heated', 'heating', 'heats'], 'If you + present: heat. It melts.'),
+  p('📝', 'Which sentence is a present real conditional?', 'If you mix red and white, you get pink.', ['I mixed red and white yesterday.', 'Mix red and white!', 'Red and white are colors.'], 'It has two parts: If + condition, result.'),
+  p('🛷', 'Going down a snowy hill on a sled is…', 'sledding', ['fishing', 'shopping', 'packing'], 'sledding = ir en trineo.'),
+  p('🍂', 'In autumn, Dad cleans the garden. He is ___ leaves.', 'raking', ['packing', 'throwing', 'fishing'], 'raking leaves = rastrillar las hojas.'),
+  p('🧳', 'Before you move to a new house, you put things in boxes. You are…', 'packing', ['dancing', 'raking', 'sledding'], 'packing = hacer las maletas, empaquetar.'),
+  p('🏭', 'A big building where people make things is a…', 'factory', ['zoo', 'clinic', 'suburb'], 'factory = fábrica.'),
+  p('🎓', 'Grown-ups go to study there after school: the…', 'university', ['factory', 'shopping mall', 'zoo'], 'university = universidad.'),
+  p('🦒', 'You can see giraffes and lions at the…', 'zoo', ['clinic', 'factory', 'suburb'], 'zoo = zoo.'),
+  p('🏙️', 'A city with lots of people and tall buildings is an…', 'urban area', ['rural area', 'suburb', 'country'], 'urban area = zona urbana. rural area = el campo.'),
+  p('🐄', 'Farms, fields and few people: it is a…', 'rural area', ['urban area', 'shopping mall', 'university'], 'rural area = zona rural.'),
+  p('🏡', 'A quiet place with houses, near a big city, is a…', 'suburb', ['factory', 'zoo', 'country'], 'suburb = las afueras.'),
 ];
 const POEM_V: Vocab = [['ladybug', 'mariquita'], ['cricket', 'grillo'], ['beetle', 'escarabajo'], ['butterfly', 'mariposa'], ['rhyme', 'rima'], ['verb', 'verbo'], ['noun', 'sustantivo'], ['adjective', 'adjetivo'], ['syllable', 'sílaba']];
 const POEM_G: Pregunta[] = [
@@ -1579,7 +1606,7 @@ const ordenaFrase = (frases: string[]) => (rand: Rand): Pregunta => {
 };
 
 const FUN_S = ['The match was exciting', 'I love playing football', 'We were bored at the museum', 'She enjoys skipping with her friends', 'Swimming in the lake is fun', 'The winner of the race was very excited', 'Our team scored three goals'];
-const MOVE_S = ['When I was five I could swim', 'If it rains we stay at home', 'We moved to the city because of my dad', 'My neighbors live in a suburb'];
+const MOVE_S = ['When I was five I could swim', 'She can speak three languages', 'He can swim like a fish', 'When she was one she could walk', 'Last winter we could go sledding', 'If you mix blue and yellow you get green', 'Plants die if you do not water them', 'When it rains I take the bus', 'My neighbors live in a suburb'];
 const POEM_S = ['I was reading when the phone rang', 'They were playing football at five', 'The ladybug is red and black'];
 const SPACE_S = ['One day people will live on Mars', 'If you look through a telescope you will see craters', 'The Moon orbits the Earth', 'Robots will help astronauts on Mars', 'If it is cloudy we will not see the stars', 'People will travel to other planets'];
 const PAST_S = ['I want to be an archaeologist', 'She enjoys collecting old coins', 'The soldiers wore heavy armor'];
@@ -1587,7 +1614,11 @@ const FOOD_S = ['We are visiting the farm tomorrow', 'Would you like some cake',
 
 const clasificaEdIng = (rand: Rand): Pregunta =>
   clasifica('🎢', '-ing or -ed? Put each adjective in its box.', cajasDe(rand, [{ nombre: 'How something is (-ing)', items: ['boring', 'exciting', 'interesting', 'amazing'] }, { nombre: 'How you feel (-ed)', items: ['bored', 'excited', 'interested', 'amazed'] }], 6), '-ing: how a thing is (the film is boring). -ed: how you feel (I am bored).');
-const clasificaCountable = (rand: Rand): Pregunta =>
+const clasificaMove = (rand: Rand): Pregunta =>
+  clasifica('🚚', 'Something you do or a place? Put each word in its box.', cajasDe(rand, [{ nombre: 'Things you do (U3)', items: MOVE_HACER.map(([en]) => en) }, { nombre: 'Places (U4)', items: MOVE_SITIOS.map(([en]) => en) }], 6), 'Unit 3: packing, fishing, sledding… Unit 4: suburb, factory, zoo…');
+const clasificaCanCould = (rand: Rand): Pregunta =>
+  clasifica('⏳', 'can or could? Put each time in its box.', cajasDe(rand, [{ nombre: 'can (now)', items: ['now', 'today', 'this year', 'at the moment'] }, { nombre: 'could (past)', items: ['when I was three', 'last year', 'yesterday', 'last winter'] }], 6), 'Now → can. In the past → could.');
+const clasificaCountable =(rand: Rand): Pregunta =>
   clasifica('🪙', 'Countable or uncountable? Put each noun in its box.', cajasDe(rand, [{ nombre: 'Countable', items: ['coin', 'bone', 'skull', 'soldier'] }, { nombre: 'Uncountable', items: ['sand', 'clay', 'water', 'gold'] }], 6), 'Countable: three coins. Uncountable: some sand, not «three sands».');
 
 const OM3 = 'Matemáticas 3 · Operación Mundo (Anaya)';
@@ -1670,7 +1701,7 @@ export const TEMARIO: Tema[] = [
 
   /* ------------------------------------------------ English */
   { id: 'e3-1', asignatura: 'english', curso: 3, desde: '2026-09-07', titulo: 'U1-2 · How do people have fun?', fuente: OD3, puntos: ['Festivals, games and sports', '-ed / -ing adjectives', 'Gerunds'], hacer: [vocabulario(FUN_V), vocabulario(FUN_V), emparejaVocab(FUN_V), escribeVocab(FUN_V), delBanco(FUN_G), ordenaFrase(FUN_S), clasificaEdIng] },
-  { id: 'e3-2', asignatura: 'english', curso: 3, desde: '2026-10-19', titulo: 'U3-4 · Why do people move to new places?', fuente: OD3, puntos: ['Moving, city and country', 'can / could', 'If… / because', 'Prefix un-'], hacer: [vocabulario(MOVE_V), emparejaVocab(MOVE_V), escribeVocab(MOVE_V), delBanco(MOVE_G), ordenaFrase(MOVE_S)] },
+  { id: 'e3-2', asignatura: 'english', curso: 3, desde: '2026-10-15', titulo: 'U3-4 · Why do people move to new places?', fuente: `${OD3} · resumen de la profe`, puntos: ['Moving and winter fun: packing, sledding…', 'City and country: suburb, factory, zoo…', "can / can't · could / couldn't", 'If / when + present, present'], hacer: [vocabulario(MOVE_HACER), vocabulario(MOVE_SITIOS), emparejaVocab(MOVE_V), escribeVocab(MOVE_V), delBanco(MOVE_G), delBanco(MOVE_G), ordenaFrase(MOVE_S), clasificaMove, clasificaCanCould] },
   { id: 'e3-3', asignatura: 'english', curso: 3, desde: '2026-11-23', titulo: 'U5-6 · Why do people write poems?', fuente: OD3, puntos: ['Insects', 'Rhymes, nouns, verbs, adjectives', 'Past continuous'], hacer: [vocabulario(POEM_V), emparejaVocab(POEM_V), escribeVocab(POEM_V), delBanco(POEM_G), ordenaFrase(POEM_S)] },
   { id: 'e4-1', asignatura: 'english', curso: 4, desde: '2026-09-07', titulo: 'U1-2 · Where are we in the universe?', fuente: OD4, puntos: ['Space vocabulary', 'will for predictions', 'Future real conditional'], hacer: [vocabulario(SPACE_V), vocabulario(SPACE_V), emparejaVocab(SPACE_V), escribeVocab(SPACE_V), delBanco(SPACE_G), ordenaFrase(SPACE_S)] },
   { id: 'e4-2', asignatura: 'english', curso: 4, desde: '2026-10-19', titulo: 'U3-4 · How do we know what happened long ago?', fuente: OD4, puntos: ['Archaeology and fossils', 'Verb + infinitive / gerund', 'Countable / uncountable'], hacer: [vocabulario(PAST_V), emparejaVocab(PAST_V), escribeVocab(PAST_V), delBanco(PAST_G), ordenaFrase(PAST_S), clasificaCountable] },
@@ -1708,7 +1739,7 @@ export const IDEA: Record<string, { texto: string; visual?: Visual }> = {
   's3-2': { texto: 'Landscapes can be natural or humanised. Inland: mountains, valleys, plains. On the coast: beaches, cliffs, capes and gulfs.', visual: { tipo: 'lamina', emoji: '🏞️', rotulo: 'plain · valley · mountain · cliff · cape · gulf' } },
   's4-2': { texto: 'Weather is today; climate is what usually happens. Latitude, altitude and the sea change the climate.', visual: { tipo: 'lamina', emoji: '🌦️', rotulo: 'weather · climate · climograph' } },
   'e3-1': { texto: 'An -ing adjective says how a thing is (boring); an -ed adjective says how you feel (bored).', visual: { tipo: 'lamina', emoji: '🎡', rotulo: 'It was exciting! I was excited!' } },
-  'e3-2': { texto: '«Could» is «can» in the past: When I was five, I could swim.', visual: { tipo: 'lamina', emoji: '🚚', rotulo: 'city · suburb · country' } },
+  'e3-2': { texto: '«Could» is «can» in the past: When I was one, I could walk. And if / when: If you mix blue and yellow, you get green.', visual: { tipo: 'lamina', emoji: '🚚', rotulo: 'packing · sledding · suburb · zoo' } },
   'e3-3': { texto: 'Past continuous: I was reading when the phone rang.', visual: { tipo: 'lamina', emoji: '🦋', rotulo: 'noun · verb · adjective · rhyme' } },
   'e4-1': { texto: 'Predictions with «will»: One day people will live on Mars.', visual: { tipo: 'planetas' } },
   'e4-2': { texto: 'want + to (I want to dig) · enjoy + -ing (I enjoy digging).', visual: { tipo: 'lamina', emoji: '🦖', rotulo: 'archaeologist · fossil · layers' } },

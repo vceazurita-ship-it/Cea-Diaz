@@ -24,6 +24,7 @@ import { cuandoEs, diasHasta, planDelDia, type PlanDelDia } from '@/lib/examenes
 import { notaEnTexto, notasPorAsignatura } from '@/lib/notaCole';
 import { ajusteDe } from '@/lib/temasVistos';
 import { TemasVistos } from '@/components/games/TemasVistos';
+import { RepasoLibre } from '@/components/games/RepasoLibre';
 import { IDEA, TEMARIO, type Curso, type Tema } from '@/lib/temario';
 import { dominioDelTemario, estrellasEnTexto, temasParaRepasar, DOMINIO_MIN_DIAS, DOMINIO_MIN_PREGUNTAS, type DominioAsignatura } from '@/lib/dominio';
 import type { DateKey, DayEntry, Profile, Visual } from '@/types';
@@ -69,6 +70,7 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   const temasAprendidos = dominio.reduce((n, a) => n + a.aprendidos, 0);
   const tocanRepaso = dominio.reduce((n, a) => n + a.temas.filter((t) => t.toca && !t.aprendido).length, 0);
   const [verTemario, setVerTemario] = useState(false);
+  const [repasoLibre, setRepasoLibre] = useState(false);
   const opcionesDe = (r: RetoId) => (r === 'repaso' ? { temas: repasoTemas } : {});
 
   // Cómo va cada reto hoy, y el nivel de su tiro.
@@ -274,6 +276,14 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
               <span className="text-sm t-3" aria-hidden>›</span>
             </button>
           )}
+          <button type="button" onClick={() => setRepasoLibre(true)} className="mt-2 flex w-full items-center gap-3 rounded-xl border p-2.5 text-left hairline surf-1 hover-soft">
+            <span className="text-2xl" aria-hidden>📖</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-black t-1">Repaso libre</span>
+              <span className="block text-[11px] font-semibold t-3">Todo el temario, sin retos ni nota: elige los temas y a preguntar.</span>
+            </span>
+            <span className="text-sm t-3" aria-hidden>›</span>
+          </button>
           {/* Para los mayores: la nota que van sacando en cada asignatura.
               Lo de verdad está en Rendimiento → Colegio, tema a tema. */}
           {!kid && notas.some((n) => n.n > 0) && (
@@ -368,6 +378,8 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
           <MapaTemario dominio={dominio} />
         </Modal>
       )}
+
+      {repasoLibre && <RepasoLibre profile={profile} curso={curso} date={date} ajuste={ajuste} kid={kid} onClose={() => setRepasoLibre(false)} />}
 
       {editandoTemas && onAjusteTemas && (
         <TemasVistos profile={profile} curso={curso} date={date} ajuste={ajuste} onSave={onAjusteTemas} onClose={() => setEditandoTemas(false)} />
