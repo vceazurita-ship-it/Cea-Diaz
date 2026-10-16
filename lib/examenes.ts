@@ -53,7 +53,7 @@ export const CONVOCATORIAS: Convocatoria[] = [
     preparaDesde: '2026-10-10',
     examenes: [
       { asignatura: 'mates', fecha: '2026-10-22', temas: ['m3-1', 'm3-2'] },
-      { asignatura: 'english', fecha: '2026-10-23', temas: ['e3-1'] },
+      { asignatura: 'english', fecha: '2026-10-23', temas: ['e3-1', 'e3-2'] },
       { asignatura: 'science', fecha: '2026-10-26', temas: ['n3-1'] },
       { asignatura: 'lengua', fecha: '2026-10-27', temas: ['l3-1', 'l3-2'] },
       { asignatura: 'social', fecha: '2026-10-28', temas: ['s3-1'] },
@@ -69,7 +69,7 @@ export const CONVOCATORIAS: Convocatoria[] = [
       { asignatura: 'lengua', fecha: '2026-12-15', temas: ['l3-3', 'l3-4'] },
       { asignatura: 'social', fecha: '2026-12-16', temas: ['s3-2'] },
       { asignatura: 'mates', fecha: '2026-12-17', temas: ['m3-3', 'm3-4'] },
-      { asignatura: 'english', fecha: '2026-12-18', temas: ['e3-2'] },
+      { asignatura: 'english', fecha: '2026-12-18', temas: ['e3-3'] },
       { asignatura: 'science', fecha: '2026-12-21', temas: ['n3-2'] },
     ],
   },
