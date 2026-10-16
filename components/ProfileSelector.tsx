@@ -3,16 +3,8 @@
 import { Photo } from '@/components/ui/Photo';
 import { useAppearance } from '@/hooks/useAppearance';
 import { useTheme } from '@/hooks/useTheme';
-import {
-  GROUP_PROFILES,
-  INDIVIDUAL_PROFILES,
-  PROFILES,
-  accentFor,
-  accentStyle,
-  paletteStyle,
-} from '@/lib/profiles';
+import { GROUP_PROFILES, INDIVIDUAL_PROFILES, PROFILES, accentFor, paletteStyle } from '@/lib/profiles';
 import { capitalize, formatLong, todayKey } from '@/lib/dates';
-import { percent } from '@/lib/scoring';
 import type { Profile, ProfileId } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Stars } from '@/components/ui/Stars';
@@ -35,254 +27,228 @@ interface ProfileSelectorProps {
   onEditCover: () => void;
 }
 
-function ProfileCard({
+/* =========================================================================
+ *  La portada.
+ *
+ *  Tres cosas, por este orden, y todas a la vista en un móvil sin apenas
+ *  bajar:
+ *
+ *   1. **La casa**: la foto, el día y un anillo con cuántos han apuntado.
+ *   2. **Para hoy**: lo urgente de todos en una lista (días sin apuntar,
+ *      el examen que viene, los recados). Cada línea abre ese perfil: es
+ *      la manera más corta de llegar a lo que hay que hacer.
+ *   3. **Los perfiles**, como cromos: la foto a sangre, el anillo del día y
+ *      lo primero que le queda. Antes cada persona salía dos veces (en el
+ *      parte y en su tarjeta grande) y la portada medía casi tres pantallas.
+ * ========================================================================= */
+
+/** El anillo del día: el porcentaje, o un ✓ cuando está completo. */
+function Ring({ value, size = 40, stroke = 4, label, light = false }: { value: number; size?: number; stroke?: number; label?: string; light?: boolean }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(1, value));
+  return (
+    <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className={light ? 'stroke-white/25' : 'stroke-[var(--track)]'} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - v)}
+          className="stroke-[var(--accent)] transition-[stroke-dashoffset] duration-700"
+        />
+      </svg>
+      <span className={`absolute text-[10px] font-black tabular-nums ${light ? 'text-white' : 't-1'}`}>{label ?? (v >= 1 ? '✓' : `${Math.round(v * 100)}`)}</span>
+    </span>
+  );
+}
+
+/**
+ * Un perfil como cromo: foto a sangre, el velo oscuro abajo para que el
+ * texto se lea igual de día que de noche, y lo que le queda hoy.
+ */
+function ProfileTile({
   profile: base,
   glance,
   hydrated,
   onSelect,
-  priority,
+  wide = false,
+  priority = false,
 }: {
   profile: Profile;
   glance: ProfileGlance | undefined;
   hydrated: boolean;
   onSelect: (id: ProfileId) => void;
+  wide?: boolean;
   priority?: boolean;
 }) {
   const { dress } = useAppearance();
   const { mode } = useTheme();
   const profile = dress(base);
   const kid = profile.kind === 'kid';
+  const ready = hydrated && glance;
   const pct = Math.round((glance?.today ?? 0) * 100);
+  const pendientes = glance?.pendientes ?? [];
+  const nombre = profile.name.replace('Hábitos en ', '');
+  // La foto de acción es vertical y llena el cromo; la de cabecera es una
+  // franja apaisada y en un cromo alto sólo dejaría ver una nariz.
+  const foto = profile.hero ?? profile.cover;
 
   return (
     <button
       type="button"
       onClick={() => onSelect(profile.id)}
-      // El acento y el tinte viajan como variables para que el anillo de
-      // foco, la barra, el distintivo y el filete de la tarjeta se tiñan con
-      // el color del perfil: el selector adelanta de qué color es cada
-      // sección antes de entrar. El acento se pide para el modo actual,
-      // porque el mismo verde claro que luce de noche se pierde sobre papel.
+      // El acento y el tinte viajan como variables: el anillo, el filete y el
+      // foco se tiñen del color del perfil antes de entrar en él.
       style={paletteStyle(accentFor(profile, mode), profile.tint)}
-      aria-label={`Abrir el perfil de ${profile.name}${
-        hydrated && glance
-          ? glance.tracked
-            ? `, ${pct} % registrado hoy`
-            : ', sin registrar hoy'
-          : ''
+      aria-label={`Abrir el perfil de ${profile.name}${ready ? (glance.tracked ? `, ${pct} % registrado hoy` : ', sin registrar hoy') : ''}${
+        ready && pendientes.length ? `. Pendiente: ${pendientes.map((p) => p.label).join(', ')}` : ''
       }`}
-      className={`group relative flex w-full flex-col overflow-hidden text-left transition-transform
-        duration-200 hover:-translate-y-1 ${kid ? 'card-kid' : 'card'}`}
+      className={`group relative isolate block w-full overflow-hidden rounded-[22px] text-left shadow-[var(--shadow-card)] ring-1 ring-black/10
+        transition duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]
+        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]
+        ${wide ? 'aspect-[16/10] sm:aspect-[5/2]' : 'aspect-[4/5] sm:aspect-[3/4]'}`}
     >
-      {/* Foto de cabecera de la tarjeta */}
-      <div className="relative h-32 w-full overflow-hidden sm:h-36">
-        {profile.cover ? (
-          <Photo
-            src={profile.cover}
-            alt=""
-            fill
-            sizes="(min-width: 640px) 480px, 100vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            priority={priority}
-          />
+      {foto ? (
+        <Photo
+          src={foto}
+          alt=""
+          fill
+          sizes={wide ? '(min-width: 640px) 480px, 50vw' : '(min-width: 640px) 240px, 50vw'}
+          className="-z-10 object-cover transition-transform duration-700 group-hover:scale-[1.05]"
+          priority={priority}
+        />
+      ) : (
+        <div className={`absolute inset-0 -z-10 bg-gradient-to-br ${profile.gradient}`} />
+      )}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/35 to-black/10" />
+      {kid && <div className="turf absolute inset-x-0 bottom-0 -z-10 h-1/2 opacity-40" />}
+      {/* El filete del color del perfil, abajo: la firma de cada uno. */}
+      <span className="absolute inset-x-0 bottom-0 h-1 bg-[var(--accent)]" />
+
+      {/* Arriba: el anillo del día y la racha o el candado. */}
+      <div className="absolute inset-x-2.5 top-2.5 flex items-start justify-between gap-2">
+        {ready ? (
+          glance.tracked ? (
+            <span className="rounded-full bg-black/45 p-0.5 backdrop-blur-sm">
+              <Ring value={glance.today} size={36} light label={glance.today >= 1 ? '✓' : `${Math.round(glance.today * 100)}%`} />
+            </span>
+          ) : (
+            <span className="rounded-full bg-black/50 px-2 py-1 text-[10px] font-bold text-white/90 backdrop-blur-sm">Sin apuntar</span>
+          )
         ) : (
-          <div className={`h-full w-full bg-gradient-to-br ${profile.gradient} opacity-70`} />
+          <span className="skeleton h-9 w-9 rounded-full opacity-60" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/25 to-transparent" />
-        {/* Los peques llevan franjas de siega sobre la foto: la banda es su campo. */}
-        {kid && <div className="turf absolute inset-0 opacity-80" />}
-
-        {/* Distintivo de estado: se lee antes que cualquier número. */}
-        {hydrated && glance && (
-          <span
-            className={`absolute right-3 top-3 chip text-[10px] backdrop-blur-sm
-              ${glance.tracked ? 'bg-accent t-on-accent' : 'bg-black/45 text-white/85'}`}
-          >
-            {glance.tracked ? `${pct} % hoy` : 'Sin registrar'}
-          </span>
-        )}
-
-        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent opacity-70" />
+        <span className="flex gap-1">
+          {ready && glance.streak > 0 && (
+            <span className="rounded-full bg-black/50 px-2 py-1 text-[10px] font-black text-white backdrop-blur-sm" title="Días seguidos por encima del 60 %">
+              🔥 {glance.streak}
+            </span>
+          )}
+          {profile.isPrivate && (
+            <span className="rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur-sm" title="Protegido con PIN">
+              🔒
+            </span>
+          )}
+        </span>
       </div>
 
-      <div className="relative -mt-9 flex items-end gap-3 px-5">
-        <Avatar profile={profile} size={kid ? 64 : 58} shape="circle" ring priority={priority} />
-        <div className="min-w-0 flex-1 pb-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h3
-              className={`truncate font-bold t-1 ${
-                kid ? 'text-2xl uppercase tracking-wide [font-family:var(--font-pitch)]' : 'text-xl'
+      {/* Abajo: quién es y lo que le queda. */}
+      <div className="absolute inset-x-0 bottom-0 p-3 pb-3.5 text-white">
+        <div className="flex items-center gap-2">
+          <Avatar profile={profile} size={wide ? 36 : 30} shape="circle" ring priority={priority} />
+          <div className="min-w-0 flex-1">
+            <p
+              className={`truncate leading-none drop-shadow ${
+                kid ? 'text-[19px] sm:text-[22px] uppercase tracking-wide [font-family:var(--font-pitch)]' : 'font-display text-lg font-black'
               }`}
             >
-              {profile.name.replace('Hábitos en ', '')}
-            </h3>
-            {profile.squad && (
-              <span className="chip-accent font-display px-2 text-[10px] tracking-widest">
-                {profile.position} · {profile.squad}
-              </span>
-            )}
-            {profile.age !== undefined && !profile.squad && (
-              <span className="chip-soft">{profile.age} años</span>
-            )}
-            {profile.isPrivate && (
-              <span
-                className="chip"
-                style={{ backgroundColor: 'var(--danger-bg)', color: 'var(--danger)' }}
-                title="Protegido con PIN"
-              >
-                🔒
-              </span>
-            )}
+              {nombre}
+              {profile.squad && <span className="ml-1.5 hidden align-middle sm:inline text-[10px] font-black tracking-widest text-white/70">{profile.position} {profile.squad}</span>}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-medium text-white/75">{profile.kind === 'group' ? profile.role : profile.tagline}</p>
           </div>
         </div>
-      </div>
-
-      <div className="px-5 pb-5 pt-2">
-        <p className="truncate text-sm t-2">{profile.role}</p>
-        <p className="mt-0.5 truncate text-xs t-3">{profile.tagline}</p>
-
-        {/* Lo que le queda hoy, dicho antes de entrar: así la portada sirve
-            para decidir adónde ir y no sólo para elegir una foto. */}
-        {hydrated && glance && glance.pendientes.length > 0 && (
-          <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Pendiente hoy">
-            {glance.pendientes.slice(0, 4).map((p) => (
+        {kid && ready && (
+          <div className="mt-1.5">
+            <Stars value={glance.stars} size="sm" />
+          </div>
+        )}
+        {ready && pendientes.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-1" aria-hidden>
+            {pendientes.slice(0, wide ? 3 : 2).map((p) => (
               <li
                 key={p.label}
-                className={`chip text-[10px] ${p.urgente ? 'border border-accent bg-accent-soft t-1' : 'surf-2 t-2'}`}
+                className={`max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-bold backdrop-blur-sm ${
+                  p.urgente ? 'bg-[var(--accent)] text-black/85' : 'bg-white/15 text-white/90'
+                }`}
               >
-                <span aria-hidden>{p.icon}</span> {p.label}
+                {p.icon} {p.label}
               </li>
             ))}
+            {pendientes.length > (wide ? 3 : 2) && (
+              <li className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white/90">+{pendientes.length - (wide ? 3 : 2)}</li>
+            )}
           </ul>
         )}
-
-        <div className="mt-4 flex min-h-[24px] items-center justify-between gap-3">
-          {hydrated && glance ? (
-            <>
-              <div className="flex items-center gap-2">
-                {kid ? (
-                  <Stars value={glance.stars} size="sm" />
-                ) : (
-                  <span className="text-sm font-semibold t-accent">
-                    {glance.tracked ? percent(glance.today) : 'Sin registrar'}
-                  </span>
-                )}
-                {glance.streak > 0 && (
-                  <span className="chip-soft" title="Días seguidos por encima del 60 %">
-                    🔥 {glance.streak} {glance.streak === 1 ? 'día' : 'días'}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs font-semibold t-3 transition-colors group-hover:t-1">
-                Abrir →
-              </span>
-            </>
-          ) : (
-            <div className="skeleton h-5 w-32 rounded-full" />
-          )}
-        </div>
-
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full track">
-          {hydrated && glance && (
-            <div
-              className="h-full rounded-full bg-accent transition-[width] duration-700"
-              style={{ width: `${pct}%` }}
-            />
-          )}
-        </div>
       </div>
     </button>
   );
 }
 
 /**
- * Situación de cada uno, dentro de la portada.
- *
- * Las tarjetas de más abajo cuentan lo mismo con detalle, pero obligan a
- * recorrer cuatro bloques y a compararlos de memoria. Arriba interesa el parte
- * de la casa de una ojeada: quién lleva el día registrado, por dónde va y
- * quién arrastra racha. Tocar abre ese perfil, así que la fila es además un
- * atajo para quien ya sabe a lo que viene.
+ * Lo urgente de todos, en una lista: lo que no se puede dejar para mañana.
+ * Cada línea abre el perfil de esa persona.
  */
-function CoverStatus({
-  glances,
-  hydrated,
-  onSelect,
-}: {
-  glances: Record<ProfileId, ProfileGlance>;
-  hydrated: boolean;
-  onSelect: (id: ProfileId) => void;
-}) {
+function ParaHoy({ glances, onSelect }: { glances: Record<ProfileId, ProfileGlance>; onSelect: (id: ProfileId) => void }) {
   const { dress } = useAppearance();
   const { mode } = useTheme();
+  const filas = PROFILES.flatMap((base) => {
+    const g = glances[base.id];
+    const urgentes = g?.pendientes.filter((p) => p.urgente) ?? [];
+    return urgentes.length ? [{ profile: dress(base), urgentes }] : [];
+  });
+  if (filas.length === 0) return null;
 
   return (
-    <ul className="mx-auto mt-5 grid max-w-2xl grid-cols-2 gap-2 text-left sm:grid-cols-4">
-      {INDIVIDUAL_PROFILES.map((base) => {
-        const profile = dress(base);
-        const glance = glances[profile.id];
-        const pct = Math.round((glance?.today ?? 0) * 100);
-        const ready = hydrated && glance;
-
-        return (
+    <section className="card mb-6 p-3 sm:p-4" aria-labelledby="para-hoy">
+      <h2 id="para-hoy" className="mb-2 flex items-center gap-2 px-1 text-[11px] font-black uppercase tracking-[0.22em] t-3">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--danger)]" aria-hidden />
+        Para hoy
+      </h2>
+      <ul className="grid divide-y divide-[var(--border)] sm:grid-cols-2 sm:gap-x-4 sm:divide-y-0">
+        {filas.map(({ profile, urgentes }) => (
           <li key={profile.id}>
             <button
               type="button"
               onClick={() => onSelect(profile.id)}
-              // Sólo el acento, no el tinte: estos botones viven dentro de la
-              // tarjeta de portada y han de seguir usando su superficie.
-              style={accentStyle(accentFor(profile, mode))}
-              aria-label={`Abrir el perfil de ${profile.name}${
-                ready
-                  ? glance.tracked
-                    ? `, ${pct} % registrado hoy`
-                    : ', sin registrar hoy'
-                  : ''
-              }`}
-              className="flex w-full flex-col gap-2 rounded-xl border p-2.5 text-left
-                transition-colors hairline surf-1 hover-soft"
+              style={paletteStyle(accentFor(profile, mode), profile.tint)}
+              className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover-soft"
             >
-              <span className="flex min-w-0 items-center gap-2">
-                <Avatar profile={profile} size={32} shape="circle" ring />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold t-1">{profile.name}</span>
-                  {ready ? (
-                    <span className="flex items-center gap-1">
-                      <span
-                        className={`truncate text-[11px] font-semibold ${
-                          glance.tracked ? 't-accent' : 't-3'
-                        }`}
-                      >
-                        {glance.tracked ? `${percent(glance.today)} hoy` : 'Sin registrar'}
-                      </span>
-                      {glance.streak > 0 && (
-                        <span
-                          className="text-[11px] font-semibold t-3"
-                          title="Días seguidos por encima del 60 %"
-                        >
-                          🔥{glance.streak}
-                        </span>
-                      )}
+              <Avatar profile={profile} size={34} shape="circle" ring />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-black t-1">{profile.name.replace('Hábitos en ', '')}</span>
+                <span className="mt-0.5 flex flex-wrap gap-1">
+                  {urgentes.map((p) => (
+                    <span key={p.label} className="chip border border-accent bg-accent-soft text-[11px] t-1">
+                      {p.icon} {p.label}
                     </span>
-                  ) : (
-                    <span className="skeleton mt-1 block h-3 w-16 rounded-full" />
-                  )}
+                  ))}
                 </span>
               </span>
-
-              <span className="block h-1 w-full overflow-hidden rounded-full track">
-                {ready && (
-                  <span
-                    className="block h-full rounded-full bg-accent transition-[width] duration-700"
-                    style={{ width: `${pct}%` }}
-                  />
-                )}
+              <span className="text-lg t-3" aria-hidden>
+                ›
               </span>
             </button>
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -290,29 +256,24 @@ function CoverStatus({
  * El saludo de la portada según la hora. Por la noche, que es cuando se
  * registra casi todo, lo dice claro: toca apuntar el día.
  */
-function greeting(hour: number): string {
-  if (hour >= 20 || hour < 2) return 'Buenas noches 🌙 Es la hora de apuntar el día: dos minutos por perfil.';
-  if (hour < 6) return 'Buenas noches. Elige tu perfil para registrar el día.';
-  if (hour < 13) return 'Buenos días ☀️ Elige tu perfil, o mira cómo quedó ayer.';
-  return 'Buenas tardes. Elige tu perfil para registrar el día, o entra en los módulos compartidos.';
+function greeting(hour: number): { hola: string; texto: string } {
+  if (hour >= 20 || hour < 2) return { hola: 'Buenas noches 🌙', texto: 'Es la hora de apuntar el día: dos minutos por perfil.' };
+  if (hour < 6) return { hola: 'Buenas noches', texto: 'Elige tu perfil para registrar el día.' };
+  if (hour < 13) return { hola: 'Buenos días ☀️', texto: 'Elige tu perfil, o mira cómo quedó ayer.' };
+  return { hola: 'Buenas tardes', texto: 'Elige tu perfil para registrar el día, o entra en los módulos compartidos.' };
 }
 
-export function ProfileSelector({
-  onSelect,
-  glances,
-  hydrated,
-  onEditCover,
-}: ProfileSelectorProps) {
+export function ProfileSelector({ onSelect, glances, hydrated, onEditCover }: ProfileSelectorProps) {
   const tracked = PROFILES.filter((p) => glances[p.id]?.tracked).length;
   const { appCover, appCoverCustom } = useAppearance();
+  const saludo = hydrated ? greeting(new Date().getHours()) : { hola: 'Hábitos en Familia', texto: 'Elige tu perfil para registrar el día.' };
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
-      {/* Portada */}
-      <header className="card relative mb-10 overflow-hidden">
-        {/* La foto no lleva texto encima: el titular va debajo, de modo que
-            ningún velo tape las caras sea cual sea el tamaño de pantalla. */}
-        <div className="relative h-52 w-full sm:h-72">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-8 pt-4 sm:pb-12 sm:pt-8">
+      {/* La casa: la foto limpia, sin texto encima que tape caras; el
+          titular y el anillo del día, debajo. */}
+      <header className="card relative mb-6 overflow-hidden p-0">
+        <div className="relative h-44 w-full sm:h-64">
           <Photo
             src={appCover}
             alt="Portada de la casa"
@@ -324,71 +285,62 @@ export function ProfileSelector({
             style={{ objectPosition: appCoverCustom ? 'center' : 'center 88%' }}
             priority
           />
-          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg)] to-transparent" />
-
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--surface)] to-transparent" />
+          <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+            {capitalize(formatLong(todayKey()))}
+          </span>
           <button
             type="button"
             onClick={onEditCover}
-            className="chip absolute right-3 top-3 min-h-[2.25rem] backdrop-blur-sm surf-2 t-1 hover-soft"
+            className="absolute right-3 top-3 grid h-9 min-w-9 place-items-center rounded-full bg-black/45 px-2.5 text-[12px] font-bold text-white backdrop-blur-sm transition hover:bg-black/60"
             title="Cambiar la portada de la app"
           >
-            🖼️ <span className="hidden sm:inline">Cambiar portada</span>
+            <span>
+              🖼️<span className="ml-1 hidden sm:inline">Cambiar portada</span>
+            </span>
           </button>
         </div>
 
-        <div className="relative px-5 pb-7 pt-4 text-center sm:pb-9">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] t-3">
-            {capitalize(formatLong(todayKey()))}
-          </p>
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl t-1">
-            Hábitos en Familia
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm t-2">
-            {hydrated ? greeting(new Date().getHours()) : 'Elige tu perfil para registrar el día, o entra en los módulos compartidos.'}
-          </p>
-
-          {/* Estado del día de un vistazo, antes de entrar en ningún perfil. */}
-          <p className="mt-4 text-xs t-3" aria-live="polite">
-            {!hydrated
-              ? ' '
-              : tracked === 0
-                ? 'Hoy no ha registrado nadie todavía.'
-                : tracked === PROFILES.length
-                  ? '¡Todos los perfiles tienen registro hoy! 🎉'
-                  : `Hoy han registrado ${tracked} de ${PROFILES.length} perfiles.`}
-          </p>
-
-          {/* El parte por persona, debajo del titular y encima de las tarjetas. */}
-          <CoverStatus glances={glances} hydrated={hydrated} onSelect={onSelect} />
+        <div className="flex items-center gap-4 px-4 pb-4 pt-1 sm:px-6 sm:pb-6">
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-bold t-3">{saludo.hola}</p>
+            <h1 className="font-display text-[28px] font-black leading-[1.05] tracking-tight t-1 sm:text-5xl">Hábitos en Familia</h1>
+            <p className="mt-1.5 text-[13px] leading-snug t-2 sm:text-sm">{saludo.texto}</p>
+          </div>
+          {/* El día de la casa: cuántos perfiles tienen algo apuntado. */}
+          <div className="flex shrink-0 flex-col items-center gap-1" aria-live="polite">
+            {hydrated ? (
+              <>
+                <Ring value={tracked / PROFILES.length} size={64} stroke={6} label={`${tracked}/${PROFILES.length}`} />
+                <span className="text-[10px] font-bold uppercase tracking-wider t-3">{tracked === PROFILES.length ? '¡Todos! 🎉' : 'apuntados'}</span>
+              </>
+            ) : (
+              <span className="skeleton h-16 w-16 rounded-full" />
+            )}
+          </div>
         </div>
       </header>
 
-      <section className="mb-10">
-        <h2 className="rule mb-3">Perfiles individuales</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {INDIVIDUAL_PROFILES.map((profile) => (
-            <ProfileCard
-              key={profile.id}
-              profile={profile}
-              glance={glances[profile.id]}
-              hydrated={hydrated}
-              onSelect={onSelect}
-            />
+      {hydrated && <ParaHoy glances={glances} onSelect={onSelect} />}
+
+      <section className="mb-7" aria-labelledby="perfiles">
+        <h2 id="perfiles" className="rule mb-3">
+          Perfiles
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {INDIVIDUAL_PROFILES.map((profile, i) => (
+            <ProfileTile key={profile.id} profile={profile} glance={glances[profile.id]} hydrated={hydrated} onSelect={onSelect} priority={i < 2} />
           ))}
         </div>
       </section>
 
-      <section>
-        <h2 className="rule mb-3">Módulos compartidos</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section aria-labelledby="compartidos">
+        <h2 id="compartidos" className="rule mb-3">
+          Compartidos
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {GROUP_PROFILES.map((profile) => (
-            <ProfileCard
-              key={profile.id}
-              profile={profile}
-              glance={glances[profile.id]}
-              hydrated={hydrated}
-              onSelect={onSelect}
-            />
+            <ProfileTile key={profile.id} profile={profile} glance={glances[profile.id]} hydrated={hydrated} onSelect={onSelect} wide />
           ))}
         </div>
       </section>
