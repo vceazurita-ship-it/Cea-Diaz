@@ -915,7 +915,7 @@ export function Dashboard({
               que se marca aquí, las tarjetas de abajo lo pliegan. */}
           {!kid && (
             <QuickChecklist
-              key={date}
+              key={`expres-${date}`}
               categories={categories}
               values={values}
               onChange={handleChange}
@@ -930,7 +930,7 @@ export function Dashboard({
           {/* Lo que la semana tenía apartado para hoy, ya contrastado con lo
               registrado: es lo que ata la agenda a estas casillas. */}
           <TodayPlanCard
-            key={date}
+            key={`plan-${date}`}
             onJump={jumpToMetric}
             profile={profile}
             date={date}

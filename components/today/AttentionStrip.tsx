@@ -78,7 +78,7 @@ export function AttentionStrip({ profile, values, kid, onJump, onlyUrgent = fals
               <span className="shrink-0 text-lg" aria-hidden>
                 {item.metric.icon}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold t-1">{item.metric.label}</span>
+              <span className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug font-semibold t-1">{item.metric.label}</span>
               <span
                 className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                   item.status === 'sinRegistrar' ? 'surf-2 t-3' : '[background:var(--danger-bg)] t-danger'
