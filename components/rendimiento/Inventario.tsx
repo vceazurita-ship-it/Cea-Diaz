@@ -164,7 +164,16 @@ export function Inventario({ entries, onSubir, onExportar }: InventarioProps) {
         )}
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      {/* Lo de cada niño, plegado: el anillo ya dice cuánto falta, y esta
+          tarjeta sale encima de las tres áreas cada vez que se entra. */}
+      <details className="group mt-2">
+        <summary className="flex cursor-pointer list-none items-center justify-center gap-1 py-1 text-[11px] font-bold t-accent">
+          {faltan === 0 ? 'Ver lo que hay de cada uno' : 'Ver qué falta de cada uno'}
+          <span aria-hidden className="transition-transform group-open:rotate-180">
+            ▾
+          </span>
+        </summary>
+      <div className="mt-1 grid grid-cols-2 gap-2">
         {tablero.map(({ profile, filas }) => (
           <div key={profile.id} className="min-w-0 rounded-xl border p-2 hairline surf-1">
             {/* Cada niño lleva su color y no el acento del panel: aquí se
@@ -216,6 +225,7 @@ export function Inventario({ entries, onSubir, onExportar }: InventarioProps) {
           </div>
         ))}
       </div>
+      </details>
     </section>
   );
 }

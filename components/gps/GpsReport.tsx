@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+
+import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import { addDays, formatShort, todayKey } from '@/lib/dates';
 import { fieldOf, formatValue, type GpsFieldId } from '@/lib/gps';
 import {
@@ -25,8 +27,9 @@ import type { GpsSession, Profile } from '@/types';
  *  una semana normal, dónde queda frente a niños de su edad (población
  *  general, club y élite), sus medianas por puesto y el mes a mes.
  *
- *  En el móvil todo va en una columna y se salta de apartado con la tira de
- *  arriba; en el ordenador las tarjetas se ponen de dos en dos.
+ *  Los apartados son pestañas: se ve uno cada vez. Seguidos eran más de tres
+ *  mil píxeles en el móvil, y lo que se buscaba casi siempre era uno solo.
+ *  Cada aparato recuerda cuál se miró la última vez.
  * ========================================================================= */
 
 /** Las cifras que se enseñan en el informe, por orden. */
@@ -249,10 +252,12 @@ const NAV = [
   ['puestos', 'Por puesto'],
   ['meses', 'Mes a mes'],
 ] as const;
+type Seccion = (typeof NAV)[number][0];
+const esSeccion = oneOf(NAV.map(([id]) => id));
 
 function Heading({ id, title, hint }: { id: string; title: string; hint?: string }) {
   return (
-    <div id={id} className="scroll-mt-4">
+    <div id={id}>
       <h4 className="text-[15px] font-black tracking-tight t-1">{title}</h4>
       {hint && <p className="mt-0.5 text-[11px] leading-snug t-3">{hint}</p>}
     </div>
@@ -277,6 +282,7 @@ export function GpsReport({
    */
   cerrado?: boolean;
 }) {
+  const [elegida, setSeccion] = useRemembered<Seccion>('gps:informe', 'resumen', esSeccion);
   const report = useMemo(() => {
     const sessions = usable(raw).sort((a, b) => a.date.localeCompare(b.date) || a.updatedAt.localeCompare(b.updatedAt));
     if (sessions.length < 4) return null;
@@ -362,6 +368,7 @@ export function GpsReport({
   }, [raw, profile.age]);
 
   const card = `${kid ? 'card-kid' : 'card'} p-4 sm:p-5`;
+  const tabsId = `informe-${profile.id}`;
 
   if (!report) {
     return (
@@ -381,6 +388,17 @@ export function GpsReport({
     placed.find((p) => p.comparison.tier === 'general') ?? placed.find((p) => !p.comparison.caveat) ?? null;
   const tiers: Tier[] = ['general', 'club', 'elite'];
 
+  // Los apartados que tienen algo que decir en este periodo; si el recordado
+  // no está (el mes a mes sólo sale en lo cerrado), el primero.
+  const secciones = NAV.filter(
+    ([id]) =>
+      (id !== 'estudios' || placed.length > 0) &&
+      (id !== 'semana' || !cerrado) &&
+      (id !== 'puestos' || groups.length > 0) &&
+      (id !== 'meses' || cerrado),
+  );
+  const seccion: Seccion = secciones.some(([id]) => id === elegida) ? elegida : secciones[0][0];
+
   const kpis: [string, string, string][] = [
     ['Punta habitual', speeds.length ? formatValue('topSpeed', quantile(speeds, 0.9)) : '—', 'sus mejores sesiones (P90)'],
     ['Punta típica', speeds.length ? formatValue('topSpeed', quantile(speeds, 0.5)) : '—', 'la mediana de todas'],
@@ -389,7 +407,7 @@ export function GpsReport({
   ];
 
   return (
-    <section className={`${card} space-y-6`}>
+    <section className={`${card} space-y-4`}>
       <header className="space-y-3">
         <div>
           <h3 className="text-base font-black tracking-tight t-1">📊 Informe · {titulo ?? profile.name}</h3>
@@ -397,21 +415,33 @@ export function GpsReport({
             {report.sessions.length} sesiones · {report.goalkeeper} de portero · se recalcula solo con cada sesión nueva
           </p>
         </div>
-        <nav aria-label="Apartados del informe" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {NAV.filter(([id]) => (id !== 'estudios' || placed.length > 0) && (id !== 'semana' || !cerrado) && (id !== 'meses' || cerrado)).map(([id, label]) => (
-            <a
-              key={id}
-              href={`#informe-${id}`}
-              className="shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold hairline surf-1 hover-soft t-2"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
+        <div role="tablist" aria-label="Apartados del informe" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {secciones.map(([id, label]) => {
+            const activa = seccion === id;
+            return (
+              <button
+                key={id}
+                id={`${tabsId}-tab-${id}`}
+                type="button"
+                role="tab"
+                aria-selected={activa}
+                aria-controls={`${tabsId}-panel`}
+                onClick={() => setSeccion(id)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors ${
+                  activa ? 'border-accent bg-accent t-on-accent shadow' : 'hairline surf-1 hover-soft t-2'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
+      <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={`${tabsId}-tab-${seccion}`} className="animate-aparece">
       {/* ---------------------------------------------------------- resumen */}
-      <div id="informe-resumen" className="scroll-mt-4 grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {seccion === 'resumen' && (
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="flex items-center gap-4 rounded-3xl border p-4 hairline surf-1">
           {headline ? (
             <>
@@ -443,9 +473,10 @@ export function GpsReport({
           ))}
         </div>
       </div>
+      )}
 
       {/* ------------------------------------------------------------ semana */}
-      {!cerrado && (
+      {seccion === 'semana' && (
         <div className="space-y-3">
           <Heading id="informe-semana" title="Los últimos 7 días frente a una semana normal" />
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -495,7 +526,7 @@ export function GpsReport({
       )}
 
       {/* ---------------------------------------------------------- estudios */}
-      {placed.length > 0 && (
+      {seccion === 'estudios' && (
         <div className="space-y-3">
           <Heading
             id="informe-estudios"
@@ -543,7 +574,7 @@ export function GpsReport({
       )}
 
       {/* ----------------------------------------------------------- puestos */}
-      {groups.length > 0 && (
+      {seccion === 'puestos' && (
         <div className="space-y-3">
           <Heading id="informe-puestos" title="Por puesto" hint="Mediana por sesión. Resaltada, la más alta de cada fila." />
           <div className="-mx-1 overflow-x-auto px-1">
@@ -600,7 +631,7 @@ export function GpsReport({
       )}
 
       {/* ------------------------------------------------------------- meses */}
-      {cerrado && (
+      {seccion === 'meses' && (
         <div className="space-y-3">
           <Heading
             id="informe-meses"
@@ -641,6 +672,8 @@ export function GpsReport({
           </details>
         </div>
       )}
+
+      </div>
 
       {/* --------------------------------------------------------- el fondo */}
       <div className="grid gap-2 lg:grid-cols-3">

@@ -7,6 +7,7 @@ import { GpsReport } from '@/components/gps/GpsReport';
 import { ComentarioSesion, GpsSeason } from '@/components/gps/GpsSeason';
 import { GpsTrend } from '@/components/gps/GpsTrend';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useToast } from '@/components/ui/Toast';
 import { useGpsSessions } from '@/hooks/useGps';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
@@ -32,7 +33,7 @@ import {
 import { comentarSesion, enPeriodo, periodosDe, type Comentario, type PeriodoId } from '@/lib/gpsSeason';
 import { findMetric } from '@/lib/habits';
 import { headingFont } from '@/lib/profiles';
-import type { GpsDigest } from '@/lib/gps';
+import type { GpsDigest, GpsFieldId, GpsNote } from '@/lib/gps';
 import type { GpsSession, Profile, ProfileSkin } from '@/types';
 
 /* =========================================================================
@@ -64,8 +65,8 @@ interface GpsPanelProps {
 const FILTROS = ['todo', 'entreno', 'partido'] as const;
 const esFiltro = oneOf(FILTROS);
 
-/** Cuántos meses de la lista se ven de entrada; el resto, al pedirlo. */
-const MESES_A_LA_VISTA = 2;
+/** Cuántas sesiones de la lista se ven de entrada; el resto, al pedirlo. */
+const A_LA_VISTA = 6;
 
 /** Mientras se leen las sesiones guardadas: el hueco de lo que va a salir. */
 function GpsSkeleton() {
@@ -257,28 +258,38 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
     else porMes.push([key, [session]]);
   }
   const masVieja = shown[shown.length - 1];
-  const mesesVisibles = verTodos ? porMes : porMes.slice(0, MESES_A_LA_VISTA);
-  const ocultas = porMes.slice(mesesVisibles.length).reduce((sum, [, list]) => sum + list.length, 0);
+  // Se corta por sesiones y no por meses: dos meses de temporada eran
+  // quince tarjetas seguidas.
+  const mesesVisibles: [string, GpsSession[]][] = [];
+  let quedan = verTodos ? Infinity : A_LA_VISTA;
+  for (const [key, list] of porMes) {
+    if (quedan <= 0) break;
+    mesesVisibles.push([key, list.slice(0, quedan)]);
+    quedan -= list.length;
+  }
+  const ocultas = shown.length - mesesVisibles.reduce((sum, [, list]) => sum + list.length, 0);
 
   return (
     <div className="space-y-4">
       <header className="space-y-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className={`min-w-0 text-lg font-bold t-1 ${heading}`}>
-            🛰️ {pitch ? `Los datos de ${profile.name}` : `GPS de ${profile.name}`}
-          </h2>
-          <span className="shrink-0 text-[11px] t-3">
-            {sessions.length === 0 ? `sin sesiones · ${TRACKER}` : `${sessions.length} en total · ${TRACKER}`}
-          </span>
+        {/* Apuntar va en la misma fila que el título, como «Subir informe» en
+            Físico y Colegio: una fila entera para un botón era una fila menos
+            de la última sesión a la vista. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className={`truncate text-lg font-bold leading-tight t-1 ${heading}`}>
+              🛰️ {pitch ? `Los datos de ${profile.name}` : `GPS de ${profile.name}`}
+            </h2>
+            <p className="text-[11px] t-3">
+              {sessions.length === 0 ? `sin sesiones · ${TRACKER}` : `${sessions.length} en total · ${TRACKER}`}
+            </p>
+          </div>
+          {sessions.length > 0 && (
+            <button type="button" onClick={() => setApuntando(true)} className="btn-primary shrink-0 px-4 text-sm">
+              📥 Apuntar
+            </button>
+          )}
         </div>
-
-        {/* Apuntar está arriba: antes había que bajar la temporada entera
-            para llegar a la caja. */}
-        {sessions.length > 0 && (
-          <button type="button" onClick={() => setApuntando(true)} className="btn-primary w-full text-sm">
-            📥 Apuntar una sesión
-          </button>
-        )}
 
         {sessions.length > 0 && (
           <>
@@ -377,6 +388,13 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
         </section>
       ) : (
         <>
+          {/* Lo primero, lo inmediato: la última sesión frente a las suyas, y
+              debajo lo que dicen todas juntas. Luego la temporada, la tendencia
+              y el informe; las marcas y la lista, al final, para consultar. */}
+          {last && <LastSession session={last} marks={marks} comentario={comentarios.get(last.id)} kid={kid} pitch={pitch} />}
+
+          {notes.length > 0 && <LoClave notes={notes} kid={kid} />}
+
           {periodoId === 'temporada' ? (
             <GpsSeason periodo={periodo} sessions={shown} kid={kid} />
           ) : (
@@ -391,7 +409,17 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
             </section>
           )}
 
-          {last && <LastSession session={last} marks={marks} comentario={comentarios.get(last.id)} kid={kid} pitch={pitch} />}
+          <GpsTrend sessions={shown} kid={kid} />
+
+          {/* El informe va con todas las del periodo, no con el filtro: separa
+              él los puestos, y la comparación con los estudios necesita todo. */}
+          <GpsReport
+            profile={profile}
+            sessions={delPeriodo}
+            kid={kid}
+            titulo={periodo.label}
+            cerrado={periodoId === 'anterior'}
+          />
 
           {stats.length > 0 && (
             <details key={periodoId} className={`${card} group`} open={periodoId === 'anterior'}>
@@ -418,41 +446,14 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
             </details>
           )}
 
-          <GpsTrend sessions={shown} kid={kid} />
-
-          {/* El informe va con todas las del periodo, no con el filtro: separa
-              él los puestos, y la comparación con los estudios necesita todo. */}
-          <GpsReport
-            profile={profile}
-            sessions={delPeriodo}
-            kid={kid}
-            titulo={periodo.label}
-            cerrado={periodoId === 'anterior'}
-          />
-
-          {notes.length > 0 && (
-            <section className={card}>
-              <h3 className="mb-2 text-sm font-bold t-1">🔎 Lo que se ve mirándolas juntas</h3>
-              <ul className="space-y-2">
-                {notes.map((note) => (
-                  <li key={note.id} className="flex gap-2 text-sm leading-relaxed">
-                    <span aria-hidden className="shrink-0">
-                      {note.icon}
-                    </span>
-                    <span className={note.tone === 'aviso' ? 't-2' : 't-1'}>{note.text}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           <section className={card}>
             <h3 className="text-sm font-bold t-1">📜 Las sesiones ({shown.length})</h3>
             <p className="mb-1 text-[11px] t-3">Cada una con su comentario frente a su temporada. Tócala para ver todas sus cifras.</p>
             {mesesVisibles.map(([key, list]) => (
               <div key={key}>
                 <p className="mb-1.5 mt-3 text-[11px] font-black uppercase tracking-wide t-3">
-                  {new Date(`${key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} · {list.length}
+                  {new Date(`${key}-15T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} ·{' '}
+                  {porMes.find(([k]) => k === key)?.[1].length ?? list.length}
                 </p>
                 <ul className="space-y-1.5">
                   {list.map((session) => (
@@ -472,7 +473,7 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
             ))}
             {ocultas > 0 && (
               <button type="button" onClick={() => setVerTodos(true)} className="btn-ghost mt-3 w-full text-xs">
-                Ver más ({ocultas})
+                Ver las {ocultas} anteriores
               </button>
             )}
           </section>
@@ -758,9 +759,67 @@ function Tile({ label, value, hint }: { label: string; value: string; hint: stri
   );
 }
 
+
+/* ---------------------------------------------------------------------------
+ * Lo que se ve mirándolas juntas
+ *
+ * Tres frases a la vista y el resto al pedirlo: con una temporada larga
+ * salían ocho o diez, y eran una pared justo debajo de la última sesión.
+ * ------------------------------------------------------------------------- */
+
+const CLAVE_A_LA_VISTA = 3;
+
+/** Primero lo que va bien y los avisos; los datos sueltos, al final. */
+const ORDEN_NOTA: Record<GpsNote['tone'], number> = { bien: 0, aviso: 1, dato: 2 };
+
+function LoClave({ notes, kid }: { notes: GpsNote[]; kid: boolean }) {
+  const [todas, setTodas] = useState(false);
+  const sorted = [...notes].sort((a, b) => ORDEN_NOTA[a.tone] - ORDEN_NOTA[b.tone]);
+  const visibles = todas ? sorted : sorted.slice(0, CLAVE_A_LA_VISTA);
+
+  return (
+    <section className={`${kid ? 'card-kid' : 'card'} p-4`}>
+      <h3 className="mb-2 text-sm font-bold t-1">🔎 Lo que dicen todas juntas</h3>
+      <ul className="space-y-1.5">
+        {visibles.map((note) => (
+          <li
+            key={note.id}
+            className={`flex gap-2 rounded-xl px-2.5 py-1.5 text-[13px] leading-snug ${
+              note.tone === 'bien' ? 'bg-ok-soft t-1' : note.tone === 'aviso' ? 'bg-warn-soft t-1' : 'surf-1 t-2'
+            }`}
+          >
+            <span aria-hidden className="shrink-0">
+              {note.icon}
+            </span>
+            <span>{note.text}</span>
+          </li>
+        ))}
+      </ul>
+      {sorted.length > CLAVE_A_LA_VISTA && (
+        <button
+          type="button"
+          onClick={() => setTodas((v) => !v)}
+          aria-expanded={todas}
+          className="mt-2 text-[11px] font-bold t-accent"
+        >
+          {todas ? 'Ver menos' : `Ver ${sorted.length - CLAVE_A_LA_VISTA} más`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 /* ---------------------------------------------------------------------------
  * La última sesión, comparada con las suyas
+ *
+ * Es la tarjeta de arriba, como «Para hoy» en la portada: el anillo dice en
+ * cuántas cifras ha estado por encima de lo suyo, y se ven cuatro —los
+ * récords primero, luego lo que más se mira—. Las demás, al tocar.
  * ------------------------------------------------------------------------- */
+
+/** Las cifras que se miran primero cuando no hay récord que enseñar. */
+const PRIMERO: GpsFieldId[] = ['distance', 'topSpeed', 'intense', 'touches', 'accels', 'shotPower'];
+const CIFRAS_A_LA_VISTA = 4;
 
 function LastSession({
   session,
@@ -775,24 +834,56 @@ function LastSession({
   kid: boolean;
   pitch: boolean;
 }) {
+  const [todas, setTodas] = useState(false);
   const records = marks.filter((mark) => mark.record).length;
+  // Por encima de lo suyo: récord, o un 3 % o más sobre su media (lo de
+  // menos es el «= en su media» de las tarjetas).
+  const comparables = marks.filter((mark) => mark.change !== null || mark.record);
+  const arriba = comparables.filter((mark) => mark.record || (mark.change ?? 0) >= 0.03).length;
+
+  const rango = (mark: (typeof marks)[number]) => {
+    const i = PRIMERO.indexOf(mark.id);
+    return (mark.record ? 0 : 100) + (i < 0 ? 50 : i);
+  };
+  const ordenadas = [...marks].sort((a, b) => rango(a) - rango(b));
+  const visibles = todas ? ordenadas : ordenadas.slice(0, CIFRAS_A_LA_VISTA);
+  const minutos = valueOf(session, 'minutes');
 
   return (
-    <section className={`${kid ? 'card-kid' : 'card'} space-y-3 p-4`}>
-      <header className="flex items-baseline justify-between gap-2">
-        <h3 className="min-w-0 text-sm font-bold t-1">
-          {KIND_META[session.kind].icon} La última: {friendlyDateLabel(session.date).toLowerCase()}
-        </h3>
-        <span className="shrink-0 text-[11px] t-3">
-          {KIND_META[session.kind].label}
-          {records > 0 && ` · 🏅 ${records}${pitch ? ' ¡a lo grande!' : ''}`}
-        </span>
+    <section className={`${kid ? 'card-kid' : 'card'} space-y-3 border-accent bg-accent-faint p-4`}>
+      <header className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] t-3">
+            La última · {KIND_META[session.kind].label}
+            {minutos !== undefined ? ` · ${formatValue('minutes', minutos)}` : ''}
+          </p>
+          <h3 className="font-display text-xl font-black leading-tight t-1 first-letter:uppercase">
+            {KIND_META[session.kind].icon} {friendlyDateLabel(session.date).toLowerCase()}
+          </h3>
+          {/* Con comentario, el récord ya lo dice él, y mejor. */}
+          {records > 0 && !comentario && (
+            <p className="mt-0.5 text-[12px] font-bold t-warn">
+              🏅 {records === 1 ? 'Un récord' : `${records} récords`}
+              {pitch ? ' ¡a lo grande!' : ''}
+            </p>
+          )}
+        </div>
+        {comparables.length > 0 && (
+          <div className="shrink-0 text-center">
+            <ProgressRing ratio={arriba / comparables.length} size={60} stroke={6}>
+              <span className="text-[13px] font-black tabular-nums t-1">
+                {arriba}/{comparables.length}
+              </span>
+            </ProgressRing>
+            <p className="mt-0.5 text-[10px] font-bold leading-tight t-3">sobre su media</p>
+          </div>
+        )}
       </header>
 
       {comentario && <ComentarioSesion comentario={comentario} />}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {marks.map((mark) => {
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {visibles.map((mark) => {
           const field = fieldOf(mark.id);
           const up = mark.change !== null && mark.change > 0;
           const pct = mark.change === null ? null : Math.round(mark.change * 100);
@@ -800,14 +891,14 @@ function LastSession({
           return (
             <div
               key={mark.id}
-              className={`min-w-0 rounded-2xl border px-3 py-2.5 ${mark.record ? 'border-accent bg-accent-faint' : 'hairline surf-1'}`}
+              className={`min-w-0 rounded-2xl border px-3 py-2.5 ${mark.record ? 'border-warn bg-warn-soft' : 'hairline surf-1'}`}
             >
               <p className="truncate text-[10px] font-bold uppercase tracking-wide t-3">
                 {field.icon} {field.short}
               </p>
               <p className="truncate text-lg font-black tabular-nums leading-tight t-1">{formatValue(mark.id, mark.value)}</p>
               {mark.record ? (
-                <p className="text-[11px] font-bold t-accent">🏅 Récord</p>
+                <p className="text-[11px] font-bold t-warn">🏅 Récord</p>
               ) : pct === null ? (
                 <p className="text-[11px] t-3">primera vez</p>
               ) : Math.abs(pct) < 3 ? (
@@ -821,6 +912,17 @@ function LastSession({
           );
         })}
       </div>
+
+      {marks.length > CIFRAS_A_LA_VISTA && (
+        <button
+          type="button"
+          onClick={() => setTodas((v) => !v)}
+          aria-expanded={todas}
+          className="btn-ghost min-h-0 w-full py-1.5 text-[12px]"
+        >
+          {todas ? 'Ver menos' : `Ver sus ${marks.length} cifras`}
+        </button>
+      )}
 
       {session.note && <p className="text-xs leading-relaxed t-3">📝 {session.note}</p>}
     </section>

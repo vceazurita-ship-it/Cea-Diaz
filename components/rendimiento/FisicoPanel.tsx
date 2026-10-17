@@ -239,23 +239,31 @@ function Resumen({ audit, profile }: { audit: NonNullable<ReturnType<typeof audi
  *
  * Sale siempre, aunque no se haya subido nada, porque en casa hay uno: lo
  * que no puede pasar es que un niño de ocho años acabe tomando creatina
- * porque un PDF de pago lo recomendó en la página doce.
+ * porque un PDF de pago lo recomendó en la página doce. Lo que se ve es el
+ * aviso, que es lo que importa; el porqué y las fuentes, al abrirlo.
  */
 function Genetica() {
   return (
     <section className="banner banner-warn rounded-2xl p-4">
       <h4 className="text-sm font-black t-1">🧬 {GENETICA.title}</h4>
-      <p className="mt-1.5 text-[12px] leading-snug t-2">
-        {GENETICA.text.split('**').map((piece, i) => (i % 2 ? <strong key={i}>{piece}</strong> : piece))}
+      <p className="mt-1.5 text-[12px] font-semibold leading-snug t-1">
+        No sirven para detectar talento ni para planificar entrenos, y sus pautas son de adultos (creatina, cargas,
+        cafeína): antes de darle nada a un niño, el pediatra.
       </p>
-      <p className="mt-2 text-[12px] font-semibold leading-snug t-1">{GENETICA.warn}</p>
-      <ol className="mt-2 space-y-1">
-        {GENETICA.sources.map((id) => (
-          <li key={id} className="text-[10px] leading-snug t-3">
-            {FIT_SOURCE_BY_ID.get(id)?.cite}
-          </li>
-        ))}
-      </ol>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-[11px] font-bold t-2">Por qué, y las fuentes</summary>
+        <p className="mt-1.5 text-[12px] leading-snug t-2">
+          {GENETICA.text.split('**').map((piece, i) => (i % 2 ? <strong key={i}>{piece}</strong> : piece))}
+        </p>
+        <p className="mt-2 text-[12px] leading-snug t-2">{GENETICA.warn}</p>
+        <ol className="mt-2 space-y-1">
+          {GENETICA.sources.map((id) => (
+            <li key={id} className="text-[10px] leading-snug t-3">
+              {FIT_SOURCE_BY_ID.get(id)?.cite}
+            </li>
+          ))}
+        </ol>
+      </details>
     </section>
   );
 }
