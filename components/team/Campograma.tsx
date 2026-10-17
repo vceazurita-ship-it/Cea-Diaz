@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { CromoPortrait } from '@/components/ui/CromoPortrait';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import {
   FORMATIONS,
   LINE_ICON,
@@ -143,7 +144,7 @@ function Tag({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex min-h-10 items-center gap-1.5 rounded-xl border bg-gradient-to-br px-2 py-1.5
+      className={`flex min-h-10 w-full items-center gap-1.5 rounded-xl border bg-gradient-to-br px-2 py-1.5
         text-left transition-transform hover:scale-[1.03] ${chipStyle(cromo.rarity)}`}
     >
       <CromoPortrait cromo={cromo} size="xs" round />
@@ -303,11 +304,30 @@ export function Campograma({
 
   return (
     <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className={`${headingClass} mb-0`}>⚽ Tu equipo</h3>
-        <span className="text-xs font-bold tabular-nums t-accent">
-          {placed}/{total} en el campo
-        </span>
+      {/* La cabecera: el nombre del equipo es el titular, y se escribe ahí
+          mismo; al lado, el anillo con los que ya están en el campo. */}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className={`${headingClass} !mb-0 !text-[11px]`}>⚽ Tu equipo</h3>
+          {squad.size > 0 && (
+            <input
+              className="mt-0.5 w-full rounded-lg border-0 border-b-2 border-dashed bg-transparent px-0 py-0.5 font-display text-2xl font-black leading-tight t-1 hairline placeholder:t-3 focus:border-[var(--accent)] focus:outline-none"
+              value={lineup.teamName}
+              maxLength={40}
+              placeholder="Ponle nombre…"
+              aria-label="Nombre de tu equipo"
+              onChange={(event) => save({ teamName: event.target.value })}
+            />
+          )}
+        </div>
+        <ProgressRing ratio={total ? placed / total : 0} size={56} stroke={5}>
+          <span className="text-center leading-none">
+            <span className="block text-[13px] font-black tabular-nums t-1">
+              {placed}/{total}
+            </span>
+            <span className="block text-[8px] font-bold uppercase tracking-wide t-3">en campo</span>
+          </span>
+        </ProgressRing>
       </div>
 
       {squad.size === 0 ? (
@@ -316,39 +336,31 @@ export function Campograma({
         </p>
       ) : (
         <div className="space-y-3">
-          {/* Nombre del equipo y dibujo */}
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              className="field min-w-[150px] flex-1"
-              value={lineup.teamName}
-              maxLength={40}
-              placeholder="Nombre de tu equipo"
-              aria-label="Nombre de tu equipo"
-              onChange={(event) => save({ teamName: event.target.value })}
-            />
-            <label className="sr-only" htmlFor={`formacion-${profileId}`}>
-              Formación
-            </label>
-            <select
-              id={`formacion-${profileId}`}
-              className="field"
-              value={formation.id}
-              onChange={(event) =>
-                save(switchFormation(lineup, event.target.value, lineOf))
-              }
-            >
+          {/* El dibujo: las formaciones en pastillas, de un toque, y debajo
+              lo que significa la elegida. */}
+          <div>
+            <div className="edge-mask-x -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="radiogroup" aria-label="Formación" data-noswipe>
               {FORMATIONS.map((option) => (
-                <option key={option.id} value={option.id}>
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={option.id === formation.id}
+                  onClick={() => option.id !== formation.id && save(switchFormation(lineup, option.id, lineOf))}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black tabular-nums transition ${
+                    option.id === formation.id ? 'bg-accent t-on-accent shadow' : 'chip-soft'
+                  }`}
+                >
                   {option.name}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
+            <p className="mt-1 text-[11px] leading-snug t-3">{formation.detail}</p>
           </div>
-          <p className="text-[11px] leading-snug t-3">{formation.detail}</p>
 
           {/* El campo */}
           <div
-            className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl border
+            className="relative aspect-[5/6] w-full overflow-hidden rounded-2xl border
                        hairline bg-emerald-950/90 sm:aspect-[4/5]"
           >
             <div className="turf absolute inset-0 opacity-80" aria-hidden />
@@ -396,9 +408,9 @@ export function Campograma({
                 Vacío. Toca un cromo de la reserva para sentarlo aquí.
               </p>
             ) : (
-              <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <ul className="edge-mask-x -mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible" data-noswipe>
                 {bench.map((cromo) => (
-                  <li key={cromo.id}>
+                  <li key={cromo.id} className="w-40 shrink-0 snap-start sm:w-auto">
                     <Tag
                       cromo={cromo}
                       label={`${cromo.name}, en el banquillo. Tocar para devolverlo al álbum.`}
@@ -416,9 +428,9 @@ export function Campograma({
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide t-2">
                 🎁 Cromos sin sitio <span className="tabular-nums t-3">{spare.length}</span>
               </p>
-              <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <ul className="edge-mask-x -mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible" data-noswipe>
                 {spare.map((cromo) => (
-                  <li key={cromo.id}>
+                  <li key={cromo.id} className="w-40 shrink-0 snap-start sm:w-auto">
                     <Tag
                       cromo={cromo}
                       label={`${cromo.name}. Tocar para sentarlo en el banquillo.`}
@@ -430,12 +442,17 @@ export function Campograma({
             </div>
           )}
 
-          <p className="text-[11px] leading-relaxed t-3">
+          <details className="group text-[11px] leading-relaxed t-3">
+            <summary className="cursor-pointer list-none font-bold t-2">
+              <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>▸</span> ¿Cómo se monta el equipo?
+            </summary>
+            <p className="mt-1">
             Cada cromo juega en su puesto o en uno de al lado —un central de medio, un extremo
             de lateral—, y ahí sale marcado con lo que es él en realidad. En la portería, sólo
             porteros. Toca una posición del campo para elegir quién la ocupa; toca un cromo del
             banquillo para devolverlo al álbum.
-          </p>
+            </p>
+          </details>
         </div>
       )}
 

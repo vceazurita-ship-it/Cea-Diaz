@@ -170,44 +170,14 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
             <p className="text-3xl">🧩</p>
             <p className="mt-1 font-black">Te {once.faltan === 1 ? 'falta 1 jugador' : `faltan ${once.faltan} jugadores`} en el once</p>
             <p className="mt-0.5 text-sm t-2">Completa el campograma de arriba y tu equipo podrá jugar la liga.</p>
+            <a href="#equipo" className="btn-primary mt-3 inline-flex">
+              ⬆️ Completar el once
+            </a>
           </div>
         ) : (
           <>
-            {/* El once en el estadio, en 3D; o el campo plano con la química. */}
-            <div className="relative">
-              {vista === '3d' ? (
-                <Escaparate once={once} rival={rival} profileId={profileId} equipo={equipo} activo={!jugando} sinTres={() => setVista('quimica')} />
-              ) : (
-                <MiniCampo once={once} />
-              )}
-              <div className="absolute right-2 top-2 flex overflow-hidden rounded-full bg-black/60 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/20">
-                {(['3d', 'quimica'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setVista(v)}
-                    aria-pressed={vista === v}
-                    className={`px-2.5 py-1 ${vista === v ? 'bg-amber-300 text-[#241a14]' : ''}`}
-                  >
-                    {v === '3d' ? '🏟️ 3D' : '🟢 Química'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-1.5 text-center">
-              <Dato titulo="Media" valor={once.media} grande />
-              <Dato titulo="Química" valor={`${once.quimica}/${once.quimicaMax}`} />
-              <Dato titulo="Ataque" valor={once.atq} />
-              <Dato titulo="Defensa" valor={once.def} />
-            </div>
-            <p className="text-[12px] leading-snug t-2">
-              <b>Química:</b> dos vecinos del mismo club se entienden y suben su media. Junta a los del mismo equipo en el
-              campograma y mira cómo se encienden las líneas verdes.
-              {lineup.captain ? ' El capitán 🅒 tira de su línea.' : ' Ponle el brazalete a uno: el capitán tira de su línea.'}
-            </p>
-
-            {/* El rival que toca. */}
+            {/* Lo que se viene a hacer, arriba: el rival de hoy y el botón de
+                jugar. El estadio y las cifras, debajo, para quien quiera mirar. */}
             <div className="flex items-center gap-3 rounded-2xl p-3 ring-1 ring-black/10" style={{ background: `${rival.color}18` }}>
               <span
                 className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl shadow"
@@ -246,6 +216,45 @@ export function LigaCromos({ profileId, name, date, rewards, lineup, kid, headin
                 {Math.round(EMPUJE_TECNICA * 100)}% a la jugada.
               </p>
             )}
+            {/* El once en el estadio, en 3D; o el campo plano con la química. */}
+            <div className="relative">
+              {vista === '3d' ? (
+                <Escaparate once={once} rival={rival} profileId={profileId} equipo={equipo} activo={!jugando} sinTres={() => setVista('quimica')} />
+              ) : (
+                <MiniCampo once={once} />
+              )}
+              <div className="absolute right-2 top-2 flex overflow-hidden rounded-full bg-black/60 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/20">
+                {(['3d', 'quimica'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVista(v)}
+                    aria-pressed={vista === v}
+                    className={`px-2.5 py-1 ${vista === v ? 'bg-amber-300 text-[#241a14]' : ''}`}
+                  >
+                    {v === '3d' ? '🏟️ 3D' : '🟢 Química'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              <Dato titulo="Media" valor={once.media} grande />
+              <Dato titulo="Química" valor={`${once.quimica}/${once.quimicaMax}`} />
+              <Dato titulo="Ataque" valor={once.atq} />
+              <Dato titulo="Defensa" valor={once.def} />
+            </div>
+            <details className="group text-[12px] leading-snug t-2">
+              <summary className="cursor-pointer list-none text-[11px] font-bold t-2">
+                <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>▸</span> ¿Qué es la química?
+              </summary>
+              <p className="mt-1">
+              <b>Química:</b> dos vecinos del mismo club se entienden y suben su media. Junta a los del mismo equipo en el
+              campograma y mira cómo se encienden las líneas verdes.
+              {lineup.captain ? ' El capitán 🅒 tira de su línea.' : ' Ponle el brazalete a uno: el capitán tira de su línea.'}
+              </p>
+            </details>
+
           </>
         )}
       </div>
@@ -341,7 +350,7 @@ function Escaparate({
   }, [visible, activo, once, rival, profileId, equipo]);
 
   return (
-    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-[#0b1220] ring-1 ring-black/20">
+    <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-[#0b1220] ring-1 ring-black/20 sm:aspect-[4/5]">
       <div ref={host} className="absolute inset-0" role="img" aria-label={`Tu once en el estadio: ${equipo}`} />
       {!listo && (
         <div className="absolute inset-0 grid place-items-center">
