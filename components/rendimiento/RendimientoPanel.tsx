@@ -86,18 +86,25 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
   return (
     <div className="space-y-4">
       {/* Lo primero que se ve: qué hay cargado y qué falta, de los dos. */}
-      <Inventario entries={store.entries} onSubir={() => setSubiendo(true)} />
-
-      {/* Todo lo de los dos —hábitos, entrenos, pruebas, colegio— en papel. */}
-      <button type="button" onClick={() => setExportando(true)} className="btn-ghost w-full text-sm">
-        📄 Exportar a PDF
-      </button>
+      {/* El PDF —todo lo de los dos: hábitos, entrenos, pruebas, colegio—
+          va dentro, al lado de subir. */}
+      <Inventario
+        entries={store.entries}
+        onSubir={() => setSubiendo(true)}
+        onExportar={() => setExportando(true)}
+      />
 
       {/* Las tres áreas, pegadas a lo que abren. Se ven siempre las tres,
           aunque una esté vacía: una sección que no se sabe que existe no se
           llena nunca. Antes iban arriba del todo, con el inventario y el PDF
-          en medio, y no se veía qué era lo que cambiaban. */}
-      <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Área de rendimiento">
+          en medio, y no se veía qué era lo que cambiaban. Ahora son un
+          conmutador de una sola fila, como el de semana y mes: tres fichas
+          altas se comían casi setenta píxeles para decir tres palabras. */}
+      <div
+        className="grid grid-cols-3 gap-0.5 rounded-2xl border p-0.5 hairline surf-1"
+        role="tablist"
+        aria-label="Área de rendimiento"
+      >
         {areas.map((item) => {
           const activa = area === item.id;
           return (
@@ -114,18 +121,23 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
                 if (event.key === 'ArrowRight') mover(item.id, 1);
                 if (event.key === 'ArrowLeft') mover(item.id, -1);
               }}
-              className={`rounded-xl border px-2 py-2 text-center transition-colors ${
-                activa ? 'border-transparent bg-accent t-on-accent' : 'hairline surf-1 t-2'
+              className={`flex min-h-[2.75rem] min-w-0 items-center justify-center gap-1.5 rounded-xl px-1.5 transition-colors ${
+                activa ? 'bg-accent t-on-accent shadow' : 't-2 hover-soft'
               }`}
             >
-              <span aria-hidden className="block text-lg leading-none">
+              <span aria-hidden className="text-base leading-none">
                 {item.icon}
               </span>
-              <span className="mt-1 block text-[11px] font-black leading-tight">{item.label}</span>
+              <span className="truncate text-[12px] font-black leading-tight">{item.label}</span>
               {/* Sin velo sobre la pestaña marcada: a 10 px, el texto encima
                   del acento al 70 % se quedaba en 3,3:1 y no se leía. */}
-              <span className={`block text-[10px] leading-tight ${activa ? 't-on-accent' : 't-3'}`}>
-                {item.count < 0 ? '…' : item.count === 0 ? 'vacío' : item.count}
+              <span
+                className={`shrink-0 rounded-full px-1.5 text-[10px] font-bold leading-[1.1rem] tabular-nums ${
+                  activa ? 't-on-accent bg-black/15' : 't-3 surf-2'
+                }`}
+              >
+                {item.count < 0 ? '…' : item.count === 0 ? '0' : item.count}
+                {item.count === 0 && <span className="sr-only"> (vacío)</span>}
               </span>
             </button>
           );

@@ -1,5 +1,6 @@
 'use client';
 
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { reportsFor, type ReportCard } from '@/lib/academics';
 import { cogFor } from '@/lib/cognitive';
 import { todayKey } from '@/lib/dates';
@@ -24,6 +25,8 @@ import type { DateKey, DayEntry, ProfileId } from '@/types';
 interface InventarioProps {
   entries: Record<string, DayEntry>;
   onSubir: () => void;
+  /** Saca todo en PDF; va al lado de subir. */
+  onExportar?: () => void;
 }
 
 interface Fila {
@@ -114,10 +117,11 @@ function estadoDe(fila: Fila): 'hay' | 'viejo' | 'falta' {
   return fila.vigente ? 'hay' : 'viejo';
 }
 
-export function Inventario({ entries, onSubir }: InventarioProps) {
+export function Inventario({ entries, onSubir, onExportar }: InventarioProps) {
   const { mode } = useTheme();
   const ninos = PROFILES.filter((profile) => profile.kind === 'kid');
   const tablero = ninos.map((profile) => ({ profile, filas: filasDe(entries, profile.id) }));
+  const total = tablero.reduce((sum, { filas }) => sum + filas.length, 0);
   const faltan = tablero.reduce(
     (sum, { filas }) => sum + filas.filter((fila) => estadoDe(fila) !== 'hay').length,
     0,
@@ -125,27 +129,44 @@ export function Inventario({ entries, onSubir }: InventarioProps) {
 
   return (
     <section className={`card p-4 ${faltan > 0 ? 'bg-accent-faint' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-center gap-3">
+        {/* El anillo dice cuánto está ya, como el de la portada dice cuántos
+            han apuntado: «2/6» se lee antes que una frase. */}
+        <ProgressRing ratio={total ? (total - faltan) / total : 0} size={52} stroke={5}>
+          <span className="text-[12px] font-black tabular-nums t-1">
+            {total - faltan}/{total}
+          </span>
+        </ProgressRing>
+        <div className="min-w-0 flex-1">
           {/* h3: es la primera tarjeta de la pestaña, colgada del h2 de
               ésta; con h4 el lector de pantalla saltaba un nivel. */}
-          <h3 className="text-sm font-black t-1">
-            {faltan === 0 ? '✅ Los informes están todos' : `📥 Faltan ${faltan} por subir`}
+          <h3 className="font-display text-base font-black leading-tight t-1">
+            {faltan === 0 ? 'Están todos los informes' : `Faltan ${faltan} por subir`}
           </h3>
           <p className="mt-0.5 text-[11px] leading-snug t-3">
             {faltan === 0
-              ? 'Lo de los dos niños está cargado. Cuando llegue uno nuevo, se suelta aquí y se coloca solo.'
-              : 'Suelta la carpeta entera y cada informe va a su sitio, de los dos niños a la vez.'}
+              ? 'Cuando llegue uno nuevo, se suelta aquí y se coloca solo.'
+              : 'Suelta la carpeta entera: cada informe va a su sitio, de los dos a la vez.'}
           </p>
         </div>
-        <button type="button" onClick={onSubir} className="btn-primary shrink-0 px-3 text-xs">
-          📁 Subir
-        </button>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {/* Subir y sacar en papel, juntos: antes el PDF iba en un botón de
+          ancho entero aparte, una fila más que bajar para llegar a las áreas. */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button type="button" onClick={onSubir} className="btn-primary px-3 text-xs">
+          📁 Subir informes
+        </button>
+        {onExportar && (
+          <button type="button" onClick={onExportar} className="btn-ghost px-3 text-xs">
+            📄 Exportar a PDF
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
         {tablero.map(({ profile, filas }) => (
-          <div key={profile.id} className="rounded-xl border p-2 hairline surf-1">
+          <div key={profile.id} className="min-w-0 rounded-xl border p-2 hairline surf-1">
             {/* Cada niño lleva su color y no el acento del panel: aquí se
                 habla de los dos a la vez. El color va en el punto y no en las
                 letras: el rojo de Hugo sobre la tarjeta verde de Leo se
@@ -168,8 +189,25 @@ export function Inventario({ entries, onSubir }: InventarioProps) {
                       {fila.icon}
                     </span>
                     <span className={`min-w-0 flex-1 truncate ${hay ? 't-2' : 't-3'}`}>{fila.label}</span>
-                    <span className={`shrink-0 font-black ${hay ? 't-accent' : 't-danger'}`}>
-                      {estado === 'hay' ? fila.detalle : estado === 'viejo' ? 'del curso pasado' : 'falta'}
+                    {/* A dos columnas en el móvil no cabe «3 desde 2024» al
+                        lado del nombre: lo que está se marca con ✓ y el
+                        detalle queda en el título y para el lector. */}
+                    <span
+                      className={`shrink-0 font-black ${hay ? 't-accent' : 't-danger'}`}
+                      title={hay ? fila.detalle : estado === 'viejo' ? 'Es del curso pasado' : undefined}
+                    >
+                      {estado === 'hay' ? (
+                        <>
+                          <span aria-hidden>✓</span>
+                          <span className="sr-only">{fila.detalle}</span>
+                        </>
+                      ) : estado === 'viejo' ? (
+                        <>
+                          antiguo<span className="sr-only">, del curso pasado</span>
+                        </>
+                      ) : (
+                        'falta'
+                      )}
                     </span>
                   </li>
                 );

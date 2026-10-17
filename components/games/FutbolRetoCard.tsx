@@ -28,11 +28,12 @@ interface FutbolRetoCardProps {
   date: DateKey;
   entries: Record<string, DayEntry>;
   kid: boolean;
-  headingClass: string;
+  /** Como en las demás tarjetas; aquí el titular va encima de la pizarra. */
+  headingClass?: string;
   onResult: (result: FutbolResult) => void;
 }
 
-export function FutbolRetoCard({ profile, date, entries, kid, headingClass, onResult }: FutbolRetoCardProps) {
+export function FutbolRetoCard({ profile, date, entries, kid, onResult }: FutbolRetoCardProps) {
   const reto = useMemo(() => buildRetoFutbol(profile.id, date), [profile.id, date]);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -66,35 +67,42 @@ export function FutbolRetoCard({ profile, date, entries, kid, headingClass, onRe
   return (
     <>
       <div className={`${kid ? 'card-kid' : 'card'} overflow-hidden p-0`}>
-        <div className="relative">
-          <Material visual={{ tipo: 'campo', jugada: 'perfil' }} resuelto={false} />
-          <div className="absolute left-3 top-2.5 rounded-full bg-black/65 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-            ⚽ Reto de fútbol · tecnificación
+        {/* La pizarra, a sangre y recortada a una franja: el titular y la
+            sesión van encima, con su velo, en vez de repetirse debajo. */}
+        <div className="relative h-32 overflow-hidden bg-[#15803d]">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 [&_svg]:max-h-none [&_svg]:rounded-none">
+            <Material visual={{ tipo: 'campo', jugada: 'perfil' }} resuelto={false} />
           </div>
-          {won && (
-            <div className="absolute right-3 top-2.5 animate-latido rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#241a14]">
-              +{FUTBOL_ENERGIA} ⚡ en la tanda
-            </div>
-          )}
-        </div>
-        <div className="p-4">
-          <h3 className={headingClass}>Reto de fútbol</h3>
-          <p className="font-display text-sm font-black t-1">Sesión «{s.titulo}»</p>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {s.bloques.map((b) => (
-              <span key={b.nombre} className="chip-soft text-[10px]">
-                {b.nombre} · {b.minutos}′
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
+          <div className="absolute inset-x-3 top-2.5 flex items-center gap-1.5">
+            <h3 className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-sm">
+              ⚽ Reto de fútbol
+            </h3>
+            {won && (
+              <span className="ml-auto animate-latido rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#241a14]">
+                +{FUTBOL_ENERGIA} ⚡ en la tanda
               </span>
-            ))}
+            )}
           </div>
-
+          <div className="absolute inset-x-3 bottom-2.5 text-white">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">Tecnificación</p>
+            <p className="font-display text-lg font-black leading-tight drop-shadow">Sesión «{s.titulo}»</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {s.bloques.map((b) => (
+                <span key={b.nombre} className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-bold text-white/90 backdrop-blur-sm">
+                  {b.nombre} · {b.minutos}′
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="p-3 sm:p-4">
           {!today ? (
-            <p className="mt-2 text-[11px] t-3">{result ? `Ese día: ${correct}/${total}.` : 'El reto se juega el mismo día.'}</p>
+            <p className="text-[11px] t-3">{result ? `Ese día: ${correct}/${total}.` : 'El reto se juega el mismo día.'}</p>
           ) : !done ? (
-            <>
-              <p className="mt-2 text-[11px] font-semibold leading-snug t-2">
-                🧠 Lo que hiciste en la tecnificación, con la pizarra delante. {FUTBOL_PASS} de {total} bien y empiezas la tanda de
-                hoy con un rayo más de energía ⚡.
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-[10rem] flex-1 text-[11px] font-semibold leading-snug t-2">
+                🧠 {FUTBOL_PASS} de {total} bien y empiezas la tanda de hoy con un rayo más de energía ⚡.
               </p>
               <button
                 type="button"
@@ -103,14 +111,14 @@ export function FutbolRetoCard({ profile, date, entries, kid, headingClass, onRe
                   setChosen(null);
                   setOpen(true);
                 }}
-                className="btn-primary mt-3 px-4 text-sm"
+                className="btn-primary shrink-0 px-4 text-sm"
               >
-                {answered > 0 ? `⏵ Seguir (vas por la ${answered + 1})` : '▶️ Jugar el reto de fútbol'}
+                {answered > 0 ? `⏵ Seguir (vas por la ${answered + 1})` : '▶️ Jugar'}
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <p className={`mt-2 rounded-xl border p-2 text-[12px] font-bold leading-snug ${won ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`min-w-[10rem] flex-1 rounded-xl border p-2 text-[12px] font-bold leading-snug ${won ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'}`}>
                 {won
                   ? `⚡ ${correct}/${total}: la tanda de hoy empieza con un rayo más de energía.`
                   : `💪 ${correct}/${total}: hacían falta ${FUTBOL_PASS}. Mañana, más preguntas de la sesión.`}
@@ -118,11 +126,11 @@ export function FutbolRetoCard({ profile, date, entries, kid, headingClass, onRe
               <button
                 type="button"
                 onClick={() => setPractica({ vuelta: (practica?.vuelta ?? 0) + 1, index: 0, chosen: null, aciertos: 0 })}
-                className="btn-ghost mt-2 px-3 py-1.5 text-xs"
+                className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
               >
-                🧺 Practicar más, sin nota
+                🧺 Practicar, sin nota
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>

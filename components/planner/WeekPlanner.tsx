@@ -14,6 +14,7 @@ import { SKIN_GOLD, WeekTimetable } from '@/components/planner/WeekTimetable';
 import type { TimetableZoom } from '@/components/planner/WeekTimetable';
 import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
@@ -939,32 +940,63 @@ export function WeekPlanner({
           y por dónde se empieza. */}
       {!defined && (
         <section
-          className={`${kid ? 'card-kid' : 'card'} p-4 text-center sm:p-6`}
+          className={`${kid ? 'card-kid' : 'card'} relative overflow-hidden p-4 sm:p-6`}
           aria-label="Empezar la semana tipo"
         >
-          <span aria-hidden className="block text-4xl">
-            {theme.icon}
-          </span>
-          <h3 className={`mt-2 text-base font-bold t-1 ${heading}`}>Todavía no hay nada apartado</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed t-2">
-            La semana tipo se define una vez, de lunes a domingo, y vale para todas las que vengan
-            hasta que se cambie.
-          </p>
-          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:justify-center">
-            <button type="button" onClick={useSample} className="btn-primary px-4 text-sm">
+          {/* El halo del color del perfil, para que el vacío no parezca un
+              error sino una página por estrenar. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-tint-halo blur-2xl"
+          />
+
+          <div className="relative flex items-start gap-3">
+            <span
+              aria-hidden
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-2xl"
+            >
+              {theme.icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] t-3">Por estrenar</p>
+              <h3 className={`font-display text-lg font-black leading-tight t-1 ${heading}`}>
+                Todavía no hay nada apartado
+              </h3>
+              <p className="mt-1 text-[13px] leading-snug t-2">
+                Se define una vez, de lunes a domingo, y vale para todas las semanas hasta que se
+                cambie.
+              </p>
+            </div>
+          </div>
+
+          {/* Lo más corto, a lo grande; las otras dos maneras, al lado. */}
+          <div className="relative mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-start">
+            <button
+              type="button"
+              onClick={useSample}
+              className="btn-primary col-span-2 px-4 py-2.5 text-sm sm:col-span-1"
+            >
               ✨ Empezar con una de ejemplo
             </button>
-            <button type="button" onClick={openCopy} className="btn-ghost px-4 text-sm">
-              ⧉ Copiar la semana de otro
+            <button
+              type="button"
+              onClick={openCopy}
+              className="btn-ghost px-3 text-xs sm:text-sm"
+            >
+              <span aria-hidden>⧉</span> Copiar <span className="sr-only">la semana </span>de otro
             </button>
             <button
               type="button"
               onClick={() => setEditing({ block: emptyBlock(today), isNew: true })}
-              className="btn-ghost px-4 text-sm"
+              className="btn-ghost px-3 text-xs sm:text-sm"
             >
-              ＋ Añadir el primer rato
+              <span aria-hidden>＋</span> <span className="sr-only">Añadir el </span>Primer rato
             </button>
           </div>
+          <p className="relative mt-2 hidden text-[11px] t-3 sm:block">
+            O pulsa <kbd className="font-mono font-bold">N</kbd> para apartar un rato desde
+            cualquier sitio de la agenda.
+          </p>
         </section>
       )}
 
@@ -1603,7 +1635,7 @@ export function WeekPlanner({
       {twin && (
         <section className="card p-3" aria-label={`La semana de ${twinLabel}`}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide t-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] t-3">
               👯 La semana de {twinLabel}
             </p>
 
@@ -1643,7 +1675,7 @@ export function WeekPlanner({
           aviso se va a los pocos segundos. */}
       {defined && (
         <section className="card flex flex-wrap items-center gap-x-2 gap-y-2 p-3">
-          <p className="text-xs font-bold uppercase tracking-wide t-3">La semana entera</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] t-3">La semana entera</p>
 
           <ConfirmButton
             question="¿Rehacer toda la semana con la de ejemplo?"
@@ -1939,10 +1971,12 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
             <span aria-hidden>{icon}</span> {title}
           </h2>
 
-          <p className="mt-1 text-sm leading-relaxed t-2">{kicker}</p>
+          <p className="mt-1 text-[13px] leading-snug t-2 sm:text-sm">{kicker}</p>
 
+          {/* La frase del día, sólo con pantalla: en el móvil empujaba la
+              semana hacia abajo sin decir nada que se pueda hacer. */}
           <p
-            className={`mt-2 text-xs t-3
+            className={`mt-2 hidden text-xs t-3 sm:block
               ${pitch ? 'font-display uppercase tracking-wide' : 'italic'}`}
           >
             {quote}
@@ -1951,6 +1985,26 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
 
         {/* El marcador. Sin nada jugado todavía no se enseña un 0–0 que no
             significa nada: se dice que el partido no ha empezado. */}
+        {/* Fuera del campo, lo mismo como anillo: lo cumplido de lo vivido
+            esta semana, igual que el anillo del día de la portada. */}
+        {!pitch && score && score.kept + score.missed > 0 && (
+          <div className="flex shrink-0 flex-col items-center gap-1">
+            <span aria-hidden>
+              <ProgressRing ratio={score.kept / (score.kept + score.missed)} size={56} stroke={6}>
+                <span className="text-[11px] font-black tabular-nums t-1">
+                  {Math.round((score.kept / (score.kept + score.missed)) * 100)}%
+                </span>
+              </ProgressRing>
+            </span>
+            <span className="sr-only">
+              {score.kept} cumplidos y {score.missed} fallidos esta semana
+            </span>
+            <span aria-hidden className="text-[10px] font-bold uppercase tracking-wider t-3">
+              cumplido
+            </span>
+          </div>
+        )}
+
         {pitch && (
           <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
             <span className="text-[11px] font-bold uppercase tracking-[0.2em] t-3">
@@ -1971,7 +2025,7 @@ function PlannerHeader({ profile, title, icon, kicker, ornament, quote, score }:
       </div>
 
       {pitch && (
-        <p className="relative mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] t-3">
+        <p className="relative mt-3 hidden text-[11px] font-semibold uppercase tracking-[0.2em] t-3 sm:block">
           ⚪ Hala Madrid · el balón es tu amigo
         </p>
       )}

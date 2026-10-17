@@ -3,9 +3,9 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryCard } from '@/components/CategoryCard';
-import { QuickChecklist } from '@/components/QuickChecklist';
+import { QuickChecklist, quickIds } from '@/components/QuickChecklist';
 import { DateNavigator, dayPillLabel } from '@/components/DateNavigator';
-import { AttentionCard } from '@/components/experts/AttentionCard';
+import { AttentionStrip } from '@/components/today/AttentionStrip';
 import { LearningBonusCard } from '@/components/learning/LearningBonusCard';
 import { FinanceLock } from '@/components/finance/FinanceLock';
 import { DayNoteCard } from '@/components/notes/DayNoteCard';
@@ -63,7 +63,7 @@ const TasksPanel = dynamic(
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, markHints } from '@/lib/challenges';
-import { addDays, friendlyDateLabel, isToday, todayKey, weekKeys, weekdayIndex } from '@/lib/dates';
+import { addDays, friendlyDateLabel, isToday, parseDateKey, todayKey, weekKeys, weekdayIndex } from '@/lib/dates';
 import {
   GAME_META,
   GAME_NOTE_KEY,
@@ -85,12 +85,21 @@ import { bestSlot, blockForMetric, planOf } from '@/lib/planner';
 import { clockNow, planFills, plannedToday, planProgress } from '@/lib/planToday';
 import { diasSinApuntar } from '@/lib/huecos';
 import { PROFILES, skinOf } from '@/lib/profiles';
-import { computeDayScore, summarizePeriod } from '@/lib/scoring';
+import { computeDayScore, metricRatio, summarizePeriod } from '@/lib/scoring';
 import { dueCount } from '@/lib/tasks';
-import type { DashboardTab, DateKey, Metric, MetricValue, PlanBlock, Profile, ProfileId } from '@/types';
+import type { DashboardTab, DateKey, HabitCategory, Metric, MetricValue, PlanBlock, Profile, ProfileId } from '@/types';
 
 /** Un día sin registrar. Siempre el mismo, para no recalcular por su culpa. */
 const EMPTY_VALUES: Record<string, MetricValue> = {};
+
+const shortWeekday = new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: 'numeric' });
+
+/** El día en lo justo para una pastilla de huecos: «Ayer» o «Jue 15». */
+function shortDayLabel(key: DateKey): string {
+  if (friendlyDateLabel(key) === 'Ayer') return 'Ayer';
+  const text = shortWeekday.format(parseDateKey(key)).replace('.', '');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 interface DashboardProps {
   profile: Profile;
@@ -341,13 +350,34 @@ export function Dashboard({
     [dayScore],
   );
 
-  /** Tarjetas ya completas al abrir el día, y la primera con algo pendiente. */
-  const completeIds = new Set(
-    dayScore.categories
-      .filter((category) => category.total > 0 && category.filled >= category.total)
-      .map((category) => category.categoryId),
+  /**
+   * Las casillas de sí o no que los mayores marcan arriba, en el exprés. Las
+   * tarjetas las pliegan para no pintar dos veces la misma casilla.
+   */
+  const quickSet = useMemo<ReadonlySet<string>>(
+    () => (kid ? new Set<string>() : quickIds(getCategories(profile.id))),
+    [kid, profile.id],
   );
-  const firstPendingId = categories.find((category) => !completeIds.has(category.id))?.id;
+
+  /**
+   * Si una tarjeta tiene algo por contestar que no se pueda marcar en el
+   * exprés. Las de deportes van enteras, así que ahí cuenta todo.
+   */
+  const pendingHere = (category: HabitCategory) =>
+    category.metrics.some(
+      (metric) =>
+        (metric.weight ?? 1) > 0 &&
+        (category.layout === 'sports' || !quickSet.has(metric.id)) &&
+        metricRatio(metric, values[metric.id]) === null,
+    );
+
+  /** La primera tarjeta con algo pendiente, que es la que se abre. */
+  const firstPendingId = categories.find(pendingHere)?.id;
+
+  /** Abrir o plegar todas las tarjetas a la vez. */
+  const [allOpenState, setAllOpen] = useState({ open: false, n: 0, date });
+  // Cada día empieza como le toca: la orden de ayer no vale para hoy.
+  const allOpen = allOpenState.date === date ? allOpenState : { ...allOpenState, open: false };
 
   const visibleCategories = onlyPending
     ? categories.filter((category) => {
@@ -488,15 +518,17 @@ export function Dashboard({
   };
 
   /**
-   * Una tarjeta de los peques recién completada: se abre la siguiente que
-   * aún tenga algo, mirando primero las de debajo y luego las de arriba.
+   * Una tarjeta recién completada: se abre la siguiente que aún tenga algo,
+   * mirando primero las de debajo y luego las de arriba. A los mayores sólo
+   * se les lleva a la que tenga algo fuera del exprés: lo de sí o no ya lo
+   * tienen arriba.
    */
   const openNextPending = (doneId: string) => {
     const at = categories.findIndex((category) => category.id === doneId);
     const order = [...categories.slice(at + 1), ...categories.slice(0, Math.max(0, at))];
     const next = order.find((category) => {
       const score = scoreById.get(category.id);
-      return score && score.total > 0 && score.filled < score.total;
+      return score && score.total > 0 && score.filled < score.total && pendingHere(category);
     });
     if (next) setNextOpen({ date, id: next.id });
   };
@@ -641,6 +673,7 @@ export function Dashboard({
         dayScore={dayScore}
         streak={week.streak}
         filled={filled}
+        plan={planDone}
         compact={tab !== 'today'}
       />
 
@@ -726,7 +759,7 @@ export function Dashboard({
 
       {tab === 'today' ? (
         <div
-          className="animate-aparece space-y-4"
+          className="animate-aparece space-y-3"
           role="tabpanel"
           id="panel-today"
           aria-labelledby="tab-today"
@@ -741,25 +774,39 @@ export function Dashboard({
           />
 
           {/* Lo que se quedó sin apuntar estos días: un toque y se está en
-              ese día. Al día siguiente todavía se recuerda; a la semana, no. */}
+              ese día. Al día siguiente todavía se recuerda; a la semana, no.
+              En una sola línea que se desliza de lado: en tres filas de
+              pastillas se comía la mitad de la primera pantalla. */}
           {huecos.length > 0 && (
-            <div className="banner banner-warn flex flex-wrap items-center gap-2" role="status">
-              <span className="font-semibold t-1">
-                <span aria-hidden>🕘</span> Sin apuntar:
+            <div className="banner banner-warn flex items-center gap-2 !py-1.5 !pl-3 !pr-1.5" role="status">
+              <span className="shrink-0 font-bold t-1">
+                <span aria-hidden>🕘</span> Sin apuntar
               </span>
-              {huecos.slice(0, 4).map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => onDateChange(day)}
-                  className="chip min-h-[2rem] border hairline surf-1 font-semibold t-1 hover-soft"
-                >
-                  {dayPillLabel(day)} →
-                </button>
-              ))}
+              <div
+                data-noswipe
+                className="edge-mask-x flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-1 py-0.5"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                {huecos.slice(0, 4).map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => onDateChange(day)}
+                    aria-label={`Ir a ${dayPillLabel(day)}, sin apuntar`}
+                    className="chip min-h-[2rem] shrink-0 whitespace-nowrap border px-2.5 hairline surf-1 font-semibold t-1 hover-soft"
+                  >
+                    {shortDayLabel(day)} →
+                  </button>
+                ))}
+              </div>
               {/* El remedio para la próxima vez: que el móvil avise. */}
-              <a href="/api/recordatorio?h=21:00" className="chip min-h-[2rem] border hairline surf-1 font-semibold t-2 hover-soft" title="Añade al calendario del móvil un aviso diario a las 21:00">
-                ⏰ Avísame cada noche
+              <a
+                href="/api/recordatorio?h=21:00"
+                className="chip min-h-[2rem] shrink-0 border px-2.5 hairline surf-1 font-semibold t-2 hover-soft"
+                title="Añade al calendario del móvil un aviso diario a las 21:00"
+                aria-label="Avísame cada noche a las 21:00"
+              >
+                ⏰<span className="hidden sm:inline">Avísame cada noche</span>
               </a>
             </div>
           )}
@@ -769,8 +816,9 @@ export function Dashboard({
               desliza de lado, con lo que propone la app delante —lo de la
               semana y lo de siempre, que son los que ahorran trabajo— y
               copiar el día anterior al final, que es lo menos habitual. La
-              cuenta de lo hecho va en su propia línea. */}
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+              cuenta de lo hecho ya no va aquí: la lleva el anillo de la
+              cabecera, y la pastilla flotante del día al bajar. */}
+          <div>
             <div
               data-noswipe
               className="edge-mask-x -mx-4 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-4 py-0.5
@@ -859,22 +907,25 @@ export function Dashboard({
                 </button>
               )}
             </div>
-
-            <span className="shrink-0 text-xs tabular-nums t-3 sm:ml-auto" aria-live="polite">
-              {planDone.total > 0 && (
-                <span className="mr-2" title="De lo que la semana apartaba para hoy">
-                  🗓️ {planDone.done}/{planDone.total} ·
-                </span>
-              )}
-              {pending > 0
-                ? `${filled}/${total} · ${pending === 1 ? 'queda 1' : `quedan ${pending}`}`
-                : `${total}/${total} · día completo 🎉`}
-            </span>
           </div>
 
           {/* Para los mayores, lo de sí o no de un toque: un registro largo
-              que se hace en medio minuto es un registro que se hace. */}
-          {!kid && <QuickChecklist categories={categories} values={values} onChange={handleChange} />}
+              que se hace en medio minuto es un registro que se hace. Con
+              «Sólo pendientes», también aquí quedan sólo las que faltan. Lo
+              que se marca aquí, las tarjetas de abajo lo pliegan. */}
+          {!kid && (
+            <QuickChecklist
+              key={date}
+              categories={categories}
+              values={values}
+              onChange={handleChange}
+              onlyPending={onlyPending}
+            />
+          )}
+
+          {/* Lo clave del día, en una línea por hábito que lleva a su
+              casilla; el porqué, tras la ⓘ. */}
+          <AttentionStrip profile={profile} values={values} kid={kid} onJump={jumpToMetric} onlyUrgent={kid} />
 
           {/* Lo que la semana tenía apartado para hoy, ya contrastado con lo
               registrado: es lo que ata la agenda a estas casillas. */}
@@ -888,11 +939,26 @@ export function Dashboard({
             onOpenPlan={() => setTab('plan')}
           />
 
-          {/* Antes de la lista de casillas, lo que de verdad hay que mirar hoy. */}
-          <AttentionCard profile={profile} values={values} kid={kid} />
-
-          {/* El regalo del día: una cosa útil, en el idioma que le toca. */}
-          {learning && <LearningBonusCard learning={learning} kid={kid} />}
+          {/* Las tarjetas, plegadas salvo la primera con algo pendiente: con
+              todas abiertas el registro de un adulto medía once mil píxeles.
+              Plegada, cada una dice con su anillo cuánto lleva y qué le falta. */}
+          {visibleCategories.length > 0 && (
+            <div className="flex items-center gap-2 px-1 pt-1">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] t-3">
+                {kid ? 'Las jugadas' : 'Por tarjetas'}
+              </h3>
+              <span className="text-[11px] tabular-nums t-3">
+                {pending > 0 ? `· ${pending === 1 ? 'queda 1' : `quedan ${pending}`}` : '· día completo 🎉'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAllOpen((s) => ({ open: !(s.date === date && s.open), n: s.n + 1, date }))}
+                className="btn-ghost ml-auto px-2.5 py-1 text-xs"
+              >
+                {allOpen.open ? '▴ Plegar todas' : '▾ Abrir todas'}
+              </button>
+            </div>
+          )}
 
           {visibleCategories.length === 0 ? (
             <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
@@ -927,18 +993,20 @@ export function Dashboard({
                 category={category}
                 focusMetric={focusMetric}
                 onFocused={clearFocus}
-                requestOpen={kid && nextOpen?.date === date && nextOpen.id === category.id}
-                onComplete={kid ? () => openNextPending(category.id) : undefined}
+                requestOpen={nextOpen?.date === date && nextOpen.id === category.id}
+                onComplete={() => openNextPending(category.id)}
+                quickIds={quickSet}
+                openSignal={allOpen}
                 profileId={profile.id}
                 values={values}
                 onChange={handleChange}
                 variant={kid ? 'kid' : 'adult'}
                 skin={skin}
                 defaultOpen={
-                  // Las completas, plegadas: ya no piden nada. A los peques,
-                  // sólo la primera que aún tiene algo por contestar.
-                  !completeIds.has(category.id) &&
-                  (kid ? category.id === firstPendingId : true)
+                  // Sólo la primera que aún tiene algo por contestar fuera
+                  // del exprés; las demás, plegadas con su anillo. Una
+                  // completa se abre luego sola la siguiente.
+                  category.id === firstPendingId
                 }
                 hints={marks}
                 planned={planned}
@@ -949,6 +1017,11 @@ export function Dashboard({
               />
             ))
           )}
+
+          {/* El regalo del día: una cosa útil, en el idioma que le toca. Va
+              después de las casillas: se lee con calma, y antes empujaba lo
+              de apuntar por debajo del pliegue. */}
+          {learning && <LearningBonusCard learning={learning} kid={kid} />}
 
           {/* Observaciones del día */}
           <DayNoteCard profile={profile} date={date} store={store} kid={kid} filled={filled} />
@@ -963,11 +1036,12 @@ export function Dashboard({
             </button>
           )}
 
-          <p className="text-center">
+          {/* Con huecos, el aviso ya está arriba, en su línea: no se repite. */}
+          {huecos.length === 0 && <p className="text-center">
             <a href="/api/recordatorio?h=21:00" className="text-[11px] font-semibold underline-offset-2 t-3 hover:underline" title="Añade al calendario del móvil un evento diario con alarma">
               ⏰ Que el móvil me recuerde apuntar cada noche a las 21:00
             </a>
-          </p>
+          </p>}
 
           {recadosOcultos && (
             <p className="text-center">

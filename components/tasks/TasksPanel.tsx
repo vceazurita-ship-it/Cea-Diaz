@@ -1,6 +1,6 @@
 'use client';
 
-import { headingFont } from '@/lib/profiles';
+import { headingFont, kickerFont } from '@/lib/profiles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarAccount, type CalendarAvailability } from '@/components/tasks/CalendarAccount';
 import { MonthGrid } from '@/components/tasks/MonthGrid';
@@ -8,11 +8,12 @@ import { SpreadTasks } from '@/components/tasks/SpreadTasks';
 import { TaskComposer } from '@/components/tasks/TaskComposer';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useToast } from '@/components/ui/Toast';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import * as calendar from '@/lib/calendar';
-import { capitalize, friendlyDateLabel, todayKey } from '@/lib/dates';
+import { capitalize, friendlyDateLabel, toDateKey, todayKey } from '@/lib/dates';
 import {
   awaitingCalendar,
   canGoToCalendar,
@@ -116,6 +117,32 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
   }, [tasks, showDone]);
 
   const doneCount = tasks.filter((task) => task.done).length;
+
+  /** Cuánto queda en cada montón, sin las hechas: es la cuenta de arriba. */
+  const counts = useMemo(() => groupTasks(tasks.filter((task) => !task.done)), [tasks]);
+
+  /**
+   * Lo de hoy, para el anillo: lo hecho hoy contra lo hecho más lo que aún
+   * pide atención (lo de hoy y lo atrasado). Hecho hoy es lo que tocaba hoy
+   * o lo que se tachó hoy, aunque fuera de otro día.
+   */
+  const today = todayKey();
+  const doneToday = tasks.filter(
+    (task) =>
+      task.done &&
+      (task.due === today || (task.doneAt !== undefined && toDateKey(new Date(task.doneAt)) === today)),
+  ).length;
+  const todayTotal = doneToday + pending;
+
+  /** Picar en un montón de arriba lleva a él, en la lista. */
+  const goTo = (bucket: string) => {
+    if (view !== 'lista') setView('lista');
+    window.setTimeout(() => {
+      document
+        .getElementById(`tareas-${profile.id}-${bucket}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
 
   /** Cuánto hay cada día, para los puntos del calendario. */
   const load = useMemo(() => loadByDay(tasks), [tasks]);
@@ -454,9 +481,10 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
 
   /* ---------------------------------------------------------- pintura */
 
-  const renderTask = (task: Task) => (
+  const renderTask = (task: Task, flat = false) => (
     <TaskItem
       key={task.id}
+      flat={flat}
       task={task}
       kid={kid}
       linked={linked}
@@ -471,6 +499,7 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
   );
 
   const heading = headingFont(skin);
+  const kicker = kickerFont(skin);
 
   return (
     <div className="space-y-4">
@@ -500,53 +529,107 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className={`text-lg font-bold t-1 ${heading}`}>
-          📋 Tareas de {profile.name}
-        </h2>
-        <span className="text-xs tabular-nums t-3" aria-live="polite">
-          {pending > 0
-            ? `${pending} ${pending === 1 ? 'pendiente para hoy' : 'pendientes para hoy'}`
-            : 'nada pendiente para hoy 🎉'}
-        </span>
+      {/* La cabecera, como la de la portada: qué hay hoy en grande, con su
+          anillo, y debajo cuánto queda en cada montón. Cada montón es un
+          atajo a su sitio de la lista. */}
+      <section className={`${kid ? 'card-kid' : 'card'} p-4`} aria-label="Cómo van las tareas">
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <p className={`text-[11px] font-black uppercase tracking-[0.22em] t-3${kicker}`}>
+              Recados y citas
+            </p>
+            <h2 className={`font-display text-[22px] font-black leading-tight t-1 ${heading}`}>
+              Tareas de {profile.name}
+            </h2>
+            <p className="mt-0.5 text-[13px] tabular-nums t-2" aria-live="polite">
+              {pending > 0
+                ? `${pending} ${pending === 1 ? 'pendiente para hoy' : 'pendientes para hoy'}`
+                : todayTotal > 0
+                  ? 'Todo lo de hoy, hecho 🎉'
+                  : 'Nada pendiente para hoy 🎉'}
+            </p>
+          </div>
 
-        {doneCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowDone(!showDone)}
-            aria-pressed={showDone}
-            className={`btn ml-auto border px-3 py-1.5 text-xs font-semibold
-              ${showDone ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
-          >
-            {showDone ? '👁️ Viendo las hechas' : `✅ Ver las hechas (${doneCount})`}
-          </button>
-        )}
-      </div>
-
-      {/* Lista o mes. La lista dice *qué urge*; el mes, *cómo viene la
-          semana* y, sobre todo, permite repartir de un día a varios. */}
-      <div className="flex rounded-2xl border p-1 hairline surf-1" role="group" aria-label="Cómo ver las tareas">
-        {(
-          [
-            { id: 'lista', label: 'Lista', icon: '📋' },
-            { id: 'calendario', label: 'Calendario', icon: '🗓️' },
-          ] as const
-        ).map((option) => {
-          const active = view === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setView(option.id)}
-              aria-pressed={active}
-              className={`tap-area flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-colors
-                ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
+          {todayTotal > 0 ? (
+            <span aria-hidden className="shrink-0">
+              <ProgressRing ratio={doneToday / todayTotal} size={60} stroke={6}>
+                <span className="text-[11px] font-black tabular-nums t-1">
+                  {doneToday >= todayTotal ? '✓' : `${doneToday}/${todayTotal}`}
+                </span>
+              </ProgressRing>
+            </span>
+          ) : (
+            <span
+              aria-hidden
+              className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full bg-accent-soft text-2xl"
             >
-              <span aria-hidden>{option.icon}</span> {option.label}
+              🌤️
+            </span>
+          )}
+        </div>
+
+        {/* Cuánto hay en cada montón: lo atrasado, en rojo. */}
+        {counts.length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Tareas por montón">
+            {counts.map((group) => (
+              <li key={group.bucket}>
+                <button
+                  type="button"
+                  onClick={() => goTo(group.bucket)}
+                  className={`chip-soft tap-area text-[11px] font-bold tabular-nums hover-soft
+                    ${group.bucket === 'vencidas' ? 't-danger' : ''}`}
+                >
+                  <span aria-hidden>{group.icon}</span> {group.tasks.length}{' '}
+                  {group.label.toLowerCase()}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3 hairline">
+          {/* Lista o mes. La lista dice *qué urge*; el mes, *cómo viene la
+              semana* y, sobre todo, permite repartir de un día a varios. */}
+          <div
+            className="flex flex-1 gap-1 rounded-full p-1 surf-2 sm:flex-none"
+            role="group"
+            aria-label="Cómo ver las tareas"
+          >
+            {(
+              [
+                { id: 'lista', label: 'Lista', icon: '📋' },
+                { id: 'calendario', label: 'Calendario', icon: '🗓️' },
+              ] as const
+            ).map((option) => {
+              const active = view === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setView(option.id)}
+                  aria-pressed={active}
+                  className={`tap-area min-h-9 flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors
+                    ${active ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
+                >
+                  <span aria-hidden>{option.icon}</span> {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {doneCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDone(!showDone)}
+              aria-pressed={showDone}
+              className={`btn min-h-9 border px-3 py-1.5 text-xs font-semibold sm:ml-auto
+                ${showDone ? 'bg-accent-soft border-accent t-1' : 'hairline surf-1 t-2 hover-soft'}`}
+            >
+              {showDone ? '👁️ Viendo las hechas' : `✅ Ver las hechas (${doneCount})`}
             </button>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      </section>
 
       {/* En el calendario, lo nuevo nace en el día que se está mirando. La
           clave es sólo la vista: antes llevaba también el día, y picar en otro
@@ -604,28 +687,70 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
               </p>
             </div>
           ) : (
-            <ul className="space-y-2">{dayTasks.map(renderTask)}</ul>
+            <ul className="space-y-2">{dayTasks.map((task) => renderTask(task))}</ul>
           )}
         </div>
       ) : groups.length === 0 ? (
-        <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
-          <p className="text-4xl" aria-hidden>
+        /* Sin nada: no un hueco, sino lo que se puede apuntar aquí, y el
+           cuadro de escribir a un toque. */
+        <div className={`${kid ? 'card-kid' : 'card'} relative overflow-hidden p-5 text-center`}>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-14 -top-14 h-40 w-40 rounded-full bg-tint-halo blur-2xl"
+          />
+          <p className="relative text-4xl" aria-hidden>
             🌤️
           </p>
-          <p className="mt-2 font-bold t-1">No hay nada apuntado</p>
-          <p className="mt-1 text-sm t-3">
-            Las citas, los recados y lo que haya que recordar van aquí arriba.
+          <p className={`relative mt-2 font-display text-lg font-black t-1 ${heading}`}>
+            {doneCount > 0 ? 'Todo tachado' : 'No hay nada apuntado'}
           </p>
+          <p className="relative mx-auto mt-1 max-w-sm text-[13px] leading-snug t-2">
+            Las citas, los recados y lo que haya que recordar. Se apuntan arriba, con su día, y
+            {linked ? ' van solos a Google Calendar.' : ' se ven en todos los móviles de casa.'}
+          </p>
+          <ul className="relative mt-3 flex flex-wrap justify-center gap-1.5" aria-hidden>
+            {['📅 Dentista', '🛒 Comprar leche', '🎒 Excursión del cole'].map((example) => (
+              <li key={example} className="chip-soft text-[11px] t-3">
+                {example}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => {
+              const field = document.querySelector<HTMLInputElement>('input[aria-label="Qué hay que hacer"]');
+              field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              field?.focus({ preventScroll: true });
+            }}
+            className="btn-primary relative mt-4 px-4 py-2 text-sm"
+          >
+            ➕ Apuntar la primera
+          </button>
         </div>
       ) : (
         groups.map((group) => (
-          <section key={group.bucket} aria-label={group.label}>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide t-3">
+          <section
+            key={group.bucket}
+            id={`tareas-${profile.id}-${group.bucket}`}
+            aria-label={group.label}
+            className="scroll-mt-24"
+          >
+            <h3
+              className={`mb-2 flex items-center gap-2 px-1 text-[11px] font-black uppercase tracking-[0.22em]${kicker}
+                ${group.bucket === 'vencidas' ? 't-danger' : 't-3'}`}
+            >
               <span aria-hidden>{group.icon}</span> {group.label}
-              <span className="ml-1.5 tabular-nums font-normal">({group.tasks.length})</span>
-            </p>
+              <span className="tabular-nums font-bold opacity-70">{group.tasks.length}</span>
+            </h3>
 
-            <ul className="space-y-2">{group.tasks.map(renderTask)}</ul>
+            {/* Un montón, una tarjeta: las filas separadas por una raya, como
+                el «Para hoy» de la portada, en vez de una tarjeta por recado. */}
+            <ul
+              className={`${kid ? 'card-kid' : 'card'} divide-y divide-[var(--border)] p-0
+                ${group.bucket === 'vencidas' ? 'border-danger' : ''}`}
+            >
+              {group.tasks.map((task) => renderTask(task, true))}
+            </ul>
           </section>
         ))
       )}

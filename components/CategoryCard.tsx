@@ -7,13 +7,13 @@ import { UsualHint } from '@/components/controls/UsualHint';
 import type { ControlVariant } from '@/components/controls/types';
 import { PriorityChip } from '@/components/experts/CriteriaSheet';
 import { SportsPanel } from '@/components/SportsPanel';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { NoteField } from '@/components/ui/NoteField';
 import { expertNames, guidanceFor } from '@/lib/experts';
 import { prefersReducedMotion, success } from '@/lib/haptics';
 import { isFolded, usualFills, type Habitual, type UsualFill } from '@/lib/habitual';
 import type { PlannedMetric } from '@/lib/planToday';
-import { computeCategoryScore, percent } from '@/lib/scoring';
+import { computeCategoryScore, metricRatio, percent } from '@/lib/scoring';
 import type {
   HabitCategory,
   HabitGuidance,
@@ -65,6 +65,17 @@ interface CategoryCardProps {
   requestOpen?: boolean;
   /** Avisa cuando la tarjeta pasa de tener algo pendiente a estar completa. */
   onComplete?: () => void;
+  /**
+   * Las casillas que ya están en el registro exprés de arriba. Aquí se
+   * pliegan tras un botón: la misma casilla dos veces en la misma pantalla
+   * era la mitad de lo que había que bajar.
+   */
+  quickIds?: ReadonlySet<string>;
+  /**
+   * Abrir o plegar todas a la vez desde fuera. Cada vez que cambia `n` se
+   * obedece `open`; entre medias, cada tarjeta va a lo suyo.
+   */
+  openSignal?: { open: boolean; n: number };
 }
 
 export function CategoryCard({
@@ -85,10 +96,20 @@ export function CategoryCard({
   onFocused,
   requestOpen,
   onComplete,
+  quickIds,
+  openSignal,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showWhy, setShowWhy] = useState(false);
   const [showRare, setShowRare] = useState(false);
+  const [showQuick, setShowQuick] = useState(false);
+  /** La nota se abre a petición; con algo escrito, siempre a la vista. */
+  const [showNote, setShowNote] = useState(false);
+  const noteOpen = showNote || note.trim() !== '';
+  const noteRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showNote) noteRef.current?.querySelector('textarea')?.focus();
+  }, [showNote]);
   const score = computeCategoryScore(category, values);
   const kid = variant === 'kid';
   /** El campo y el cuento: las dos secciones que hablan su propio idioma. */
@@ -123,15 +144,28 @@ export function CategoryCard({
     () => (habitual ? usualFills(category.metrics, habitual, values) : []),
     [category.metrics, habitual, values],
   );
+  /* Lo que ya se marca arriba, en el exprés, se aparta aquí. El panel de
+     deportes va entero: sus casillas se leen juntas o no se entienden. */
+  const { own, inQuick } = useMemo(() => {
+    if (!quickIds?.size || category.layout === 'sports') return { own: category.metrics, inQuick: [] as Metric[] };
+    return {
+      own: category.metrics.filter((m) => !quickIds.has(m.id)),
+      inQuick: category.metrics.filter((m) => quickIds.has(m.id)),
+    };
+  }, [category.metrics, category.layout, quickIds]);
   const { shown, folded } = useMemo(() => {
-    if (!habitual || category.layout === 'sports') return { shown: category.metrics, folded: [] };
-    const rare = category.metrics.filter((metric) => isFolded(metric, habitual, values));
-    if (rare.length === 0 || rare.length === category.metrics.length) {
-      return { shown: category.metrics, folded: [] };
+    if (!habitual || category.layout === 'sports') return { shown: own, folded: [] };
+    const rare = own.filter((metric) => isFolded(metric, habitual, values));
+    if (rare.length === 0 || rare.length === own.length) {
+      return { shown: own, folded: [] };
     }
-    return { shown: category.metrics.filter((m) => !rare.includes(m)), folded: rare };
-  }, [category.metrics, category.layout, habitual, values]);
+    return { shown: own.filter((m) => !rare.includes(m)), folded: rare };
+  }, [own, category.layout, habitual, values]);
   const complete = score.total > 0 && pending === 0;
+
+  /** Lo que falta, con nombre: plegada, la tarjeta dice qué, no sólo cuánto. */
+  const missing = category.metrics.filter((m) => (m.weight ?? 1) > 0 && metricRatio(m, values[m.id]) === null);
+  const quickPending = inQuick.filter((m) => missing.includes(m)).length;
 
   /**
    * De lo que la semana apartaba hoy para esta categoría, cuánto está ya
@@ -156,6 +190,7 @@ export function CategoryCard({
   const [highlight, setHighlight] = useState<string | null>(null);
   const ownsFocus = !!focusMetric && category.metrics.some((metric) => metric.id === focusMetric);
   const targetFolded = ownsFocus && folded.some((metric) => metric.id === focusMetric);
+  const targetQuick = ownsFocus && inQuick.some((metric) => metric.id === focusMetric);
 
   useEffect(() => {
     if (!ownsFocus || !focusMetric) return;
@@ -165,6 +200,10 @@ export function CategoryCard({
     }
     if (targetFolded && !showRare) {
       setShowRare(true);
+      return;
+    }
+    if (targetQuick && !showQuick) {
+      setShowQuick(true);
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -179,7 +218,15 @@ export function CategoryCard({
       onFocused?.();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [ownsFocus, focusMetric, open, targetFolded, showRare, onFocused]);
+  }, [ownsFocus, focusMetric, open, targetFolded, showRare, targetQuick, showQuick, onFocused]);
+
+  // Abrir o plegar todas desde fuera: sólo cuando llega una orden nueva.
+  const lastSignal = useRef(openSignal?.n ?? 0);
+  useEffect(() => {
+    if (!openSignal || openSignal.n === lastSignal.current) return;
+    lastSignal.current = openSignal.n;
+    setOpen(openSignal.open);
+  }, [openSignal]);
 
   // El resalte dura lo justo para que el ojo lo encuentre.
   useEffect(() => {
@@ -282,11 +329,11 @@ export function CategoryCard({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover-soft"
+        className="flex w-full items-center gap-3 p-3 text-left transition-colors hover-soft sm:p-4"
       >
         <span
           className={`flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br
-            ${category.gradient} ${kid ? 'h-14 w-14 text-3xl' : 'h-11 w-11 text-2xl'} shadow`}
+            ${category.gradient} ${kid ? 'h-12 w-12 text-[26px]' : 'h-10 w-10 text-xl'} shadow`}
           aria-hidden
         >
           {category.icon}
@@ -307,7 +354,7 @@ export function CategoryCard({
             {category.label}
           </span>
           {/* Plegada, la tarjeta dice cuánto falta; desplegada, de qué va. */}
-          <span className="mt-0.5 line-clamp-2 block text-xs t-3">
+          <span className={`mt-0.5 block text-xs t-3 ${open ? 'line-clamp-1' : 'line-clamp-2'}`}>
             {open
               ? category.description
               : complete
@@ -316,13 +363,18 @@ export function CategoryCard({
                   : royal
                     ? '👑 Completa'
                     : '✓ Completa'
-                : pending === 1
+                : missing.length > 0
+                  ? `Falta: ${missing
+                      .slice(0, 3)
+                      .map((m) => m.label)
+                      .join(', ')}${missing.length > 3 ? ` y ${missing.length - 3} más` : ''}`
+                  : pending === 1
                     ? 'Queda 1 por registrar'
                     : `Quedan ${pending} por registrar`}
           </span>
         </span>
 
-        <span className="flex shrink-0 items-center gap-3">
+        <span className="flex shrink-0 items-center gap-2">
           {/* Lo que la semana apartaba aquí para hoy. Se dice en la propia
               cabecera porque es lo que decide si esta tarjeta urge o no. */}
           {fromWeek && (
@@ -342,15 +394,21 @@ export function CategoryCard({
             </span>
           )}
 
-          <span className="text-right">
-            <span
-              className={`block text-sm font-bold tabular-nums t-accent ${pop ? 'animate-pop' : ''}`}
-              onAnimationEnd={() => setPop(false)}
-            >
-              {percent(score.ratio)}
-            </span>
-            <span className="block text-[11px] t-3">
-              {score.filled}/{score.total}
+          {/* El anillo con lo contestado dentro: el porcentaje y la cuenta
+              en una sola pieza, como en la portada, en vez de una cifra, una
+              fracción y una barra cada una en su sitio. */}
+          <span
+            className={`inline-flex ${pop ? 'animate-pop' : ''}`}
+            onAnimationEnd={() => setPop(false)}
+            title={`${percent(score.ratio)} · ${score.filled} de ${score.total} contestadas`}
+          >
+            <ProgressRing ratio={score.ratio} size={kid ? 46 : 42} stroke={kid ? 5 : 4}>
+              <span className="text-[10px] font-black tabular-nums t-1" aria-hidden>
+                {complete ? '✓' : `${score.filled}/${score.total}`}
+              </span>
+            </ProgressRing>
+            <span className="sr-only">
+              {`Cumplimiento de ${category.label}: ${percent(score.ratio)}, ${score.filled} de ${score.total}`}
             </span>
           </span>
           <span
@@ -361,14 +419,6 @@ export function CategoryCard({
           </span>
         </span>
       </button>
-
-      <div className="px-4">
-        <ProgressBar
-          ratio={score.ratio}
-          chunky={kid}
-          ariaLabel={`Cumplimiento de ${category.label}`}
-        />
-      </div>
 
       {open && (
         <div id={panelId} ref={panelRef} className="animate-floatUp">
@@ -395,7 +445,7 @@ export function CategoryCard({
               </span>
             </div>
           )}
-          <div className={`p-4 ${kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'}`}>
+          <div className={`px-4 py-3 ${kid ? 'space-y-3' : 'divide-y divide-[var(--border)]'}`}>
             {category.layout === 'sports' ? (
               <SportsPanel
                 category={category}
@@ -409,6 +459,23 @@ export function CategoryCard({
             ) : (
               <>
                 {(showRare ? [...shown, ...folded] : shown).map(renderMetric)}
+                {showQuick && inQuick.map(renderMetric)}
+                {inQuick.length > 0 && (
+                  <div className={kid ? '' : 'pt-2'}>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuick((v) => !v)}
+                      aria-expanded={showQuick}
+                      className="btn-ghost w-full justify-center px-3 py-1.5 text-xs t-3"
+                    >
+                      {showQuick
+                        ? '▴ Ocultar las de sí o no'
+                        : `⚡ ${inQuick.length} de sí o no, en el registro exprés de arriba${
+                            quickPending > 0 ? ` (${quickPending} sin marcar)` : ''
+                          } · ver aquí`}
+                    </button>
+                  </div>
+                )}
                 {folded.length > 0 && (
                   <div className={kid ? '' : 'pt-2'}>
                     <button
@@ -429,23 +496,35 @@ export function CategoryCard({
 
           {/* El porqué de estos objetivos, plegado: se consulta cuando se
               discute una cifra, no todos los días. */}
-          {criteria.length > 0 && (
-            <div className="border-t px-4 py-3 hairline">
-              <button
-                type="button"
-                onClick={() => setShowWhy((v) => !v)}
-                aria-expanded={showWhy}
-                aria-controls={whyId}
-                className="btn-ghost px-2.5 py-1.5 text-xs"
-              >
-                📚 {kid ? '¿Por qué es importante?' : 'Por qué importan estos objetivos'}
-                <span className={`ml-1 inline-block transition-transform ${showWhy ? 'rotate-180' : ''}`} aria-hidden>
-                  ▾
-                </span>
-              </button>
-
-              {showWhy && (
-                <ul id={whyId} className="mt-2 animate-floatUp space-y-2">
+          {/* Y el porqué y la nota comparten una fila de botones: los dos se
+              usan de vez en cuando, y abiertos de serie eran un cajón de
+              texto vacío en cada tarjeta. Una nota ya escrita sí se enseña. */}
+          {(criteria.length > 0 || (onNoteChange && !noteOpen)) && (
+            <div className="flex flex-wrap gap-2 border-t px-4 py-2.5 hairline">
+              {criteria.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowWhy((v) => !v)}
+                  aria-expanded={showWhy}
+                  aria-controls={whyId}
+                  className="btn-ghost px-2.5 py-1.5 text-xs"
+                >
+                  📚 {kid ? '¿Por qué es importante?' : 'Por qué importan'}
+                  <span className={`ml-1 inline-block transition-transform ${showWhy ? 'rotate-180' : ''}`} aria-hidden>
+                    ▾
+                  </span>
+                </button>
+              )}
+              {onNoteChange && !noteOpen && (
+                <button type="button" onClick={() => setShowNote(true)} className="btn-ghost px-2.5 py-1.5 text-xs">
+                  📝 {kid ? 'Contar algo' : 'Añadir nota'}
+                </button>
+              )}
+            </div>
+          )}
+          {criteria.length > 0 && showWhy && (
+            <div className="px-4 pb-3">
+              <ul id={whyId} className="animate-floatUp space-y-2">
                   {criteria.map(({ metric, guidance }) => (
                     <li key={guidance.metricId} className="rounded-xl p-2 surf-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -460,14 +539,13 @@ export function CategoryCard({
                       </p>
                     </li>
                   ))}
-                </ul>
-              )}
+              </ul>
             </div>
           )}
 
           {/* Lo que los botones no saben decir: se escribe aquí. */}
-          {onNoteChange && (
-            <div className="border-t px-4 pb-4 pt-3 hairline">
+          {onNoteChange && noteOpen && (
+            <div ref={noteRef} className="border-t px-4 pb-4 pt-3 hairline">
               <NoteField
                 compact
                 rows={2}

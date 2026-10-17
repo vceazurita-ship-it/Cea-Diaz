@@ -27,6 +27,37 @@ export function dayPillLabel(key: DateKey): string {
   return ['Hoy', 'Ayer', 'Mañana'].includes(friendly) ? `${friendly} · ${named}` : capitalize(named);
 }
 
+/** El anillo fino de un día de la tira, con la cifra dentro. */
+function DayRing({ ratio, children }: { ratio: number; children: React.ReactNode }) {
+  const size = 34;
+  const stroke = 3;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(1, ratio));
+  return (
+    <span className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} stroke="var(--track)" />
+        {v > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            stroke="var(--accent)"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - v)}
+            className="transition-[stroke-dashoffset] duration-500"
+          />
+        )}
+      </svg>
+      {children}
+    </span>
+  );
+}
+
 interface DateNavigatorProps {
   date: DateKey;
   onChange: (date: DateKey) => void;
@@ -93,7 +124,7 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
     });
 
   return (
-    <nav ref={box} className="card scroll-mt-24 p-3" aria-label="Navegación por días">
+    <nav ref={box} className="card scroll-mt-24 p-2 sm:p-3" aria-label="Navegación por días">
       {away && (
         // El centrado va en una capa y la animación en otra: las dos usan
         // `transform` y en el mismo elemento la entrada se comía el centrado.
@@ -160,11 +191,11 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-1.5 flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => onChange(addDays(date, -1))}
-          className="btn-ghost h-10 w-10 shrink-0 p-0 text-lg"
+          className="btn-ghost h-9 w-9 shrink-0 p-0 text-base"
           aria-label="Día anterior"
         >
           ←
@@ -174,15 +205,17 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
           <button
             type="button"
             onClick={openPicker}
-            className="btn-ghost w-full flex-col gap-0 border-transparent bg-transparent px-2 py-1"
+            className="btn-ghost w-full flex-col gap-0 border-transparent bg-transparent px-2 py-0.5"
             // El nombre empieza por lo que se lee en el botón: quien maneja el
             // móvil con la voz dice «Hoy» o «Ayer», y tiene que encontrarlo.
-            aria-label={`${friendlyDateLabel(date)}, ${capitalize(formatMonth(date))}. Ir a otro día`}
+            aria-label={`${dayPillLabel(date)}, ${capitalize(formatMonth(date))}. Ir a otro día`}
           >
-            <span className="block w-full truncate text-center text-base font-bold leading-tight t-1">
-              {friendlyDateLabel(date)}
+            {/* El día con su nombre y número: la cabecera ya no lo repite,
+                así que aquí va entero y no sólo «Hoy». */}
+            <span className="block w-full truncate text-center text-[15px] font-black leading-tight t-1">
+              {dayPillLabel(date)}
             </span>
-            <span className="block w-full truncate text-center text-xs font-normal t-3">
+            <span className="block w-full truncate text-center text-[11px] font-normal t-3">
               {capitalize(formatMonth(date))} <span aria-hidden>▾</span>
             </span>
           </button>
@@ -205,19 +238,22 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
         </div>
 
         <div className="flex shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={() => onChange(today)}
-            disabled={isToday(date)}
-            className="btn-ghost h-10 px-3"
-          >
-            Hoy
-          </button>
+          {/* «Hoy» sólo cuando no se está en hoy: apagado ocupaba sitio
+              para no hacer nada. */}
+          {!isToday(date) && (
+            <button
+              type="button"
+              onClick={() => onChange(today)}
+              className="btn-ghost h-9 px-2.5 text-sm"
+            >
+              Hoy
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onChange(addDays(date, 1))}
             disabled={date >= today}
-            className="btn-ghost h-10 w-10 p-0 text-lg"
+            className="btn-ghost h-9 w-9 p-0 text-base"
             aria-label="Día siguiente"
           >
             →
@@ -225,7 +261,7 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {days.map((day, i) => {
           const selected = day === date;
           const future = day > today;
@@ -242,31 +278,26 @@ export function DateNavigator({ date, onChange, weekRatios = {}, progress }: Dat
               aria-label={`${WEEKDAY_LABELS[i]} ${Number(day.slice(-2))}${
                 ratio > 0 ? `, ${Math.round(ratio * 100)} %` : ', sin registro'
               }`}
-              className={`flex min-h-10 flex-col items-center gap-1 rounded-xl py-2 transition-colors
+              className={`flex min-h-10 flex-col items-center gap-0.5 rounded-xl py-1 transition-colors
                 disabled:cursor-not-allowed
                 ${selected ? 'surf-3' : future ? '' : 'hover-soft'}
                 ${future ? 'opacity-45' : ''}`}
             >
-              <span className="text-[10px] font-bold uppercase t-3">{WEEKDAY_LABELS[i]}</span>
+              <span className="text-[9px] font-bold uppercase t-3">{WEEKDAY_LABELS[i]}</span>
 
-              {/* El día de hoy se marca con un disco de acento; el seleccionado,
-                  con el fondo de la casilla. Así ambos se distinguen a la vez. */}
-              <span
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm
-                  font-semibold tabular-nums
-                  ${isCurrentDay ? 'bg-accent t-on-accent' : selected ? 't-1' : 't-2'}`}
-              >
-                {Number(day.slice(-2))}
-              </span>
-
-              {/* Cumplimiento del día: barra corta en lugar de punto, para que
-                  se lea de un vistazo cuánto se llenó, no sólo si hay algo. */}
-              <span className="h-1.5 w-6 overflow-hidden rounded-full track">
+              {/* Cada día, su anillo: cuánto se llenó se lee de un vistazo en
+                  la propia cifra, sin barra aparte debajo. El de hoy lleva
+                  además el disco de acento; el seleccionado, el fondo de la
+                  casilla. Así los dos se distinguen a la vez. */}
+              <DayRing ratio={ratio}>
                 <span
-                  className="block h-full rounded-full bg-accent transition-[width] duration-500"
-                  style={{ width: `${Math.round(Math.min(1, ratio) * 100)}%` }}
-                />
-              </span>
+                  className={`flex h-[26px] w-[26px] items-center justify-center rounded-full text-[13px]
+                    font-bold tabular-nums
+                    ${isCurrentDay ? 'bg-accent t-on-accent' : selected ? 't-1' : 't-2'}`}
+                >
+                  {Number(day.slice(-2))}
+                </span>
+              </DayRing>
             </button>
           );
         })}

@@ -99,11 +99,19 @@ export function FinanceLock({ name, onUnlock }: FinanceLockProps) {
 
   return (
     <div className="mx-auto w-full max-w-sm">
-      <div className="card p-6 text-center">
-        <p className="text-4xl" aria-hidden>
+      <div className="card relative isolate overflow-hidden p-6 text-center">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-tint-halo blur-2xl"
+        />
+        <p
+          aria-hidden
+          className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-3xl"
+        >
           🔐
         </p>
-        <h2 className="mt-2 text-lg font-bold t-1">Economía de {name}</h2>
+        <p className="mt-3 text-[11px] font-black uppercase tracking-[0.22em] t-3">Con clave</p>
+        <h2 className="font-display text-[22px] font-black leading-tight t-1">Economía de {name}</h2>
 
         {ready ? (
           <>
@@ -193,11 +201,15 @@ export function FinanceLock({ name, onUnlock }: FinanceLockProps) {
           </>
         )}
 
-        <p className="mt-4 text-[11px] leading-relaxed t-3">
-          Es una barrera de andar por casa, no una caja fuerte: lo que se apunte aquí vive sin
-          cifrar en el navegador y en la cuenta de la casa. Lo que impide es que alguien que coja
-          el móvil desbloqueado se ponga a leer.
-        </p>
+        {/* La letra pequeña, plegada: se lee una vez y después estorba. */}
+        <details className="mt-4 text-[11px] leading-relaxed t-3">
+          <summary className="tap-area cursor-pointer font-semibold t-2">¿Hasta dónde protege?</summary>
+          <p className="mt-1.5">
+            Es una barrera de andar por casa, no una caja fuerte: lo que se apunte aquí vive sin
+            cifrar en el navegador y en la cuenta de la casa. Lo que impide es que alguien que coja
+            el móvil desbloqueado se ponga a leer.
+          </p>
+        </details>
       </div>
     </div>
   );

@@ -23,28 +23,36 @@ export function MarksTracker({ tracks, headingClass }: MarksTrackerProps) {
     <div className="card p-4">
       <h3 className={headingClass}>Marcas del reparto</h3>
 
-      <ul className="space-y-2.5">
+      {/* Una fila por ejercicio, separadas por un filete: con una caja para
+          cada uno la lista ocupaba el doble sin decir más. */}
+      <ul className="divide-y divide-[var(--border)]">
         {tracks.map((track) => (
-          <li key={track.id} className="rounded-xl border p-3 hairline surf-1">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <li key={track.id} className="py-2.5 first:pt-0 last:pb-0">
+            <div className="flex items-baseline gap-2">
               <span aria-hidden>{track.icon}</span>
-              <span className="text-sm font-bold t-1">{track.label}</span>
-              <span className="text-[11px] t-3">{track.markLabel}</span>
-              <span className="ml-auto text-sm font-bold tabular-nums t-accent">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold t-1">{track.label}</span>
+                <span className="block text-[11px] t-3">
+                  {track.markLabel}
+                  {track.bestOn ? ` · mejor, del ${formatShort(track.bestOn)}` : ' · mejor marca'}
+                </span>
+              </span>
+              <span className="shrink-0 font-display text-base font-black tabular-nums t-accent">
                 {track.best}
               </span>
             </div>
 
-            <p className="mt-0.5 text-[11px] t-3">
-              {track.bestOn ? `Mejor marca, del ${formatShort(track.bestOn)}.` : 'Mejor marca.'}
-            </p>
-
-            {/* Las últimas, de la más reciente a la más antigua. */}
-            <ul className="mt-2 flex flex-wrap gap-1.5">
+            {/* Las últimas, de la más reciente a la más antigua, en una fila
+                que se desliza. */}
+            <ul
+              className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5"
+              style={{ scrollbarWidth: 'none' }}
+              aria-label={`Últimas marcas de ${track.label}`}
+            >
               {track.recent.map((entry) => (
                 <li
                   key={entry.date}
-                  className={`text-[10px] tabular-nums ${
+                  className={`shrink-0 whitespace-nowrap text-[10px] tabular-nums ${
                     entry.record ? 'chip-accent' : 'chip-soft'
                   }`}
                   title={`${entry.text} · ${formatShort(entry.date)}`}

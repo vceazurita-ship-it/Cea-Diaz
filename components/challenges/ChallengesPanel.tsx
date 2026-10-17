@@ -1,8 +1,9 @@
 'use client';
 
 import { kickerFont } from '@/lib/profiles';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { MarksTracker } from '@/components/challenges/MarksTracker';
+import { ParaHoyRetos } from '@/components/challenges/ParaHoyRetos';
 import { RewardsAlbum } from '@/components/challenges/RewardsAlbum';
 import { DailyGameCard } from '@/components/games/DailyGameCard';
 import { FutbolRetoCard } from '@/components/games/FutbolRetoCard';
@@ -15,7 +16,7 @@ import { NoteField } from '@/components/ui/NoteField';
 import { useLineup } from '@/hooks/useLineup';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { buildChallengeWeek, challengeHistory, markTracks, TIER_LABEL } from '@/lib/challenges';
-import { formatShort, friendlyDateLabel } from '@/lib/dates';
+import { formatShort, friendlyDateLabel, isToday } from '@/lib/dates';
 import { gameEnabledFor } from '@/lib/games';
 import { prefersReducedMotion } from '@/lib/haptics';
 import { cursoDe, type RetoResult } from '@/lib/retoCole';
@@ -93,6 +94,13 @@ interface ChallengeCardProps {
   onReserve?: (metric: Metric) => void;
 }
 
+/**
+ * Un reto, plegado: el anillo con su icono, el titular, cuánto lleva y lo
+ * que vale. Antes cada uno era una tarjeta de media pantalla con todos los
+ * párrafos abiertos, y con dieciséis retos la pestaña medía siete mil
+ * píxeles. Lo que hay que hacer, el porqué, el hueco en la agenda y el
+ * premio siguen ahí, a un toque.
+ */
 function ChallengeCard({
   profileId,
   challenge,
@@ -103,59 +111,99 @@ function ChallengeCard({
   onReserve,
 }: ChallengeCardProps) {
   const { progress } = challenge;
+  const [open, setOpen] = useState(false);
+  const panelId = `reto-${challenge.id}-mas`;
+  const won = rewards && rewards.length > 0;
+  /** Pide un rato y la semana no se lo da: es lo único accionable plegado. */
+  const sinHueco = link && link.cover === 'sinHueco' && link.metric && onReserve;
 
   return (
     <li
-      className={`${kid ? 'card-kid' : 'card'} p-4 transition-colors ${
+      className={`${kid ? 'card-kid' : 'card'} p-3 transition-colors ${
         progress.done ? 'border-accent bg-accent-faint' : ''
       }`}
     >
-      <div className="flex items-start gap-3">
-        <span
-          className={`shrink-0 text-3xl ${progress.done ? 'animate-pop' : 'opacity-80'}`}
-          aria-hidden
-        >
-          {challenge.icon}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full items-center gap-3 text-left"
+      >
+        <span className="relative shrink-0">
+          <ProgressRing ratio={progress.ratio} size={kid ? 52 : 46} stroke={kid ? 5 : 4}>
+            <span className={`${kid ? 'text-2xl' : 'text-xl'} ${progress.done ? 'animate-pop' : ''}`} aria-hidden>
+              {challenge.icon}
+            </span>
+          </ProgressRing>
+          {progress.done && (
+            <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-accent text-[11px] font-black t-on-accent" aria-hidden>
+              ✓
+            </span>
+          )}
         </span>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1">
+          <span className={`line-clamp-2 block font-bold leading-snug t-1 ${kid ? 'text-[15px]' : 'text-sm'}`}>
+            {challenge.title}
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="text-[12px] font-black tabular-nums t-1">{progress.label}</span>
             <span
-              className={`chip text-[10px] uppercase tracking-wide ${
-                challenge.tier === 'maximo' ? 'chip-accent' : 'chip-soft'
+              className={`text-[10px] font-black uppercase tracking-wide ${
+                challenge.tier === 'maximo' ? 't-accent' : 't-3'
               }`}
             >
               {TIER_LABEL[challenge.tier]}
             </span>
-            <span className="text-[10px] font-bold tabular-nums t-3">+{challenge.xp} puntos</span>
-            {progress.done && (
-              <span className="text-[11px] font-black t-accent">✓ Superado</span>
+            <span className="text-[10px] font-bold tabular-nums t-3">+{challenge.xp} pts</span>
+            {won && <span className="text-[10px] font-black t-accent">🎁 ganado</span>}
+            {link?.cover === 'reservado' && (
+              <span className="text-[10px] font-bold t-3" title={link.text}>
+                🗓️ {link.days.map((d) => DAY_SHORT[d][0]).join(' ')}
+              </span>
             )}
-          </div>
+          </span>
+        </span>
 
-          <p className={`mt-1.5 font-bold t-1 ${kid ? 'text-base' : 'text-sm'}`}>
-            {challenge.title}
-          </p>
-          <p className="mt-0.5 text-xs t-2">{challenge.detail}</p>
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm t-3 transition-transform surf-2 ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        >
+          ▾
+        </span>
+        <span className="sr-only">{open ? 'Ocultar detalles' : 'Ver detalles'}</span>
+      </button>
 
-          <div className="mt-2.5 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <ProgressBar
-                ratio={progress.ratio}
-                chunky={kid}
-                ariaLabel={`${challenge.title}: ${progress.label}`}
-              />
-            </div>
-            <span className="shrink-0 text-xs font-bold tabular-nums t-1">{progress.label}</span>
-          </div>
+      {/* Para los peques, lo que hay que hacer se queda a la vista: es corto
+          y es justo lo que tienen que leer. */}
+      {kid && !open && <p className="mt-1.5 line-clamp-2 text-xs leading-snug t-2">{challenge.detail}</p>}
 
-          <p className="mt-2 text-[11px] leading-snug t-3">💡 {challenge.why}</p>
+      {/* Sin rato en la semana: el botón sigue fuera, que es lo que se hace. */}
+      {sinHueco && !open && (
+        <div className="mt-2 flex items-center gap-2 rounded-xl border border-accent bg-accent-faint px-2 py-1">
+          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold t-2">🕳️ Sin rato apartado en la semana</span>
+          <button
+            type="button"
+            onClick={() => onReserve(link.metric!)}
+            className="btn-primary min-h-0 shrink-0 px-2.5 py-1 text-[11px]"
+          >
+            🗓️ Apartar
+          </button>
+        </div>
+      )}
+
+      {open && (
+        <div id={panelId} className="mt-2.5 space-y-2 border-t pt-2.5 hairline">
+          <p className="text-xs leading-snug t-2">{challenge.detail}</p>
+          <ProgressBar ratio={progress.ratio} chunky={kid} ariaLabel={`${challenge.title}: ${progress.label}`} />
+          <p className="text-[11px] leading-snug t-3">💡 {challenge.why}</p>
 
           {/* Y el puente con la agenda: un reto con su rato apartado se
               cumple solo; uno sin hueco depende de que alguien se acuerde. */}
           {link && link.cover !== 'dia' && (
             <div
-              className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-2 py-1.5
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-2 py-1.5
                 ${link.cover === 'reservado' ? 'hairline surf-2' : 'border-accent bg-accent-faint'}`}
             >
               <span className="text-[11px] font-semibold leading-snug t-2">
@@ -191,9 +239,9 @@ function ChallengeCard({
           )}
 
           {/* El premio: anunciado antes, entregado después. */}
-          {rewards && rewards.length > 0 ? (
-            <ul className="mt-2 space-y-1.5">
-              {rewards.map((reward) => (
+          {won ? (
+            <ul className="space-y-1.5">
+              {rewards!.map((reward) => (
                 <li
                   key={reward.id}
                   className="rounded-xl border p-2 text-[11px] font-semibold leading-snug border-accent bg-accent-faint t-1"
@@ -206,10 +254,10 @@ function ChallengeCard({
               ))}
             </ul>
           ) : (
-            prize && <p className="mt-2 text-[11px] font-semibold t-2">🎁 En juego: {prize}</p>
+            prize && <p className="text-[11px] font-semibold t-2">🎁 En juego: {prize}</p>
           )}
         </div>
-      </div>
+      )}
     </li>
   );
 }
@@ -252,18 +300,21 @@ function HistoryStrip({ weeks }: { weeks: ChallengeWeek[] }) {
  * Panel
  * ----------------------------------------------------------------------- */
 
-/** Mensaje de cabecera: reconoce lo hecho y señala lo que queda. */
+/**
+ * Mensaje de cabecera: reconoce lo hecho y señala lo que queda. Las cifras
+ * ya las dice el anillo de al lado, así que aquí van las palabras.
+ */
 function headline(done: number, total: number, kid: boolean): string {
   if (total === 0) return 'Esta semana no hay retos que proponer todavía.';
   if (done === 0) {
     return kid
-      ? '¡Aún están todos por conseguir! Empieza por el que veas más cerca.'
-      : `Semana recién empezada: los ${total} siguen en juego.`;
+      ? '¡Todos por conseguir! Empieza por el que veas más cerca.'
+      : 'Semana recién empezada: todos siguen en juego.';
   }
   if (done < total) {
     return kid
-      ? `¡Muy bien! Ya llevas ${done}. Queda${total - done === 1 ? '' : 'n'} ${total - done}.`
-      : `${done} superado${done === 1 ? '' : 's'}. Queda${total - done === 1 ? '' : 'n'} ${total - done} por cerrar.`;
+      ? `¡Muy bien! Queda${total - done === 1 ? '' : 'n'} ${total - done}: a por el más cercano.`
+      : `Queda${total - done === 1 ? '' : 'n'} ${total - done} por cerrar.`;
   }
   return kid
     ? '¡Semana redonda! Los has conseguido todos. 🏆'
@@ -353,6 +404,22 @@ export function ChallengesPanel({
   const weeklyPrize = weeklyLabelFor(profile.id);
   const weeklyWon = wonThisWeek.get(WEEKLY_CHALLENGE_ID)?.[0];
 
+  /** Lo que queda, en su orden de siempre; lo superado, aparte y al final. */
+  const pendientes = week.challenges.filter((challenge) => !challenge.progress.done);
+  const superados = week.challenges.filter((challenge) => challenge.progress.done);
+  const renderReto = (challenge: ScoredChallenge) => (
+    <ChallengeCard
+      key={challenge.id}
+      profileId={profile.id}
+      challenge={challenge}
+      kid={kid}
+      rewards={wonThisWeek.get(challenge.id)}
+      prize={rewardLabelFor(profile.id, challenge.tier)}
+      link={links.get(challenge.id)}
+      onReserve={onReserve}
+    />
+  );
+
   return (
     <div className="space-y-4">
       {/* Para los peques esta pestaña es un rollo largo —el cole, el fútbol,
@@ -392,97 +459,127 @@ export function ChallengesPanel({
         </nav>
       )}
 
+      {/* Lo que queda hoy, de un vistazo y con acceso directo: el cole, el
+          fútbol, el juego, los penaltis y los retos de la semana. Sólo el día
+          de hoy, que es cuando se juega. */}
+      {kid && isToday(date) && (
+        <ParaHoyRetos
+          profile={profile}
+          date={date}
+          entries={entries}
+          cole={Boolean(onColeResult && cursoDe(profile.id))}
+          futbol={Boolean(onFutbolResult && cursoDe(profile.id))}
+          juego={Boolean(onGameResult && gameEnabledFor(profile))}
+          penaltis={Boolean(onPenaltyResult)}
+          semana={{ done: week.done, total }}
+        />
+      )}
+
       {/* El reto del cole va antes: es el que gana el tiro especial que
           luego se tira en la tanda del juego del día. Después el de fútbol
           y, con ellos, el juego del día. Los retos van a semana vista. */}
       {onColeResult && cursoDe(profile.id) && (
         // Con la clave de niño y día: un examen a medias de ayer, o de su
         // hermano, no se queda puesto al cambiar.
-        <RetoColeCard
-          key={`${profile.id}:${date}`}
-          profile={profile}
-          curso={cursoDe(profile.id)!}
-          date={date}
-          entries={entries}
-          kid={kid}
-          headingClass={headingClass}
-          onResult={onColeResult}
-          onAjusteTemas={onAjusteTemas}
-        />
+        <div id="reto-cole" className="scroll-mt-28">
+          <RetoColeCard
+            key={`${profile.id}:${date}`}
+            profile={profile}
+            curso={cursoDe(profile.id)!}
+            date={date}
+            entries={entries}
+            kid={kid}
+            headingClass={headingClass}
+            onResult={onColeResult}
+            onAjusteTemas={onAjusteTemas}
+          />
+        </div>
       )}
 
       {/* El de fútbol, todos los días: lo de la última tecnificación. */}
       {onFutbolResult && cursoDe(profile.id) && (
-        <FutbolRetoCard
-          key={`${profile.id}:${date}`}
-          profile={profile}
-          date={date}
-          entries={entries}
-          kid={kid}
-          headingClass={headingClass}
-          onResult={onFutbolResult}
-        />
+        <div id="reto-futbol" className="scroll-mt-28">
+          <FutbolRetoCard
+            key={`${profile.id}:${date}`}
+            profile={profile}
+            date={date}
+            entries={entries}
+            kid={kid}
+            headingClass={headingClass}
+            onResult={onFutbolResult}
+          />
+        </div>
       )}
 
       {onGameResult && gameEnabledFor(profile) && (
-        <DailyGameCard
-          key={`${profile.id}:${date}`}
-          profile={profile}
-          date={date}
-          entries={entries}
-          rewards={rewards}
-          kid={kid}
-          headingClass={headingClass}
-          onResult={onGameResult}
-          onPenalty={onPenaltyResult}
-        />
+        <div id="juego-dia" className="scroll-mt-28">
+          <DailyGameCard
+            key={`${profile.id}:${date}`}
+            profile={profile}
+            date={date}
+            entries={entries}
+            rewards={rewards}
+            kid={kid}
+            headingClass={headingClass}
+            onResult={onGameResult}
+            onPenalty={onPenaltyResult}
+          />
+        </div>
       )}
 
-      {/* Cabecera: cuántos van y cuántos puntos hay en juego */}
-      <div id="retos-semana" className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5 scroll-mt-24`}>
-        <ProgressRing ratio={total ? week.done / total : 0} size={kid ? 116 : 96}>
-          <span className="text-2xl font-black tabular-nums t-1">
-            {week.done}
-            <span className="text-sm t-3">/{total}</span>
-          </span>
-          <span className="text-[10px] uppercase tracking-wide t-3">retos</span>
-        </ProgressRing>
-
-        <div className="min-w-[190px] flex-1 space-y-2">
-          <h2 className={`font-bold t-1 ${skin === 'pitch' ? 'font-display uppercase' : ''}`}>
-            Retos de la semana
-          </h2>
-          <p className="text-sm t-2">{headline(week.done, total, kid)}</p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="chip-soft">
-              📆 {formatShort(week.from)} – {formatShort(week.to)}
+      {/* Cabecera: cuántos van y cuántos puntos hay en juego. El anillo y el
+          titular en una fila: antes el anillo grande empujaba el texto debajo
+          y la cabecera sola ocupaba media pantalla. */}
+      <div id="retos-semana" className={`${kid ? 'card-kid' : 'card'} p-4 scroll-mt-28`}>
+        <div className="flex items-center gap-4">
+          <ProgressRing ratio={total ? week.done / total : 0} size={kid ? 76 : 68} stroke={7}>
+            <span className="text-xl font-black tabular-nums t-1">
+              {week.done}
+              <span className="text-xs t-3">/{total}</span>
             </span>
-            <span className="chip-soft">
-              ✨ {week.xp} / {week.xpMax} puntos
-            </span>
-            {coverage.total > 0 && (
-              <span className="chip-soft">
-                🗓️ {coverage.covered}/{coverage.total} con hueco en la semana
-              </span>
-            )}
-          </div>
+            <span className="text-[9px] uppercase tracking-wide t-3">retos</span>
+          </ProgressRing>
 
-          {/* El premio de cerrar la semana entera, antes y después de ganarlo. */}
-          {weeklyPrize && total > 0 && (
-            <p
-              className={`rounded-xl border p-2 text-[11px] font-semibold leading-snug ${
-                weeklyWon ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'
-              }`}
-            >
-              {weeklyWon && weeklyWon.kind === 'cromo'
-                ? `🔓 ${weeklyPrize}: ${weeklyWon.name}`
-                : `🔒 ${weeklyPrize}: se desbloquea al superar los ${total} retos`}
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] t-3">
+              {formatShort(week.from)} – {formatShort(week.to)}
             </p>
+            <h2
+              className={`font-display text-lg font-black leading-tight t-1 ${skin === 'pitch' ? 'uppercase' : ''}`}
+            >
+              Retos de la semana
+            </h2>
+            <p className="mt-0.5 text-[12px] leading-snug t-2">{headline(week.done, total, kid)}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+          <span className="chip-soft">
+            ✨ {week.xp} / {week.xpMax} puntos
+          </span>
+          {coverage.total > 0 && (
+            <span className="chip-soft">
+              🗓️ {coverage.covered}/{coverage.total} con hueco
+            </span>
           )}
         </div>
+
+        {/* El premio de cerrar la semana entera, antes y después de ganarlo. */}
+        {weeklyPrize && total > 0 && (
+          <p
+            className={`mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug ${
+              weeklyWon ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'
+            }`}
+          >
+            {weeklyWon && weeklyWon.kind === 'cromo'
+              ? `🔓 ${weeklyPrize}: ${weeklyWon.name}`
+              : `🔒 ${weeklyPrize}: se desbloquea al superar los ${total} retos`}
+          </p>
+        )}
       </div>
 
-      {/* Los retos */}
+      {/* Los retos: primero los que quedan, en su orden; los superados, al
+          final. Lo que está por hacer es lo que hay que ver sin bajar. */}
       {total === 0 ? (
         <div className={`${kid ? 'card-kid' : 'card'} p-8 text-center`}>
           <p className="text-4xl" aria-hidden>
@@ -494,20 +591,24 @@ export function ChallengesPanel({
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
-          {week.challenges.map((challenge) => (
-            <ChallengeCard
-              key={challenge.id}
-              profileId={profile.id}
-              challenge={challenge}
-              kid={kid}
-              rewards={wonThisWeek.get(challenge.id)}
-              prize={rewardLabelFor(profile.id, challenge.tier)}
-              link={links.get(challenge.id)}
-              onReserve={onReserve}
-            />
-          ))}
-        </ul>
+        <>
+          {pendientes.length > 0 && (
+            <ul className="space-y-2" aria-label="Retos por conseguir">
+              {pendientes.map(renderReto)}
+            </ul>
+          )}
+          {superados.length > 0 && (
+            <section aria-labelledby="retos-superados">
+              <h3
+                id="retos-superados"
+                className="mb-2 px-1 text-[11px] font-black uppercase tracking-[0.18em] t-3"
+              >
+                ✓ Superados · {superados.length}
+              </h3>
+              <ul className="space-y-2">{superados.map(renderReto)}</ul>
+            </section>
+          )}
+        </>
       )}
 
       {/* De dónde viene cada marca: el reto dice adónde hay que llegar, esto
@@ -533,7 +634,7 @@ export function ChallengesPanel({
       {/* El equipo que se monta con los cromos. Sólo para quien colecciona
           cromos de fútbol: las frases de María no se alinean en un campo. */}
       {rewardKind === 'cromo' && (
-        <div id="equipo" className="scroll-mt-24">
+        <div id="equipo" className="scroll-mt-28">
           <Campograma
             profileId={profile.id}
             rewards={rewards}
@@ -546,7 +647,7 @@ export function ChallengesPanel({
 
       {/* Y con el once hecho, a jugar la liga. */}
       {rewardKind === 'cromo' && (
-        <div id="liga" className="scroll-mt-24">
+        <div id="liga" className="scroll-mt-28">
           <LigaCromos
             profileId={profile.id}
             name={profile.name}
@@ -561,7 +662,7 @@ export function ChallengesPanel({
 
       {/* Álbum de premios */}
       {rewardKind && (
-        <div id="album" className="scroll-mt-24">
+        <div id="album" className="scroll-mt-28">
           <RewardsAlbum
             profileId={profile.id}
             rewards={rewards}
@@ -573,7 +674,7 @@ export function ChallengesPanel({
       )}
 
       {/* Medallero */}
-      <div id="historial" className={`${kid ? 'card-kid' : 'card'} p-4 scroll-mt-24`}>
+      <div id="historial" className={`${kid ? 'card-kid' : 'card'} p-4 scroll-mt-28`}>
         <h3 className={headingClass}>Semanas anteriores</h3>
         <HistoryStrip weeks={history} />
       </div>

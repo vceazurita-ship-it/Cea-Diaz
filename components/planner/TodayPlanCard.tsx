@@ -119,17 +119,19 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan, onJump }:
   const shown = !brief || open ? checks : [...running, ...upcoming.slice(0, 3)];
 
   return (
-    <section className={`${kid ? 'card-kid' : 'card'} p-4`} aria-label="Lo previsto para hoy">
-      <header className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h2 className="text-sm font-bold t-1">
-          🗓️ {theme.title}: {friendlyDateLabel(date).toLowerCase()}
+    <section className={`${kid ? 'card-kid' : 'card'} p-3 sm:p-4`} aria-label="Lo previsto para hoy">
+      {/* La cabecera en una línea, con la etiqueta en versalitas como el
+          resto de bloques del día; el recuento, al lado y en pequeño. */}
+      <header className="mb-2 flex items-center gap-2 px-1">
+        <h2 className="min-w-0 truncate text-[11px] font-black uppercase tracking-[0.2em] t-3">
+          <span aria-hidden>🗓️</span> {theme.title}: {friendlyDateLabel(date).toLowerCase()}
         </h2>
-        <span className="text-xs t-3">
+        <span className="shrink-0 text-[11px] tabular-nums t-3">
           {DAY_NAMES[day]} · {checks.length}{' '}
           {checks.length === 1 ? theme.blockWord : theme.blockWords}
         </span>
-        <button type="button" onClick={onOpenPlan} className="btn-ghost ml-auto px-2.5 py-1 text-xs">
-          Ver la semana
+        <button type="button" onClick={onOpenPlan} className="btn-ghost ml-auto shrink-0 px-2.5 py-1 text-xs">
+          Semana ›
         </button>
       </header>
 
@@ -170,7 +172,7 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan, onJump }:
             </p>
           )}
 
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {shown.map((check) => (
               <PlanLine
                 key={check.block.id}
@@ -197,9 +199,9 @@ export function TodayPlanCard({ profile, date, store, kid, onOpenPlan, onJump }:
             </button>
           )}
 
-          <p className="mt-3 text-xs leading-relaxed t-3" aria-live="polite">
+          <p className="mt-2 px-1 text-[11px] leading-relaxed t-3" aria-live="polite">
             {judged.length === 0
-              ? 'Todavía no hay nada que comprobar: se irá marcando según registres el día.'
+              ? 'Se irá marcando según registres el día.'
               : over > 0
                 ? `${over} ${over === 1 ? 'se ha pasado' : 'se han pasado'} del máximo y ${kept} de ${judged.length} van cumplidos.`
                 : `${kept} de ${judged.length} cumplidos según lo registrado hasta ahora.`}

@@ -5,14 +5,11 @@ import { Avatar } from '@/components/ui/Avatar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { Stars } from '@/components/ui/Stars';
 import { capitalize, formatLong, formatShort, friendlyDateLabel } from '@/lib/dates';
-import { percent } from '@/lib/scoring';
 import type { DateKey, DayScore, Profile, ProfileSkin } from '@/types';
 
 /**
- * Lo que cabe dentro de un anillo de 84 px: «hoy», «ayer» o la fecha corta.
- * El rótulo largo —«Jueves 9 de octubre»— ya lo dice la línea de arriba, y
- * dentro del anillo se saldría. Lo que no puede es decir «hoy» mirando un
- * día de la semana pasada, que es lo que hacía.
+ * Lo que cabe dentro de un anillo pequeño: «hoy», «ayer» o la fecha corta.
+ * Lo que no puede es decir «hoy» mirando un día de la semana pasada.
  */
 function ringDateLabel(date: DateKey): string {
   const label = friendlyDateLabel(date);
@@ -35,6 +32,63 @@ export interface ProfileHeaderProps {
   streak: number;
   /** Número de métricas con valor registrado hoy. */
   filled: number;
+  /** De lo que la semana apartaba hoy, cuánto está ya registrado. */
+  plan?: { done: number; total: number };
+}
+
+/* -------------------------------------------------------------------------
+ *  Las cabeceras del día.
+ *
+ *  Antes cada una era una portada de revista de media pantalla, con la fecha
+ *  que el navegador de días repetía justo debajo y una fila de cifras
+ *  («registros», «racha», el porcentaje) que el anillo ya contaba. Ahora,
+ *  como en la portada de la casa: quién es, el anillo del día con lo
+ *  apuntado dentro y las pastillas justas, y las casillas a la vista sin
+ *  bajar. La fecha la dice el navegador, que es donde se cambia.
+ * ------------------------------------------------------------------------- */
+
+/** Cuántas casillas puntúan hoy, para el «x/y» del anillo. */
+function totalOf(dayScore: DayScore): number {
+  return dayScore.categories.reduce((sum, category) => sum + category.total, 0);
+}
+
+/** El anillo del día: el porcentaje y, debajo, lo apuntado de lo que hay. */
+function DayRing({ dayScore, filled, size = 64, display = '' }: { dayScore: DayScore; filled: number; size?: number; display?: string }) {
+  const total = totalOf(dayScore);
+  const pct = Math.round(dayScore.ratio * 100);
+  return (
+    <span className="shrink-0" aria-live="polite">
+      <ProgressRing ratio={dayScore.ratio} size={size} stroke={size >= 64 ? 6 : 5}>
+        <span className={`text-lg font-black leading-none tabular-nums t-1 ${display}`} aria-hidden>
+          {pct}
+          <span className="text-[10px]">%</span>
+        </span>
+        <span className="mt-0.5 text-[9px] font-bold tabular-nums t-3" aria-hidden>
+          {filled}/{total}
+        </span>
+      </ProgressRing>
+      <span className="sr-only">{`${pct} % del día, ${filled} de ${total} registradas`}</span>
+    </span>
+  );
+}
+
+/** Las pastillas de la racha y de lo previsto, comunes a todas las pieles. */
+function StatChips({ streak, plan }: { streak: number; plan?: { done: number; total: number } }) {
+  if (streak <= 0 && !(plan && plan.total > 0)) return null;
+  return (
+    <>
+      {streak > 0 && (
+        <span className="chip-soft" title="Días seguidos por encima del 60 %">
+          🔥 {streak} {streak === 1 ? 'día' : 'días'}
+        </span>
+      )}
+      {plan && plan.total > 0 && (
+        <span className="chip-soft tabular-nums" title="De lo que la semana apartaba para hoy, lo ya registrado">
+          🗓️ {plan.done}/{plan.total}
+        </span>
+      )}
+    </>
+  );
 }
 
 /** Frase de ánimo en función del cumplimiento, sólo para los perfiles infantiles. */
@@ -53,20 +107,21 @@ function chant(ratio: number, empty: boolean): string {
  * Cabecera de Leo y Hugo: foto de acción a sangre, franjas de siega,
  * dorsal enorme y un marcador de estadio con el cumplimiento del día.
  */
-function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
+function PitchHeader({ profile, date, dayScore, streak, filled, plan }: ProfileHeaderProps) {
   const pct = Math.round(dayScore.ratio * 100);
+  const total = totalOf(dayScore);
 
   return (
-    <header className="relative mb-4 overflow-hidden rounded-3xl border-2 hairline-strong">
-      <div className="grid grid-cols-[minmax(0,132px)_minmax(0,1fr)] sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+    <header className="relative mb-3 overflow-hidden rounded-3xl border-2 hairline-strong">
+      <div className="grid grid-cols-[minmax(0,108px)_minmax(0,1fr)] sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)]">
         {/* Foto de acción */}
-        <div className="relative min-h-[196px] sm:min-h-[248px]">
+        <div className="relative min-h-[156px] sm:min-h-[210px]">
           {profile.hero && (
             <Photo
               src={profile.hero}
               alt={`${profile.name} jugando al fútbol`}
               fill
-              sizes="(min-width: 640px) 210px, 132px"
+              sizes="(min-width: 640px) 190px, 108px"
               className="object-cover object-top"
               priority
             />
@@ -78,63 +133,49 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
         </div>
 
         {/* Marcador */}
-        <div className="turf relative flex flex-col justify-between gap-3 p-4 sm:p-5">
+        <div className="turf relative flex flex-col justify-between gap-2 p-3 sm:p-5">
           {/* Dorsal fantasma. El color sale del texto de la piel, no de un
               blanco fijo: sobre papel, un blanco al 6 % no se vería. */}
           <span
             aria-hidden
-            className="font-display pointer-events-none absolute -right-2 -top-6 select-none
-                       text-[8.5rem] leading-none t-1 opacity-[0.07] sm:text-[11rem]"
+            className="font-display pointer-events-none absolute -right-2 -top-5 select-none
+                       text-[7rem] leading-none t-1 opacity-[0.07] sm:text-[10rem]"
           >
             {profile.squad}
           </span>
 
           <div className="relative">
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] t-3">
-              {capitalize(formatLong(date))}
-            </p>
-            <h1 className="font-display -skew-x-6 text-4xl uppercase leading-none tracking-tight t-1 sm:text-5xl">
+            <h1 className="font-display -skew-x-6 text-[34px] uppercase leading-none tracking-tight t-1 sm:text-5xl">
               {profile.name}
             </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className="chip-accent font-display px-2.5 text-[11px] tracking-widest">
                 {profile.position} · {profile.squad}
               </span>
-              <span className="chip-soft">{profile.age} años</span>
-              {streak > 0 && (
-                <span className="chip-soft" title="Días seguidos por encima del 60 %">
-                  🔥 {streak}
-                </span>
-              )}
+              <span className="chip-soft hidden min-[380px]:inline-flex">{profile.age} años</span>
+              <StatChips streak={streak} plan={plan} />
             </div>
           </div>
 
-          {/* Panel de marcador */}
-          <div className="relative flex flex-wrap items-end justify-between gap-3 border-t chalk pt-3">
+          {/* Panel de marcador: la cifra, las estrellas y cuánto va apuntado. */}
+          <div className="relative flex items-end justify-between gap-2 border-t chalk pt-2">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] t-3">
-                {scoreboardLabel(date)}
-              </p>
-              <p
-                className="font-display text-5xl leading-none tabular-nums t-accent sm:text-6xl"
-                aria-live="polite"
-              >
+              <p className="text-[9px] font-bold uppercase tracking-[0.22em] t-3">{scoreboardLabel(date)}</p>
+              <p className="font-display text-[40px] leading-none tabular-nums t-accent sm:text-6xl" aria-live="polite">
                 {pct}
-                <span className="text-2xl sm:text-3xl">%</span>
+                <span className="text-xl sm:text-3xl">%</span>
               </p>
             </div>
 
-            <div className="flex flex-col items-start gap-1 sm:items-end">
-              <Stars value={dayScore.stars} size="md" animate />
-              <p className="text-[11px] font-semibold t-2">
-                {dayScore.empty ? 'Sin registrar' : `${filled} registros`}
+            <div className="flex flex-col items-end gap-0.5">
+              <Stars value={dayScore.stars} size="sm" animate />
+              <p className="text-[11px] font-semibold tabular-nums t-2">
+                {dayScore.empty ? 'Sin registrar' : `${filled}/${total} apuntadas`}
               </p>
             </div>
           </div>
 
-          <p className="relative text-sm font-bold t-accent">
-            {chant(dayScore.ratio, dayScore.empty)}
-          </p>
+          <p className="relative text-[13px] font-bold leading-tight t-accent">{chant(dayScore.ratio, dayScore.empty)}</p>
         </div>
       </div>
 
@@ -142,14 +183,8 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
           móvil se queda pequeño en vez de desaparecer: es lo que más les
           gusta ver a los dos, y la foto tiene esquina de sobra. */}
       {profile.card && (
-        <div className="pointer-events-none absolute bottom-2 left-2 w-12 rotate-[-8deg] overflow-hidden rounded-lg shadow-2xl ring-1 ring-black/40 sm:w-[92px]">
-          <Photo
-            src={profile.card}
-            alt={`Cromo de ${profile.name}`}
-            width={92}
-            height={138}
-            className="h-auto w-full"
-          />
+        <div className="pointer-events-none absolute bottom-2 left-2 w-10 rotate-[-8deg] overflow-hidden rounded-lg shadow-2xl ring-1 ring-black/40 sm:w-[84px]">
+          <Photo src={profile.card} alt={`Cromo de ${profile.name}`} width={92} height={138} className="h-auto w-full" />
         </div>
       )}
     </header>
@@ -159,77 +194,39 @@ function PitchHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
 /* -------------------------------------------------------------- editorial */
 
 /**
- * Cabecera de Víctor: composición de revista sobre papel claro.
- * Nombre en serif, filete fino, retrato a la derecha y una fila de datos
- * separada por hairlines en lugar de tarjetas.
+ * Cabecera de Víctor: composición de revista sobre papel claro, en una
+ * banda. Retrato con filete desplazado, nombre en serif con el cargo
+ * encima, y el anillo del día a la derecha.
  */
-function EditorialHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
-  // El porcentaje no va en la fila: ya lo dice el anillo de al lado, y
-  // repetirlo era lo que hacía la cabecera más larga sin contar nada nuevo.
-  const stats = [
-    { label: 'Registros', value: `${filled}` },
-    { label: 'Racha', value: `${streak} ${streak === 1 ? 'día' : 'días'}` },
-  ];
-
+function EditorialHeader({ profile, dayScore, streak, filled, plan }: ProfileHeaderProps) {
   return (
-    // En el móvil, retrato pequeño al lado del nombre y relleno corto: la
-    // composición de revista entera se comía la primera pantalla y el
-    // registro —que es a lo que se viene— quedaba por debajo del pliegue.
-    <header className="card relative mb-5 p-4 sm:p-8">
-      <div className="flex items-start gap-4 sm:gap-8">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] t-3">
-            {friendlyDateLabel(date)} · {capitalize(formatLong(date))}
-          </p>
-
-          <h1 className="font-display mt-1 text-3xl leading-[0.95] tracking-tight t-1 sm:mt-2 sm:text-6xl">
-            {profile.name}
-          </h1>
-
-          <span className="mt-3 block h-[3px] w-14 rounded-full bg-accent sm:mt-4" />
-
-          <p className="mt-3 text-sm font-medium t-2 sm:mt-4">{profile.role}</p>
-          <p className="mt-1 text-sm t-3">{profile.tagline}</p>
-        </div>
-
+    <header className="card relative mb-3 p-3 sm:mb-4 sm:p-6">
+      <div className="flex items-center gap-3 sm:gap-6">
         {/* Retrato con filete desplazado */}
         <div className="relative shrink-0 self-start">
           <span
             aria-hidden
-            className="absolute -bottom-1.5 -right-1.5 h-full w-full rounded-xl border-2 border-accent sm:-bottom-3 sm:-right-3 sm:rounded-2xl"
+            className="absolute -bottom-1 -right-1 h-full w-full rounded-xl border-2 border-accent sm:-bottom-2 sm:-right-2 sm:rounded-2xl"
           />
-          <div className="relative h-16 w-16 overflow-hidden rounded-xl sm:h-40 sm:w-40 sm:rounded-2xl">
+          <div className="relative h-14 w-14 overflow-hidden rounded-xl sm:h-28 sm:w-28 sm:rounded-2xl">
             {profile.hero ? (
-              <Photo
-                src={profile.hero}
-                alt={`Retrato de ${profile.name}`}
-                fill
-                sizes="(min-width: 640px) 160px, 64px"
-                className="object-cover"
-                priority
-              />
+              <Photo src={profile.hero} alt={`Retrato de ${profile.name}`} fill sizes="(min-width: 640px) 112px, 56px" className="object-cover" priority />
             ) : (
-              <Avatar profile={profile} size={160} shape="squircle" />
+              <Avatar profile={profile} size={112} shape="squircle" />
             )}
           </div>
         </div>
-      </div>
 
-      {/* Fila de datos */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4 border-t pt-4 hairline sm:mt-7 sm:gap-x-8 sm:gap-y-5 sm:pt-5">
-        <ProgressRing ratio={dayScore.ratio} size={72} stroke={5}>
-          <span className="text-lg font-semibold tabular-nums t-1" aria-live="polite">
-            {Math.round(dayScore.ratio * 100)}
-            <span className="text-[10px]">%</span>
-          </span>
-        </ProgressRing>
-
-        {stats.map((stat) => (
-          <div key={stat.label} className="min-w-[92px]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] t-3">{stat.label}</p>
-            <p className="mt-1 text-2xl font-semibold leading-none tabular-nums t-1">{stat.value}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-bold uppercase tracking-[0.2em] t-3">{profile.role}</p>
+          <h1 className="font-display truncate text-[28px] leading-[1.05] tracking-tight t-1 sm:text-5xl">{profile.name}</h1>
+          <p className="mt-1 hidden text-sm t-3 sm:block">{profile.tagline}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
+            <StatChips streak={streak} plan={plan} />
           </div>
-        ))}
+        </div>
+
+        <DayRing dayScore={dayScore} filled={filled} />
       </div>
     </header>
   );
@@ -257,45 +254,15 @@ function spell(ratio: number, empty: boolean): string {
  * retrato en un arco de ventana de castillo. Los colores siguen saliendo de
  * su tinte, así que sigue siendo su panel y no el de otra.
  */
-function RoyalHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
-  // Sin el porcentaje: lo lleva el anillo, igual que en la de Víctor.
-  const stats = [
-    { label: 'Registros', value: `${filled}` },
-    { label: 'Racha', value: `${streak} ${streak === 1 ? 'día' : 'días'}` },
-  ];
-
+function RoyalHeader({ profile, dayScore, streak, filled, plan }: ProfileHeaderProps) {
   return (
-    // Misma compactación que la editorial en el móvil: retrato pequeño al
-    // lado del nombre, relleno corto. El cuento sigue entero de tableta en
-    // adelante.
-    <header className="card relative mb-5 overflow-hidden p-4 sm:p-8">
+    <header className="card relative mb-3 overflow-hidden p-3 sm:mb-4 sm:p-6">
       {/* Polvo de destellos, muy tenue: se nota sin llamar la atención. */}
       <span aria-hidden className="stardust pointer-events-none absolute inset-0 opacity-[0.18]" />
       {/* Y el hilo de oro rosa, arriba del todo. */}
       <span aria-hidden className="gilt absolute inset-x-0 top-0 h-[3px]" />
 
-      <div className="relative flex items-start gap-4 sm:gap-8">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] t-3">
-            <span aria-hidden>✨</span> Érase una vez · {capitalize(formatLong(date))}
-          </p>
-
-          <h1 className="royal-title mt-1 text-3xl leading-[0.95] t-1 sm:mt-2 sm:text-6xl">
-            <span aria-hidden className="mr-2 align-middle text-2xl sm:text-4xl">
-              👑
-            </span>
-            {profile.name}
-          </h1>
-
-          <span aria-hidden className="gilt mt-3 block h-[3px] w-20 rounded-full sm:mt-4" />
-
-          <p className="mt-3 text-sm font-medium t-2 sm:mt-4">{profile.role}</p>
-          <p className="mt-1 text-sm t-3">{profile.tagline}</p>
-          <p className="mt-3 text-sm font-semibold t-accent">
-            {spell(dayScore.ratio, dayScore.empty)}
-          </p>
-        </div>
-
+      <div className="relative flex items-center gap-3 sm:gap-6">
         {/* Retrato en arco: la ventana de la torre, con su marco de oro rosa.
             El marco sale del tinte de María aclarado, no de un color fijo:
             si un día cambia su color, cambia el marco con él. */}
@@ -305,43 +272,34 @@ function RoyalHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
             className="absolute -bottom-1 -right-1 h-full w-full rounded-b-xl rounded-t-full border-2 sm:-bottom-2 sm:-right-2 sm:rounded-b-2xl"
             style={{ borderColor: 'color-mix(in srgb, var(--tint) 60%, #fff)' }}
           />
-          <div className="relative h-[4.5rem] w-16 overflow-hidden rounded-b-xl rounded-t-full sm:h-44 sm:w-40 sm:rounded-b-2xl">
+          <div className="relative h-16 w-14 overflow-hidden rounded-b-xl rounded-t-full sm:h-32 sm:w-28 sm:rounded-b-2xl">
             {profile.hero ? (
-              <Photo
-                src={profile.hero}
-                alt={`Retrato de ${profile.name}`}
-                fill
-                sizes="(min-width: 640px) 160px, 64px"
-                className="object-cover"
-                priority
-              />
+              <Photo src={profile.hero} alt={`Retrato de ${profile.name}`} fill sizes="(min-width: 640px) 112px, 56px" className="object-cover" priority />
             ) : (
-              <Avatar profile={profile} size={160} shape="squircle" />
+              <Avatar profile={profile} size={112} shape="squircle" />
             )}
           </div>
         </div>
-      </div>
 
-      {/* Fila de datos */}
-      <div className="relative mt-4 flex flex-wrap items-center gap-x-6 gap-y-4 border-t pt-4 hairline sm:mt-7 sm:gap-x-8 sm:gap-y-5 sm:pt-5">
-        <ProgressRing ratio={dayScore.ratio} size={72} stroke={5}>
-          <span className="text-lg font-semibold tabular-nums t-1" aria-live="polite">
-            {Math.round(dayScore.ratio * 100)}
-            <span className="text-[10px]">%</span>
-          </span>
-        </ProgressRing>
-
-        {stats.map((stat) => (
-          <div key={stat.label} className="min-w-[92px]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] t-3">{stat.label}</p>
-            <p className="royal-title mt-1 text-2xl leading-none tabular-nums t-1">{stat.value}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-bold uppercase tracking-[0.2em] t-3">
+            <span aria-hidden>✨</span> Érase una vez
+          </p>
+          <h1 className="royal-title truncate text-[26px] leading-[1.05] t-1 sm:text-5xl">
+            <span aria-hidden className="mr-1.5 align-middle text-xl sm:text-3xl">
+              👑
+            </span>
+            {profile.name}
+          </h1>
+          <p className="mt-0.5 line-clamp-2 text-[12px] font-semibold leading-snug t-accent">{spell(dayScore.ratio, dayScore.empty)}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <StatChips streak={streak} plan={plan} />
+            {/* Las estrellas del día, que aquí son el broche del vestido. */}
+            <Stars value={dayScore.stars} size="sm" animate />
           </div>
-        ))}
-
-        {/* Las estrellas del día, que aquí son el broche del vestido. */}
-        <div className="ml-auto">
-          <Stars value={dayScore.stars} size="md" animate />
         </div>
+
+        <DayRing dayScore={dayScore} filled={filled} display="royal-title" />
       </div>
     </header>
   );
@@ -355,17 +313,17 @@ function RoyalHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
  * de familia y de pareja son verticales y una banda ancha las ampliaría
  * hasta dejar las caras fuera de cuadro.
  */
-function GroupHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderProps) {
+function GroupHeader({ profile, date, dayScore, streak, filled, plan }: ProfileHeaderProps) {
   return (
-    <header className="card relative mb-4 overflow-hidden">
-      <div className="flex min-h-[172px] sm:min-h-[200px]">
+    <header className="card relative mb-3 overflow-hidden sm:mb-4">
+      <div className="flex min-h-[124px] sm:min-h-[176px]">
         {profile.hero && (
-          <div className="relative w-[38%] max-w-[260px] shrink-0 self-stretch">
+          <div className="relative w-[32%] max-w-[240px] shrink-0 self-stretch">
             <Photo
               src={profile.hero}
               alt={profile.name}
               fill
-              sizes="(min-width: 640px) 260px, 40vw"
+              sizes="(min-width: 640px) 240px, 32vw"
               className="object-cover"
               style={{ objectPosition: profile.heroPosition ?? 'center 40%' }}
               priority
@@ -374,41 +332,24 @@ function GroupHeader({ profile, date, dayScore, streak, filled }: ProfileHeaderP
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 p-5">
-          <div className="min-w-[150px] flex-1">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] t-3">
-              Módulo compartido
+        <div className="flex min-w-0 flex-1 items-center gap-3 p-3 sm:p-5">
+          <div className="min-w-0 flex-1">
+            <p className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.2em] t-3">
+              Compartido · {ringDateLabel(date)}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-black t-1">{profile.name.replace('Hábitos en ', '')}</h1>
+            <h1 className="truncate text-xl font-black leading-tight t-1 sm:text-2xl">{profile.name.replace('Hábitos en ', '')}</h1>
+            <p className="mt-0.5 line-clamp-1 text-xs t-2">{profile.role}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {profile.isPrivate && (
-                <span
-                  className="chip"
-                  style={{ backgroundColor: 'var(--danger-bg)', color: 'var(--danger)' }}
-                >
+                <span className="chip" style={{ backgroundColor: 'var(--danger-bg)', color: 'var(--danger)' }}>
                   🔒 Privado
                 </span>
               )}
-              {streak > 0 && (
-                <span className="chip-soft" title="Días seguidos por encima del 60 %">
-                  🔥 {streak}
-                </span>
-              )}
+              <StatChips streak={streak} plan={plan} />
             </div>
-            <p className="mt-1 text-sm t-2">{profile.role}</p>
-            <p className="mt-0.5 text-xs t-3">
-              {friendlyDateLabel(date)} ·{' '}
-              {dayScore.empty ? 'sin registrar' : `${percent(dayScore.ratio)} · ${filled} registros`}
-            </p>
           </div>
 
-          <ProgressRing ratio={dayScore.ratio} size={84} stroke={8}>
-            <span className="text-xl font-black tabular-nums t-1" aria-live="polite">
-              {Math.round(dayScore.ratio * 100)}
-              <span className="text-xs">%</span>
-            </span>
-            <span className="text-[10px] uppercase tracking-wide t-3">{ringDateLabel(date)}</span>
-          </ProgressRing>
+          <DayRing dayScore={dayScore} filled={filled} size={60} />
         </div>
       </div>
     </header>

@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 
+import { SectionHead } from '@/components/summary/SectionHead';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { adherence } from '@/lib/planLink';
@@ -42,7 +43,6 @@ interface PlanAdherenceProps {
   range: SummaryRange;
   skin: ProfileSkin;
   kid: boolean;
-  headingClass: string;
   /** Si el periodo es el que se está viviendo; si no, se rotula con su nombre. */
   isCurrent: boolean;
   /** Cómo se llama el periodo mirado: «6 oct – 12 oct», «Septiembre 2026». */
@@ -58,7 +58,6 @@ export function PlanAdherence({
   range,
   skin,
   kid,
-  headingClass,
   isCurrent,
   periodLabel,
   onOpenPlan,
@@ -92,21 +91,24 @@ export function PlanAdherence({
 
   /* ------------------------------------------------- agenda sin estrenar */
 
+  // Sin semana tipo, una línea y la acción: antes eran cuatro líneas de
+  // explicación en una tarjeta entera para decir «aún no hay plan».
   if (plan.blocks.length === 0) {
     return (
-      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>Lo planificado, ¿pasó?</h3>
-        <p className="text-sm leading-relaxed t-3">
-          Todavía no hay semana tipo que contrastar. En cuanto apartes tus{' '}
-          {theme.blockWords} —el entreno, la lectura, la cena— este apartado te dirá cuáles se
-          cumplen de verdad y cuáles llevan semanas sin ocurrir.
-        </p>
-        {onOpenPlan && (
-          <button type="button" onClick={onOpenPlan} className="btn-primary mt-3 px-3 py-1.5 text-xs">
-            🗓️ Montar la semana
-          </button>
-        )}
-      </div>
+      <section className={`${kid ? 'card-kid' : 'card'} p-4`} aria-labelledby="plan-paso">
+        <SectionHead id="plan-paso" title="Lo planificado, ¿pasó?" skin={skin} />
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-[12rem] flex-1 text-[13px] leading-snug t-3">
+            Aparta tus {theme.blockWords} —el entreno, la lectura, la cena— y aquí verás cuáles se
+            cumplen de verdad.
+          </p>
+          {onOpenPlan && (
+            <button type="button" onClick={onOpenPlan} className="btn-primary shrink-0 px-3 py-1.5 text-xs">
+              🗓️ Montar la semana
+            </button>
+          )}
+        </div>
+      </section>
     );
   }
 
@@ -116,26 +118,32 @@ export function PlanAdherence({
     .sort((a, b) => a.kept / a.judged - b.kept / b.judged)[0];
 
   return (
-    <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className={`${headingClass} mb-0`}>Lo planificado, ¿pasó?</h3>
-        {/* «Esta semana» sólo cuando lo es: repasando la de hace un mes, el
-            rótulo decía lo mismo y parecía que se hablaba de la de ahora. */}
-        <span className="text-[11px] t-3">
-          {isCurrent ? (range === 'week' ? 'esta semana' : 'este mes') : periodLabel} ·{' '}
-          {data.blocks} {data.blocks === 1 ? theme.blockWord : theme.blockWords}, {data.linked}{' '}
-          atados a un hábito
-        </span>
-        {onOpenPlan && (
-          <button
-            type="button"
-            onClick={onOpenPlan}
-            className="btn-ghost ml-auto min-h-0 px-2.5 py-1 text-xs"
-          >
-            Abrir la semana
-          </button>
-        )}
-      </div>
+    <section className={`${kid ? 'card-kid' : 'card'} p-4`} aria-labelledby="plan-paso">
+      <SectionHead
+        id="plan-paso"
+        title="Lo planificado, ¿pasó?"
+        skin={skin}
+        // «Esta semana» sólo cuando lo es: repasando la de hace un mes, el
+        // rótulo decía lo mismo y parecía que se hablaba de la de ahora.
+        meta={
+          <>
+            {isCurrent ? (range === 'week' ? 'esta semana' : 'este mes') : periodLabel} ·{' '}
+            {data.blocks} {data.blocks === 1 ? theme.blockWord : theme.blockWords}, {data.linked}{' '}
+            atados
+          </>
+        }
+        action={
+          onOpenPlan && (
+            <button
+              type="button"
+              onClick={onOpenPlan}
+              className="btn-ghost min-h-0 px-2.5 py-1 text-xs"
+            >
+              Abrir la semana
+            </button>
+          )
+        }
+      />
 
       {data.judged === 0 ? (
         <p className="text-sm leading-relaxed t-3">
@@ -283,6 +291,6 @@ export function PlanAdherence({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

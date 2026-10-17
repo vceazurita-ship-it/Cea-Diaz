@@ -1,7 +1,7 @@
 'use client';
 
 import { percent } from '@/lib/scoring';
-import { formatShort, isFuture, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
+import { formatShort, isFuture, isToday, WEEKDAY_LABELS, weekdayIndex } from '@/lib/dates';
 import type { DayScore } from '@/types';
 
 interface WeekChartProps {
@@ -11,7 +11,10 @@ interface WeekChartProps {
 
 export function WeekChart({ days, onSelectDay }: WeekChartProps) {
   return (
-    <div className="flex h-44 items-end gap-2">
+    // Más baja que antes (176 px → 128): va dentro de la tarjeta del resumen,
+    // debajo del anillo, y lo que dice —qué días tiraron y cuáles no— se lee
+    // igual de bien sin ocupar media pantalla.
+    <div className="flex h-32 items-end gap-2">
       {days.map((day) => {
         const height = Math.max(4, Math.round(day.ratio * 100));
         // Un día que aún no ha llegado no se abre: el registro no acepta el
@@ -50,7 +53,10 @@ export function WeekChart({ days, onSelectDay }: WeekChartProps) {
                 }}
               />
             </div>
-            <span className="text-[11px] font-bold uppercase t-3">
+            {/* Hoy, en el color del perfil: es el día que se busca primero. */}
+            <span
+              className={`text-[11px] font-bold uppercase ${isToday(day.date) ? 't-accent' : 't-3'}`}
+            >
               {WEEKDAY_LABELS[weekdayIndex(day.date)]}
             </span>
           </button>

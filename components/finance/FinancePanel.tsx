@@ -8,6 +8,7 @@ import { FinancePlan } from '@/components/finance/FinancePlan';
 import { FinanceStats } from '@/components/finance/FinanceStats';
 import { LedgerCard } from '@/components/finance/LedgerCard';
 import { QuickUpdate } from '@/components/finance/QuickUpdate';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useToast } from '@/components/ui/Toast';
 import {
   LEDGERS,
@@ -183,11 +184,21 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   if (!started) {
     return (
       <div className="mx-auto w-full max-w-md">
-        <div className="card p-6 text-center">
-          <p className="text-4xl" aria-hidden>
+        <div className="card relative isolate overflow-hidden p-6 text-center">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-tint-halo blur-2xl"
+          />
+          <p
+            aria-hidden
+            className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-3xl"
+          >
             💶
           </p>
-          <h2 className="mt-2 text-lg font-bold t-1">Las cuentas del curso</h2>
+          <p className="mt-3 text-[11px] font-black uppercase tracking-[0.22em] t-3">Por estrenar</p>
+          <h2 className="font-display text-[22px] font-black leading-tight t-1">
+            Las cuentas del curso
+          </h2>
           <p className="mt-2 text-sm leading-relaxed t-3">
             Seis libretas: lo que entra y lo que sale cada mes, y luego la foto de lo que hay —las
             cuentas, lo invertido, lo que te deben y lo que debes—. Con eso, la app contesta sola
@@ -220,35 +231,66 @@ export function FinancePanel({ profile }: FinancePanelProps) {
   return (
     <div className="space-y-4">
       {/* Lo que se viene a mirar */}
-      <section className="card p-4" aria-label="Cómo van las cuentas">
-        <header className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <h2 className="text-sm font-bold t-1">💶 Economía de {profile.name}</h2>
-          <span className="text-xs t-3">
-            curso {book.season || seasonOf()} · {book.months} {book.months === 1 ? 'mes' : 'meses'}
-            {payMonths(book) < book.months && `, se cobran ${payMonths(book)}`}
-          </span>
-        </header>
+      <section className="card relative isolate overflow-hidden p-4" aria-label="Cómo van las cuentas">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-tint-halo blur-2xl"
+        />
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Tile
-            value={runway === null ? '—' : runwayLabel(runway)}
-            label="aguantas sin ingresar"
-            strong
-          />
-          <Tile value={euros(wealth)} label="patrimonio" />
-          <Tile
-            value={euros(saving)}
-            label="queda cada mes"
-            tone={saving < 0 ? 'danger' : 'good'}
-          />
-          <Tile
-            value={euros(periodSaving(book))}
-            label="queda en el curso"
-            tone={periodSaving(book) < 0 ? 'danger' : 'good'}
-          />
+        {/* La cifra que se viene a mirar, sola y en grande: cuánto se aguanta
+            sin ingresar. Al lado, el anillo de lo que se ahorra de lo que
+            entra, que es lo que la mueve mes a mes. */}
+        <div className="relative flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] t-3">
+              Economía de {profile.name}
+            </p>
+            <p className="mt-1 text-[12px] font-bold t-3">Aguantas sin ingresar</p>
+            <p className="font-display text-[32px] font-black leading-none tracking-tight tabular-nums t-1 sm:text-4xl">
+              {runway === null ? '—' : runwayLabel(runway)}
+            </p>
+            <p className="mt-1.5 text-[11px] t-3">
+              Curso {book.season || seasonOf()} · {book.months} {book.months === 1 ? 'mes' : 'meses'}
+              {payMonths(book) < book.months && `, se cobran ${payMonths(book)}`}
+            </p>
+          </div>
+
+          {income > 0 && (
+            <div className="flex shrink-0 flex-col items-center gap-1">
+              <span aria-hidden>
+                <ProgressRing
+                  ratio={Math.max(0, saving / income)}
+                  size={68}
+                  stroke={7}
+                  color={saving < 0 ? 'var(--danger)' : 'var(--accent)'}
+                >
+                  <span className={`text-[12px] font-black tabular-nums ${saving < 0 ? 't-danger' : 't-1'}`}>
+                    {Math.round((saving / income) * 100)}%
+                  </span>
+                </ProgressRing>
+              </span>
+              <span className="sr-only">
+                Se ahorra el {Math.round((saving / income) * 100)} % de lo que entra cada mes
+              </span>
+              <span aria-hidden className="text-[10px] font-bold uppercase tracking-wider t-3">
+                ahorro
+              </span>
+            </div>
+          )}
         </div>
 
-        <p className="mt-3 text-xs leading-relaxed t-3">
+        {/* Y debajo, las otras tres, en fila y del mismo peso. */}
+        <dl className="relative mt-4 grid grid-cols-3 divide-x divide-[var(--border)] rounded-2xl border hairline surf-2 py-2.5">
+          <Figure value={euros(wealth)} label="Patrimonio" />
+          <Figure value={euros(saving)} label="Queda al mes" danger={saving < 0} />
+          <Figure
+            value={euros(periodSaving(book))}
+            label="En el curso"
+            danger={periodSaving(book) < 0}
+          />
+        </dl>
+
+        <p className="relative mt-3 text-xs leading-relaxed t-3">
           Al mes entran <strong className="tabular-nums t-2">{euros(income)}</strong> y salen{' '}
           <strong className="tabular-nums t-2">{euros(spend)}</strong>. En el curso entero,{' '}
           <strong className="tabular-nums t-2">{euros(periodIncome(book))}</strong> contra{' '}
@@ -257,9 +299,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           {runway !== null && (
             <>
               {' '}
-              Con lo que hay hoy y sin ingresar nada, aguantas{' '}
-              <strong className="t-2">{runwayLabel(runway)}</strong>; contando sólo el dinero en
-              cuenta,{' '}
+              Lo de arriba cuenta todo lo que hay; contando sólo el dinero en cuenta, aguantas{' '}
               <strong className="t-2">
                 {spend > 0 ? runwayLabel(liquidWorth(book) / spend) : '—'}
               </strong>
@@ -268,51 +308,107 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           )}
         </p>
 
-        {/* Y lo primero que hay que oír, si hay algo que oír */}
-        {top && (
-          <button
-            type="button"
-            onClick={() => setView('consejo')}
-            className={`mt-3 flex w-full items-start gap-2 rounded-xl border p-2.5 text-left
-              ${top.tone === 'grave' ? 'border-[color:var(--danger)]' : 'border-accent'}`}
-          >
-            <span aria-hidden className="text-base">
-              {top.icon}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs font-bold leading-snug t-1">{top.title}</span>
-              <span className="mt-0.5 block text-[11px] t-3">
-                {alerts > 1 ? `Y ${alerts - 1} cosa${alerts - 1 === 1 ? '' : 's'} más que mirar. ` : ''}
-                Toca para verlo entero.
-              </span>
-            </span>
-          </button>
-        )}
+        {/* Para ahora: lo que se viene a hacer y lo que hay que oír, en una
+            lista como el «Para hoy» de la portada. Cada línea lleva a donde
+            se hace. */}
+        <div className="mt-3 border-t pt-2 hairline">
+          <p className="flex items-center gap-2 px-1 pb-1 text-[11px] font-black uppercase tracking-[0.22em] t-3">
+            <span
+              aria-hidden
+              className={`h-1.5 w-1.5 rounded-full ${top?.tone === 'grave' ? 'bg-[var(--danger)]' : 'bg-accent'}`}
+            />
+            Para ahora
+          </p>
+          <ul className="divide-y divide-[var(--border)]">
+            {/* Lo primero que se viene a hacer: teclear las cifras del mes */}
+            <li>
+              <button
+                type="button"
+                onClick={() => setQuick(true)}
+                className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover-soft"
+              >
+                <span
+                  aria-hidden
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-base t-on-accent"
+                >
+                  ⚡
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-black t-1">Poner las cuentas al día</span>
+                  <span className="block text-[11px] t-3">Las cifras del mes, una tras otra</span>
+                </span>
+                <span aria-hidden className="text-lg t-3">
+                  ›
+                </span>
+              </button>
+            </li>
 
-        {/* El último mes de verdad, que es con lo que se contrasta lo de arriba */}
-        {lastClosing && (
-          <button
-            type="button"
-            onClick={() => setView('meses')}
-            className="mt-3 flex w-full items-center gap-2 rounded-xl border p-2.5 text-left hairline hover-soft"
-          >
-            <span aria-hidden className="text-base">
-              🗓️
-            </span>
-            <span className="min-w-0 flex-1 text-xs leading-snug t-2">
-              <span className="font-bold t-1">{monthLabel(lastClosing.month).replace(/^./, (c) => c.toUpperCase())}</span>: la
-              cuenta acabó en{' '}
-              <strong className="tabular-nums t-1">{euros(lastTotals!.closing)}</strong>{' '}
-              <span className={`tabular-nums ${lastTotals!.result < 0 ? 't-danger' : ''}`}>
-                ({lastTotals!.result > 0 ? '+' : ''}
-                {euros(lastTotals!.result)})
-              </span>
-            </span>
-            <span aria-hidden className="t-3">
-              ›
-            </span>
-          </button>
-        )}
+            {/* Y lo primero que hay que oír, si hay algo que oír */}
+            {top && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setView('consejo')}
+                  className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover-soft"
+                >
+                  <span
+                    aria-hidden
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-base
+                      ${top.tone === 'grave' ? 'bg-danger-soft' : 'bg-accent-soft'}`}
+                  >
+                    {top.icon}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block text-[13px] font-bold leading-snug ${top.tone === 'grave' ? 't-danger' : 't-1'}`}
+                    >
+                      {top.title}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] t-3">
+                      {alerts > 1 ? `Y ${alerts - 1} cosa${alerts - 1 === 1 ? '' : 's'} más que mirar. ` : ''}
+                      Toca para verlo entero.
+                    </span>
+                  </span>
+                  <span aria-hidden className="text-lg t-3">
+                    ›
+                  </span>
+                </button>
+              </li>
+            )}
+
+            {/* El último mes de verdad, que es con lo que se contrasta lo de arriba */}
+            {lastClosing && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setView('meses')}
+                  className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover-soft"
+                >
+                  <span
+                    aria-hidden
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full surf-2 text-base"
+                  >
+                    🗓️
+                  </span>
+                  <span className="min-w-0 flex-1 text-xs leading-snug t-2">
+                    <span className="font-bold t-1">
+                      {monthLabel(lastClosing.month).replace(/^./, (c) => c.toUpperCase())}
+                    </span>
+                    : la cuenta acabó en{' '}
+                    <strong className="tabular-nums t-1">{euros(lastTotals!.closing)}</strong>{' '}
+                    <span className={`tabular-nums ${lastTotals!.result < 0 ? 't-danger' : ''}`}>
+                      ({lastTotals!.result > 0 ? '+' : ''}
+                      {euros(lastTotals!.result)})
+                    </span>
+                  </span>
+                  <span aria-hidden className="text-lg t-3">
+                    ›
+                  </span>
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
 
         {/* En qué se va el mes */}
         {shares.length > 1 && (
@@ -379,19 +475,13 @@ export function FinancePanel({ profile }: FinancePanelProps) {
         )}
       </section>
 
-      {/* Lo primero que se viene a hacer: teclear las cifras del mes */}
-      <button
-        type="button"
-        onClick={() => setQuick(true)}
-        className="btn-primary w-full py-2.5 text-sm"
-      >
-        ⚡ Poner las cuentas al día
-      </button>
-
-      {/* Cómo mirarlas */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Cómo mirarlas. En el móvil, una tira que se desliza de lado: seis
+          pestañas partidas en tres filas eran tres alturas de botón. */}
+      <div className="flex items-center gap-2">
         <div
-          className="flex flex-wrap gap-1 rounded-full p-1 surf-2"
+          data-noswipe
+          className="edge-mask-x -ml-1 flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full p-1 surf-2 sm:ml-0 sm:flex-none sm:flex-wrap sm:overflow-visible"
+          style={{ scrollbarWidth: 'none' }}
           role="tablist"
           aria-label="Cómo ver las cuentas"
         >
@@ -414,7 +504,7 @@ export function FinancePanel({ profile }: FinancePanelProps) {
               role="tab"
               aria-selected={view === option.id}
               onClick={() => setView(option.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition
                 ${view === option.id ? 'bg-accent t-on-accent' : 't-2 hover-soft'}`}
             >
               {option.label}
@@ -422,8 +512,14 @@ export function FinancePanel({ profile }: FinancePanelProps) {
           ))}
         </div>
 
-        <button type="button" onClick={copy} className="btn-ghost ml-auto px-3 py-1.5 text-xs">
-          📋 Copiar las cuentas
+        <button
+          type="button"
+          onClick={copy}
+          title="Copiar las cuentas en texto"
+          className="btn-ghost tap-area ml-auto shrink-0 px-3 py-1.5 text-xs"
+        >
+          <span aria-hidden>📋</span>
+          <span className="sr-only sm:not-sr-only sm:ml-1">Copiar las cuentas</span>
         </button>
       </div>
 
@@ -599,32 +695,19 @@ export function FinancePanel({ profile }: FinancePanelProps) {
 }
 
 /* ---------------------------------------------------------------------------
- * Una cifra de las de arriba
+ * Una de las tres cifras de debajo de la grande
  * ------------------------------------------------------------------------- */
 
-function Tile({
-  value,
-  label,
-  tone,
-  strong,
-}: {
-  value: string;
-  label: string;
-  tone?: 'good' | 'danger';
-  strong?: boolean;
-}) {
+function Figure({ value, label, danger }: { value: string; label: string; danger?: boolean }) {
   return (
-    <div
-      className={`rounded-xl border p-2 text-center hairline
-        ${strong ? 'bg-accent-faint border-accent' : 'surf-2'}`}
-    >
-      <p
-        className={`font-bold tabular-nums ${strong ? 'text-base' : 'text-lg'}
-          ${tone === 'danger' ? 't-danger' : 't-1'}`}
+    <div className="min-w-0 px-2 text-center">
+      <dt className="text-[10px] font-bold uppercase tracking-wider t-3">{label}</dt>
+      <dd
+        className={`mt-0.5 truncate text-[15px] font-black tabular-nums sm:text-lg ${danger ? 't-danger' : 't-1'}`}
+        title={value}
       >
         {value}
-      </p>
-      <p className="text-[10px] leading-tight t-3">{label}</p>
+      </dd>
     </div>
   );
 }

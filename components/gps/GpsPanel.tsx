@@ -332,15 +332,32 @@ function GpsPanelBody({ profile, store, kid, skin, sessions }: GpsPanelProps & {
       {digest && <ImportDigest digest={digest} kid={kid} onClose={() => setBatch([])} />}
 
       {sessions.length === 0 ? (
-        <section className={card}>
-          <h3 className="mb-2 text-sm font-bold t-1">Todavía no hay ninguna sesión</h3>
-          <p className="text-sm leading-relaxed t-3">
-            El rastreador de {profile.name} deja las cifras en la aplicación de {TRACKER} y allí se
-            quedan: una sesión por pantalla, sin manera de compararlas. Aquí se ve lo que allí no:
-            si va a más a lo largo de la temporada, cuáles fueron sus mejores días y qué tal fue
-            cada sesión frente a las suyas.
-          </p>
-          <p className="mt-2 text-sm leading-relaxed t-3">Con cuatro sesiones ya sale la primera tendencia.</p>
+        // Sin sesiones, un aviso corto y la caja de apuntar justo debajo: antes
+        // eran cinco líneas de explicación antes de llegar a lo único que
+        // había que hacer. Lo largo se queda plegado, para quien lo quiera.
+        <section className={`${card} flex items-start gap-3`}>
+          <span
+            aria-hidden
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-4 text-xl"
+            style={{ borderColor: 'var(--track)' }}
+          >
+            🛰️
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-base font-black leading-tight t-1">Aún no hay ninguna sesión</h3>
+            <p className="mt-0.5 text-[13px] leading-snug t-2">
+              Apunta la primera aquí debajo. Con cuatro ya sale la primera tendencia.
+            </p>
+            <details className="mt-1.5">
+              <summary className="cursor-pointer text-[11px] font-bold t-accent">¿Qué se ve aquí?</summary>
+              <p className="mt-1 text-[12px] leading-relaxed t-3">
+                El rastreador de {profile.name} deja las cifras en la aplicación de {TRACKER} y allí se
+                quedan: una sesión por pantalla, sin manera de compararlas. Aquí se ve lo que allí no:
+                si va a más a lo largo de la temporada, cuáles fueron sus mejores días y qué tal fue
+                cada sesión frente a las suyas.
+              </p>
+            </details>
+          </div>
         </section>
       ) : shown.length === 0 ? (
         <section className={card}>

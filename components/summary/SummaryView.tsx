@@ -1,13 +1,12 @@
 'use client';
 
-import { kickerFont } from '@/lib/profiles';
 import { useMemo } from 'react';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import { AchievementsPanel } from '@/components/summary/AchievementsPanel';
 import { MonthHeatmap } from '@/components/summary/MonthHeatmap';
 import { PlanAdherence } from '@/components/summary/PlanAdherence';
+import { SectionHead } from '@/components/summary/SectionHead';
 import { WeekChart } from '@/components/summary/WeekChart';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { Stars } from '@/components/ui/Stars';
 import {
@@ -16,13 +15,18 @@ import {
   capitalize,
   formatMonth,
   formatShort,
+  isFuture,
+  isToday,
   monthKeys,
   startOfWeek,
   todayKey,
+  WEEKDAY_LABELS,
+  weekdayIndex,
   weekKeys,
 } from '@/lib/dates';
+import { DAY_SHORT } from '@/lib/planner';
 import { computeAchievements, percent, summarizePeriod } from '@/lib/scoring';
-import type { DateKey, DayEntry, Profile, ProfileSkin, SummaryRange } from '@/types';
+import type { DateKey, DayEntry, DayScore, Profile, ProfileSkin, SummaryRange } from '@/types';
 
 const SUMMARY_RANGES: readonly SummaryRange[] = ['week', 'month'];
 
@@ -45,41 +49,80 @@ interface SummaryViewProps {
   onOpenPlan?: () => void;
 }
 
-/**
- * Una diferencia con signo, dicha como se dice: «+6 pts», «−2 días», «Igual».
- * El menos es el tipográfico (U+2212), que mide lo mismo que el más y no se
- * confunde con un guion.
- */
-function signed(delta: number, unit: string, singular = unit): string {
-  if (delta === 0) return 'Igual';
-  const n = Math.abs(delta);
-  return `${delta > 0 ? '+' : '−'}${n} ${n === 1 ? singular : unit}`;
-}
+/* =========================================================================
+ *  Los resúmenes, con el mismo criterio que la portada.
+ *
+ *  Arriba, en una sola tarjeta, todo lo que se quiere saber de un vistazo:
+ *  el anillo de la media, una frase que la juzga, si se va mejor o peor que
+ *  el periodo anterior, cuatro cifras (días, racha, estrellas y el mejor
+ *  día) y la gráfica de los días. Antes eso eran tres tarjetas y cuatro
+ *  fichas sueltas, con la racha y las estrellas dichas dos veces.
+ *
+ *  Sin registros, un único aviso con la acción que toca —apuntar hoy, o
+ *  volver al periodo en curso— en lugar de una gráfica sin barras y una
+ *  caja enorme pidiendo que se registre algo.
+ * ========================================================================= */
 
 /**
- * Comparación con el periodo anterior. Las cifras absolutas —media, racha,
- * estrellas— ya las dice la tarjeta del anillo; repetirlas aquí era leer lo
- * mismo dos veces. Lo que no decía nadie es si se va mejor o peor que la
- * semana o el mes de antes, y para eso sirven estas fichas.
+ * Una diferencia con signo y sin unidad, para debajo de una cifra: «+2»,
+ * «−1», «=». El menos es el tipográfico (U+2212), que mide lo mismo que el
+ * más y no se confunde con un guion.
  */
-function DeltaTile({
+function signedShort(delta: number): string {
+  if (delta === 0) return '=';
+  return `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`;
+}
+
+/** Verde si se sube, rojo si se baja, apagado si se queda igual. */
+function toneOf(delta: number): string {
+  return delta === 0 ? 't-3' : delta > 0 ? 't-accent' : 't-danger';
+}
+
+/** Una frase que juzga la media, para que el anillo no sea un número suelto. */
+function verdict(average: number): string {
+  if (average >= 0.85) return 'Va de lujo';
+  if (average >= 0.65) return 'Buen ritmo';
+  if (average >= 0.4) return 'A medio gas';
+  return 'Cuesta arrancar';
+}
+
+/** Una cifra de la tira del resumen, con su diferencia debajo si la hay. */
+function Stat({
   label,
+  value,
+  sub,
   delta,
-  unit,
-  singular,
+  deltaLabel,
 }: {
   label: string;
-  delta: number | null;
-  unit: string;
-  singular?: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  delta?: number | null;
+  /** Cómo se lee la diferencia en voz alta: «2 días más que…». */
+  deltaLabel?: string;
 }) {
-  const tone = delta === null || delta === 0 ? 't-3' : delta > 0 ? 't-accent' : 't-danger';
   return (
-    <div className="card p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide t-3">{label}</p>
-      <p className={`mt-0.5 text-2xl font-black tabular-nums ${tone}`}>
-        {delta === null ? '—' : signed(delta, unit, singular)}
-      </p>
+    <div className="min-w-0 px-1.5 text-center">
+      <dt className="truncate text-[10px] font-bold uppercase tracking-wider t-3">{label}</dt>
+      <dd className="mt-0.5 truncate text-[17px] font-black leading-tight tabular-nums t-1">
+        {value}
+      </dd>
+      {(sub || (delta !== undefined && delta !== null)) && (
+        <dd className="truncate text-[11px] tabular-nums t-3">
+          {sub}
+          {delta !== undefined && delta !== null && (
+            <span className={`font-bold ${toneOf(delta)}`}>
+              {sub ? ' ' : ''}
+              <span aria-hidden>{signedShort(delta)}</span>
+              {deltaLabel && (
+                <span className="sr-only">
+                  {` (${delta === 0 ? 'igual' : `${delta > 0 ? 'más' : 'menos'} ${Math.abs(delta)}`} ${deltaLabel})`}
+                </span>
+              )}
+            </span>
+          )}
+        </dd>
+      )}
     </div>
   );
 }
@@ -100,10 +143,8 @@ export function SummaryView({
     oneOf(SUMMARY_RANGES),
   );
   const kid = profile.kind === 'kid';
+  const card = kid ? 'card-kid' : 'card';
   const today = todayKey();
-  // Cada piel rotula lo suyo: marcador de estadio en el campo, serif de
-  // cuento en el de María.
-  const headingClass = `mb-3 text-sm font-bold uppercase tracking-wide t-2${kickerFont(skin)}`;
 
   const dates = useMemo(
     () => (range === 'week' ? weekKeys(date) : monthKeys(date)),
@@ -134,7 +175,7 @@ export function SummaryView({
     : null;
 
   // El periodo de antes, para decir si se va mejor o peor. Si no tiene ni
-  // un día registrado no hay con qué comparar y las fichas lo dicen así.
+  // un día registrado no hay con qué comparar y el resumen lo dice así.
   //
   // Con el periodo en curso se compara contra el mismo trozo del anterior:
   // un miércoles lleva tres días, y ponerlo contra la semana pasada entera
@@ -156,6 +197,17 @@ export function SummaryView({
   );
 
   const achievements = useMemo(() => computeAchievements(monthSummary), [monthSummary]);
+  const unlocked = achievements.filter((a) => a.unlocked).length;
+
+  /** El día que mejor salió del periodo; con empate, el más reciente. */
+  const bestDay = useMemo(
+    () =>
+      summary.days.reduce<DayScore | null>(
+        (best, day) => (!day.empty && (!best || day.ratio >= best.ratio) ? day : best),
+        null,
+      ),
+    [summary.days],
+  );
 
   const periodLabel =
     range === 'week'
@@ -164,17 +216,19 @@ export function SummaryView({
 
   const empty = summary.trackedDays === 0;
   const previousLabel = range === 'week' ? 'la semana anterior' : 'el mes anterior';
-  /** Lo que se dice encima de las fichas, con el matiz del periodo a medias. */
-  const comparedLabel =
+  /** «la semana anterior» o, con el periodo a medias, «a estas alturas de…». */
+  const comparedTo =
     elapsed === null
-      ? `Respecto a ${previousLabel}`
-      : range === 'week'
-        ? 'Respecto al mismo punto de la semana anterior'
-        : 'Respecto al mismo punto del mes anterior';
+      ? previousLabel
+      : `a estas alturas de ${range === 'week' ? 'la semana anterior' : 'el mes anterior'}`;
+  /** El rótulo pequeño encima del titular. */
+  const kicker = atCurrent ? (range === 'week' ? 'Esta semana' : 'Este mes') : periodLabel;
 
   /** Diferencia con el periodo anterior, o nada si no hay con qué comparar. */
   const delta = (pick: (s: typeof summary) => number): number | null =>
     previous ? Math.round(pick(summary) - pick(previous)) : null;
+
+  const mediaDelta = delta((s) => s.average * 100);
 
   /**
    * Un periodo atrás o adelante. Al volver al periodo en curso se cae en hoy
@@ -244,114 +298,202 @@ export function SummaryView({
         </div>
       </div>
 
-      {/* Cabecera de cumplimiento */}
-      <div className={`${kid ? 'card-kid' : 'card'} flex flex-wrap items-center gap-5 p-5`}>
-        <ProgressRing ratio={summary.average} size={kid ? 116 : 96}>
-          <span className="text-2xl font-black tabular-nums t-1">
-            {Math.round(summary.average * 100)}
-            <span className="text-sm">%</span>
-          </span>
-          <span className="text-[11px] uppercase tracking-wide t-3">media</span>
-        </ProgressRing>
-
-        <div className="min-w-[180px] flex-1 space-y-2">
-          {kid && <Stars value={Math.round(summary.average * 5)} size="lg" animate />}
-          <p className="text-sm t-2">
-            {empty
-              ? 'Todavía no hay registros en este periodo.'
-              : `${summary.trackedDays} ${
-                  summary.trackedDays === 1 ? 'día registrado' : 'días registrados'
-                } de ${summary.days.length}.`}
-          </p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="chip-soft">🔥 Racha actual: {summary.streak}</span>
-            <span className="chip-soft">🏅 Mejor racha: {summary.bestStreak}</span>
-            <span className="chip-soft">⭐ {summary.totalStars} estrellas</span>
+      {empty ? (
+        /* Sin registros: un solo aviso, y la acción que toca. */
+        <section className={`${card} p-4`} aria-labelledby="resumen-titulo">
+          <div className="flex items-center gap-4">
+            <ProgressRing ratio={0} size={64} stroke={6}>
+              <span className="text-xl" aria-hidden>
+                {atCurrent ? '✏️' : '💤'}
+              </span>
+            </ProgressRing>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] t-3">{kicker}</p>
+              <h2 id="resumen-titulo" className="font-display text-lg font-black leading-tight t-1">
+                {atCurrent ? 'Aún no hay nada apuntado' : 'Se quedó sin apuntar'}
+              </h2>
+              <p className="mt-1 text-[13px] leading-snug t-2">
+                {atCurrent
+                  ? 'En cuanto apuntes un día saldrán aquí la media, la racha y el mejor día.'
+                  : 'Ningún día de este periodo tiene registro.'}
+                {previous && (
+                  <>
+                    {' '}
+                    {capitalize(comparedTo)} ibas al{' '}
+                    <strong className="tabular-nums t-1">{percent(previous.average)}</strong>.
+                  </>
+                )}
+              </p>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Contra el periodo anterior. Con el actual vacío no se enseña: todo
-          saldría en negativo y no sería verdad, sólo que aún no se ha
-          empezado. */}
-      {!empty && (
-        <section aria-label={`Comparación con ${previousLabel}`}>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide t-3">
-            {previous
-              ? comparedLabel
-              : elapsed === null
-                ? `Sin registros en ${previousLabel}`
-                : `Sin registros a estas alturas de ${previousLabel}`}
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <DeltaTile label="Media" delta={delta((s) => s.average * 100)} unit="pts" />
-            <DeltaTile
-              label="Días registrados"
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {atCurrent ? (
+              <button type="button" onClick={() => onSelectDay(today)} className="btn-primary px-4 py-2 text-sm">
+                ✏️ Apuntar hoy
+              </button>
+            ) : (
+              <button type="button" onClick={() => onDateChange(today)} className="btn-primary px-4 py-2 text-sm">
+                {range === 'week' ? 'Ir a esta semana' : 'Ir a este mes'}
+              </button>
+            )}
+          </div>
+
+          {/* ¿Se olvidó un día de la semana? Se abre desde aquí mismo, como
+              se abría tocando la barra de la gráfica. */}
+          {range === 'week' && (
+            <div className="mt-3 border-t pt-3 hairline">
+              <p className="mb-2 text-[11px] t-3">O abre otro día de la semana:</p>
+              <div className="grid grid-cols-7 gap-1.5">
+                {summary.days.map((day) => {
+                  const future = isFuture(day.date);
+                  const hoy = isToday(day.date);
+                  return (
+                    <button
+                      key={day.date}
+                      type="button"
+                      disabled={future}
+                      onClick={() => onSelectDay(day.date)}
+                      aria-label={`${formatShort(day.date)}${hoy ? ', hoy' : ''}${future ? ', todavía no ha llegado' : ', sin registro'}`}
+                      className={`tap-area h-9 rounded-lg border text-[11px] font-bold uppercase transition-colors
+                        ${hoy ? 'border-accent t-accent' : 'hairline t-2'}
+                        ${future ? 'cursor-not-allowed opacity-40' : 'surf-1 hover-soft'}`}
+                    >
+                      {WEEKDAY_LABELS[weekdayIndex(day.date)]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      ) : (
+        /* El resumen de un vistazo: anillo, juicio, tendencia, cifras y días. */
+        <section className={`${card} p-4`} aria-labelledby="resumen-titulo">
+          <div className="flex items-center gap-4">
+            <ProgressRing ratio={summary.average} size={kid ? 100 : 88} stroke={8}>
+              <span className="text-[22px] font-black tabular-nums t-1">
+                {Math.round(summary.average * 100)}
+                <span className="text-xs">%</span>
+              </span>
+              <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider t-3">media</span>
+            </ProgressRing>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] t-3">{kicker}</p>
+              <h2 id="resumen-titulo" className="font-display text-xl font-black leading-tight t-1">
+                {verdict(summary.average)}
+              </h2>
+              {/* La tendencia: lo único que no dice el anillo. */}
+              <p className="mt-1 text-[12px] leading-snug t-2">
+                {mediaDelta === null ? (
+                  <>Sin registros {elapsed === null ? 'en' : 'a estas alturas de'} {previousLabel} para comparar.</>
+                ) : mediaDelta === 0 ? (
+                  <>
+                    <strong className="t-1">Igual</strong> que {comparedTo}.
+                  </>
+                ) : (
+                  <>
+                    <strong className={toneOf(mediaDelta)}>
+                      <span aria-hidden>{mediaDelta > 0 ? '▲' : '▼'} </span>
+                      {Math.abs(mediaDelta)} {Math.abs(mediaDelta) === 1 ? 'punto' : 'puntos'}
+                    </strong>{' '}
+                    {mediaDelta > 0 ? 'más' : 'menos'} que {comparedTo}.
+                  </>
+                )}
+              </p>
+              {kid && (
+                <div className="mt-1.5">
+                  <Stars value={Math.round(summary.average * 5)} size="md" animate />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Las cuatro cifras, cada una con su diferencia debajo. */}
+          <dl className="mt-4 grid grid-cols-4 divide-x divide-[var(--border)] rounded-xl border py-2 hairline surf-1">
+            <Stat
+              label="Días"
+              value={
+                <>
+                  {summary.trackedDays}
+                  <span className="text-[11px] font-bold t-3">/{summary.days.length}</span>
+                </>
+              }
               delta={delta((s) => s.trackedDays)}
-              unit="días"
-              singular="día"
+              deltaLabel={`días registrados respecto a ${comparedTo}`}
             />
-            <DeltaTile
-              label="Mejor racha"
+            <Stat
+              label="Racha"
+              value={<>🔥{summary.streak}</>}
+              sub={`mejor ${summary.bestStreak}`}
               delta={delta((s) => s.bestStreak)}
-              unit="días"
-              singular="día"
+              deltaLabel={`en la mejor racha respecto a ${comparedTo}`}
             />
-            <DeltaTile label="Estrellas" delta={delta((s) => s.totalStars)} unit="⭐" />
+            <Stat
+              label="Estrellas"
+              value={<>⭐{summary.totalStars}</>}
+              delta={delta((s) => s.totalStars)}
+              deltaLabel={`estrellas respecto a ${comparedTo}`}
+            />
+            <Stat
+              label="Mejor día"
+              value={
+                bestDay
+                  ? range === 'week'
+                    ? DAY_SHORT[weekdayIndex(bestDay.date)]
+                    : Number(bestDay.date.slice(-2))
+                  : '—'
+              }
+              sub={bestDay ? percent(bestDay.ratio) : undefined}
+            />
+          </dl>
+          {previous && (
+            <p className="mt-1.5 text-center text-[10px] t-3">
+              Las cifras pequeñas, contra {comparedTo}.
+            </p>
+          )}
+
+          <div className="mt-4">
+            {range === 'week' ? (
+              <WeekChart days={summary.days} onSelectDay={onSelectDay} />
+            ) : (
+              <MonthHeatmap days={summary.days} onSelectDay={onSelectDay} />
+            )}
+            <p className="mt-2 text-center text-[11px] t-3">Toca un día para abrir su registro.</p>
           </div>
         </section>
       )}
 
-      {/* Evolución */}
-      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>
-          {range === 'week' ? 'Evolución de la semana' : 'Mapa del mes'}
-        </h3>
-        {range === 'week' ? (
-          <WeekChart days={summary.days} onSelectDay={onSelectDay} />
-        ) : (
-          <MonthHeatmap days={summary.days} onSelectDay={onSelectDay} />
-        )}
-        {/* Con el periodo vacío no hay registro que abrir: la pista sobra. */}
-        {!empty && (
-          <p className="mt-2 text-center text-[11px] t-3">
-            Toca cualquier día para abrir su registro.
-          </p>
-        )}
-      </div>
-
-      {/* Desglose por categoría */}
-      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>Cumplimiento por categoría</h3>
-        {empty ? (
-          <p className="py-6 text-center text-sm t-3">
-            Registra algún día para ver el desglose por categoría.
-          </p>
-        ) : (
-          <div className="space-y-3">
+      {/* Por categoría, en anillos: cuatro de un vistazo en lugar de una
+          barra larga por fila. Con el periodo vacío no hay nada que
+          desglosar, y ya lo dice el aviso de arriba. */}
+      {!empty && summary.perCategory.length > 0 && (
+        <section className={`${card} p-4`} aria-labelledby="resumen-categorias">
+          <SectionHead id="resumen-categorias" title="Por categoría" skin={skin} />
+          <ul
+            className={`grid gap-x-2 gap-y-3 ${
+              summary.perCategory.length <= 4 ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-6'
+            }`}
+          >
             {summary.perCategory.map((category) => (
-              <div key={category.categoryId} className="flex items-center gap-3">
-                <span className="w-7 shrink-0 text-center text-lg" aria-hidden>
-                  {category.icon}
+              <li key={category.categoryId} className="flex min-w-0 flex-col items-center gap-1.5">
+                <ProgressRing ratio={category.ratio} size={kid ? 64 : 58} stroke={6}>
+                  <span className="text-[13px] font-black tabular-nums t-1">
+                    {Math.round(category.ratio * 100)}
+                    <span className="text-[9px]">%</span>
+                  </span>
+                </ProgressRing>
+                <span className="line-clamp-2 text-center text-[11px] font-semibold leading-tight t-2">
+                  <span aria-hidden>{category.icon} </span>
+                  {category.label}
+                  <span className="sr-only">: {percent(category.ratio)}</span>
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm t-2">{category.label}</span>
-                    <span className="shrink-0 text-xs font-bold tabular-nums t-1">
-                      {percent(category.ratio)}
-                    </span>
-                  </div>
-                  <ProgressBar
-                    ratio={category.ratio}
-                    chunky={kid}
-                    ariaLabel={`${category.label}: ${percent(category.ratio)}`}
-                  />
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
-        )}
-      </div>
+          </ul>
+        </section>
+      )}
 
       {/* La agenda contra lo vivido. Va justo detrás del desglose porque es
           la misma pregunta desde el otro lado: no «cuánto cumplí», sino «de
@@ -363,17 +505,21 @@ export function SummaryView({
         range={range}
         skin={skin}
         kid={kid}
-        headingClass={headingClass}
         isCurrent={atCurrent}
         periodLabel={periodLabel}
         onOpenPlan={onOpenPlan}
       />
 
       {/* Logros */}
-      <div className={`${kid ? 'card-kid' : 'card'} p-4`}>
-        <h3 className={headingClass}>Logros del mes</h3>
+      <section className={`${card} p-4`} aria-labelledby="resumen-logros">
+        <SectionHead
+          id="resumen-logros"
+          title="Logros del mes"
+          meta={`${unlocked}/${achievements.length}`}
+          skin={skin}
+        />
         <AchievementsPanel achievements={achievements} playful={kid} />
-      </div>
+      </section>
     </div>
   );
 }

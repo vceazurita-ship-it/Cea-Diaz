@@ -86,7 +86,7 @@ interface DailyGameCardProps {
  * escuchando, porque quien la abre suele estar en otro móvil y lo normal es
  * que el crío tenga la pantalla delante cuando ocurre.
  */
-function useGranted(profileId: ProfileId): boolean {
+export function useGranted(profileId: ProfileId): boolean {
   const [granted, setGranted] = useState(false);
 
   useEffect(() => {
@@ -203,107 +203,109 @@ export function DailyGameCard({
   return (
     <>
       <div
-        className={`${kid ? 'card-kid' : 'card'} p-4 ${
+        className={`${kid ? 'card-kid' : 'card'} p-3 sm:p-4 ${
           done && won ? 'border-accent bg-accent-faint' : ''
         }`}
       >
-        <h3 className={headingClass}>Juego del día</h3>
-
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 text-4xl" aria-hidden>
+        {/* El titular y el juego en una fila, y lo demás a todo el ancho:
+            con el icono en columna aparte, cada frase ocupaba el doble. */}
+        <div className="flex items-center gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-3xl surf-2" aria-hidden>
             {round.icon}
           </span>
-
           <div className="min-w-0 flex-1">
-            <p className="font-display text-base font-black t-1">{round.title}</p>
-            <p className="mt-0.5 text-xs t-2">{round.tagline}</p>
-
-            {state === 'por-jugar' && (
-              <>
-                <p className="mt-2 text-[11px] font-semibold leading-snug t-2">
-                  🎁 En juego: cromo de cantera con {GAME_PASS} aciertos, y uno de los grandes
-                  con pleno. Una partida al día, así que sin prisa.
-                </p>
-                <button type="button" onClick={start} className="btn-primary mt-3 px-4 text-sm">
-                  ▶️ Jugar las {total} preguntas
-                </button>
-              </>
-            )}
-
-            {state === 'a-medias' && (
-              <>
-                <p className="mt-2 text-[11px] font-semibold leading-snug t-2">
-                  Partida empezada: vas por la {answered + 1} de {total}.
-                </p>
-                <button type="button" onClick={start} className="btn-primary mt-3 px-4 text-sm">
-                  ⏵ Seguir la partida
-                </button>
-              </>
-            )}
-
-            {state === 'terminada' && (
-              <>
-                <p className="mt-2 text-sm font-bold t-1">
-                  {correct === total ? '🏆 ¡Pleno!' : correct >= GAME_PASS ? '✓ Superado' : '💪 Casi'}{' '}
-                  <span className="tabular-nums">
-                    {correct}/{total}
-                  </span>{' '}
-                  aciertos
-                </p>
-
-                <p
-                  className={`mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug ${
-                    won ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'
-                  }`}
-                >
-                  {won
-                    ? `🎁 ${rewardLine(profile.id, won)}`
-                    : `Hoy no ha caído cromo: hacen falta ${GAME_PASS} aciertos. Mañana hay otra.`}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIndex(total);
-                    setChosen(null);
-                    setOpen(true);
-                  }}
-                  className="btn-ghost mt-3 px-3 py-1.5 text-xs"
-                >
-                  Ver cómo quedó
-                </button>
-
-                <p className="mt-2 text-[11px] t-3">
-                  Mañana toca {tomorrow.icon} {tomorrow.title}.
-                </p>
-              </>
-            )}
-
-            {/* La tanda, abierta o cerrada. Va fuera de los estados de la
-                partida —y no dentro del «terminada», como estaba— porque no
-                depende de ella sola: con tres aciertos ya está ahí aunque
-                queden preguntas, y cerrada tiene que verse desde el principio
-                para saber que existe y qué falta para abrirla. */}
-            {onPenalty && today && (
-              <Penaltis
-                gate={gate}
-                open={canShoot}
-                result={penalties}
-                done={penaltiesDone}
-                onShoot={() => setShooting(true)}
-              />
-            )}
-
-            {state === 'otro-dia' && (
-              <p className="mt-2 text-[11px] leading-snug t-3">
-                {result
-                  ? `El ${friendlyDateLabel(date).toLowerCase()} se jugó esta partida: ${correct}/${total} aciertos.`
-                  : `El juego se juega el mismo día, y el ${friendlyDateLabel(date).toLowerCase()} ya pasó. Vuelve a hoy para jugar.`}
-                {penalties &&
-                  ` Y la tanda de penaltis acabó ${penalties.scored}/${penalties.total}.`}
-              </p>
-            )}
+            <h3 className={`${headingClass} !mb-0 !text-[11px]`}>Juego del día</h3>
+            <p className="font-display text-base font-black leading-tight t-1">{round.title}</p>
           </div>
+        </div>
+
+        <div>
+          <p className="mt-1.5 text-xs t-2">{round.tagline}</p>
+
+          {state === 'por-jugar' && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-[10rem] flex-1 text-[11px] font-semibold leading-snug t-2">
+                🎁 Cromo de cantera con {GAME_PASS} aciertos; uno de los grandes con pleno.
+              </p>
+              <button type="button" onClick={start} className="btn-primary shrink-0 px-4 text-sm">
+                ▶️ Jugar las {total}
+              </button>
+            </div>
+          )}
+
+          {state === 'a-medias' && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-[10rem] flex-1 text-[11px] font-semibold leading-snug t-2">
+                Partida empezada: vas por la {answered + 1} de {total}.
+              </p>
+              <button type="button" onClick={start} className="btn-primary shrink-0 px-4 text-sm">
+                ⏵ Seguir la partida
+              </button>
+            </div>
+          )}
+
+          {state === 'terminada' && (
+            <>
+              <p className="mt-2 text-sm font-bold t-1">
+                {correct === total ? '🏆 ¡Pleno!' : correct >= GAME_PASS ? '✓ Superado' : '💪 Casi'}{' '}
+                <span className="tabular-nums">
+                  {correct}/{total}
+                </span>{' '}
+                aciertos
+              </p>
+
+              <p
+                className={`mt-2 rounded-xl border p-2 text-[11px] font-semibold leading-snug ${
+                  won ? 'border-accent bg-accent-faint t-1' : 'hairline surf-1 t-2'
+                }`}
+              >
+                {won
+                  ? `🎁 ${rewardLine(profile.id, won)}`
+                  : `Hoy no ha caído cromo: hacen falta ${GAME_PASS} aciertos. Mañana hay otra.`}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIndex(total);
+                  setChosen(null);
+                  setOpen(true);
+                }}
+                className="btn-ghost mt-3 px-3 py-1.5 text-xs"
+              >
+                Ver cómo quedó
+              </button>
+
+              <p className="mt-2 text-[11px] t-3">
+                Mañana toca {tomorrow.icon} {tomorrow.title}.
+              </p>
+            </>
+          )}
+
+          {/* La tanda, abierta o cerrada. Va fuera de los estados de la
+              partida —y no dentro del «terminada», como estaba— porque no
+              depende de ella sola: con tres aciertos ya está ahí aunque
+              queden preguntas, y cerrada tiene que verse desde el principio
+              para saber que existe y qué falta para abrirla. */}
+          {onPenalty && today && (
+            <Penaltis
+              gate={gate}
+              open={canShoot}
+              result={penalties}
+              done={penaltiesDone}
+              onShoot={() => setShooting(true)}
+            />
+          )}
+
+          {state === 'otro-dia' && (
+            <p className="mt-2 text-[11px] leading-snug t-3">
+              {result
+                ? `El ${friendlyDateLabel(date).toLowerCase()} se jugó esta partida: ${correct}/${total} aciertos.`
+                : `El juego se juega el mismo día, y el ${friendlyDateLabel(date).toLowerCase()} ya pasó. Vuelve a hoy para jugar.`}
+              {penalties &&
+                ` Y la tanda de penaltis acabó ${penalties.scored}/${penalties.total}.`}
+            </p>
+          )}
         </div>
       </div>
 

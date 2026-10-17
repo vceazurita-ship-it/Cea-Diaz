@@ -366,13 +366,22 @@ export function GpsPhotos({ profileId, name, onSave }: GpsPhotosProps) {
         />
       </label>
 
-      <p className="text-[11px] leading-relaxed t-3">
-        Las capturas de {TRACKER}, las que sean y de los días que sean —también de sesiones que
-        ya pasaron—. Se leen <strong>en este mismo aparato</strong>: ninguna foto sale de aquí.
-        Las que traigan el mismo día y el mismo tipo <strong>se juntan solas en una ficha</strong>,
-        porque lo normal es fotografiar dos o tres pantallas del mismo entrenamiento. Antes de
-        guardar nada se enseña lo que se ha entendido, y todo se puede corregir.
-      </p>
+      {/* Lo que hay que saber, en una línea; el resto, plegado. Eran seis
+          líneas de letra pequeña entre el botón y lo que se lee. */}
+      <div className="text-[11px] leading-relaxed t-3">
+        <p>
+          Las capturas que sean, también de días pasados. Se leen <strong>en este mismo aparato</strong>{' '}
+          y antes de guardar se enseña lo entendido.
+        </p>
+        <details className="mt-0.5">
+          <summary className="cursor-pointer font-bold t-accent">Cómo se juntan</summary>
+          <p className="mt-1">
+            Ninguna foto sale de aquí. Las que traigan el mismo día y el mismo tipo{' '}
+            <strong>se juntan solas en una ficha</strong>, porque lo normal es fotografiar dos o tres
+            pantallas del mismo entrenamiento de {TRACKER}. Todo se puede corregir antes de guardar.
+          </p>
+        </details>
+      </div>
 
       {/* La región de aviso está siempre puesta, aunque vacía: un lector de
           pantalla sólo anuncia los cambios de una que ya existía. */}

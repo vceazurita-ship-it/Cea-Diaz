@@ -286,9 +286,14 @@ export function ProfileSelector({ onSelect, glances, hydrated, onEditCover }: Pr
             priority
           />
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--surface)] to-transparent" />
-          <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
-            {capitalize(formatLong(todayKey()))}
-          </span>
+          {/* La fecha, sólo en el navegador: la página se genera al compilar,
+              y con la fecha de ese día React no casaba el texto y repintaba
+              la portada entera en cada carga. */}
+          {hydrated && (
+            <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+              {capitalize(formatLong(todayKey()))}
+            </span>
+          )}
           <button
             type="button"
             onClick={onEditCover}

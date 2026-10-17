@@ -40,6 +40,12 @@ interface TaskItemProps {
   onUnlink: () => void;
   /** Repartir este mismo recado por otros días. */
   onSpread: () => void;
+  /**
+   * Fila de una lista que ya va en tarjeta: sin canto ni fondo propios, con
+   * una raya entre una y otra. Es como se pintan los montones de la lista;
+   * suelta —el día del calendario— sigue siendo una tarjeta.
+   */
+  flat?: boolean;
 }
 
 export function TaskItem({
@@ -53,6 +59,7 @@ export function TaskItem({
   onPush,
   onUnlink,
   onSpread,
+  flat = false,
 }: TaskItemProps) {
   const kind = kindInfo(task.kind);
   const late = overdueLabel(task);
@@ -103,11 +110,22 @@ export function TaskItem({
 
   return (
     <li
-      className={`rounded-2xl border p-3 transition-colors hairline
-        ${task.done ? 'surf-2 opacity-60' : late ? 'surf-1 border-l-4' : 'surf-1'}`}
+      className={
+        flat
+          ? `px-3 py-2.5 transition-colors ${task.done ? 'opacity-60' : ''}`
+          : `rounded-2xl border p-3 transition-colors hairline
+        ${task.done ? 'surf-2 opacity-60' : late ? 'surf-1 border-l-4' : 'surf-1'}`
+      }
       // Lo atrasado se delata por el canto, en el color de las cosas que
       // piden atención: el acento es del perfil y no significa «se pasó».
-      style={late && !task.done ? { borderLeftColor: 'var(--danger)' } : undefined}
+      // En la lista plana, el canto es una raya por dentro.
+      style={
+        late && !task.done
+          ? flat
+            ? { boxShadow: 'inset 3px 0 0 var(--danger)' }
+            : { borderLeftColor: 'var(--danger)' }
+          : undefined
+      }
     >
       <div className="flex items-start gap-3">
         {/* Tachar: objetivo táctil grande, que es lo que más se toca */}

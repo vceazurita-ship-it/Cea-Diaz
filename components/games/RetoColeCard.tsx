@@ -5,6 +5,7 @@ import { Question } from '@/components/games/DailyGameCard';
 import { Material } from '@/components/games/Material';
 import { FondoTiro } from '@/components/games/PenaltyArt';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressRing } from '@/components/ui/ProgressRing';
 import { isToday } from '@/lib/dates';
 import { SHOT_TYPES } from '@/lib/penalties';
 import {
@@ -46,13 +47,14 @@ interface RetoColeCardProps {
   date: DateKey;
   entries: Record<string, DayEntry>;
   kid: boolean;
-  headingClass: string;
+  /** Como en las demás tarjetas; aquí el titular va encima de la viñeta. */
+  headingClass?: string;
   onResult: (result: RetoResult) => void;
   /** Guarda lo marcado como visto o aún no (`lib/temasVistos.ts`). */
   onAjusteTemas?: (text: string) => void;
 }
 
-export function RetoColeCard({ profile, curso, date, entries, kid, headingClass, onResult, onAjusteTemas }: RetoColeCardProps) {
+export function RetoColeCard({ profile, curso, date, entries, kid, onResult, onAjusteTemas }: RetoColeCardProps) {
   const today = isToday(date);
   const ajuste = useMemo(() => ajusteDe(entries, profile.id), [entries, profile.id]);
   const [editandoTemas, setEditandoTemas] = useState(false);
@@ -180,19 +182,34 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
   return (
     <>
       <div className={`${kid ? 'card-kid' : 'card'} overflow-hidden p-0`}>
-        {/* La viñeta del tiro que toca hoy, de cabecera. */}
-        <div className="relative h-32 overflow-hidden bg-[#241a14]">
+        {/* La viñeta del tiro que toca hoy, de cabecera y a sangre: el
+            titular de la tarjeta, lo que toca y cuántos van, todo encima de
+            la imagen. Antes la cabecera repetía debajo lo que ya decía arriba. */}
+        <div className="relative h-36 overflow-hidden bg-[#241a14]">
           <FondoTiro kind={deHoy.meta.tiro as Exclude<typeof deHoy.meta.tiro, 'normal'>} className={`absolute inset-0 h-full w-full ${deHoy.won ? '' : 'opacity-70 saturate-50'}`} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-          <div className="absolute left-3 top-2.5 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-            {deHoy.meta.icon} Hoy toca · {deHoy.meta.nombre}
-          </div>
-          <div className="absolute right-3 top-2.5 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-            🔓 {ganadosHoy} de {estados.length}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10" />
+          <div className="absolute inset-x-3 top-2.5 flex items-center gap-1.5">
+            <h3 className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-sm">📚 Retos del cole</h3>
+            <span className="ml-auto rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-sm" title="Tiros ganados hoy">
+              🔓 {ganadosHoy} de {estados.length}
+            </span>
+            {onAjusteTemas && (
+              <button
+                type="button"
+                onClick={() => setEditandoTemas(true)}
+                className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm transition hover:bg-black/60"
+                title="Marcar qué temas han visto ya en clase (con PIN)"
+              >
+                📚 Temas{Object.keys(ajuste).length > 0 ? ` · ${Object.keys(ajuste).length}` : ''}
+              </button>
+            )}
           </div>
           <div className="absolute inset-x-3 bottom-2.5 flex items-end gap-2">
-            <span className="text-4xl drop-shadow-lg">{deHoy.won ? deHoy.tiro.icon : '🔒'}</span>
+            <span className="text-4xl drop-shadow-lg" aria-hidden>{deHoy.won ? deHoy.tiro.icon : '🔒'}</span>
             <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
+                {deHoy.meta.icon} Hoy toca · {deHoy.meta.nombre}
+              </p>
               <p className="font-manga text-2xl leading-none text-white [-webkit-text-stroke:4px_#241a14] [paint-order:stroke]">{deHoy.tiro.name}</p>
               <p className="mt-0.5 text-[10px] font-bold text-white/80">
                 {deHoy.nivel > 0 ? `${'★'.repeat(deHoy.nivel)}${'☆'.repeat(3 - deHoy.nivel)} nivel ${deHoy.nivel} · ` : ''}
@@ -202,19 +219,11 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className={headingClass}>Retos del cole</h3>
-            {onAjusteTemas && (
-              <button type="button" onClick={() => setEditandoTemas(true)} className="chip-soft shrink-0 text-[10px] font-black" title="Marcar qué temas han visto ya en clase (con PIN)">
-                📚 Temas{Object.keys(ajuste).length > 0 ? ` · ${Object.keys(ajuste).length}` : ''}
-              </button>
-            )}
-          </div>
+        <div className="p-3 sm:p-4">
           {plan && <AvisoExamen plan={plan} date={date} />}
           <p className="text-[11px] font-semibold leading-snug t-2">
             {today
-              ? `Todas las asignaturas, todos los días: ${COLE_PASS} de 5 bien y el tiro de esa asignatura es tuyo para la tanda de hoy. Empieza por la que toca.`
+              ? `${COLE_PASS} de 5 bien y el tiro de esa asignatura es tuyo para la tanda de hoy.`
               : 'Los retos se juegan el mismo día.'}
           </p>
 
@@ -259,31 +268,38 @@ export function RetoColeCard({ profile, curso, date, entries, kid, headingClass,
             })}
           </div>
           {today && estados.some((e) => e.done) && <p className="mt-2 text-[11px] t-3">🧺 Un reto ya jugado se vuelve a abrir para practicar más, sin nota.</p>}
-          {temasTotal > 0 && (
-            <button type="button" onClick={() => setVerTemario(true)} className="mt-3 flex w-full items-center gap-3 rounded-xl border p-2.5 text-left hairline surf-1 hover-soft">
-              <span className="text-2xl" aria-hidden>🗺️</span>
+          {/* El temario y el repaso libre, lado a lado: son las dos puertas
+              al estudio fuera de los retos, y apiladas ocupaban un tercio de
+              la tarjeta. */}
+          <div className={`mt-3 grid gap-1.5 ${temasTotal > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {temasTotal > 0 && (
+              <button
+                type="button"
+                onClick={() => setVerTemario(true)}
+                aria-label={`Mi temario: ${temasAprendidos} de ${temasTotal} ${temasTotal === 1 ? 'tema aprendido' : 'temas aprendidos'}. ${
+                  tocanRepaso > 0 ? `${tocanRepaso} ${tocanRepaso === 1 ? 'pide' : 'piden'} repaso.` : 'Nada pide repaso hoy.'
+                }`}
+                className="flex items-center gap-2 rounded-xl border p-2 text-left hairline surf-1 hover-soft"
+              >
+                <ProgressRing ratio={temasAprendidos / temasTotal} size={40} stroke={4} color="#34d399">
+                  <span className="text-[10px] font-black tabular-nums t-1">{temasAprendidos}/{temasTotal}</span>
+                </ProgressRing>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-black leading-tight t-1">🗺️ Mi temario</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold leading-tight t-3">
+                    {tocanRepaso > 0 ? `${tocanRepaso} ${tocanRepaso === 1 ? 'pide' : 'piden'} repaso` : 'Al día'}
+                  </span>
+                </span>
+              </button>
+            )}
+            <button type="button" onClick={() => setRepasoLibre(true)} className="flex items-center gap-2 rounded-xl border p-2 text-left hairline surf-1 hover-soft" title="Todo el temario, sin retos ni nota: elige los temas y a preguntar.">
+              <span className="grid h-10 w-10 shrink-0 place-items-center text-2xl" aria-hidden>📖</span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-black t-1">
-                  Mi temario: {temasAprendidos} de {temasTotal} {temasTotal === 1 ? 'tema aprendido' : 'temas aprendidos'}
-                </span>
-                <span className="mt-1 block h-2 overflow-hidden rounded-full surf-3">
-                  <span className="block h-full rounded-full bg-emerald-400" style={{ width: `${(temasAprendidos / temasTotal) * 100}%` }} />
-                </span>
-                <span className="mt-1 block text-[11px] font-semibold t-3">
-                  {tocanRepaso > 0 ? `${tocanRepaso} ${tocanRepaso === 1 ? 'pide' : 'piden'} repaso: el ⭐ Repaso de hoy va a por ellos.` : 'Al día: nada pide repaso hoy.'}
-                </span>
+                <span className="block text-[12px] font-black leading-tight t-1">Repaso libre</span>
+                <span className="mt-0.5 block text-[11px] font-semibold leading-tight t-3">Sin nota, a tu aire</span>
               </span>
-              <span className="text-sm t-3" aria-hidden>›</span>
             </button>
-          )}
-          <button type="button" onClick={() => setRepasoLibre(true)} className="mt-2 flex w-full items-center gap-3 rounded-xl border p-2.5 text-left hairline surf-1 hover-soft">
-            <span className="text-2xl" aria-hidden>📖</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-black t-1">Repaso libre</span>
-              <span className="block text-[11px] font-semibold t-3">Todo el temario, sin retos ni nota: elige los temas y a preguntar.</span>
-            </span>
-            <span className="text-sm t-3" aria-hidden>›</span>
-          </button>
+          </div>
           {/* Para los mayores: la nota que van sacando en cada asignatura.
               Lo de verdad está en Rendimiento → Colegio, tema a tema. */}
           {!kid && notas.some((n) => n.n > 0) && (
@@ -442,13 +458,19 @@ function AvisoExamen({ plan, date }: { plan: PlanDelDia; date: DateKey }) {
             ? `📝 Hoy toca preparar ${nombre(e.asignatura)}: examen ${cuandoEs(e.fecha)} (faltan ${dias} días)`
             : '📝 Repaso de todos los exámenes que vienen'}
       </p>
-      <div className="mt-1.5 flex flex-wrap gap-1">
+      {/* Los que quedan, en una sola fila que se desliza: apilados en
+          varias líneas se comían media tarjeta antes de llegar a los retos. */}
+      <ul
+        className="-mx-2.5 mt-1.5 flex gap-1 overflow-x-auto px-2.5 pb-0.5"
+        style={{ scrollbarWidth: 'none' }}
+        aria-label="Exámenes que vienen"
+      >
         {plan.pendientes.map((x) => (
-          <span key={x.asignatura} className={`chip-soft text-[11px] ${x === e ? 'ring-2 ring-accent' : ''}`}>
+          <li key={x.asignatura} className={`chip-soft shrink-0 whitespace-nowrap text-[11px] ${x === e ? 'ring-2 ring-accent' : ''}`}>
             {RETO_META[x.asignatura].icon} {nombre(x.asignatura)} · {cuandoEs(x.fecha)}
-          </span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

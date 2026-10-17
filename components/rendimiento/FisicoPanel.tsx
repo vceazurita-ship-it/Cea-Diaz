@@ -62,29 +62,45 @@ export function FisicoPanel({ profile, entries, sessions, skin, onSave }: Fisico
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className={heading}>Pruebas físicas</h3>
-          <p className="mt-0.5 text-xs t-2">
-            {tests.length === 0
-              ? 'Todavía no hay ninguna prueba guardada.'
-              : `${tests.length} ${tests.length === 1 ? 'prueba' : 'pruebas'} desde ${friendlyDateLabel(serie[0].date)}.`}
-          </p>
+      {/* Sin pruebas, un solo aviso con su botón: antes la cabecera decía
+          «todavía no hay ninguna» y la tarjeta de debajo lo repetía. */}
+      {tests.length > 0 && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className={heading}>Pruebas físicas</h3>
+            <p className="mt-0.5 text-xs t-2">
+              {`${tests.length} ${tests.length === 1 ? 'prueba' : 'pruebas'} desde ${friendlyDateLabel(serie[0].date)}.`}
+            </p>
+          </div>
+          <button type="button" onClick={() => setSubiendo(true)} className="btn-primary shrink-0 px-3 text-sm">
+            📄 Subir informe
+          </button>
         </div>
-        <button type="button" onClick={() => setSubiendo(true)} className="btn-primary shrink-0 px-3 text-sm">
-          📄 Subir informe
-        </button>
-      </div>
+      )}
 
       {tests.length === 0 ? (
-        <div className="card p-4">
-          <p className="text-sm font-semibold t-1">Sube el primer informe y aquí aparece todo</p>
-          <p className="mt-1 text-[12px] leading-snug t-2">
-            Con el PDF de RX2 se sacan la talla, el peso, la edad biológica, el salto en plataforma de fuerza y el
-            esprint, de todas las fechas que traiga. A partir de dos pruebas se puede hablar de evolución; a partir de
-            una, ya se puede situar cada cifra frente a los estudios.
-          </p>
-        </div>
+        <section className="card p-4">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-4 text-xl"
+              style={{ borderColor: 'var(--track)' }}
+            >
+              💪
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-display text-base font-black leading-tight t-1">Aún no hay pruebas físicas</h3>
+              <p className="mt-0.5 text-[12px] leading-snug t-2">
+                Con el PDF de RX2 se sacan la talla, el peso, la edad biológica, el salto en plataforma de fuerza y el
+                esprint, de todas las fechas que traiga. Con una prueba ya se sitúa cada cifra frente a los estudios;
+                con dos, se ve la evolución.
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={() => setSubiendo(true)} className="btn-primary mt-3 w-full text-sm">
+            📄 Subir el primer informe
+          </button>
+        </section>
       ) : (
         <>
           {audit && <Resumen audit={audit} profile={profile} />}

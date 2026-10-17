@@ -68,8 +68,8 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
           <h3 className={heading}>Colegio</h3>
           <p className="mt-0.5 text-xs t-2">
             {reports.length === 0
-              ? 'Todavía no hay ningún boletín guardado.'
-              : `${reports.length} ${reports.length === 1 ? 'boletín' : 'boletines'} · el último, ${friendlyDateLabel(last.date)}.`}
+              ? 'Las notas de cada día y los boletines.'
+              :`${reports.length} ${reports.length === 1 ? 'boletín' : 'boletines'} · el último, ${friendlyDateLabel(last.date)}.`}
           </p>
         </div>
         <button type="button" onClick={() => setSubiendo(true)} className="btn-primary shrink-0 px-3 text-sm">
@@ -84,14 +84,27 @@ export function ColegioPanel({ profile, entries, skin, onSave }: ColegioPanelPro
       {!last || !audit ? (
         <>
         {cog && <Cognitivo cog={cog} profile={profile} />}
-        <div className="card p-4">
-          <p className="text-sm font-semibold t-1">Sube el primer boletín y aquí aparece la serie</p>
-          <p className="mt-1 text-[12px] leading-snug t-2">
-            Del PDF del colegio se sacan todas las asignaturas con la nota de cada evaluación. Con uno ya se ve el
-            curso entero; con dos, cómo va de un año a otro. Aquí entra también la valoración neuropsicológica: si
-            está protegida con contraseña, se pide y se abre.
-          </p>
-        </div>
+        {/* El aviso, con la misma cara que los demás vacíos de Rendimiento:
+            el icono en su anillo vacío, el titular y lo que hay que hacer. */}
+        <section className="card p-4">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-4 text-xl"
+              style={{ borderColor: 'var(--track)' }}
+            >
+              📚
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4 className="font-display text-base font-black leading-tight t-1">Aún no hay boletines</h4>
+              <p className="mt-0.5 text-[12px] leading-snug t-2">
+                Del PDF del colegio se sacan todas las asignaturas con la nota de cada evaluación. Con uno ya se ve el
+                curso entero; con dos, cómo va de un año a otro. Aquí entra también la valoración neuropsicológica: si
+                está protegida con contraseña, se pide y se abre.
+              </p>
+            </div>
+          </div>
+        </section>
         </>
       ) : (
         <>
