@@ -1782,6 +1782,14 @@ Para activarlo, con el mismo cliente de OAuth del calendario:
 > tocar en casa: el administrador del centro tiene que permitir el ID de cliente en su
 > consola de Google Workspace (*Seguridad → Controles de API → Acceso de apps de
 > terceros*).
+>
+> Mientras tanto, queda **pegarlo a mano**: «📋 Pégalo desde Classroom» en la misma
+> tarjeta. Se abre *Tareas pendientes* con la cuenta del niño en el navegador, se copia
+> la página entera y se pega; la app enseña lo que ha entendido antes de guardar
+> (`lib/classroomPegado.ts`, que también lee una lista escrita a mano, «Mates: ficha 3
+> para el jueves»). Se guarda en la misma fila de `classroom_links`, sin permiso de
+> Google, y la tarjeta y las propuestas lo usan igual. Para ponerla al día, se vuelve a
+> pegar. Sus casos de prueba: `node scripts/probar-pegado.mjs`.
 
 ## La semana: agenda y coherencia
 

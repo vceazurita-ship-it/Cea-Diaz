@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { PegarClassroom } from '@/components/classroom/PegarClassroom';
 import { SectionHead } from '@/components/summary/SectionHead';
 import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { useToday } from '@/hooks/useToday';
@@ -24,6 +25,7 @@ import {
   cursoDe,
   pendientesPorEntrega,
   temaDe,
+  type ClassroomLinkView,
   type ClassroomMaterial,
   type ClassroomProfile,
   type ClassroomSnapshot,
@@ -43,8 +45,9 @@ import type { ProfileSkin } from '@/types';
  *  Classroom, y cada tarea lleva su enlace.
  *
  *  Se baja de nuevo al abrir si lo guardado tiene más de seis horas, y con
- *  «Actualizar». Sin la integración configurada, lo dice en una línea y no
- *  ocupa más.
+ *  «Actualizar». Si el colegio no deja conectar, la lista se pega a mano
+ *  (`PegarClassroom`) y se ve igual. Sin la integración configurada, lo
+ *  dice en una línea y no ocupa más.
  * ========================================================================= */
 
 interface ClassroomPanelProps {
@@ -175,6 +178,8 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<{ message: string; codigo?: string } | null>(null);
   const [vuelta, setVuelta] = useState<{ ok: boolean; motivo?: string } | null>(null);
+  const [pegando, setPegando] = useState(false);
+  const nombre = capitalize(profileId);
 
   const actualizar = useCallback(async () => {
     setBajando(true);
@@ -252,7 +257,16 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
     }
   };
 
+  const pegado = (nuevo: ClassroomLinkView) => {
+    setStatus({ configured: true, link: nuevo });
+    setPegando(false);
+    setVuelta(null);
+    setError(null);
+  };
+
   const link = status?.link ?? null;
+  const manual = !!link?.manual;
+  const viejo = manual && !!link?.syncedAt && Date.now() - Date.parse(link.syncedAt) > 7 * 86_400_000;
   const snapshot = link?.snapshot ?? null;
   const grupos = useMemo(() => pendientesPorEntrega(snapshot, hoy), [snapshot, hoy]);
   const avisos = useMemo(() => avisosRecientes(snapshot, 14), [snapshot]);
@@ -286,11 +300,30 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
           link
             ? bajando
               ? 'actualizando…'
-              : `${pendientes} por entregar · ${hace(link.syncedAt)}`
+              : `${pendientes} por entregar · ${manual ? 'pegado ' : ''}${hace(link.syncedAt)}`
             : undefined
         }
         action={
-          link ? (
+          link && manual ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPegando((v) => !v)}
+                disabled={ocupado}
+                className="btn-ghost px-3 py-1.5 text-xs"
+              >
+                📋 Pegar de nuevo
+              </button>
+              <ConfirmButton
+                question="¿Borrar la lista pegada?"
+                confirmLabel="Sí, borrar"
+                onConfirm={() => void desconectar()}
+                disabled={ocupado}
+              >
+                Borrar
+              </ConfirmButton>
+            </div>
+          ) : link ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
@@ -330,10 +363,35 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
             🏫 Conectar Classroom
           </button>
           <p className="text-[11px] leading-snug t-3">Se abre Google; entra con la cuenta del colegio del niño.</p>
+          {!pegando && (
+            <p className="text-[11px] leading-snug t-3">
+              ¿El colegio no deja?{' '}
+              <button type="button" onClick={() => setPegando(true)} className="font-bold t-accent">
+                📋 Pégalo desde Classroom
+              </button>
+            </p>
+          )}
         </div>
       )}
 
-      {link && (
+      {pegando && (
+        <div className={link ? 'mb-3' : 'mt-3'}>
+          <PegarClassroom
+            profileId={profileId}
+            nombre={nombre}
+            onGuardado={pegado}
+            onCancelar={() => setPegando(false)}
+          />
+        </div>
+      )}
+
+      {link && manual && (
+        <p className={`-mt-1.5 mb-3 text-[11px] leading-snug ${viejo ? 't-warn' : 't-3'}`}>
+          📋 Lista pegada a mano{viejo ? ': tiene más de una semana, pégala otra vez.' : '. Para ponerla al día, pégala otra vez.'}
+        </p>
+      )}
+
+      {link && !manual && (
         <p className="-mt-1.5 mb-3 truncate text-[11px] t-3">
           Cuenta: <span className="font-semibold t-2">{link.email || 'sin correo'}</span>
         </p>
@@ -342,7 +400,7 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
       {/* ------------------------------------------------------- avisos de fallo */}
       {bloqueo && (
         <p className="banner banner-danger mb-3 t-2" role="alert">
-          🚫 {MENSAJE_COLEGIO}
+          🚫 {MENSAJE_COLEGIO} Mientras tanto, la lista se puede pegar a mano.
         </p>
       )}
       {permisoCaido && (
@@ -448,7 +506,8 @@ export function ClassroomPanel({ profileId, kid, skin }: ClassroomPanelProps) {
           )}
 
           {/* ------------------------------------------------------- clases */}
-          {snapshot.cursos.length > 0 && (
+          {/* Lo pegado a mano no trae materiales: la lista de clases sólo estorbaría. */}
+          {snapshot.cursos.length > 0 && snapshot.origen !== 'pegado' && (
             <div>
               <h4 className="mb-2 text-[12px] font-black t-1">
                 🏫 Clases <span className="font-semibold tabular-nums t-3">· {snapshot.cursos.length}</span>

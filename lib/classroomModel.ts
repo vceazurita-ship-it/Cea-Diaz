@@ -95,6 +95,8 @@ export interface ClassroomSnapshot {
   version: 1;
   /** Cuándo se bajó, ISO. */
   generado: string;
+  /** `pegado` si salió de copiar y pegar la página de Classroom (`lib/classroomPegado.ts`). */
+  origen?: 'google' | 'pegado';
   cursos: ClassroomCurso[];
   tareas: ClassroomTarea[];
   avisos: ClassroomAviso[];
@@ -114,6 +116,8 @@ export interface ClassroomLinkView {
   /** `colegio` cuando el centro no deja usar apps externas. */
   codigo?: 'colegio' | 'permiso';
   snapshot: ClassroomSnapshot | null;
+  /** Sin conexión con Google: la lista se pegó a mano y se pone al día pegándola otra vez. */
+  manual?: boolean;
 }
 
 /** Perfiles que pueden tener Classroom: los dos peques, y nadie más. */

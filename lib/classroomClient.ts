@@ -130,6 +130,13 @@ export async function classroomDisconnect(profileId: ClassroomProfile): Promise<
   guardar(profileId, { configured: prev?.configured ?? true, link: null });
 }
 
+/** Guarda la lista copiada de Classroom; el servidor la vuelve a leer. */
+export async function classroomPegar(profileId: ClassroomProfile, texto: string, hoy: string): Promise<ClassroomLinkView> {
+  const { link } = await action<{ link: ClassroomLinkView }>({ accion: 'pegar', profileId, texto, hoy });
+  guardar(profileId, { configured: true, link });
+  return link;
+}
+
 /** Vuelve a bajar las clases y deja la foto nueva en la memoria. */
 export async function classroomSync(profileId: ClassroomProfile): Promise<ClassroomLinkView> {
   const { link } = await action<{ link: ClassroomLinkView }>({ accion: 'sincronizar', profileId });
@@ -137,8 +144,8 @@ export async function classroomSync(profileId: ClassroomProfile): Promise<Classr
   return link;
 }
 
-/** Hay que volver a bajar: conectado, sin bloqueo del colegio y con la foto vieja. */
+/** Hay que volver a bajar: conectado a Google, sin bloqueo del colegio y con la foto vieja. */
 export function needsSync(link: ClassroomLinkView | null): boolean {
-  if (!link || link.codigo === 'colegio' || link.codigo === 'permiso') return false;
+  if (!link || link.manual || link.codigo === 'colegio' || link.codigo === 'permiso') return false;
   return isStale(link.syncedAt);
 }

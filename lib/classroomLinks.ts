@@ -27,7 +27,7 @@ interface LinkRow {
   owner: string;
   profile_id: string;
   email: string;
-  /** El `refresh_token`, cifrado con la clave del servidor. */
+  /** El `refresh_token`, cifrado con la clave del servidor; vacío si la lista se pegó a mano. */
   refresh_token: string;
   snapshot: ClassroomSnapshot | null;
   /** El último fallo al bajar las clases; vacío si la última fue bien. */
@@ -47,6 +47,7 @@ function publicView(row: LinkRow): ClassroomLinkView {
     error,
     codigo: error === MENSAJE_COLEGIO ? 'colegio' : error?.startsWith('El permiso') ? 'permiso' : undefined,
     snapshot: row.snapshot ?? null,
+    manual: row.refresh_token === '' || undefined,
   };
 }
 
@@ -132,6 +133,43 @@ export async function dropClassroomLink(owner: string, profileId: string): Promi
 }
 
 /**
+ * Guarda la lista pegada a mano (`lib/classroomPegado.ts`) en el sitio de
+ * la conexión, sin permiso de Google: el token queda vacío y eso es lo que
+ * la marca como pegada. Si el niño ya tiene Classroom conectado de verdad,
+ * no se toca: aquello se pone al día solo.
+ */
+export async function guardarPegado(
+  owner: string,
+  profileId: string,
+  snapshot: ClassroomSnapshot,
+): Promise<ClassroomLinkView> {
+  const service = admin();
+  if (!service) throw new Error('El servidor no tiene configurada la clave de servicio.');
+
+  const existing = await findRow(owner, profileId);
+  if (existing && existing.refresh_token !== '') {
+    throw new GoogleError('Este perfil ya tiene Classroom conectado: se pone al día solo.', 409);
+  }
+
+  const now = new Date().toISOString();
+  const row: LinkRow = {
+    id: rowId(owner, profileId),
+    owner,
+    profile_id: profileId,
+    email: '',
+    refresh_token: '',
+    snapshot,
+    sync_error: null,
+    synced_at: now,
+    connected_at: existing?.connected_at ?? now,
+    updated_at: now,
+  };
+  const { error } = await service.from(TABLE).upsert(row);
+  if (error) throw new Error(error.message);
+  return publicView(row);
+}
+
+/**
  * Baja de nuevo las clases del niño y guarda la foto. Si falla, el fallo
  * queda anotado —y la foto anterior, intacta— para que la sección lo diga
  * aunque se abra mañana desde otro móvil.
@@ -142,6 +180,9 @@ export async function syncClassroom(owner: string, profileId: string): Promise<C
 
   const row = await findRow(owner, profileId);
   if (!row) throw new GoogleError('Este perfil no tiene Classroom conectado.', 409);
+  if (row.refresh_token === '') {
+    throw new GoogleError('Esta lista se pegó a mano: se pone al día pegándola otra vez.', 409);
+  }
 
   const refreshToken = unseal(row.refresh_token);
   if (!refreshToken) {
