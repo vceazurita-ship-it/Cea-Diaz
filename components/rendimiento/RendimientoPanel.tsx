@@ -8,6 +8,7 @@ import { FisicoPanel } from '@/components/rendimiento/FisicoPanel';
 import { Inventario } from '@/components/rendimiento/Inventario';
 import { SubirInforme } from '@/components/rendimiento/SubirInforme';
 import { GpsPanel } from '@/components/gps/GpsPanel';
+import { PropuestasSemana } from '@/components/tasks/PropuestasSemana';
 import { Modal } from '@/components/ui/Modal';
 import { useGpsSessions } from '@/hooks/useGps';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
@@ -158,7 +159,12 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
           <FisicoPanel profile={profile} entries={store.entries} sessions={sessions} skin={skin} onSave={guardar} />
         )}
         {area === 'colegio' && (
-          <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
+          <>
+            {/* Los recados se ocultan en el panel de los peques: las sesiones
+                de estudio que propone el planificador se aceptan aquí. */}
+            {kid && <PropuestasSemana profile={profile} store={store} kid={kid} skin={skin} />}
+            <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
+          </>
         )}
       </div>
 

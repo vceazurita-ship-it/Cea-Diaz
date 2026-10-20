@@ -172,10 +172,12 @@ export function Dashboard({
   const kid = profile.kind === 'kid';
   const skin = skinOf(profile);
 
-  // Los recados de los peques y de María no los usaba nadie y ocupaban un
-  // sitio de la barra: sólo salen cuando tienen alguno pendiente (o se ha
-  // entrado a propósito desde el enlace del registro).
-  const recadosOcultos = (skin === 'pitch' || skin === 'royal') && !store.getTasks(profile.id).some((t) => !t.done) && rawTab !== 'tasks';
+  // Los recados de los peques no los usaba nadie y ocupaban un sitio de la
+  // barra: sólo salen cuando tienen alguno pendiente (o se ha entrado a
+  // propósito desde el enlace del registro). Las propuestas de la semana de
+  // los peques van en Rendimiento → Colegio; las de María, en sus recados,
+  // así que los suyos ya no se esconden.
+  const recadosOcultos = skin === 'pitch' &&!store.getTasks(profile.id).some((t) => !t.done) && rawTab !== 'tasks';
 
   // `short` es el nombre para la barra del móvil, donde seis pestañas se
   // reparten 390 px: «Estadísticas» no cabe, «Datos» sí.
@@ -920,6 +922,10 @@ export function Dashboard({
               values={values}
               onChange={handleChange}
               onlyPending={onlyPending}
+              profileId={profile.id}
+              onSet={(id, day, metricId, value) =>
+                id === profile.id && day === date ? handleChange(metricId, value) : store.setValue(id, day, metricId, value)
+              }
             />
           )}
 
@@ -1141,6 +1147,12 @@ export function Dashboard({
           // de los resúmenes: sólo tocar un día concreto lleva al registro.
           onDateChange={onDateChange}
           onOpenPlan={() => setTab('plan')}
+          // El foco del parte lleva a su casilla, en el registro de hoy.
+          onFocusMetric={(metricId) => {
+            onDateChange(todayKey());
+            setTab('today');
+            jumpToMetric(metricId);
+          }}
           />
         </div>
       )}

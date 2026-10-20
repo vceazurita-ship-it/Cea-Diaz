@@ -4,6 +4,7 @@ import { headingFont, kickerFont } from '@/lib/profiles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarAccount, type CalendarAvailability } from '@/components/tasks/CalendarAccount';
 import { MonthGrid } from '@/components/tasks/MonthGrid';
+import { PropuestasSemana } from '@/components/tasks/PropuestasSemana';
 import { SpreadTasks } from '@/components/tasks/SpreadTasks';
 import { TaskComposer } from '@/components/tasks/TaskComposer';
 import { TaskItem } from '@/components/tasks/TaskItem';
@@ -273,7 +274,8 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
 
   /* ----------------------------------------------------------- altas */
 
-  const add = async (draft: TaskDraft) => {
+  /** `quiet` calla el aviso: lo usan las propuestas al añadir varias de golpe. */
+  const add = async (draft: TaskDraft, quiet = false) => {
     const created = createTask(profile.id, draft);
 
     // Con cuenta enlazada, lo que tiene fecha va al calendario sin pedirlo
@@ -287,17 +289,18 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
     store.saveTask(task);
 
     if (!shouldSend) {
-      notify({ message: 'Apuntado.', icon: '📝' });
+      if (!quiet) notify({ message: 'Apuntado.', icon: '📝' });
       return;
     }
 
     if (unknown) {
       blind.current.push(task.id);
-      notify({ message: 'Apuntado. Irá al calendario en cuanto se pueda.', icon: '📝' });
+      if (!quiet) notify({ message: 'Apuntado. Irá al calendario en cuanto se pueda.', icon: '📝' });
       return;
     }
 
     const sent = await push(task, true);
+    if (quiet) return;
     notify(
       sent
         ? { message: 'Apuntado y puesto en el calendario.', icon: '📆' }
@@ -630,6 +633,10 @@ export function TasksPanel({ profile, store, kid, skin, notice, onNoticeSeen }: 
           )}
         </div>
       </section>
+
+      {/* Lo que propone el planificador para la semana que viene. Entra por
+          el mismo `add` que el formulario: si hay Google, va al calendario. */}
+      <PropuestasSemana profile={profile} store={store} kid={kid} skin={skin} onAdd={add} />
 
       {/* En el calendario, lo nuevo nace en el día que se está mirando. La
           clave es sólo la vista: antes llevaba también el día, y picar en otro

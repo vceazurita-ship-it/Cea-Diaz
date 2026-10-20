@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import { AchievementsPanel } from '@/components/summary/AchievementsPanel';
 import { MonthHeatmap } from '@/components/summary/MonthHeatmap';
+import { ParteSemana } from '@/components/summary/ParteSemana';
 import { PlanAdherence } from '@/components/summary/PlanAdherence';
 import { SectionHead } from '@/components/summary/SectionHead';
 import { WeekChart } from '@/components/summary/WeekChart';
@@ -47,6 +48,11 @@ interface SummaryViewProps {
    * mover un rato de sitio, y eso se hace allí.
    */
   onOpenPlan?: () => void;
+  /**
+   * Lleva a la casilla de un hábito en el registro de hoy. Lo usa el parte
+   * de la semana para su foco; sin él, el botón abre el día sin más.
+   */
+  onFocusMetric?: (metricId: string) => void;
 }
 
 /* =========================================================================
@@ -135,6 +141,7 @@ export function SummaryView({
   onSelectDay,
   onDateChange,
   onOpenPlan,
+  onFocusMetric,
 }: SummaryViewProps) {
   /** Semana o mes: se recuerda en este aparato y por perfil. */
   const [range, setRange] = useRemembered<SummaryRange>(
@@ -241,8 +248,28 @@ export function SummaryView({
     onDateChange(isCurrentPeriod(next) ? today : next);
   };
 
+  /**
+   * Hasta dónde llega el parte: hoy en el periodo en curso, y el último día
+   * del periodo mirado si se ha viajado atrás. Así el parte acompaña al
+   * conmutador sin tener uno propio.
+   */
+  const parteHasta = atCurrent ? today : dates[dates.length - 1];
+
   return (
     <div className="space-y-4">
+      {/* El parte de la semana: lo que sube, lo que cae y una sola cosa que
+          hacer. Va arriba porque es lo que se viene a buscar aquí. */}
+      <ParteSemana
+        profile={profile}
+        entries={entries}
+        hasta={parteHasta}
+        skin={skin}
+        kid={kid}
+        onApuntar={() => onSelectDay(today)}
+        onFocusMetric={onFocusMetric}
+        onOpenPlan={onOpenPlan}
+      />
+
       {/* Conmutador de periodo */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1">
