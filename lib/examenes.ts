@@ -40,7 +40,9 @@ export const CONVOCATORIAS: Convocatoria[] = [
     profileId: 'hugo',
     preparaDesde: '2026-10-07',
     examenes: [
-      { asignatura: 'english', fecha: '2026-10-22', temas: ['e4-1'] },
+      // Las U1-2 salieron en el control del 8 de octubre: al examen van las U3-4
+      // (resumen de la profe en Classroom).
+      { asignatura: 'english', fecha: '2026-10-22', temas: ['e4-2'] },
       { asignatura: 'lengua', fecha: '2026-10-23', temas: ['l4-1', 'l4-2'] },
       { asignatura: 'science', fecha: '2026-10-26', temas: ['n4-1'] },
       { asignatura: 'mates', fecha: '2026-10-27', temas: ['m4-1', 'm4-2'] },

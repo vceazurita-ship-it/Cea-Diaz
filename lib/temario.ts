@@ -1384,6 +1384,20 @@ const PAISAJES: Pregunta[] = [
   p('🗺️', 'Land surrounded by water except on one side is a…', 'Peninsula', ['Island', 'Gulf', 'Valley'], 'España y Portugal están en la península ibérica.'),
 ];
 
+/** Lo del resumen del profe de Social 4 que no estaba: la Luna, las nebulosas y la hidrosfera. */
+const LUNA4: Pregunta[] = [
+  p('☁️', 'Huge clouds of gas and dust in space are…', 'Nebulae', ['Comets', 'Planets', 'Satellites'], 'Nebulae (nebulosas): clouds of gas and dust. Galaxies have nebulae and millions of stars.'),
+  p('🌕', 'The Moon shines because…', 'it reflects light from the Sun', ['it makes its own light', 'it is a star', 'it is very hot'], 'The Moon doesn\'t produce light: it reflects sunlight.'),
+  p('🌗', 'How we see the Moon bigger or smaller each day are…', 'the phases of the Moon', ['the tides', 'the seasons', 'eclipses'], 'Phases: new moon, crescent, full moon…'),
+  p('🌊', 'The rise and fall of the sea level are…', 'tides', ['phases', 'eclipses', 'orbits'], 'The Moon pulls on the Earth\'s water with gravity: tides.'),
+  p('🌑', 'When the Moon moves between the Sun and the Earth there is a…', 'solar eclipse', ['full moon', 'tide', 'shooting star'], 'The Moon blocks part of the Sun\'s light and the sky gets dark.'),
+  p('🕳️', 'The craters on the Moon are caused by…', 'meteorite collisions', ['volcanoes', 'rain', 'tides'], 'The Moon has no atmosphere to protect it from meteorites.'),
+  p('📅', 'The Moon goes around the Earth in about…', '29 and a half days', ['24 hours', '365 days', '7 days'], 'About 29.5 days: that\'s why months are about 30 days.'),
+  p('💧', 'All the water on the Earth is the…', 'hydrosphere', ['atmosphere', 'geosphere', 'mantle'], 'Hydrosphere: oceans, rivers, lakes, ice… about 70% of the surface.'),
+  p('🪐', 'Jupiter and Saturn have…', 'more than sixty satellites each', ['no satellites', 'one satellite each', 'two satellites'], 'The Earth has only one: the Moon.'),
+  p('☄️', 'The most famous comet is…', 'Halley\'s Comet', ['the Milky Way', 'Pluto', 'the Moon'], 'Comets are balls of dust and ice with a tail.'),
+];
+
 const TIERRA4: Pregunta[] = [
   p('🌐', 'The innermost layer of the Earth is the…', 'Core', ['Crust', 'Mantle', 'Atmosphere'], 'Crust (corteza) → mantle (manto) → core (núcleo).'),
   p('🏠', 'We live on the Earth\'s…', 'Crust', ['Core', 'Mantle', 'Moon'], 'La corteza es la capa de fuera.'),
@@ -1441,6 +1455,35 @@ const clasificaDieta = (rand: Rand): Pregunta =>
 const emparejaCelula = (): Pregunta => empareja('🦠', 'Match each part of the cell with its job.', [['Nucleus', 'controls the cell'], ['Membrane', 'thin layer around the cell'], ['Cytoplasm', 'jelly-like substance inside']], 'Membrane outside, cytoplasm inside, nucleus in control.');
 const clasificaCelulas = (rand: Rand): Pregunta =>
   clasifica('🔬', 'One cell or many cells? Put each one in its box.', cajasDe(rand, [{ nombre: 'Unicellular', items: ['bacteria', 'amoeba', 'protozoa'] }, { nombre: 'Multicellular', items: ['dog', 'oak tree', 'human', 'mushroom'] }], 6), 'Uni = one cell. Multi = millions of cells.');
+
+/* ---- Natural Science 4 · U1, lo que añade el resumen de la profe ---- */
+
+/** Los cinco reinos y la nutrición de los seres vivos. */
+const REINOS: Pregunta[] = [
+  p('🖐️', 'Living things are classified into five groups called…', 'Kingdoms', ['Cells', 'Families', 'Organs'], 'Five kingdoms: Monera, Protista, Fungi, Plantae, Animalia.'),
+  p('🦠', 'Bacteria belong to the kingdom…', 'Monera', ['Fungi', 'Plantae', 'Animalia'], 'Monera: bacteria. All of them are unicellular.'),
+  p('🌊', 'Protozoa and most algae belong to the kingdom…', 'Protista', ['Monera', 'Fungi', 'Animalia'], 'Protista: mostly unicellular, some multicellular (algae).'),
+  p('🍄', 'Mushrooms, yeasts and moulds belong to the kingdom…', 'Fungi', ['Plantae', 'Monera', 'Animalia'], 'Fungi: heterotrophic, and they can\'t move.'),
+  p('🌳', 'Trees, grasses and bushes belong to the kingdom…', 'Plantae', ['Fungi', 'Protista', 'Animalia'], 'Plantae: multicellular and autotrophic (photosynthesis).'),
+  p('🏃', 'Which kingdom is multicellular, heterotrophic and can move?', 'Animalia', ['Plantae', 'Fungi', 'Monera'], 'Animals move to find their food.'),
+  p('🍽️', 'Living things that cannot make their own food are…', 'Heterotrophic', ['Autotrophic', 'Unicellular', 'Asexual'], 'Heterotrophic: they eat other living things.'),
+  p('🥗', 'An animal that eats plants and other animals is…', 'An omnivore', ['A herbivore', 'A carnivore', 'Autotrophic'], 'Herbivores: plants. Carnivores: animals. Omnivores: both.'),
+  p('🧬', 'In asexual reproduction, the offspring is…', 'Identical to the parent', ['From two parents', 'Always a seed', 'A different species'], 'Asexual: one single parent, identical offspring.'),
+  p('🌬️', 'The basic needs of living things are food, water, air and…', 'Getting rid of waste', ['Sleeping', 'Moving fast', 'Light'], 'Basic needs: food, water, air and waste excretion.'),
+  p('🌙', 'At night plants use the sugars to grow. This is called…', 'Cellular respiration', ['Photosynthesis', 'Pollination', 'Germination'], 'Day: photosynthesis. Night: cellular respiration.'),
+];
+
+const clasificaReinos = (rand: Rand): Pregunta =>
+  clasifica('🖐️', 'Which kingdom? Put each living thing in its box.', cajasDe(rand, [{ nombre: 'Monera', items: ['bacteria'] }, { nombre: 'Fungi', items: ['mushroom', 'yeast', 'mould'] }, { nombre: 'Plantae', items: ['oak tree', 'fern', 'wheat'] }, { nombre: 'Animalia', items: ['eagle', 'shark', 'ant'] }], 6), 'Monera: bacteria. Fungi: mushrooms, yeasts, moulds. Plantae: plants. Animalia: animals.');
+
+const clasificaNutricion = (rand: Rand): Pregunta =>
+  clasifica('🍃', 'Autotrophic or heterotrophic? Put each one in its box.', cajasDe(rand, [{ nombre: 'Autotrophic (make their food)', items: ['sunflower', 'pine tree', 'moss', 'green algae'] }, { nombre: 'Heterotrophic (eat other living things)', items: ['lion', 'mushroom', 'human', 'rabbit'] }], 6), 'Plants make their own food with sunlight. Animals and fungi can\'t.');
+
+const emparejaFlor = (rand: Rand): Pregunta =>
+  empareja('🌸', 'Match each part of the flower with what it is.', paresDe(rand, [['Pistil', 'female part, contains the ovules'], ['Stamen', 'male part, makes pollen'], ['Petals', 'form the corolla'], ['Sepals', 'protect the flower (calyx)'], ['Ovule', 'is inside the pistil']]), 'Stamen = male (pollen). Pistil = female (ovules). Petals and sepals surround them.');
+
+const ordenaReproduccion4 = (): Pregunta =>
+  ordena('🐝', 'Put the steps of plant reproduction in order.', ['Pollination', 'Fertilisation', 'Seed and fruit formation', 'Germination'], 'Pollen reaches the pistil → it joins the ovule → a seed and fruit form → the seed sprouts.');
 
 /* ---- Social Science 3 · U1, del resumen de la profe: el planeta Tierra ---- */
 
@@ -1611,12 +1654,32 @@ const SPACE_G: Pregunta[] = [
   p('🪐', 'The path a planet follows around the Sun is its…', 'orbit', ['surface', 'gravity', 'crater'], 'orbit = órbita.'),
   p('🍏', 'The force that pulls things down to the ground is…', 'gravity', ['orbit', 'surface', 'telescope'], 'gravity = gravedad.'),
 ];
-const PAST_V: Vocab = [['army', 'ejército'], ['soldier', 'soldado'], ['emperor', 'emperador'], ['armor', 'armadura'], ['treasure', 'tesoro'], ['archaeologist', 'arqueólogo'], ['tomb', 'tumba'], ['clay', 'arcilla'], ['skull', 'cráneo'], ['excavate', 'excavar'], ['layers', 'capas'], ['paleontologist', 'paleontólogo']];
+// Las palabras de las unidades 3 (el pasado) y 4 (los fósiles), como en el resumen de la profe.
+const PAST_V: Vocab = [['army', 'ejército'], ['soldier', 'soldado'], ['uniform', 'uniforme'], ['emperor', 'emperador'], ['armor', 'armadura'], ['treasure', 'tesoro'], ['archaeologist', 'arqueólogo'], ['tomb', 'tumba'], ['jade', 'jade'], ['clay', 'arcilla'], ['peasant', 'campesino'], ['dinosaur', 'dinosaurio'], ['skull', 'cráneo'], ['ravine', 'barranco'], ['examine', 'examinar'], ['discover', 'descubrir'], ['excavate', 'excavar'], ['layers', 'capas'], ['paleontologist', 'paleontólogo'], ['ash', 'ceniza'], ['sedimentary rock', 'roca sedimentaria'], ['pastime', 'pasatiempo']];
+/** Verbos que van con «to» (U3) y con «-ing» (U4). «like» y «begin» admiten los dos: fuera de las cajas. */
+const CON_TO = ['agree', 'decide', 'deserve', 'expect', 'hope', 'learn', 'need', 'offer', 'plan', 'promise', 'seem', 'want', 'try'];
+const CON_ING = ['admit', 'avoid', 'consider', 'deny', 'dislike', 'enjoy', 'finish', 'imagine', 'mention', 'recommend', 'risk', 'stop', 'suggest'];
 const PAST_G: Pregunta[] = [
   p('📝', 'I want ___ an archaeologist.', 'to be', ['being', 'be', 'been'], 'want + to + verb (infinitive).'),
   p('📝', 'She enjoys ___ old coins.', 'collecting', ['to collect', 'collect', 'collected'], 'enjoy + -ing (gerund).'),
-  p('📝', 'Which one is uncountable?', 'sand', ['bone', 'coin', 'skull'], 'You can\'t count sand: «some sand», not «three sands».'),
+  p('📝', 'The team decided ___ the old tomb.', 'to excavate', ['excavating', 'excavate', 'excavated'], 'decide + to + verb.'),
+  p('📝', 'I hope ___ a dinosaur skull one day.', 'to find', ['finding', 'find', 'found'], 'hope + to + verb.'),
+  p('📝', 'The emperor promised ___ the peasants.', 'to help', ['helping', 'help', 'helped'], 'promise + to + verb.'),
+  p('📝', 'We are planning ___ the museum on Saturday.', 'to visit', ['visiting', 'visit', 'visited'], 'plan + to + verb.'),
+  p('📝', 'The soldiers seem ___ tired.', 'to be', ['being', 'be', 'are'], 'seem + to + verb.'),
+  p('📝', 'Paleontologists finished ___ the layers of rock.', 'examining', ['to examine', 'examine', 'examined'], 'finish + -ing.'),
+  p('📝', 'Can you imagine ___ a real dinosaur?', 'finding', ['to find', 'find', 'found'], 'imagine + -ing.'),
+  p('📝', 'Please stop ___ in the museum!', 'running', ['to run', 'run', 'ran'], 'stop + -ing.'),
+  p('📝', 'I dislike ___ up early on Sundays.', 'getting', ['to get', 'get', 'got'], 'dislike + -ing.'),
+  p('📝', 'They avoided ___ the old clay pots.', 'breaking', ['to break', 'break', 'broke'], 'avoid + -ing.'),
+  p('📝', 'I suggest ___ the guide in the tomb.', 'following', ['to follow', 'follow', 'followed'], 'suggest + -ing.'),
+  p('🔤', 'An infinitive is the verb with…', '«to» at the beginning', ['«-ing» at the end', '«-ed» at the end', 'no verb'], 'Infinitive: to do, to sleep, to discover.'),
+  p('🔤', 'A gerund is the verb with «-ing» used as…', 'a noun', ['a past tense', 'an adjective', 'a number'], 'Gerund: «Swimming is fun» — swimming works like a noun.'),
+  p('🦴', 'A scientist who studies dinosaur fossils is a…', 'paleontologist', ['archaeologist', 'emperor', 'peasant'], 'Paleontologist: fossils. Archaeologist: old objects made by people.'),
+  p('🏺', 'A scientist who digs up tombs and old treasures is an…', 'archaeologist', ['paleontologist', 'soldier', 'emperor'], 'Archaeologist: things people made long ago.'),
 ];
+const clasificaToIng = (rand: Rand): Pregunta =>
+  clasifica('🧩', '«to + verb» or «verb + -ing»? Put each verb in its box.', cajasDe(rand, [{ nombre: 'verb + to … (want to go)', items: CON_TO }, { nombre: 'verb + -ing (enjoy going)', items: CON_ING }], 6), 'U3: want, decide, hope, promise… + to. U4: enjoy, finish, avoid, stop… + -ing.');
 const FOOD_V: Vocab = [['sugar cane', 'caña de azúcar'], ['wheat', 'trigo'], ['cinnamon', 'canela'], ['vanilla', 'vainilla'], ['ingredients', 'ingredientes'], ['plantation', 'plantación'], ['spoil', 'estropearse'], ['export', 'exportar'], ['local', 'local, de aquí'], ['farmer\'s market', 'mercado de agricultores'], ['agriculture', 'agricultura']];
 const FOOD_G: Pregunta[] = [
   p('📝', 'Tomorrow we ___ visiting the farm. (a plan)', 'are', ['were', 'did', 'has'], 'Present continuous for future plans: We are visiting…'),
@@ -1657,7 +1720,7 @@ const FUN_S = ['The match was exciting', 'I love playing football', 'We were bor
 const MOVE_S = ['When I was five I could swim', 'She can speak three languages', 'He can swim like a fish', 'When she was one she could walk', 'Last winter we could go sledding', 'If you mix blue and yellow you get green', 'Plants die if you do not water them', 'When it rains I take the bus', 'My neighbors live in a suburb'];
 const POEM_S = ['I was reading when the phone rang', 'They were playing football at five', 'The ladybug is red and black'];
 const SPACE_S = ['One day people will live on Mars', 'If you look through a telescope you will see craters', 'The Moon orbits the Earth', 'Robots will help astronauts on Mars', 'If it is cloudy we will not see the stars', 'People will travel to other planets'];
-const PAST_S = ['I want to be an archaeologist', 'She enjoys collecting old coins', 'The soldiers wore heavy armor'];
+const PAST_S = ['I want to be an archaeologist', 'She enjoys collecting old coins', 'The soldiers wore heavy armor', 'The team decided to excavate the tomb', 'We finished cleaning the dinosaur skull', 'I hope to discover a fossil', 'They stopped digging at night'];
 const FOOD_S = ['We are visiting the farm tomorrow', 'Would you like some cake', 'The milk is in the fridge'];
 
 const clasificaEdIng = (rand: Rand): Pregunta =>
@@ -1666,8 +1729,6 @@ const clasificaMove = (rand: Rand): Pregunta =>
   clasifica('🚚', 'Something you do or a place? Put each word in its box.', cajasDe(rand, [{ nombre: 'Things you do (U3)', items: MOVE_HACER.map(([en]) => en) }, { nombre: 'Places (U4)', items: MOVE_SITIOS.map(([en]) => en) }], 6), 'Unit 3: packing, fishing, sledding… Unit 4: suburb, factory, zoo…');
 const clasificaCanCould = (rand: Rand): Pregunta =>
   clasifica('⏳', 'can or could? Put each time in its box.', cajasDe(rand, [{ nombre: 'can (now)', items: ['now', 'today', 'this year', 'at the moment'] }, { nombre: 'could (past)', items: ['when I was three', 'last year', 'yesterday', 'last winter'] }], 6), 'Now → can. In the past → could.');
-const clasificaCountable =(rand: Rand): Pregunta =>
-  clasifica('🪙', 'Countable or uncountable? Put each noun in its box.', cajasDe(rand, [{ nombre: 'Countable', items: ['coin', 'bone', 'skull', 'soldier'] }, { nombre: 'Uncountable', items: ['sand', 'clay', 'water', 'gold'] }], 6), 'Countable: three coins. Uncountable: some sand, not «three sands».');
 
 const OM3 = 'Matemáticas 3 · Operación Mundo (Anaya)';
 const LOM3 = 'Lengua 3 · Operación Mundo (Anaya)';
@@ -1717,7 +1778,7 @@ export const TEMARIO: Tema[] = [
 
   /* ------------------------------------------------ Mates 4º */
   { id: 'm4-1', asignatura: 'mates', curso: 4, desde: '2026-09-07', titulo: 'U1 · Números de cinco cifras', fuente: CM4, puntos: ['Leer y descomponer hasta 99.999', 'Aproximar a decenas y centenas', 'Ordinales', 'Números romanos'], hacer: [rMasDiezCienMil(99999), leerNumero(10000, 99999), escribe(leerNumero(10000, 99999)), valorCifra(100000), escribe(valorCifra(100000)), ordenaNumeros(10000, 99999), emparejaLetraCifra(10000, 99999), aproximar(10, 1000, 99999), aproximar(100, 1000, 99999), emparejaAproximar(100, 1000, 9999), romanos, escribe(romanos), emparejaRomanos] },
-  { id: 'm4-2', asignatura: 'mates', curso: 4, desde: '2026-10-01', titulo: 'U2 · Sumas y restas', fuente: CM4, puntos: ['Propiedad conmutativa y asociativa', 'Operaciones combinadas', 'Estimaciones', 'Problemas'], hacer: [rSumasMentales(true), sumaLlevando(5), escribe(sumaLlevando(5)), restaLlevando(5), escribe(restaLlevando(5)), propiedades, combinadas, escribe(combinadas), estimarSuma, problemaDos, escribe(problemaDos)] },
+  { id: 'm4-2', asignatura: 'mates', curso: 4, desde: '2026-10-01', titulo: 'U2 · Sumas y restas', fuente: CM4, puntos: ['Propiedad conmutativa y asociativa', 'Operaciones combinadas', 'Problemas con estimaciones', 'Problemas', 'Ya empezado (5/10): multiplicar por una cifra'], hacer: [rSumasMentales(true), sumaLlevando(5), escribe(sumaLlevando(5)), restaLlevando(5), escribe(restaLlevando(5)), propiedades, combinadas, escribe(combinadas), estimarSuma, estimarResta, problemaDos, escribe(problemaDos), porUnaCifra(9999), escribe(porUnaCifra(9999))] },
   { id: 'm4-3', asignatura: 'mates', curso: 4, desde: '2026-10-26', titulo: 'U3 · La multiplicación', fuente: CM4, puntos: ['Por una y dos cifras', 'Factores acabados en ceros', 'Propiedades', 'Estimar productos'], hacer: [rPorCeros, rTablas([6, 7, 8, 9]), porUnaCifra(9999), escribe(porUnaCifra(9999)), porDosCifras, escribe(porDosCifras), porCeros, escribe(porCeros), emparejaTablas([6, 7, 8, 9]), estimarProducto, propiedades, problemaMulti, escribe(problemaMulti)] },
   { id: 'm4-4', asignatura: 'mates', curso: 4, desde: '2026-11-19', titulo: 'U4 · Ángulos y polígonos', fuente: CM4, puntos: ['Medir ángulos', 'Polígonos regulares', 'Perímetro', 'Área con cuadraditos', 'Triángulos y cuadriláteros'], hacer: [rPerimetros, anguloGrados, escribe(anguloGrados), poligono, perimetro, escribe(perimetro), area, escribe(area), delBanco(TRIANGULOS)] },
 
@@ -1738,13 +1799,13 @@ export const TEMARIO: Tema[] = [
   // Natural son las plantas, no el método científico que suponía Anaya.
   { id: 'n3-1', asignatura: 'science', curso: 3, desde: '2026-09-07', titulo: 'U1 · I see plants all around', fuente: 'Natural Science 3 · resumen de la profe', puntos: ['Living things: born, grow, die', 'Nutrition, interaction, reproduction', 'Animals, plants and other living things', 'Roots, stem and leaves', 'Photosynthesis', 'Reproduction and interaction in plants', 'Grasses, bushes and trees', 'Seed and seedless plants'], hacer: [delBanco(PLANTAS), delBanco(PLANTAS), delBanco(PLANTAS), ordenaReproduccion, ordenaFotosintesis, clasificaTallos, clasificaSemillas, clasificaSeresVivos, emparejaPartes, emparejaFunciones, emparejaReaccion] },
   { id: 'n3-2', asignatura: 'science', curso: 3, desde: '2026-11-02', titulo: 'U2 · Animals', fuente: GT('Natural Science 3'), puntos: ['Vital functions', 'Vertebrates and invertebrates', 'Mammals, birds, fish, reptiles, amphibians'], hacer: [delBanco(SERES_VIVOS), delBanco(SERES_VIVOS), clasificaVertebrados, emparejaFunciones, delBanco(METODO)] },
-  { id: 'n4-1', asignatura: 'science', curso: 4, desde: '2026-09-07', titulo: 'U1 · Living organisms', fuente: GT('Natural Science 4'), puntos: ['Cells: membrane, cytoplasm, nucleus', 'Unicellular and multicellular', 'Classifying living things', 'Plants: nutrition, interaction, reproduction'], hacer: [delBanco(CELULAS), delBanco(CELULAS), emparejaCelula, clasificaCelulas, ordenaFotosintesis, emparejaPartes] },
+  { id: 'n4-1', asignatura: 'science', curso: 4, desde: '2026-09-07', titulo: 'U1 · Living organisms', fuente: `${GT('Natural Science 4')} · resumen del profe`, puntos: ['Vital functions: nutrition, interaction, reproduction', 'Autotrophic and heterotrophic; herbivores, carnivores, omnivores', 'Cells: membrane, cytoplasm, nucleus; unicellular and multicellular', 'The five kingdoms: Monera, Protista, Fungi, Plantae, Animalia', 'Parts of the flower and of the plant; types of plants', 'Photosynthesis and cellular respiration', 'Pollination, fertilisation, seeds, germination', 'Plants react to light, water and contact'], hacer: [delBanco(CELULAS), delBanco(CELULAS), delBanco(REINOS), delBanco(REINOS), emparejaCelula, clasificaCelulas, clasificaReinos, clasificaNutricion, clasificaDieta, emparejaFlor, emparejaPartes, ordenaFotosintesis, ordenaReproduccion4, emparejaReaccion, clasificaTallos, clasificaSemillas] },
   { id: 'n4-2', asignatura: 'science', curso: 4, desde: '2026-11-02', titulo: 'U2 · Animals and human beings', fuente: GT('Natural Science 4'), puntos: ['Types of animals', 'Vital functions in animals', 'Human beings', 'Physical and emotional well-being'], hacer: [delBanco(ANIMALES), delBanco(ANIMALES), delBanco(NUTRICION), delBanco(RELACION), clasificaDieta, clasificaVertebrados] },
 
   /* ------------------------------------------------ Social Science (Anaya: U1-2) */
   { id: 's3-1', asignatura: 'social', curso: 3, desde: '2026-09-07', titulo: 'U1 · Discover planet Earth', fuente: 'Social Science 3 · resumen de la profe', puntos: ['Plans and maps', 'Title, legend, compass rose, toponyms, scale', 'Physical, political, historical and thematic maps', 'The globe: axis, equator, poles, hemispheres', 'Continents and oceans', 'Rotation and revolution', 'The seasons'], hacer: [delBanco(PLANETA), delBanco(PLANETA), delBanco(PLANETA), delBanco(MAPAS), emparejaMapa, emparejaTiposMapa, clasificaPlanoMapa, clasificaContinentes, emparejaMovimientos, ordenaEstaciones, emparejaEstaciones] },
   { id: 's3-2', asignatura: 'social', curso: 3, desde: '2026-11-02', titulo: 'U2 · Landscapes', fuente: GT('Social Science 3'), puntos: ['Natural and humanised', 'Inland landscapes of Spain', 'Coastal landscapes', "Spain's coastline"], hacer: [delBanco(PAISAJES), delBanco(PAISAJES), delBanco(RELIEVE), clasificaPaisaje] },
-  { id: 's4-1', asignatura: 'social', curso: 4, desde: '2026-09-07', titulo: 'U1 · The Earth', fuente: GT('Social Science 4'), puntos: ['The Universe and the Solar System', 'Layers of the Earth', 'The Moon', 'Rotation, revolution and seasons'], hacer: [delBanco(UNIVERSO), delBanco(UNIVERSO), delBanco(TIERRA4), ordenaPlanetas, ordenaCapas, clasificaAstros, emparejaMovimientos, ordenaEstaciones] },
+  { id: 's4-1', asignatura: 'social', curso: 4, desde: '2026-09-07', titulo: 'U1 · The Earth', fuente: GT('Social Science 4'), puntos: ['The Universe and the Solar System', 'Layers of the Earth', 'The Moon', 'Rotation, revolution and seasons'], hacer: [delBanco(UNIVERSO), delBanco(UNIVERSO), delBanco(TIERRA4), delBanco(LUNA4), delBanco(LUNA4), ordenaPlanetas, ordenaCapas, clasificaAstros, emparejaMovimientos, ordenaEstaciones] },
   { id: 's4-2', asignatura: 'social', curso: 4, desde: '2026-11-02', titulo: 'U2 · The atmosphere and climate', fuente: GT('Social Science 4'), puntos: ['The atmosphere', 'Weather and climate', 'Climographs', 'Climates of Spain'], hacer: [delBanco(CLIMA4), delBanco(CLIMA4), delBanco(TIEMPO)] },
 
   /* ------------------------------------------------ English */
@@ -1752,7 +1813,8 @@ export const TEMARIO: Tema[] = [
   { id: 'e3-2', asignatura: 'english', curso: 3, desde: '2026-10-15', titulo: 'U3-4 · Why do people move to new places?', fuente: `${OD3} · resumen de la profe`, puntos: ['Moving and winter fun: packing, sledding…', 'City and country: suburb, factory, zoo…', "can / can't · could / couldn't", 'If / when + present, present'], hacer: [vocabulario(MOVE_HACER), vocabulario(MOVE_SITIOS), emparejaVocab(MOVE_V), escribeVocab(MOVE_V), delBanco(MOVE_G), delBanco(MOVE_G), ordenaFrase(MOVE_S), clasificaMove, clasificaCanCould] },
   { id: 'e3-3', asignatura: 'english', curso: 3, desde: '2026-11-23', titulo: 'U5-6 · Why do people write poems?', fuente: OD3, puntos: ['Insects', 'Rhymes, nouns, verbs, adjectives', 'Past continuous'], hacer: [vocabulario(POEM_V), emparejaVocab(POEM_V), escribeVocab(POEM_V), delBanco(POEM_G), ordenaFrase(POEM_S)] },
   { id: 'e4-1', asignatura: 'english', curso: 4, desde: '2026-09-07', titulo: 'U1-2 · Where are we in the universe?', fuente: OD4, puntos: ['Space vocabulary', 'will for predictions', 'Future real conditional'], hacer: [vocabulario(SPACE_V), vocabulario(SPACE_V), emparejaVocab(SPACE_V), escribeVocab(SPACE_V), delBanco(SPACE_G), ordenaFrase(SPACE_S)] },
-  { id: 'e4-2', asignatura: 'english', curso: 4, desde: '2026-10-19', titulo: 'U3-4 · How do we know what happened long ago?', fuente: OD4, puntos: ['Archaeology and fossils', 'Verb + infinitive / gerund', 'Countable / uncountable'], hacer: [vocabulario(PAST_V), emparejaVocab(PAST_V), escribeVocab(PAST_V), delBanco(PAST_G), ordenaFrase(PAST_S), clasificaCountable] },
+  // Las U1-2 se quitaron con el control del 8 de octubre: desde entonces, U3-4 (resumen de la profe del 13/10).
+  { id: 'e4-2', asignatura: 'english', curso: 4, desde: '2026-10-09', titulo: 'U3-4 · How do we know what happened long ago?', fuente: `${OD4} · resumen de la profe`, puntos: ['U3: army, emperor, armor, tomb, jade, clay, peasant…', 'U4: dinosaur, skull, layers, ash, paleontologist…', 'Verbs + to: want, decide, hope, promise, plan…', 'Verbs + -ing: enjoy, finish, avoid, stop, imagine…'], hacer: [vocabulario(PAST_V), vocabulario(PAST_V), emparejaVocab(PAST_V), escribeVocab(PAST_V), delBanco(PAST_G), delBanco(PAST_G), delBanco(PAST_G), ordenaFrase(PAST_S), clasificaToIng, clasificaToIng] },
   { id: 'e4-3', asignatura: 'english', curso: 4, desde: '2026-11-23', titulo: 'U5-6 · Where does our food come from?', fuente: OD4, puntos: ['Food and farming', 'Present continuous for plans', 'Would you like…?', 'Prepositions of place'], hacer: [vocabulario(FOOD_V), emparejaVocab(FOOD_V), escribeVocab(FOOD_V), delBanco(FOOD_G), ordenaFrase(FOOD_S)] },
 ];
 
