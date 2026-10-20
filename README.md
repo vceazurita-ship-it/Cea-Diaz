@@ -47,7 +47,7 @@ npm run lint       # ESLint
 | -------- | -------- | -------- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Guardar y sincronizar entre móviles | Cada móvil guarda sólo lo suyo |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ídem | Ídem |
-| `GOOGLE_CLIENT_ID` | Llevar las tareas a Google Calendar | Las tareas se guardan igual, sin calendario |
+| `GOOGLE_CLIENT_ID` | Llevar las tareas a Google Calendar y leer Google Classroom de los peques | Las tareas se guardan igual, sin calendario ni Classroom |
 | `GOOGLE_CLIENT_SECRET` | Ídem | Ídem |
 | `SUPABASE_SERVICE_ROLE_KEY` | Guardar el permiso de Google (sólo en el servidor) | Ídem |
 
@@ -1735,6 +1735,53 @@ resto de la app.
 > hace falta para un uso doméstico, con el tope de 100 cuentas de sobra— la primera vez
 > aparece un aviso de «app no verificada»: se entra por *Configuración avanzada → Ir
 > a…*, y sólo la primera vez por cuenta.
+
+### Google Classroom de Leo y Hugo (sólo lectura)
+
+En **Rendimiento → Colegio** de cada peque hay una tarjeta de **Classroom**: lo que tiene
+que entregar agrupado por cuándo vence (atrasadas, hoy, mañana, esta semana, más
+adelante), los avisos de las dos últimas semanas plegados, y cada clase con sus
+materiales. Todo con enlace a Classroom: la app **sólo lee**, entregar se sigue haciendo
+allí. Lo que vence en los próximos siete días sin entregar aparece además en las
+propuestas de la semana como «Entregar: …» la víspera.
+
+Se conecta con la **cuenta del colegio del niño**, no con la de casa. Las clases se bajan al
+conectar, al abrir la sección si lo guardado tiene más de seis horas y con «Actualizar»;
+no hay cron. La foto se guarda en `classroom_links` junto al permiso, que va cifrado igual
+que el del calendario, y la tabla tiene RLS sin políticas: el navegador no la lee, la
+sirve `/api/classroom`.
+
+| Ruta                          | Qué hace                                                        |
+| ----------------------------- | --------------------------------------------------------------- |
+| `GET /api/classroom`          | Si hay Classroom conectado (por niño) y la última foto de sus clases |
+| `POST /api/classroom`         | `conectar`, `desconectar` (revoca en Google) o `sincronizar`     |
+| `GET /api/classroom/callback` | La vuelta desde Google; guarda el permiso y baja las clases      |
+
+Para activarlo, con el mismo cliente de OAuth del calendario:
+
+1. En Google Cloud Console, **APIs y servicios → Biblioteca**: habilitar la
+   **Google Classroom API**.
+2. En la **pantalla de consentimiento**, añadir estos permisos (todos de sólo lectura):
+   `classroom.courses.readonly`, `classroom.coursework.me.readonly`,
+   `classroom.announcements.readonly`, `classroom.courseworkmaterials.readonly` y
+   `classroom.topics.readonly` (más `openid` y `email`, que ya estaban).
+3. En el ID de cliente, añadir las URIs de redirección:
+
+   ```
+   http://localhost:3000/api/classroom/callback
+   https://<dominio>/api/classroom/callback
+   ```
+
+   (o fijarla con `GOOGLE_CLASSROOM_REDIRECT_URI` si no se deduce del dominio).
+4. En Supabase → SQL Editor, ejecutar `supabase/classroom.sql` (crea `classroom_links`;
+   se puede relanzar sin miedo). El mismo bloque está al final de `supabase/schema.sql`.
+
+> **Si el colegio no deja.** Las cuentas de colegio las administra el centro, y muchos
+> bloquean las apps externas. Entonces la app lo dice tal cual —«El colegio no permite
+> apps externas en esta cuenta: hay que pedirle que autorice la app»— y no hay nada que
+> tocar en casa: el administrador del centro tiene que permitir el ID de cliente en su
+> consola de Google Workspace (*Seguridad → Controles de API → Acceso de apps de
+> terceros*).
 
 ## La semana: agenda y coherencia
 

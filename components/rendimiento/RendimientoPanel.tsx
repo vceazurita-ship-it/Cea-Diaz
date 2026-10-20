@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState } from 'react';
 
+import { ClassroomPanel } from '@/components/classroom/ClassroomPanel';
 import { ColegioPanel } from '@/components/rendimiento/ColegioPanel';
 import { ExportarPdf } from '@/components/rendimiento/ExportarPdf';
 import { FisicoPanel } from '@/components/rendimiento/FisicoPanel';
@@ -14,6 +15,7 @@ import { useGpsSessions } from '@/hooks/useGps';
 import { oneOf, useRemembered } from '@/hooks/useRemembered';
 import type { HabitStore } from '@/hooks/useHabitStore';
 import { reportsFor } from '@/lib/academics';
+import { isClassroomProfile } from '@/lib/classroomModel';
 import { testsFor } from '@/lib/fitness';
 import type { DateKey, Profile, ProfileId, ProfileSkin } from '@/types';
 
@@ -163,6 +165,11 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
             {/* Los recados se ocultan en el panel de los peques: las sesiones
                 de estudio que propone el planificador se aceptan aquí. */}
             {kid && <PropuestasSemana profile={profile} store={store} kid={kid} skin={skin} />}
+            {/* Lo que la profesora ha colgado en Classroom: sólo de los peques,
+                con la cuenta del colegio de cada uno. */}
+            {isClassroomProfile(profile.id) && (
+              <ClassroomPanel key={profile.id} profileId={profile.id} kid={kid} skin={skin} />
+            )}
             <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
           </>
         )}

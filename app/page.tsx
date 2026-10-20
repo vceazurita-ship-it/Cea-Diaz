@@ -41,6 +41,7 @@ import { useHabitStore } from '@/hooks/useHabitStore';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 import { useToday } from '@/hooks/useToday';
 import { todayKey } from '@/lib/dates';
+import { CLASSROOM_RETURN_KEY } from '@/lib/classroomClient';
 import { FOOTBAR_RETURN_KEY } from '@/lib/footbarClient';
 import { playAnthem, stopAnthem } from '@/lib/sound';
 import {
@@ -270,6 +271,39 @@ function Home() {
 
     setSettingsSection('gps');
     setSettingsOpen(true);
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
+  // Vuelta desde Google Classroom, que se pidió desde Rendimiento → Colegio
+  // de uno de los peques: se vuelve a su perfil, a esa misma área, y el
+  // desenlace se deja anotado para que el panel de Classroom lo cuente.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('classroom');
+    if (!outcome) return;
+
+    const asked = params.get('perfil');
+    const known = PROFILES.some((profile) => profile.id === asked);
+
+    try {
+      window.sessionStorage.setItem(
+        CLASSROOM_RETURN_KEY,
+        JSON.stringify({
+          ok: outcome === 'ok',
+          profileId: known ? asked : undefined,
+          motivo: params.get('motivo') ?? undefined,
+        }),
+      );
+      // El área de Rendimiento que se abre es la que recuerda el aparato.
+      window.localStorage.setItem('habitos-familia:ui:rendimiento:area', JSON.stringify('colegio'));
+    } catch {
+      // Sin almacenamiento se vuelve igual, sin el aviso.
+    }
+
+    if (known) {
+      setActiveProfile(asked as ProfileId);
+      setLandingTab('gps');
+    }
     window.history.replaceState({}, '', window.location.pathname);
   }, []);
 

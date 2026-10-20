@@ -1,3 +1,9 @@
+import {
+  asignaturaDeCurso,
+  cursoDe,
+  estaEntregada,
+  type ClassroomSnapshot,
+} from '@/lib/classroomModel';
 import { addDays, formatShort, parseDateKey, weekdayIndex } from '@/lib/dates';
 import { cuandoEs, type Examen } from '@/lib/examenes';
 import { guidanceOf } from '@/lib/experts';
@@ -23,7 +29,8 @@ import type { DateKey, DayEntry, GpsSession, Metric, Profile, ProfileId, Task, W
  *  El planificador: la semana que viene, propuesta y no impuesta.
  *
  *  Mira lo que la app ya sabe de cada perfil —los exámenes y lo preparado
- *  que va cada uno, la agenda contra lo registrado, la carga del GPS— y de
+ *  que va cada uno, la agenda contra lo registrado, la carga del GPS, lo
+ *  que vence en Classroom— y de
  *  ahí saca unas pocas propuestas concretas. Ninguna se aplica sola: un
  *  adulto las acepta una a una (o todas, confirmando dos veces) desde la
  *  tarjeta de propuestas.
@@ -65,6 +72,8 @@ export interface PlanificadorInput {
   plan: WeekPlan;
   /** Sesiones del rastreador (sólo cuentan en los peques). */
   gps?: GpsSession[];
+  /** La última foto de sus clases de Classroom, si el niño lo tiene conectado. */
+  classroom?: ClassroomSnapshot | null;
 }
 
 /** Días que mira hacia delante: la semana que viene, desde mañana. */
@@ -278,6 +287,8 @@ function propuestasNino(input: PlanificadorInput): Propuesta[] {
       );
     }
   }
+
+  out.push(...entregasDeClassroom(input));
   out.sort((a, b) => fechaDe(a).localeCompare(fechaDe(b)));
 
   /* ------------------------------------------------- el GPS pide descanso */
@@ -285,6 +296,51 @@ function propuestasNino(input: PlanificadorInput): Propuesta[] {
   const descanso = descansoPorGps(input, out);
   if (descanso) out.push(descanso);
 
+  return out;
+}
+
+/** Tope de entregas de Classroom propuestas en una semana. */
+const MAX_ENTREGAS = 6;
+
+/**
+ * Lo que vence en Classroom en los próximos siete días y aún no está
+ * entregado: una tarea «Entregar: …» la víspera, para que no pille el mismo
+ * día. Si la víspera ya pasó (vence hoy), cae hoy. Nada de esto se inventa:
+ * la fecha y el estado vienen tal cual de Classroom.
+ */
+function entregasDeClassroom(input: PlanificadorInput): Propuesta[] {
+  const { profile, hoy, tasks, classroom } = input;
+  if (!classroom) return [];
+
+  const hasta = addDays(hoy, SEMANA);
+  const out: Propuesta[] = [];
+  const pendientes = classroom.tareas
+    .filter((t) => !estaEntregada(t) && t.entrega && t.entrega >= hoy && t.entrega <= hasta)
+    .sort((a, b) => (a.entrega ?? '').localeCompare(b.entrega ?? '') || a.titulo.localeCompare(b.titulo));
+
+  for (const t of pendientes) {
+    if (out.length >= MAX_ENTREGAS) break;
+    const fecha = t.entrega!;
+    const vispera = addDays(fecha, -1);
+    const day = vispera < hoy ? hoy : vispera;
+    const titulo = `Entregar: ${t.titulo}`;
+    if (yaApuntada(tasks, titulo, day)) continue;
+
+    const curso = cursoDe(classroom, t.cursoId);
+    const asignatura = curso ? asignaturaDeCurso(curso.nombre, curso.seccion) : null;
+    const nombre = asignatura ? RETO_META[asignatura].nombre : (curso?.nombre ?? 'clase');
+    const cuando = `${cuandoEs(fecha)}${t.hora ? ` a las ${t.hora}` : ''}`;
+
+    out.push(
+      tarea(profile.id, 'estudio', titulo, `Tarea de Classroom de ${nombre} que vence el ${cuando}.`, {
+        title: titulo,
+        detail: t.enlace ? `En Classroom: ${t.enlace}` : 'Está en Classroom.',
+        kind: 'colegio',
+        due: day,
+        repeat: 'none',
+      }),
+    );
+  }
   return out;
 }
 

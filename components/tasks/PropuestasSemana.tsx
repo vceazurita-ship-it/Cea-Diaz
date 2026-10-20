@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { SectionHead } from '@/components/summary/SectionHead';
 import { ConfirmButton } from '@/components/ui/ConfirmButton';
@@ -11,6 +11,8 @@ import { useRemembered } from '@/hooks/useRemembered';
 import { useToday } from '@/hooks/useToday';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { fechaDe, proponerSemana, type Propuesta, type TipoPropuesta } from '@/lib/agentes/planificador';
+import { classroomCached, classroomStatus, onClassroomChange } from '@/lib/classroomClient';
+import { isClassroomProfile, type ClassroomSnapshot } from '@/lib/classroomModel';
 import { capitalize, friendlyDateLabel } from '@/lib/dates';
 import { createTask, type TaskDraft } from '@/lib/tasks';
 import type { Profile, ProfileSkin } from '@/types';
@@ -67,6 +69,26 @@ export function PropuestasSemana({ profile, store, kid, skin, onAdd }: Propuesta
   // lista nueva en cada vuelta y recalcularía las propuestas sin motivo.
   const { hydrated, entries, tasks: allTasks, getTasks } = store;
 
+  // Lo último bajado de Classroom, si el niño lo tiene conectado. Se pide una
+  // vez (la memoria de `classroomClient` la comparte con el panel de
+  // Classroom) y, si no hay conexión o falla, las propuestas salen igual.
+  const [classroom, setClassroom] = useState<ClassroomSnapshot | null>(() =>
+    isClassroomProfile(profile.id) ? (classroomCached(profile.id)?.link?.snapshot ?? null) : null,
+  );
+  useEffect(() => {
+    const id = profile.id;
+    if (!isClassroomProfile(id)) return;
+    let alive = true;
+    void classroomStatus(id).then((s) => alive && setClassroom(s.link?.snapshot ?? null));
+    const dejar = onClassroomChange((quien, s) => {
+      if (alive && quien === id) setClassroom(s.link?.snapshot ?? null);
+    });
+    return () => {
+      alive = false;
+      dejar();
+    };
+  }, [profile.id]);
+
   const propuestas = useMemo(() => {
     if (!hydrated) return [];
     return proponerSemana({
@@ -76,9 +98,10 @@ export function PropuestasSemana({ profile, store, kid, skin, onAdd }: Propuesta
       tasks: getTasks(profile.id),
       plan,
       gps: gps ?? [],
+      classroom,
     }).filter((p) => !descartadas.has(p.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, entries, allTasks, profile, hoy, plan, gps, descartadas]);
+  }, [hydrated, entries, allTasks, profile, hoy, plan, gps, descartadas, classroom]);
 
   const [abierta, setAbierta] = useState<boolean | null>(null);
   const desplegada = abierta ?? propuestas.length < PLEGADA_DESDE;
@@ -134,7 +157,8 @@ export function PropuestasSemana({ profile, store, kid, skin, onAdd }: Propuesta
       />
 
       <p className="-mt-1.5 mb-3 text-[12px] leading-snug t-2">
-        Lo propone la app con lo que ya sabe{kid ? ' de los exámenes y del GPS' : ' de la agenda y del registro'}. Nada
+        Lo propone la app con lo que ya sabe
+        {kid ? ` de los exámenes${classroom ? ', de Classroom' : ''} y del GPS` : ' de la agenda y del registro'}. Nada
         se apunta sin tocar «Añadir».
       </p>
 
