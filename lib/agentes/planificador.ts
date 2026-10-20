@@ -301,6 +301,8 @@ function propuestasNino(input: PlanificadorInput): Propuesta[] {
 
 /** Tope de entregas de Classroom propuestas en una semana. */
 const MAX_ENTREGAS = 6;
+/** Días de atraso hasta los que una entrega pendiente aún se propone. */
+const ATRASO_MAX = 14;
 
 /**
  * Lo que vence en Classroom en los próximos siete días y aún no está
@@ -313,9 +315,12 @@ function entregasDeClassroom(input: PlanificadorInput): Propuesta[] {
   if (!classroom) return [];
 
   const hasta = addDays(hoy, SEMANA);
+  // Lo que se pasó de plazo hace poco y sigue sin entregar también cuenta,
+  // para hoy: suele admitirse tarde, y es lo primero que hay que hacer.
+  const desde = addDays(hoy, -ATRASO_MAX);
   const out: Propuesta[] = [];
   const pendientes = classroom.tareas
-    .filter((t) => !estaEntregada(t) && t.entrega && t.entrega >= hoy && t.entrega <= hasta)
+    .filter((t) => !estaEntregada(t) && t.entrega && t.entrega >= desde && t.entrega <= hasta)
     .sort((a, b) => (a.entrega ?? '').localeCompare(b.entrega ?? '') || a.titulo.localeCompare(b.titulo));
 
   for (const t of pendientes) {
@@ -330,9 +335,12 @@ function entregasDeClassroom(input: PlanificadorInput): Propuesta[] {
     const asignatura = curso ? asignaturaDeCurso(curso.nombre, curso.seccion) : null;
     const nombre = asignatura ? RETO_META[asignatura].nombre : (curso?.nombre ?? 'clase');
     const cuando = `${cuandoEs(fecha)}${t.hora ? ` a las ${t.hora}` : ''}`;
+    const motivo = fecha < hoy
+      ? `Tarea de Classroom de ${nombre} sin entregar: venció el ${cuando}.`
+      : `Tarea de Classroom de ${nombre} que vence el ${cuando}.`;
 
     out.push(
-      tarea(profile.id, 'estudio', titulo, `Tarea de Classroom de ${nombre} que vence el ${cuando}.`, {
+      tarea(profile.id, 'estudio', titulo, motivo, {
         title: titulo,
         detail: t.enlace ? `En Classroom: ${t.enlace}` : 'Está en Classroom.',
         kind: 'colegio',

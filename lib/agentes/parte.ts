@@ -450,13 +450,21 @@ export function parteDeLaSemana(input: ParteInput): Parte {
     }
   }
 
+  // Lo que ya es el foco no se repite debajo como riesgo: se dice una vez,
+  // destacado, y su sitio en la lista lo ocupa el siguiente.
+  const repetido = (r: Linea) =>
+    !!foco &&
+    ((foco.metricId !== undefined && r.metricId === foco.metricId) ||
+      r.dato === foco.dato ||
+      (foco.accion === 'agenda' && r.accion === 'agenda'));
+
   return {
     suficiente,
     diasApuntados,
     desde,
     hasta,
     logros,
-    riesgos: riesgos.slice(0, MAX_LINEAS),
+    riesgos: riesgos.filter((r) => !repetido(r)).slice(0, MAX_LINEAS),
     foco,
   };
 }

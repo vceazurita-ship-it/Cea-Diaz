@@ -93,6 +93,8 @@ export const CASOS: CasoApuntar[] = [
   },
 
   /* ---- perfiles ---- */
+  { frase: 'Leo 9 horas', propuestas: [['leo', AYER, 'horas_sueno', 9, 'media']] },
+  { frase: 'Hugo durmió 10 horas', propuestas: [['hugo', AYER, 'horas_sueno', 10, 'media']] },
   {
     frase: 'Leo 20 minutos de lectura, Hugo 30',
     propuestas: [

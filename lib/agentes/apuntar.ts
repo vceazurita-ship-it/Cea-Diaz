@@ -226,7 +226,7 @@ function trocear(p: string): Trozo[] {
  * Un id que no exista en el perfil simplemente no cuenta.
  */
 const SINONIMOS: Array<[string[], string[]]> = [
-  [['dormir', 'dormido', 'dormi', 'dormimos', 'dormio', 'sueno', 'horas de sueno'], ['horas_sueno']],
+  [['dormir', 'dormido', 'dormi', 'dormimos', 'dormio', 'durmio', 'durmieron', 'sueno', 'horas de sueno'], ['horas_sueno']],
   [['agua', 'vaso', 'vasos', 'vasito', 'vasitos', 'hidratacion'], ['agua']],
   [['fruta', 'frutas', 'pieza de fruta'], ['fruta_verdura']],
   [['verdura', 'verduras', 'ensalada'], ['fruta_verdura', 'plato_sano']],
@@ -832,6 +832,20 @@ function analizarTrozo(
       ligadas.set(m, { cifra: c, pegada: false });
       cifrasUsadas.add(c);
       ultima = heredada;
+    }
+  }
+
+  // Unas horas a secas, sin nada que nombre la casilla («Leo 9 horas»): en
+  // un registro de la noche, eso es lo que se ha dormido. Sólo si la cifra
+  // dice horas y el perfil tiene horas de sueño, y con confianza media.
+  if (menciones.length === 0 && heredadas.length === 0 && voc.metricas.has('horas_sueno')) {
+    const c = cifras.find((x) => !cifrasUsadas.has(x) && x.unidad === 'h' && x.valor >= 4 && x.valor <= 13);
+    if (c) {
+      const m: Mencion = { i: c.i, fin: c.fin, ids: ['horas_sueno'], fuerza: 0 };
+      heredadas.push(m);
+      ligadas.set(m, { cifra: c, pegada: false });
+      cifrasUsadas.add(c);
+      ultima = m;
     }
   }
 
