@@ -127,6 +127,63 @@ Repaso del sábado`,
     ],
   },
   {
+    // Así sale de verdad la página al copiarla: con los nombres de los
+    // iconos, los botones y la fecha de publicación (que no es de entrega).
+    nombre: 'formato real de la página, con iconos y fecha de publicación',
+    texto: `Ir al contenido principal
+Menú principal
+Classroom
+Tareas pendientes
+Asignado
+Sin entregar
+Hecho
+Todas las clases
+Sin fecha de entrega
+2
+keyboard_arrow_up
+Ocultar
+assignment
+
+Ficha de sumas
+
+Matemáticas (3ºA)
+
+Fecha de publicación: lunes, 14 sept
+
+assignment
+
+Repaso del tema
+
+Matemáticas (3ºA)
+
+Fecha de publicación: viernes, 18 sept
+
+Ver todo
+Esta semana
+1
+keyboard_arrow_down
+Mostrar
+assignment
+
+Redacción del otoño
+
+Lengua 3ºA
+
+Fecha de entrega: jueves, 22 oct
+
+Próxima semana
+0
+keyboard_arrow_down
+Mostrar
+Ayuda y comentarios
+Compatibilidad con lectores de pantalla habilitada.`,
+    tareas: [
+      ['Ficha de sumas', 'Matemáticas (3ºA)', null, false],
+      ['Repaso del tema', 'Matemáticas (3ºA)', null, false],
+      ['Redacción del otoño', 'Lengua 3ºA', '2026-10-22', false],
+    ],
+  },
+  {
     nombre: 'cuando la fecha va a final de año',
     texto: `Trabajo de Navidad
 Lengua

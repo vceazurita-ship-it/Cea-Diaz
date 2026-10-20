@@ -53,7 +53,9 @@ export const CONVOCATORIAS: Convocatoria[] = [
     preparaDesde: '2026-10-10',
     examenes: [
       { asignatura: 'mates', fecha: '2026-10-22', temas: ['m3-1', 'm3-2'] },
-      { asignatura: 'english', fecha: '2026-10-23', temas: ['e3-1', 'e3-2'] },
+      // Las unidades 1 y 2 se eliminaron con el control del 9 de octubre:
+      // al examen de la evaluación van las 3 y 4 (aviso de la profe en Classroom).
+      { asignatura: 'english', fecha: '2026-10-23', temas: ['e3-2'] },
       { asignatura: 'science', fecha: '2026-10-26', temas: ['n3-1'] },
       { asignatura: 'lengua', fecha: '2026-10-27', temas: ['l3-1', 'l3-2'] },
       { asignatura: 'social', fecha: '2026-10-28', temas: ['s3-1'] },

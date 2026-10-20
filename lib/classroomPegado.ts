@@ -84,6 +84,16 @@ const RUIDO = new RegExp(
     [
       'asignad[ao]s?',
       'pendientes?',
+      'sin entregar',
+      'hecho',
+      'ocultar( todo| tema| todas las secciones)?',
+      'mostrar',
+      'mas opciones',
+      'ir al contenido principal',
+      'ayuda y comentarios',
+      'compatibilidad con lectores de pantalla habilitada',
+      'unirse a clase',
+      'anadir clase',
       // Las pestañas de arriba: «Falta» es una pestaña, no la parte de lo vencido.
       'falta',
       'faltan',
@@ -143,7 +153,14 @@ const RUIDO = new RegExp(
 );
 
 /** Renglones que llevan fecha pero no son de entrega: cuándo se colgó o se editó. */
-const NO_ES_ENTREGA = /^(publicad[ao]|editad[ao]|cread[ao]|asignad[ao]|posted|edited|created|assigned)\b/;
+const NO_ES_ENTREGA =
+  /^(publicad[ao]|editad[ao]|cread[ao]|asignad[ao]|posted|edited|created|assigned|fecha de (publicacion|creacion)|ultima modificacion)\b/;
+
+/**
+ * Los nombres de los iconos de Google (`assignment`, `keyboard_arrow_up`,
+ * `more_vert`…), que al copiar la página salen como texto.
+ */
+const ICONO = /^[a-z]+(_[a-z]+)+$|^(assignment|comment|edit|add|close|check|done|book|topic|quiz|description|attachment|link)$/;
 
 /** Se cuenta como rótulo con o sin el número de tareas detrás: «Esta semana 3». */
 function seccionDe(p: string): Seccion | null {
@@ -158,7 +175,7 @@ function esRuido(p: string): boolean {
   if (/^\d+$/.test(t)) return true; // cuentas sueltas
   if (/^\d+ (puntos?|points?)$/.test(t)) return true;
   if (/^(\/\s*)?\d+$/.test(t)) return true;
-  if (NO_ES_ENTREGA.test(t)) return true;
+  if (NO_ES_ENTREGA.test(t) || ICONO.test(t)) return true;
   return RUIDO.test(t);
 }
 
@@ -303,8 +320,11 @@ function leerFecha(original: string, hoy: DateKey, seccion: Seccion | null): Fec
     });
   }
 
-  // «el jueves», «vie.».
-  if (!entrega) {
+  // «el jueves», «vie.». Si la fecha ya estaba («jueves, 22 oct»), el día
+  // de la semana sólo se quita del renglón.
+  if (entrega) {
+    tomar(new RegExp(`\\b${DIA_RE}(?=\\W|$)`), () => true);
+  } else {
     tomar(new RegExp(`\\b${DIA_RE}(?=\\W|$)`), (m) => {
       const dia = DIAS.find(([re]) => re.test(m[1]))?.[1];
       if (dia === undefined) return false;

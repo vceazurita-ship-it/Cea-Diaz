@@ -120,7 +120,13 @@ function cercanos(rand: Rand, bueno: number, pasos: number[]): number[] {
 }
 
 function numerica(icon: string, prompt: string, bueno: number, malos: number[], why: string, visual?: Visual): Pregunta {
-  return { icon, prompt, ok: num(bueno), no: malos.map(num), why, visual };
+  // Las malas salen de cuentas que a veces coinciden («n + cada» y «n·cada − 1»
+  // con 3 × 2): sin repetidas ni la buena, y si falta alguna, se rellena cerca.
+  const unicas = [...new Set(malos)].filter((v) => v !== bueno && v >= 0);
+  for (let d = 1; unicas.length < malos.length; d += 1) {
+    for (const v of [bueno + d, bueno - d]) if (v >= 0 && !unicas.includes(v) && unicas.length < malos.length) unicas.push(v);
+  }
+  return { icon, prompt, ok: num(bueno), no: unicas.map(num), why, visual };
 }
 
 /** Del banco: una pregunta fija, elegida al azar. */
@@ -346,7 +352,14 @@ const ordinal = (rand: Rand): Pregunta => {
   };
 };
 
-const aproximar = (a: 10 | 100, min: number, max: number) => (rand: Rand): Pregunta => {
+/** A qué se aproxima y qué cifra se mira para hacerlo. */
+const A_LAS: Record<10 | 100 | 1000, { a: string; una: string; mira: string }> = {
+  10: { a: 'decenas', una: 'decena', mira: 'las unidades' },
+  100: { a: 'centenas', una: 'centena', mira: 'las decenas' },
+  1000: { a: 'unidades de millar', una: 'unidad de millar', mira: 'las centenas' },
+};
+
+const aproximar = (a: 10 | 100 | 1000, min: number, max: number) => (rand: Rand): Pregunta => {
   let n = entre(rand, min, max);
   if (n % a === a / 2) n += 1;
   const bueno = Math.round(n / a) * a;
@@ -355,10 +368,10 @@ const aproximar = (a: 10 | 100, min: number, max: number) => (rand: Rand): Pregu
   while (malos.length < 3) malos.push(bueno + a * (malos.length + 2));
   return numerica(
     '🎯',
-    `Aproxima ${num(n)} a las ${a === 10 ? 'decenas' : 'centenas'}.`,
+    `Aproxima ${num(n)} a las ${A_LAS[a].a}.`,
     bueno,
     malos.slice(0, 3),
-    `Se mira la cifra de ${a === 10 ? 'las unidades' : 'las decenas'}: si es 5 o más, se sube; si no, se baja. ${num(n)} → ${num(bueno)}.`,
+    `Se mira la cifra de ${A_LAS[a].mira}: si es 5 o más, se sube; si no, se baja. ${num(n)} → ${num(bueno)}.`,
   );
 };
 
@@ -380,7 +393,9 @@ const restaLlevando = (cifras: number) => (rand: Rand): Pregunta => {
 const problemaDos = (rand: Rand): Pregunta => {
   const tenia = entre(rand, 120, 480);
   const gana = entre(rand, 30, 150);
-  const gasta = entre(rand, 20, 100);
+  let gasta = entre(rand, 20, 100);
+  // Si gana y gasta lo mismo, una respuesta mala coincide con la buena.
+  if (gasta === gana) gasta += 7;
   const r = tenia + gana - gasta;
   const contexto = uno(rand, [
     ['cromos', 'Le regalan', 'regala a su hermano', '🃏'],
@@ -402,6 +417,38 @@ const estimarSuma = (rand: Rand): Pregunta => {
   const b = entre(rand, 210, 880);
   const bueno = Math.round(a / 100) * 100 + Math.round(b / 100) * 100;
   return numerica('🤔', `Sin hacer la cuenta exacta: ¿cuánto da más o menos ${a} + ${b}?`, bueno, [bueno + 300, bueno - 300, bueno + 1000], `Se redondea cada uno a las centenas y se suman: ${Math.round(a / 100) * 100} + ${Math.round(b / 100) * 100} = ${bueno}.`);
+};
+
+/** Estimar una resta: se aproxima cada número y se resta (ficha «Estimaciones» de 3.º). */
+const estimarResta = (rand: Rand): Pregunta => {
+  const a10 = rand() < 0.5;
+  const paso = a10 ? 10 : 100;
+  const a = a10 ? entre(rand, 52, 98) : entre(rand, 520, 980);
+  const b = a10 ? entre(rand, 12, a - 15) : entre(rand, 120, a - 150);
+  const ra = Math.round(a / paso) * paso;
+  const rb = Math.round(b / paso) * paso;
+  const bueno = ra - rb;
+  return numerica(
+    '🤔',
+    `Estima sin hacer la cuenta exacta: ¿cuánto da más o menos ${a} − ${b}?`,
+    bueno,
+    [bueno + paso, bueno - paso, ra + rb].filter((v) => v !== bueno && v >= 0),
+    `Se aproxima cada número a las ${A_LAS[paso].a} y se resta: ${ra} − ${rb} = ${bueno}.`,
+  );
+};
+
+/** La prueba de la resta: resultado + lo que se quita = lo que había. */
+const pruebaResta = (rand: Rand): Pregunta => {
+  const a = entre(rand, 320, 980);
+  const b = entre(rand, 110, a - 100);
+  const r = a - b;
+  return {
+    icon: '✅',
+    prompt: `Para hacer la prueba de ${a} − ${b} = ${r}, ¿qué cuenta haces?`,
+    ok: `${r} + ${b}`,
+    no: [`${a} + ${b}`, `${r} − ${b}`, `${a} + ${r}`],
+    why: `La prueba de la resta: se suma la diferencia y el sustraendo, y tiene que salir el minuendo. ${r} + ${b} = ${a}.`,
+  };
 };
 
 const dobleTriple = (rand: Rand): Pregunta => {
@@ -547,7 +594,7 @@ const emparejaRomanos = (rand: Rand): Pregunta => {
 };
 
 /** Cada número con su aproximación. */
-const emparejaAproximar = (a: 10 | 100, min: number, max: number) => (rand: Rand): Pregunta => {
+const emparejaAproximar = (a: 10 | 100 | 1000, min: number, max: number) => (rand: Rand): Pregunta => {
   const pares = new Map<number, number>();
   let guard = 0;
   while (pares.size < 4 && guard < 60) {
@@ -557,7 +604,7 @@ const emparejaAproximar = (a: 10 | 100, min: number, max: number) => (rand: Rand
     const redondo = Math.round(n / a) * a;
     if (![...pares.values()].includes(redondo)) pares.set(n, redondo);
   }
-  return empareja('🎯', `Une cada número con su aproximación a las ${a === 10 ? 'decenas' : 'centenas'}.`, [...pares].map(([n, r]) => [num(n), num(r)]), `Se mira la cifra de la derecha: si es 5 o más, se sube a la ${a === 10 ? 'decena' : 'centena'} siguiente; si no, se queda.`);
+  return empareja('🎯', `Une cada número con su aproximación a las ${A_LAS[a].a}.`, [...pares].map(([n, r]) => [num(n), num(r)]), `Se mira la cifra de ${A_LAS[a].mira}: si es 5 o más, se sube a la ${A_LAS[a].una} siguiente; si no, se queda.`);
 };
 
 /** Pares e impares, en su caja. */
@@ -1249,7 +1296,8 @@ const vuelta = (rand: Rand): Pregunta => {
     icon: '🛒',
     prompt: `Algo cuesta ${euros(precio)} y pagas con un billete de ${pago / 100} €. ¿Cuánto te devuelven?`,
     ok: euros(pago - precio),
-    no: [pago - precio + 50, pago - precio + 100, Math.max(50, pago - precio - 50)].map(euros),
+    // Con 50 céntimos de vuelta, «50 menos» no existe: se tira por arriba.
+    no: [pago - precio + 50, pago - precio + 100, pago - precio > 50 ? pago - precio - 50 : pago - precio + 150].map(euros),
     why: `${pago / 100} € − ${euros(precio)} = ${euros(pago - precio)}. Comprueba: lo que cuesta + la vuelta = lo que pagas.`,
     visual: { tipo: 'lamina', emoji: '🛒', rotulo: `💶 ${pago / 100} € − 🏷️ ${euros(precio)}` },
   };
@@ -1662,8 +1710,8 @@ const rPerimetros = relampago('perímetros', (rand) => {
 
 export const TEMARIO: Tema[] = [
   /* ------------------------------------------------ Mates 3º (Anaya: U1-4) */
-  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Los números', fuente: OM3, puntos: ['Números de 3 y 4 cifras', 'Valor de posición', 'Comparar y la recta numérica', 'Aproximar', 'Ordinales'], hacer: [rMasDiezCienMil(9999), leerNumero(100, 9999), escribe(leerNumero(100, 9999)), valorCifra(10000), escribe(valorCifra(10000)), mayor(1000, 9999), ordenaNumeros(100, 9999), emparejaLetraCifra(100, 9999), aproximar(10, 100, 9999), emparejaAproximar(10, 100, 999), ordinal, clasificaParImpar] },
-  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · La suma y la resta', fuente: OM3, puntos: ['Sumar y restar en vertical', 'Propiedades de la suma', 'Monedas y billetes', 'Problemas', 'Estimar'], hacer: [rSumasMentales(false), sumaLlevando(4), escribe(sumaLlevando(4)), restaLlevando(4), escribe(restaLlevando(4)), propiedadesSuma, monedas, vuelta, estimarSuma, problemaDos, escribe(problemaDos)] },
+  { id: 'm3-1', asignatura: 'mates', curso: 3, desde: '2026-09-07', titulo: 'U1 · Los números', fuente: OM3, puntos: ['Números de 3 y 4 cifras', 'Valor de posición', 'Comparar y la recta numérica', 'Aproximar a la decena, la centena y la unidad de millar', 'Ordinales'], hacer: [rMasDiezCienMil(9999), leerNumero(100, 9999), escribe(leerNumero(100, 9999)), valorCifra(10000), escribe(valorCifra(10000)), mayor(1000, 9999), ordenaNumeros(100, 9999), emparejaLetraCifra(100, 9999), aproximar(10, 100, 9999), aproximar(100, 100, 9999), aproximar(1000, 1000, 9999), emparejaAproximar(10, 100, 999), emparejaAproximar(1000, 1000, 9999), ordinal, clasificaParImpar] },
+  { id: 'm3-2', asignatura: 'mates', curso: 3, desde: '2026-10-01', titulo: 'U2 · La suma y la resta', fuente: OM3, puntos: ['Sumar y restar en vertical', 'Propiedades de la suma', 'La prueba de la resta', 'Estimar sumas y restas', 'Problemas de dos operaciones', 'Monedas y billetes', 'Repaso: tablas del 3 y del 4'], hacer: [rSumasMentales(false), sumaLlevando(4), escribe(sumaLlevando(4)), restaLlevando(4), escribe(restaLlevando(4)), propiedadesSuma, pruebaResta, monedas, vuelta, estimarSuma, estimarResta, escribe(estimarResta), problemaDos, escribe(problemaDos), tablaDe([3, 4])] },
   { id: 'm3-3', asignatura: 'mates', curso: 3, desde: '2026-10-26', titulo: 'U3 · La multiplicación. Las tablas', fuente: OM3, puntos: ['Suma de sumandos iguales', 'Tablas del 2, 5, 10, 4 y 8', 'El doble', 'Grupos iguales'], hacer: [rTablas([2, 5, 10, 4, 8]), tablaDe([2, 5, 10, 4, 8]), escribe(tablaDe([2, 5, 10, 4, 8])), emparejaTablas([2, 5, 10, 4, 8]), dobleTriple, escribe(dobleTriple), grupos([2, 5, 10, 4, 8])] },
   { id: 'm3-4', asignatura: 'mates', curso: 3, desde: '2026-11-19', titulo: 'U4 · Las tablas. Practico la multiplicación', fuente: OM3, puntos: ['Tablas del 3, 6, 9 y 7', 'Por 10, 100 y 1.000', 'Multiplicar en vertical', 'Patrones'], hacer: [rTablas([3, 6, 9, 7]), tablaDe([3, 6, 9, 7]), escribe(tablaDe([3, 6, 9, 7])), emparejaTablas([3, 6, 9, 7]), porDiezCienMil, escribe(porDiezCienMil), porUnaCifra(99), escribe(porUnaCifra(99)), patron, grupos([3, 6, 9, 7])] },
 
