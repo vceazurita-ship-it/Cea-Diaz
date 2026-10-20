@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from 'react';
 
 import { ClassroomPanel } from '@/components/classroom/ClassroomPanel';
+import { MaterialesCole } from '@/components/classroom/MaterialesCole';
 import { ColegioPanel } from '@/components/rendimiento/ColegioPanel';
 import { ExportarPdf } from '@/components/rendimiento/ExportarPdf';
 import { FisicoPanel } from '@/components/rendimiento/FisicoPanel';
@@ -169,6 +170,10 @@ export function RendimientoPanel({ profile, store, kid, skin }: RendimientoPanel
                 con la cuenta del colegio de cada uno. */}
             {isClassroomProfile(profile.id) && (
               <ClassroomPanel key={profile.id} profileId={profile.id} kid={kid} skin={skin} />
+            )}
+            {/* Los PDF y las fichas que ha colgado, para abrirlos tal cual. */}
+            {isClassroomProfile(profile.id) && (
+              <MaterialesCole key={`cole-${profile.id}`} profileId={profile.id} kid={kid} skin={skin} />
             )}
             <ColegioPanel profile={profile} entries={store.entries} skin={skin} onSave={guardar} />
           </>
