@@ -1,4 +1,6 @@
-import { addDays, formatShort, todayKey } from '@/lib/dates';
+import { apuntesPara, nombreApunte, type ArchivoCole } from '@/lib/apuntesCole';
+import { asignaturaDeCurso, cursoDe, estaEntregada, type ClassroomSnapshot } from '@/lib/classroomModel';
+import { addDays, formatShort, toDateKey, todayKey } from '@/lib/dates';
 import { cuandoEs, planDelDia } from '@/lib/examenes';
 import { expertNames, guidanceFor } from '@/lib/experts';
 import { digestOf, fieldOf, formatValue, gpsEnabledFor, notesOf, sessionsBetween } from '@/lib/gps';
@@ -73,6 +75,10 @@ export interface ParteInput {
   plan?: WeekPlan | null;
   /** Las sesiones del GPS del perfil, si lleva rastreador. */
   gpsSessions?: GpsSession[] | null;
+  /** Lo último de Classroom del niño, si lo tiene (bajado o pegado). */
+  classroom?: ClassroomSnapshot | null;
+  /** Los apuntes del cole subidos para el niño, para decir con qué estudiar. */
+  apuntes?: ArchivoCole[] | null;
 }
 
 /** Con menos días apuntados que esto no se habla de tendencias. */
@@ -87,6 +93,10 @@ const EXAMEN_PROXIMO = 14;
 const FLOJOS: Estado[] = ['sin-practicar', 'flojo', 'regular'];
 /** Un rato de la agenda preocupa si falla al menos estas veces en la semana. */
 const FALLOS_AGENDA = 2;
+/** Entregas de Classroom que se miran: las que vencen en estos días… */
+const ENTREGA_PROXIMA = 3;
+/** …y las que se pasaron hace como mucho estos, que aún suelen admitirse. */
+const ENTREGA_ATRASO = 14;
 
 const MAX_LINEAS = 3;
 
@@ -152,7 +162,7 @@ interface Cambio {
  * ------------------------------------------------------------------------- */
 
 export function parteDeLaSemana(input: ParteInput): Parte {
-  const { profile, entries, plan, gpsSessions } = input;
+  const { profile, entries, plan, gpsSessions, classroom, apuntes } = input;
   const hoy = input.hoy ?? todayKey();
   // Nunca se mira el futuro: si la semana mirada es la de ahora, acaba hoy.
   const hasta = input.hasta > hoy ? hoy : input.hasta;
@@ -331,10 +341,14 @@ export function parteDeLaSemana(input: ParteInput): Parte {
       const asignatura = RETO_META[examen.examen.asignatura].nombre;
       const cuando = examen.dias === 0 ? 'hoy' : examen.dias === 1 ? 'mañana' : `en ${examen.dias} días`;
       const estado = ESTADO_META[tema.estado].label.toLowerCase();
-      const dato =
+      let dato =
         tema.n === 0
           ? `Examen de ${asignatura} el ${cuandoEs(examen.examen.fecha)}. Retos del cole: ninguna pregunta de «${tema.tema.titulo}» todavía.`
           : `Examen de ${asignatura} el ${cuandoEs(examen.examen.fecha)}. Retos del cole: «${tema.tema.titulo}», nota ${notaEnTexto(tema.nota)} con ${tema.aciertos} de ${tema.n} preguntas acertadas.`;
+      const ap = apuntesPara(apuntes, examen.examen.asignatura, examen.temas.map((t) => t.tema));
+      const pdf = ap.pdfs[0] ? nombreApunte(ap.pdfs[0]) : null;
+      if (pdf) dato += ` Apuntes del cole: «${pdf}».`;
+      else if (ap.fichas) dato += ` Apuntes del cole: ${ap.fichas} ${plural(ap.fichas, 'ficha', 'fichas')} de clase.`;
       riesgos.push({
         tono: 'warn',
         texto: `Examen de ${asignatura} ${cuando}: «${tema.tema.titulo}» va ${estado}.`,
@@ -349,9 +363,53 @@ export function parteDeLaSemana(input: ParteInput): Parte {
         texto:
           retoHoy && reto?.reto === examen.examen.asignatura
             ? `Juega hoy el reto de ${retoHoy} y repasa «${tema.tema.titulo}».`
-            : `Repasa «${tema.tema.titulo}» antes del examen de ${asignatura}.`,
+            : pdf
+              ? `Repasa «${tema.tema.titulo}» con «${pdf}» antes del examen de ${asignatura}.`
+              : `Repasa «${tema.tema.titulo}» antes del examen de ${asignatura}.`,
         dato,
       };
+    }
+  }
+
+  // Lo que hay que entregar en Classroom: lo atrasado y lo de los próximos
+  // días, tal cual viene de su lista. Si vence hoy o mañana, o ya venció,
+  // pasa por delante de todo lo demás: es lo único que no espera.
+  let entregaFoco: Linea | null = null;
+  if (kid && esHoy && classroom) {
+    const pendientes = classroom.tareas
+      .filter((t) => !estaEntregada(t) && t.entrega && t.entrega >= addDays(hoy, -ENTREGA_ATRASO) && t.entrega <= addDays(hoy, ENTREGA_PROXIMA))
+      .sort((a, b) => (a.entrega ?? '').localeCompare(b.entrega ?? '') || a.titulo.localeCompare(b.titulo));
+    const t = pendientes[0];
+    if (t?.entrega) {
+      const curso = cursoDe(classroom, t.cursoId);
+      const asig = curso ? asignaturaDeCurso(curso.nombre, curso.seccion) : null;
+      const clase = asig ? RETO_META[asig].nombre : (curso?.nombre ?? 'Classroom');
+      const dias = Math.round((Date.parse(t.entrega) - Date.parse(hoy)) / 86_400_000);
+      const cuando = dias < 0 ? `venció el ${cuandoEs(t.entrega)}` : dias === 0 ? 'se entrega hoy' : dias === 1 ? 'se entrega mañana' : `se entrega el ${cuandoEs(t.entrega)}`;
+      // «Proyecto «The Plant»: llevar cartulinas…» → «Proyecto «The Plant»»: lo de
+      // después de los dos puntos ya está en Classroom.
+      const corto = t.titulo.length > 40 && t.titulo.includes(': ') ? t.titulo.split(': ')[0] : t.titulo;
+      const nombre = /[«»]/.test(corto) ? corto : `«${corto}»`;
+      const mas = pendientes.length - 1;
+      const origen = classroom.origen === 'pegado' ? 'pegada a mano' : 'bajada';
+      const dato = `Classroom de ${clase}, sin entregar. Lista ${origen} el ${formatShort(toDateKey(new Date(classroom.generado)))}${mas > 0 ? `; ${mas} ${plural(mas, 'entrega más', 'entregas más')} hasta el ${formatShort(addDays(hoy, ENTREGA_PROXIMA))}` : ''}.`;
+      riesgos.unshift({
+        tono: 'warn',
+        texto: `${nombre} ${cuando}.`,
+        dato,
+      });
+      if (dias <= 1) {
+        entregaFoco = {
+          tono: 'warn',
+          texto:
+            dias < 0
+              ? `Entrega ${nombre} cuanto antes: ya venció.`
+              : dias === 0
+                ? `Hoy se entrega ${nombre}: que no se quede en casa.`
+                : `Mañana se entrega ${nombre}: déjalo listo hoy.`,
+          dato,
+        };
+      }
     }
   }
 
@@ -403,6 +461,8 @@ export function parteDeLaSemana(input: ParteInput): Parte {
 
   /* -------------------------------------------------------------- foco */
 
+  // Una entrega que se pasa mañana va antes incluso que pedir que se apunte.
+  if (entregaFoco && (!foco || foco.accion === 'apuntar')) foco = entregaFoco;
   if (!foco && examenFoco) foco = examenFoco;
 
   // La métrica con criterio detrás que más cae.

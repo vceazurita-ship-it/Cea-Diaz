@@ -246,6 +246,16 @@ const SINONIMOS: Array<[string[], string[]]> = [
   [['atletismo'], ['sport.atletismo.asistencia']],
   [['meditar', 'meditado', 'medite', 'meditacion', 'respiracion', 'respirar', 'mindfulness', 'pausa consciente'], ['pausa_consciente']],
   [['estudiar', 'estudiado', 'estudie', 'estudio', 'repasar', 'repasado', 'repaso'], ['repaso_examen']],
+  // Las asignaturas y los apuntes del cole: «Hugo, veinte minutos de inglés»,
+  // «media hora con las fichas de mates». Van al repaso de examen.
+  [
+    [
+      'mates', 'matematicas', 'ingles', 'english', 'natural', 'natural science', 'ciencias naturales', 'science',
+      'sociales', 'social', 'social science', 'ciencias sociales', 'lengua', 'apuntes', 'ficha', 'fichas',
+      'resumen', 'resumenes',
+    ],
+    ['repaso_examen'],
+  ],
   [['cafe', 'cafes', 'cafeina'], ['sin_cafeina_tarde']],
   [['alcohol', 'cerveza', 'cervezas', 'vino', 'copa', 'copas', 'cana', 'canas'], ['sin_alcohol']],
   [['desayuno', 'desayunado', 'desayune', 'desayunar'], ['desayuno']],

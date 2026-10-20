@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 
 import { SectionHead } from '@/components/summary/SectionHead';
+import { useApuntesCole, useClassroomSnapshot } from '@/hooks/useColegio';
 import { useGpsSessions } from '@/hooks/useGps';
 import { useWeekPlan } from '@/hooks/useWeekPlan';
 import { parteDeLaSemana, type Linea, type TonoLinea } from '@/lib/agentes/parte';
@@ -65,6 +66,9 @@ export function ParteSemana({
   const plan = useWeekPlan(profile.id);
   const conGps = gpsEnabledFor(profile);
   const sessions = useGpsSessions(profile.id);
+  // Para los peques: lo que hay que entregar y con qué apuntes estudiar.
+  const classroom = useClassroomSnapshot(profile.id);
+  const apuntes = useApuntesCole(profile.id);
 
   const parte = useMemo(
     () =>
@@ -74,8 +78,10 @@ export function ParteSemana({
         hasta,
         plan,
         gpsSessions: conGps ? sessions : null,
+        classroom,
+        apuntes,
       }),
-    [profile, entries, hasta, plan, conGps, sessions],
+    [profile, entries, hasta, plan, conGps, sessions, classroom, apuntes],
   );
 
   const { foco, logros, riesgos } = parte;

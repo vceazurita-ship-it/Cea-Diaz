@@ -1,3 +1,4 @@
+import { apuntesPara, conApuntes, type ArchivoCole } from '@/lib/apuntesCole';
 import {
   asignaturaDeCurso,
   cursoDe,
@@ -74,6 +75,8 @@ export interface PlanificadorInput {
   gps?: GpsSession[];
   /** La última foto de sus clases de Classroom, si el niño lo tiene conectado. */
   classroom?: ClassroomSnapshot | null;
+  /** Los apuntes del cole subidos para el niño (PDF y fichas), si los hay. */
+  apuntes?: ArchivoCole[] | null;
 }
 
 /** Días que mira hacia delante: la semana que viene, desde mañana. */
@@ -180,7 +183,7 @@ function motivoEstudio(p: PreparacionExamen): string {
 }
 
 function propuestasNino(input: PlanificadorInput): Propuesta[] {
-  const { profile, hoy, entries, tasks, plan } = input;
+  const { profile, hoy, entries, tasks, plan, apuntes } = input;
   const out: Propuesta[] = [];
   const deporte = diasDeDeporte(plan);
   const carga = loadByDay(tasks);
@@ -272,12 +275,17 @@ function propuestasNino(input: PlanificadorInput): Propuesta[] {
     const dias = elegidos.get(p.examen.fecha + p.examen.asignatura) ?? [];
     const titulo = tituloEstudio(p.examen, p.estado);
     const temas = conviene.filter((t) => t.tema.asignatura === p.examen.asignatura && p.temas.some((x) => x.tema.id === t.tema.id));
-    const detail = temas.length
+    // Con qué estudiar: los PDF de esas unidades y las fichas que ha colgado
+    // la profesora, por su nombre. Si no hay, sólo los temas.
+    const con = conApuntes(apuntesPara(apuntes, p.examen.asignatura, p.temas.map((t) => t.tema)), 2);
+    const empezar = temas.length
       ? `Empezar por: ${temas.slice(0, 3).map((t) => t.tema.titulo).join(', ')}.`
       : 'Repaso de todo lo que entra.';
+    const detail = con ? `${empezar} Estudiar ${con} (en Rendimiento → Colegio → Apuntes del cole).` : empezar;
+    const motivo = con ? `${motivoEstudio(p)} Apuntes: ${con.replace(/^con /, '')}.` : motivoEstudio(p);
     for (const day of [...dias].sort()) {
       out.push(
-        tarea(profile.id, 'estudio', titulo, motivoEstudio(p), {
+        tarea(profile.id, 'estudio', titulo, motivo, {
           title: titulo,
           detail,
           kind: 'colegio',

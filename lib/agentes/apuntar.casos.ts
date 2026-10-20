@@ -154,4 +154,11 @@ export const CASOS: CasoApuntar[] = [
   { frase: 'dos vasos de agua y he arreglado la bici', propuestas: [['victor', H, 'agua', 2]], noEntendido: ['he arreglado la bici'] },
   // Víctor no tiene casilla de fruta: no se inventa.
   { frase: 'tres frutas', propuestas: [], noEntendido: ['tres frutas'] },
+
+  /* ---- el cole: asignaturas y apuntes ---- */
+  { frase: 'Hugo veinte minutos de inglés', propuestas: [['hugo', H, 'repaso_examen', 20]] },
+  { frase: 'Leo ha estudiado mates media hora', propuestas: [['leo', H, 'repaso_examen', 30]] },
+  { frase: 'media hora con las fichas de natural', perfil: 'leo', propuestas: [['leo', H, 'repaso_examen', 30]] },
+  { frase: 'Leo 15 minutos de sociales y 20 de lectura', propuestas: [['leo', H, 'repaso_examen', 15], ['leo', H, 'lectura', 20]] },
+  { frase: 'hoy luz natural al levantarme', propuestas: [['victor', H, 'luz_manana', true]] },
 ];

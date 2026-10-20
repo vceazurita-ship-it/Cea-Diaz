@@ -1,6 +1,9 @@
 import { APPEARANCE_BUCKET } from '@/lib/cloud';
 import { supabase } from '@/lib/supabase';
+import type { ArchivoCole } from '@/lib/apuntesCole';
 import type { ClassroomProfile } from '@/lib/classroomModel';
+
+export { esImagen, type ArchivoCole } from '@/lib/apuntesCole';
 
 /* =========================================================================
  *  Los materiales del cole, tal cual: los PDF y las fotos de las fichas que
@@ -12,17 +15,6 @@ import type { ClassroomProfile } from '@/lib/classroomModel';
  *  es cada uno. La app sólo lee: baja el índice, firma los enlaces por unas
  *  horas y los abre. Sin sesión en la cuenta, no se ve nada.
  * ========================================================================= */
-
-export interface ArchivoCole {
-  /** La clase de Classroom de la que salió («Matemáticas 3ºB»). */
-  clase: string;
-  /** El nombre con que lo colgó la profesora. */
-  titulo: string;
-  /** El objeto dentro del cubo. */
-  ruta: string;
-  tipo: string;
-  peso: number;
-}
 
 export interface IndiceCole {
   subido: string;
@@ -40,11 +32,7 @@ export function carpetaCole(owner: string, profileId: ClassroomProfile): string 
   return `${owner}/cole/${profileId}`;
 }
 
-/**
- * El índice del niño con cada archivo ya firmado, o `null` si no hay sesión
- * o todavía no se ha subido nada.
- */
-export async function materialesCole(
+async function bajar(
   profileId: ClassroomProfile,
 ): Promise<{ subido: string; archivos: ArchivoFirmado[] } | null> {
   const client = supabase();
@@ -74,8 +62,22 @@ export async function materialesCole(
   };
 }
 
-export function esImagen(a: ArchivoCole): boolean {
-  return a.tipo.startsWith('image/');
+/** Lo bajado se comparte una hora: la sección, el parte y las propuestas piden lo mismo. */
+const VIGENCIA_MS = 3600_000;
+const memoria = new Map<ClassroomProfile, { at: number; promesa: ReturnType<typeof bajar> }>();
+
+/**
+ * El índice del niño con cada archivo ya firmado, o `null` si no hay sesión
+ * o todavía no se ha subido nada. Una sola descarga por hora y niño.
+ */
+export function materialesCole(profileId: ClassroomProfile): ReturnType<typeof bajar> {
+  const hay = memoria.get(profileId);
+  if (hay && Date.now() - hay.at < VIGENCIA_MS) return hay.promesa;
+  const promesa = bajar(profileId);
+  memoria.set(profileId, { at: Date.now(), promesa });
+  // Un fallo no se guarda: la próxima vez se vuelve a intentar.
+  promesa.then((d) => d === null && memoria.delete(profileId)).catch(() => memoria.delete(profileId));
+  return promesa;
 }
 
 export function pesoLegible(bytes: number): string {
